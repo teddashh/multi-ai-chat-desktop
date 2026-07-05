@@ -145,6 +145,9 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           generate_release_notes: true
+          # Create a DRAFT release — the maintainer reviews the built artifacts on GitHub and
+          # clicks "Publish" manually. The pipeline never auto-publishes.
+          draft: true
           prerelease: ${{ contains(env.RELEASE_TAG, '-pre') }}
           files: |
             artifacts/**/*.exe

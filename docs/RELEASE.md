@@ -1,6 +1,19 @@
 # Release Ritual
 
-Releases are tag-driven. Ted creates and pushes the tag manually; the pipeline never creates tags.
+Releases are tag-driven. You push a version tag; CI builds all three platforms and creates a
+**draft** GitHub Release with the artifacts attached. You review the draft and click **Publish
+release** when ready — the pipeline never creates tags and never auto-publishes.
+
+The whole ritual:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Then wait ~10-20 min for the `Release` workflow, open the draft Release on GitHub, check the attached
+Windows `.exe`/`.zip`, macOS `.dmg`, and Linux `.AppImage`, and click **Publish release**. To scrap a
+build, just delete the draft (and the tag) — nothing is public until you publish.
 
 ## Version From Tag
 
