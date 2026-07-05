@@ -1,4 +1,14 @@
 // Module scope must stay side-effect-free (runs before subframe guard in the bundle).
+//
+// Why a document.title codec? Provider pages (ChatGPT/Claude/Gemini/Grok) enforce CSPs that block a
+// localhost WebSocket and remote Tauri IPC from the injected script, so there is no normal outbound
+// message channel from the page. `document.title` is the one narrow, allowed signal. This is a
+// documented Tauri workaround (docs/ARCHITECTURE.md D3, docs/SPEC.md \u00A77) \u2014 NOT a covert channel:
+//   - it carries ONLY status HINTS (STATUS_REPORT / "bulk-ready" wake-ups), never authoritative data;
+//     the actual response payload is pulled via eval_with_callback (SPEC \u00A77.3), a normal Tauri IPC.
+//   - the leading U+200B + "MAC1|" prefix and base64url exist for reliable, collision-free FRAMING
+//     (so our frames aren't confused with the page's own title text), not for obfuscation.
+//   - the Rust side (bridge.rs) drops any title it can't decode; this codec never reads cookies/storage.
 export const TITLE_PREFIX = '\u200BMAC1|';
 const TITLE_MAX_CHARS = 900;
 
