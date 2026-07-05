@@ -40,6 +40,16 @@ import { useOverlayGuard } from './ui/useOverlayGuard';
 import { visibleLoadedProviders } from './ui/visibility';
 import { buildMarkdown, exportFilename } from './ui/exportMarkdown';
 import { formatReportBody, type AdapterNotice, type ReportDigest } from './ui/reportBroken';
+import {
+  eventFromAdapterNotice,
+  eventFromBridgeMessage,
+  eventFromProviderState,
+  eventFromStepTimeout,
+  eventFromWorkflowPreflightBlocked,
+  eventFromWorkflowSettled,
+  eventFromWorkflowStart,
+} from './diagnostics/eventLog';
+import { recordEventLog } from './diagnostics/eventLogStore';
 
 interface Bubble {
   id: string;
@@ -139,7 +149,12 @@ export default function App() {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    void host.adapter.onNotice((notice) => setAdapterNotice(notice)).then((fn) => (unlisten = fn));
+    void host.adapter
+      .onNotice((notice) => {
+        setAdapterNotice(notice);
+        recordEventLog(eventFromAdapterNotice(notice));
+      })
+      .then((fn) => (unlisten = fn));
     return () => unlisten?.();
   }, []);
 
@@ -181,6 +196,7 @@ export default function App() {
 
   useEffect(() => {
     const handleBridgeMessage = (message: BridgeMessage) => {
+      recordEventLog(eventFromBridgeMessage(message));
       if (message.action === 'STATUS_REPORT' && message.provider) {
         const payload = message.payload as { bridge?: 'ok' | 'degraded'; reason?: string } | undefined;
         if (payload?.bridge) {
@@ -262,14 +278,18 @@ export default function App() {
     });
     void host.connections.get().then((snapshot) => {
       if (disposed) return;
+      const mergedSnapshot = snapshot.map((state) => mergePullBridgeState(state, pullBridge.current.get(state.provider)));
+      for (const state of mergedSnapshot) recordEventLog(eventFromProviderState(state, 'snapshot'));
       setStates((current) => ({
         ...current,
-        ...Object.fromEntries(snapshot.map((state) => [state.provider, mergePullBridgeState(state, pullBridge.current.get(state.provider))])),
+        ...Object.fromEntries(mergedSnapshot.map((state) => [state.provider, state])),
       }));
       setConnectionSnapshotLoaded(true);
     });
     void host.connections.onUpdate((state) => {
-      setStates((current) => ({ ...current, [state.provider]: mergePullBridgeState(state, pullBridge.current.get(state.provider)) }));
+      const merged = mergePullBridgeState(state, pullBridge.current.get(state.provider));
+      recordEventLog(eventFromProviderState(merged));
+      setStates((current) => ({ ...current, [state.provider]: merged }));
     }).then((cleanup) => {
       if (disposed) cleanup();
       else cleanupUpdates = cleanup;
@@ -279,6 +299,7 @@ export default function App() {
       else cleanupBridge = cleanup;
     });
     const cleanupTimeout = onStepTimeoutEvent((event) => {
+      recordEventLog(eventFromStepTimeout(event));
       setStepTimeout((current) => nextStepTimeoutState(current, event));
     });
 
@@ -382,14 +403,23 @@ export default function App() {
     const turnId = ++turnRef.current;
     setMessages((current) => [...current, { id: `user-${turnId}`, role: 'user', content: trimmed, final: true }]);
     setIsProcessing(processingAfterSend());
+    const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
+    const workflowStartedAt = Date.now();
+    recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
     const result = await runWorkflow({
       text: trimmed,
       mode,
       roles: mode === 'free' ? undefined : roles,
-      targets: mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined,
+      targets: workflowTargets,
     });
     const blockedPreflight = preflightFromResult(mode, result);
-    if (blockedPreflight && isSerialMode(mode)) setPreflight(blockedPreflight);
+    if (blockedPreflight && isSerialMode(mode)) {
+      recordEventLog(
+        eventFromWorkflowPreflightBlocked(blockedPreflight.mode, blockedPreflight.result.unavailable.length + blockedPreflight.result.aliased.length),
+      );
+      setPreflight(blockedPreflight);
+    }
+    recordEventLog(eventFromWorkflowSettled(mode, Date.now() - workflowStartedAt));
     setStepTimeout(undefined);
     setIsProcessing(processingAfterSettle());
   };
@@ -615,6 +645,7 @@ export default function App() {
         columnWidths={columnWidths}
         slotAssignment={slotAssignment}
         openProviders={openProviders}
+        providerStates={states}
         onClose={() => setSettingsOpen(false)}
         onSaved={applySavedSettings}
       />

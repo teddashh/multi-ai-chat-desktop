@@ -1,11 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AI_PROVIDERS } from '../../shared/constants';
-import type { AIProvider } from '../../shared/types';
+import type { AIProvider, ProviderState } from '../../shared/types';
 import { DEFAULT_COLUMN_WIDTHS, type ColumnWidths } from './dockLayout';
 import { assignSlotProvider, SLOT_IDS, type SlotAssignment, type SlotId } from './slotAssignment';
 import { type AppSettings, mergeSettings, normalizeSettings } from './settingsModel';
 import { compareVersions, fetchLatestRelease } from './updateCheck';
 import { host } from '../host';
+import {
+  filterEventLogByProvider,
+  formatEventLogText,
+  formatRelativeTime,
+  providerName,
+  type EventLogEvent,
+  type EventLogProviderFilter,
+} from '../diagnostics/eventLog';
+import { useEventLog } from './useEventLog';
 
 const SLOT_LABELS: Record<SlotId, string> = {
   leftTop: 'Left top',
@@ -13,6 +22,8 @@ const SLOT_LABELS: Record<SlotId, string> = {
   rightTop: 'Right top',
   rightBottom: 'Right bottom',
 };
+
+const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
 type UpdateCheckState =
   | { status: 'idle' }
@@ -27,6 +38,7 @@ export function SettingsModal({
   columnWidths,
   slotAssignment,
   openProviders,
+  providerStates,
   onClose,
   onSaved,
 }: {
@@ -34,6 +46,7 @@ export function SettingsModal({
   columnWidths: ColumnWidths;
   slotAssignment: SlotAssignment;
   openProviders: AIProvider[];
+  providerStates: Record<AIProvider, ProviderState>;
   onClose: () => void;
   onSaved: (settings: AppSettings) => void;
 }) {
@@ -179,7 +192,7 @@ export function SettingsModal({
                       onChange={(event) => updateSlot(slot, event.target.value as AIProvider)}
                       className="w-full border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-sky-600"
                     >
-                      {(Object.keys(AI_PROVIDERS) as AIProvider[]).map((provider) => (
+                      {PROVIDERS.map((provider) => (
                         <option key={provider} value={provider}>
                           {AI_PROVIDERS[provider].name}
                         </option>
@@ -260,6 +273,8 @@ export function SettingsModal({
               </section>
             ) : null}
 
+            <DiagnosticsSection providerStates={providerStates} />
+
             <section className="border-t border-zinc-800 pt-4 text-xs text-zinc-400">telemetry: none</section>
           </div>
         ) : (
@@ -282,5 +297,137 @@ export function SettingsModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function DiagnosticsSection({ providerStates }: { providerStates: Record<AIProvider, ProviderState> }) {
+  const events = useEventLog();
+  const [providerFilter, setProviderFilter] = useState<EventLogProviderFilter>('all');
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (copyState === 'idle') return;
+    const timer = window.setTimeout(() => setCopyState('idle'), 2500);
+    return () => window.clearTimeout(timer);
+  }, [copyState]);
+
+  const lastEventByProvider = useMemo(() => {
+    const map = new Map<AIProvider, number>();
+    for (const event of events) {
+      if (event.provider) map.set(event.provider, event.ts);
+    }
+    return map;
+  }, [events]);
+
+  const filteredEvents = useMemo(() => filterEventLogByProvider(events, providerFilter), [events, providerFilter]);
+  const recentEvents = useMemo(() => [...filteredEvents].reverse().slice(0, 120), [filteredEvents]);
+
+  const copyLog = async () => {
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(formatEventLogText(filteredEvents));
+      setCopyState('copied');
+    } catch {
+      setCopyState('error');
+    }
+  };
+
+  return (
+    <section className="space-y-3 border-t border-zinc-800 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-xs font-medium text-zinc-300">Diagnostics</h3>
+          <div className="mt-1 text-xs text-zinc-500">In-memory event log. Copy before closing the app.</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-zinc-400">
+            Provider
+            <select
+              value={providerFilter}
+              onChange={(event) => setProviderFilter(event.target.value as EventLogProviderFilter)}
+              className="border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 outline-none focus:border-sky-600"
+            >
+              <option value="all">All</option>
+              {PROVIDERS.map((provider) => (
+                <option key={provider} value={provider}>
+                  {providerName(provider)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => void copyLog()}
+            disabled={filteredEvents.length === 0}
+          >
+            {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy log'}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {PROVIDERS.map((provider) => {
+          const state = providerStates[provider];
+          const lastEvent = lastEventByProvider.get(provider);
+          return (
+            <div key={provider} className="border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="font-medium text-zinc-100">{providerName(provider)}</span>
+                <span className="text-zinc-500">{lastEvent ? formatRelativeTime(lastEvent, now) : 'no events'}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-zinc-400">
+                <StatusPair label="Bridge" value={state.bridge ?? 'unknown'} />
+                <StatusPair label="Adapter" value={state.adapter ?? 'ok'} />
+                <StatusPair label="Login" value={state.login} />
+                <StatusPair label="DOM" value={state.dom} />
+                <StatusPair label="Thinking" value={state.thinking ? 'yes' : 'no'} />
+                <StatusPair label="Webview" value={state.webview} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="max-h-72 overflow-auto border border-zinc-800">
+        {recentEvents.length === 0 ? (
+          <div className="p-3 text-xs text-zinc-500">No diagnostic events yet.</div>
+        ) : (
+          <ol className="divide-y divide-zinc-800">
+            {recentEvents.map((event, index) => (
+              <EventLogRow key={`${event.ts}-${index}-${event.kind}-${event.summary}`} event={event} now={now} />
+            ))}
+          </ol>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function StatusPair({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <span className="text-zinc-500">{label}: </span>
+      <span className="break-words text-zinc-200">{value}</span>
+    </div>
+  );
+}
+
+function EventLogRow({ event, now }: { event: EventLogEvent; now: number }) {
+  return (
+    <li className="px-3 py-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2 text-zinc-500">
+        <span>{formatRelativeTime(event.ts, now)}</span>
+        <span className="border border-zinc-700 px-1.5 py-0.5 text-[11px] uppercase text-zinc-300">{event.kind}</span>
+        {event.provider ? <span className="text-sky-300">{providerName(event.provider)}</span> : null}
+      </div>
+      <div className="mt-1 break-words text-zinc-200">{event.summary}</div>
+      {event.detail ? <code className="mt-1 block break-words text-[11px] text-zinc-500">{JSON.stringify(event.detail)}</code> : null}
+    </li>
   );
 }
