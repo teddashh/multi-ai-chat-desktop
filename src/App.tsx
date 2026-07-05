@@ -16,6 +16,7 @@ import { PreflightDialog } from './ui/PreflightDialog';
 import { RoleConfig } from './ui/RoleConfig';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
+import { buildAdapterPermissionSummary, type AdapterPermissionSummary } from './ui/adapterPermissions';
 import {
   DEFAULT_DOCK_CONSTRAINTS,
   DEFAULT_COLUMN_WIDTHS,
@@ -95,6 +96,7 @@ export default function App() {
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(() => ({ ...DEFAULT_COLUMN_WIDTHS }));
   const [slotAssignment, setSlotAssignment] = useState<SlotAssignment>(() => ({ ...DEFAULT_SLOT_ASSIGNMENT }));
   const [userHidden, setUserHidden] = useState<Set<AIProvider>>(() => new Set());
+  const [accessProvider, setAccessProvider] = useState<AIProvider | null>(null);
   const paneRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const gridRef = useRef<HTMLDivElement | null>(null);
   const statesRef = useRef(states);
@@ -111,7 +113,9 @@ export default function App() {
   const leftProviders = useMemo(() => slotProviders(slotAssignment, 'left'), [slotAssignment]);
   const rightProviders = useMemo(() => slotProviders(slotAssignment, 'right'), [slotAssignment]);
 
-  useOverlayGuard(Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview), loadedModalProviders);
+  const overlayGuardOpen =
+    Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || Boolean(accessProvider);
+  useOverlayGuard(overlayGuardOpen, loadedModalProviders);
 
   useEffect(() => {
     statesRef.current = states;
@@ -494,6 +498,10 @@ export default function App() {
     setUserHidden((current) => new Set(current).add(provider));
   };
 
+  const toggleAdapterAccess = useCallback((provider: AIProvider) => {
+    setAccessProvider((current) => (current === provider ? null : provider));
+  }, []);
+
   const applySavedSettings = (settings: AppSettings) => {
     settingsRef.current = settings;
     setAppSettings(settings);
@@ -511,6 +519,8 @@ export default function App() {
           setPaneRef={setPaneRef}
           openProvider={openProvider}
           togglePaneVisibility={togglePaneVisibility}
+          accessProvider={accessProvider}
+          toggleAdapterAccess={toggleAdapterAccess}
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
@@ -579,6 +589,8 @@ export default function App() {
           setPaneRef={setPaneRef}
           openProvider={openProvider}
           togglePaneVisibility={togglePaneVisibility}
+          accessProvider={accessProvider}
+          toggleAdapterAccess={toggleAdapterAccess}
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
@@ -625,6 +637,8 @@ function ProviderColumn({
   setPaneRef,
   openProvider,
   togglePaneVisibility,
+  accessProvider,
+  toggleAdapterAccess,
   syncBounds,
   reportProvider,
   reportBusy,
@@ -635,6 +649,8 @@ function ProviderColumn({
   setPaneRef: (provider: AIProvider, el: HTMLDivElement | null) => void;
   openProvider: (provider: AIProvider) => Promise<void>;
   togglePaneVisibility: (provider: AIProvider) => Promise<void>;
+  accessProvider: AIProvider | null;
+  toggleAdapterAccess: (provider: AIProvider) => void;
   syncBounds: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
@@ -643,15 +659,26 @@ function ProviderColumn({
     <aside className="space-y-3 border-zinc-800 p-3">
       {providers.map((provider) => {
         const hidden = userHidden.has(provider);
+        const accessOpen = accessProvider === provider;
+        const permissionSummary = buildAdapterPermissionSummary(provider);
         return (
           <div
             key={provider}
             ref={(el) => setPaneRef(provider, el)}
-            className="relative h-[calc(50vh-20px)] min-h-56 border border-zinc-800 bg-zinc-900"
+            className="relative h-[calc(50vh-20px)] min-h-56 overflow-auto border border-zinc-800 bg-zinc-900"
           >
             <div className="flex items-center justify-between gap-2 border-b border-zinc-800 px-3 py-2 text-sm">
               <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
               <div className="flex flex-wrap justify-end gap-2 text-xs">
+                <button
+                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
+                  aria-label={`${AI_PROVIDERS[provider].name} adapter access`}
+                  aria-expanded={accessOpen}
+                  aria-controls={`adapter-access-${provider}`}
+                  onClick={() => toggleAdapterAccess(provider)}
+                >
+                  Access
+                </button>
                 <button
                   className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
                   onClick={() => {
@@ -690,6 +717,7 @@ function ProviderColumn({
                 </button>
               </div>
             </div>
+            {accessOpen ? <AdapterAccessPanel id={`adapter-access-${provider}`} summary={permissionSummary} /> : null}
             {states[provider].adapter === 'broken' ? (
               <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">Adapter broken</div>
             ) : null}
@@ -719,6 +747,47 @@ function ProviderColumn({
         );
       })}
     </aside>
+  );
+}
+
+function AdapterAccessPanel({ id, summary }: { id: string; summary: AdapterPermissionSummary }) {
+  return (
+    <section id={id} className="border-b border-sky-900 bg-sky-950/30 px-3 py-3 text-xs text-zinc-300">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-zinc-100">What this adapter can access</h3>
+        <span className="shrink-0 text-[11px] text-sky-200">{summary.providerName}</span>
+      </div>
+      <div className="grid gap-3">
+        <PermissionGroup title="CAN read (from the page)" lines={summary.reads} />
+        <PermissionGroup title="CAN write (to the page)" lines={summary.writes} />
+        <PermissionGroup title="CANNOT (guaranteed by architecture)" lines={summary.cannot} />
+      </div>
+      {summary.note ? <p className="mt-3 border-t border-sky-900 pt-2 text-[11px] leading-relaxed text-zinc-500">{summary.note}</p> : null}
+    </section>
+  );
+}
+
+function PermissionGroup({ title, lines }: { title: string; lines: AdapterPermissionSummary['reads'] }) {
+  return (
+    <section>
+      <div className="mb-1 font-semibold uppercase text-zinc-100">{title}</div>
+      <ul className="space-y-2">
+        {lines.map((line) => (
+          <li key={line.title}>
+            <span className="font-medium text-zinc-200">{line.title}:</span> <span className="leading-relaxed text-zinc-400">{line.detail}</span>
+            {line.selectors ? (
+              <ul className="mt-1 space-y-1 border-l border-zinc-700 pl-2">
+                {line.selectors.map((selector) => (
+                  <li key={selector}>
+                    <code className="break-all text-[11px] text-sky-200">{selector}</code>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
