@@ -1,8 +1,8 @@
 # Multi-AI Chat Desktop
 
-Pre-alpha desktop port of Multi-AI Chat. The app uses Tauri 2, React, TypeScript, Tailwind, and provider webviews so users can chat through their own logged-in ChatGPT, Claude, Gemini, and Grok sessions without API keys.
+A Tauri 2 desktop control pane that orchestrates your **logged-in** ChatGPT, Claude, Gemini, and Grok web sessions — no API keys. Rather than just placing four chats side by side, a central control pane drives them through multi-model **workflows** (debate, roundtable, consulting, coding, free-mode) and routes each provider's replies back to the hub.
 
-Status: M0 scaffold. The control pane shell, adapter seeds, injected-script build step, and Tauri command skeleton are present. Provider webview automation lands in later milestones per `docs/PLAN.md`.
+Status: **v0.1.0** — first release. The control pane, five workflow modes, per-provider adapters with remote hot-update, a broken-adapter reporter, file broadcast, and three-platform packaging (Windows / macOS / Linux) are built and shipping. Portable-first, MIT, with community-maintained selector adapters. See `docs/SPEC.md` for the behavior contract and `docs/ARCHITECTURE.md` for the design.
 
 ## Install
 
@@ -18,4 +18,4 @@ pnpm build:injected
 pnpm verify
 ```
 
-Do not run `pnpm tauri dev` until the Windows C++ build tools prerequisite from the plan is installed.
+`pnpm tauri dev` runs the app; `pnpm tauri build` produces the installers / portable artifacts. On Windows this needs the MSVC C++ build tools and the WebView2 runtime.

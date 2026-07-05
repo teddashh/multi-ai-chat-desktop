@@ -38,7 +38,56 @@ interface MacEngineState {
   stop?: () => void;
 }
 
+type InputStrategy = (el: Element, text: string) => void | Promise<void>;
+
+interface RetryLookupOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+}
+
+interface SendActivationResult {
+  ok: boolean;
+  path: 'button-click' | 'enter-key';
+  detail?: string;
+}
+
+const SELECTOR_RETRY_INTERVAL_MS = 250;
+const INPUT_SELECTOR_TIMEOUT_MS = 2500;
+const SEND_BUTTON_SELECTOR_TIMEOUT_MS = 800;
+const PRE_SEND_DELAY_MS = 800;
+const SEND_RETRY_DELAY_MS = 1500;
+
+export async function retryLookup<T>(lookup: () => T | null | undefined, options: RetryLookupOptions = {}): Promise<T | null> {
+  const intervalMs = Math.max(1, options.intervalMs ?? SELECTOR_RETRY_INTERVAL_MS);
+  const timeoutMs = Math.max(0, options.timeoutMs ?? INPUT_SELECTOR_TIMEOUT_MS);
+  const startedAt = Date.now();
+
+  while (true) {
+    const found = lookup();
+    if (found) return found;
+
+    const elapsed = Date.now() - startedAt;
+    if (elapsed >= timeoutMs) return null;
+
+    await sleep(Math.min(intervalMs, timeoutMs - elapsed));
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+}
+
+class InputInjectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InputInjectionError';
+  }
+}
+
 (function engine() {
+  if (typeof window === 'undefined') return;
   if (window.self !== window.top) return;
   if (!window.__MAC_BRIDGE__) return;
 
@@ -78,7 +127,7 @@ interface MacEngineState {
     },
   };
 
-  const inputStrategies: Record<InputStrategyName, (el: Element, text: string) => void> = {
+  const inputStrategies: Record<InputStrategyName, InputStrategy> = {
     default: defaultInjectInput,
     'prosemirror-paste': prosemirrorPasteInput,
     'quill-angular': quillAngularInput,
@@ -91,7 +140,7 @@ interface MacEngineState {
     }
     if (message.action === 'SEND_MESSAGE' && (!adapter || !message.provider || message.provider === adapter.provider)) {
       const payload = message.payload as { text?: string } | undefined;
-      sendMessage(payload?.text ?? '', message.provider);
+      void sendMessage(payload?.text ?? '', message.provider);
       return;
     }
     if (message.action === 'CHECK_STATUS') {
@@ -166,83 +215,166 @@ interface MacEngineState {
     });
   }
 
-  function sendMessage(text: string, providerHint?: AIProvider) {
-    if (!adapter) {
+  async function sendMessage(text: string, providerHint?: AIProvider) {
+    const activeAdapter = adapter;
+    if (!activeAdapter) {
       doneWithError('adapter not installed', providerHint);
       return;
     }
-    const input = queryFirst(adapter.inputSelectors);
+    const input = await retryLookup(() => queryFirst(activeAdapter.inputSelectors), {
+      intervalMs: SELECTOR_RETRY_INTERVAL_MS,
+      timeoutMs: INPUT_SELECTOR_TIMEOUT_MS,
+    });
     if (!input) {
-      doneWithError(`${adapter.provider} input element not found`);
+      doneWithError(`${activeAdapter.provider} input element not found`, activeAdapter.provider);
       return;
     }
 
-    const existingResponses = document.querySelectorAll(adapter.responseSelectors.join(', '));
+    const existingResponses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
     lastSeenResponseEl = existingResponses.length > 0 ? existingResponses[existingResponses.length - 1] : null;
     waitingForResponse = true;
     lastResponseText = '';
     startResponsePolling();
 
+    const injectionStartedAt = Date.now();
     try {
-      inputStrategies[adapter.inputStrategy](input, text);
+      await inputStrategies[activeAdapter.inputStrategy](input, text);
+      assertInputLanded(input, text, activeAdapter.inputStrategy);
     } catch (error) {
-      doneWithError(`input injection failed: ${String(error)}`);
+      doneWithError(`${activeAdapter.provider} input injection failed: ${errorMessage(error)}`, activeAdapter.provider);
       return;
     }
 
+    const preSendDelayMs = Math.max(0, PRE_SEND_DELAY_MS - (Date.now() - injectionStartedAt));
     window.setTimeout(() => {
-      activateSend(input);
-      window.setTimeout(() => {
-        if (!waitingForResponse || !adapter) return;
-        const currentResponses = document.querySelectorAll(adapter.responseSelectors.join(', '));
-        const currentLastEl = currentResponses.length > 0 ? currentResponses[currentResponses.length - 1] : null;
-        if (currentLastEl && currentLastEl !== lastSeenResponseEl) return;
+      void (async () => {
+        const firstAttempt = await activateSend(input);
 
-        const currentInput = queryFirst(adapter.inputSelectors);
-        const inputText = getInputText(currentInput).trim();
-        if (!inputText) return;
-        activateSend(currentInput ?? input);
-      }, 1500);
-    }, 800);
+        window.setTimeout(() => {
+          void retrySendIfStillPending(input, firstAttempt, activeAdapter);
+        }, SEND_RETRY_DELAY_MS);
+      })();
+    }, preSendDelayMs);
   }
 
-  function activateSend(input: Element) {
-    if (!adapter) return;
-    const sendBtn = adapter.sendStrategy !== 'enter' ? queryFirst(adapter.sendButtonSelectors) : null;
-    if (sendBtn) {
-      (sendBtn as HTMLElement).click();
+  async function retrySendIfStillPending(originalInput: Element, firstAttempt: SendActivationResult, originalAdapter: AdapterConfig) {
+    if (!waitingForResponse || !adapter) return;
+
+    const currentResponses = document.querySelectorAll(adapter.responseSelectors.join(', '));
+    const currentLastEl = currentResponses.length > 0 ? currentResponses[currentResponses.length - 1] : null;
+    if (currentLastEl && currentLastEl !== lastSeenResponseEl) return;
+
+    const currentInput = queryFirst(adapter.inputSelectors);
+    const inputText = getInputText(currentInput).trim();
+    if (!inputText) return;
+
+    const retryInput = currentInput ?? originalInput;
+    const retryAttempt = firstAttempt.ok
+      ? await retryAfterSuccessfulAttempt(retryInput, firstAttempt)
+      : await activateSend(retryInput);
+
+    if (retryAttempt.ok) return;
+
+    if (firstAttempt.ok) {
+      logEngine(
+        `${adapter?.provider ?? originalAdapter.provider} send retry failed after successful ${firstAttempt.path}: ${
+          retryAttempt.detail ?? retryAttempt.path
+        }`,
+      );
       return;
     }
-    const target = (document.activeElement as Element | null) ?? input;
-    (target as HTMLElement).focus?.();
-    const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
-    target.dispatchEvent(new KeyboardEvent('keydown', opts));
-    target.dispatchEvent(new KeyboardEvent('keypress', opts));
-    target.dispatchEvent(new KeyboardEvent('keyup', opts));
+
+    doneWithError(
+      `${originalAdapter.provider} send activation failed: ${retryAttempt.detail ?? firstAttempt.detail ?? retryAttempt.path}`,
+      originalAdapter.provider,
+    );
+  }
+
+  async function retryAfterSuccessfulAttempt(input: Element, firstAttempt: SendActivationResult): Promise<SendActivationResult> {
+    const activeAdapter = adapter;
+    if (!activeAdapter) return { ok: false, path: firstAttempt.path, detail: 'adapter not installed' };
+
+    if (firstAttempt.path !== 'button-click' || activeAdapter.sendStrategy === 'enter') {
+      logEngine(`${activeAdapter.provider} send retry skipped after successful ${firstAttempt.path}`);
+      return { ok: true, path: firstAttempt.path, detail: 'retry skipped after successful send' };
+    }
+
+    const sendBtn = await retryLookup(() => queryFirst(activeAdapter.sendButtonSelectors), {
+      intervalMs: SELECTOR_RETRY_INTERVAL_MS,
+      timeoutMs: SEND_BUTTON_SELECTOR_TIMEOUT_MS,
+    });
+    if (!sendBtn) {
+      logEngine(`${activeAdapter.provider} send retry skipped: send button not found`);
+      return { ok: true, path: 'button-click', detail: 'retry skipped: send button not found' };
+    }
+    if (isDisabled(sendBtn)) {
+      logEngine(`${activeAdapter.provider} send retry skipped: send button disabled`);
+      return { ok: true, path: 'button-click', detail: 'retry skipped: send button disabled' };
+    }
+
+    const clicked = clickElement(sendBtn, `${activeAdapter.provider} retry send button`);
+    logEngine(`${activeAdapter.provider} send retry path: button-click${clicked ? '' : ' failed'}`);
+    return {
+      ok: clicked,
+      path: 'button-click',
+      detail: clicked ? undefined : 'retry send button click failed',
+    };
+  }
+
+  async function activateSend(input: Element): Promise<SendActivationResult> {
+    const activeAdapter = adapter;
+    if (!activeAdapter) return { ok: false, path: 'enter-key', detail: 'adapter not installed' };
+    if (activeAdapter.sendStrategy !== 'enter') {
+      const sendBtn = await retryLookup(() => queryFirst(activeAdapter.sendButtonSelectors), {
+        intervalMs: SELECTOR_RETRY_INTERVAL_MS,
+        timeoutMs: SEND_BUTTON_SELECTOR_TIMEOUT_MS,
+      });
+      if (sendBtn) {
+        if (isDisabled(sendBtn)) {
+          logEngine(`${activeAdapter.provider} send path: send button disabled; falling back to enter`);
+        } else {
+          const clicked = clickElement(sendBtn, `${activeAdapter.provider} send button`);
+          logEngine(`${activeAdapter.provider} send path: button-click${clicked ? '' : ' failed; falling back to enter'}`);
+          if (clicked) return { ok: true, path: 'button-click' };
+        }
+      } else {
+        logEngine(`${activeAdapter.provider} send path: send button not found; falling back to enter`);
+      }
+    }
+
+    const ok = dispatchEnter(input);
+    logEngine(`${activeAdapter.provider} send path: enter-key${ok ? '' : ' failed'}`);
+    return { ok, path: 'enter-key', detail: ok ? undefined : 'enter key dispatch failed' };
   }
 
   function defaultInjectInput(input: Element, text: string) {
     const el = input as HTMLElement;
-    el.focus();
+    tryFocus(el, 'default input');
 
     if (input instanceof HTMLTextAreaElement) {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
-      setter?.call(input, text);
+      if (setter) setter.call(input, text);
+      else input.value = text;
       input.dispatchEvent(new Event('input', { bubbles: true }));
     } else {
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      sel?.removeAllRanges();
-      sel?.addRange(range);
-      document.execCommand('insertText', false, text);
+      try {
+        const sel = window.getSelection();
+        if (!sel) throw new InputInjectionError('selection unavailable');
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (error) {
+        logEngine(`default input selection guard fell back to execCommand: ${errorMessage(error)}`);
+      }
+      if (!execInsertText(text)) throw new InputInjectionError('execCommand insertText returned false');
       el.dispatchEvent(new Event('input', { bubbles: true }));
     }
   }
 
-  function prosemirrorPasteInput(el: Element, text: string) {
+  async function prosemirrorPasteInput(el: Element, text: string) {
     const editor = el as HTMLElement;
-    editor.focus();
+    tryFocus(editor, 'prosemirror editor');
 
     const paragraphs = editor.querySelectorAll('p');
     paragraphs.forEach((p) => p.remove());
@@ -252,13 +384,15 @@ interface MacEngineState {
     editor.appendChild(p);
     editor.dispatchEvent(new Event('input', { bubbles: true }));
 
-    setTimeout(() => {
-      editor.focus();
+    await sleep(100);
+    try {
+      tryFocus(editor, 'prosemirror paste');
       const selection = window.getSelection();
+      if (!selection) throw new InputInjectionError('selection unavailable');
       const range = document.createRange();
       range.selectNodeContents(editor);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+      selection.removeAllRanges();
+      selection.addRange(range);
 
       const dt = new DataTransfer();
       dt.setData('text/plain', text);
@@ -268,13 +402,21 @@ interface MacEngineState {
         cancelable: true,
       });
       editor.dispatchEvent(pasteEvent);
-    }, 100);
+    } catch (error) {
+      logEngine(`prosemirror synthetic paste failed: ${errorMessage(error)}`);
+      if (text.trim() && !getInputText(editor).trim()) {
+        throw new InputInjectionError(`synthetic paste failed and editor is empty: ${errorMessage(error)}`);
+      }
+    }
   }
 
-  function quillAngularInput(el: Element, text: string) {
+  async function quillAngularInput(el: Element, text: string) {
     const editor = el as HTMLElement;
-    editor.focus();
-    editor.innerHTML = '';
+    tryFocus(editor, 'quill editor');
+    // Trusted-Types-safe clear: Gemini enforces Trusted Types (CSP), under which ANY innerHTML
+    // assignment — even '' — throws "requires 'TrustedHTML' assignment". replaceChildren() removes
+    // all children with no HTML parsing, so it never trips Trusted Types.
+    editor.replaceChildren();
 
     const lines = text.split('\n');
     const fragment = document.createDocumentFragment();
@@ -287,13 +429,12 @@ interface MacEngineState {
     editor.dispatchEvent(new Event('input', { bubbles: true }));
     editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
 
-    setTimeout(() => {
-      if (!editor.textContent?.trim()) {
-        editor.focus();
-        document.execCommand('insertText', false, text);
-        editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
-      }
-    }, 150);
+    await sleep(150);
+    if (!editor.textContent?.trim()) {
+      tryFocus(editor, 'quill fallback');
+      if (!execInsertText(text)) throw new InputInjectionError('quill fallback execCommand insertText returned false');
+      editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+    }
   }
 
   function getLatestResponseText(): string | null {
@@ -342,7 +483,7 @@ interface MacEngineState {
   }
 
   function doneWithError(reason: string, providerHint?: AIProvider) {
-    const provider = adapter?.provider ?? providerHint;
+    const provider = providerHint ?? adapter?.provider;
     if (!provider) return;
     waitingForResponse = false;
     clearTimersForResponse();
@@ -417,5 +558,92 @@ interface MacEngineState {
     if (!input) return '';
     if (input instanceof HTMLTextAreaElement) return input.value;
     return input.textContent ?? '';
+  }
+
+  function assertInputLanded(input: Element, text: string, strategy: InputStrategyName) {
+    if (!text.trim()) return;
+    if (getInputText(input).trim()) return;
+    throw new InputInjectionError(`${strategy} left editor empty after injection`);
+  }
+
+  function execInsertText(text: string): boolean {
+    if (typeof document.execCommand !== 'function') return false;
+    try {
+      return document.execCommand('insertText', false, text);
+    } catch (error) {
+      throw new InputInjectionError(`execCommand insertText threw: ${errorMessage(error)}`);
+    }
+  }
+
+  function clickElement(el: Element, label: string): boolean {
+    if (isDisabled(el)) return false;
+    tryFocus(el, label);
+    const click = (el as HTMLElement).click;
+    if (typeof click !== 'function') return false;
+    try {
+      click.call(el);
+      return true;
+    } catch (error) {
+      logEngine(`${label} click failed: ${errorMessage(error)}`);
+      return false;
+    }
+  }
+
+  function isDisabled(el: Element): boolean {
+    const element = el as HTMLElement & { disabled?: boolean };
+    return Boolean(
+      element.disabled ||
+        element.hasAttribute?.('disabled') ||
+        element.getAttribute?.('aria-disabled') === 'true' ||
+        element.getAttribute?.('data-disabled') === 'true',
+    );
+  }
+
+  function dispatchEnter(input: Element): boolean {
+    tryFocus(input, 'send input');
+    const target = document.activeElement ?? input;
+    if (dispatchEnterToTarget(target)) return true;
+    if (target !== input) return dispatchEnterToTarget(input);
+    return false;
+  }
+
+  function dispatchEnterToTarget(target: Element): boolean {
+    const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+    try {
+      const keydown = target.dispatchEvent(new KeyboardEvent('keydown', opts));
+      const keypress = target.dispatchEvent(new KeyboardEvent('keypress', opts));
+      const keyup = target.dispatchEvent(new KeyboardEvent('keyup', opts));
+      return keydown !== false && keypress !== false && keyup !== false;
+    } catch (error) {
+      logEngine(`enter dispatch failed: ${errorMessage(error)}`);
+      return false;
+    }
+  }
+
+  function tryFocus(el: Element, label: string): boolean {
+    const focus = (el as HTMLElement).focus;
+    if (typeof focus !== 'function') return false;
+    try {
+      focus.call(el);
+      if (document.activeElement && document.activeElement !== el) {
+        logEngine(`${label} focus did not become active`);
+      }
+      return true;
+    } catch (error) {
+      logEngine(`${label} focus failed: ${errorMessage(error)}`);
+      return false;
+    }
+  }
+
+  function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  function logEngine(message: string) {
+    try {
+      console.info(`[MAC engine] ${message}`);
+    } catch {
+      // best effort diagnostic only
+    }
   }
 })();
