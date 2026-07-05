@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-show"
+description = "Enables the provider_show command without any pre-configured scope."
+commands.allow = ["provider_show"]
+
+[[permission]]
+identifier = "deny-provider-show"
+description = "Denies the provider_show command without any pre-configured scope."
+commands.deny = ["provider_show"]

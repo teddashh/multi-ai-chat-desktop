@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  changes:
+    runs-on: windows-latest
+    outputs:
+      adapters: ${{ steps.filter.outputs.adapters }}
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            adapters:
+              - 'adapters/**'
+            app:
+              - '**'
+              - '!adapters/**'
+
+  adapters:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.adapters == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-adapters.mjs
+
+  frontend:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.app == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:injected
+      - run: pnpm verify
+
+  # Cross-platform compile + lint gate (M7): proves the Rust app builds against the real
+  # WebView2 (Windows), WKWebView (macOS), and WebKitGTK (Linux) SDKs. The document.title
+  # transport is cross-platform via Tauri's WebviewBuilder::on_document_title_changed, so this
+  # is where mac/linux compilation is actually verified (the dev box is Windows-only).
+  cargo-clippy:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.app == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux WebKitGTK build deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # gen/injected/*.js is gitignored + include_str!'d by the Rust build, so it must be
+      # generated before cargo can compile.
+      - run: pnpm build:injected
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings

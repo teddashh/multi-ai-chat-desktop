@@ -1,0 +1,20 @@
+refs/
+node_modules/
+target/
+dist/
+.orchestration/logs/
+.claude-memory/
+.claude/
+agent-tools/
+src-tauri/gen
+*.log
+.env
+.env.*
+
+# internal orchestration docs — kept local-only, NOT published to the public repo
+.orchestration/
+plans/
+CLAUDE.md
+AGENTS.md
+docs/HANDOVER.md
+docs/VISION-ALIGNMENT.md

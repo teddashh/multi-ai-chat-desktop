@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-open"
+description = "Enables the provider_open command without any pre-configured scope."
+commands.allow = ["provider_open"]
+
+[[permission]]
+identifier = "deny-provider-open"
+description = "Denies the provider_open command without any pre-configured scope."
+commands.deny = ["provider_open"]

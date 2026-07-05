@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-eval-with-callback"
+description = "Enables the provider_eval_with_callback command without any pre-configured scope."
+commands.allow = ["provider_eval_with_callback"]
+
+[[permission]]
+identifier = "deny-provider-eval-with-callback"
+description = "Denies the provider_eval_with_callback command without any pre-configured scope."
+commands.deny = ["provider_eval_with_callback"]

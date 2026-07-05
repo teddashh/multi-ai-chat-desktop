@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-open-login-external"
+description = "Enables the provider_open_login_external command without any pre-configured scope."
+commands.allow = ["provider_open_login_external"]
+
+[[permission]]
+identifier = "deny-provider-open-login-external"
+description = "Denies the provider_open_login_external command without any pre-configured scope."
+commands.deny = ["provider_open_login_external"]

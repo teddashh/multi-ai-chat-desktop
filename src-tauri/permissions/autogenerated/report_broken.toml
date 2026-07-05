@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-report-broken"
+description = "Enables the report_broken command without any pre-configured scope."
+commands.allow = ["report_broken"]
+
+[[permission]]
+identifier = "deny-report-broken"
+description = "Denies the report_broken command without any pre-configured scope."
+commands.deny = ["report_broken"]

@@ -1,0 +1,23 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "adapterVersion": 1,
+  "provider": "chatgpt",
+  "displayName": "ChatGPT",
+  "urls": {
+    "app": "https://chatgpt.com",
+    "login": "https://chatgpt.com/auth/login",
+    "match": ["chatgpt.com/*", "chat.openai.com/*"],
+    "ssoMatch": []
+  },
+  "inputSelectors": ["#prompt-textarea", "[id=\"prompt-textarea\"]", "div[contenteditable=\"true\"][data-placeholder]"],
+  "sendButtonSelectors": ["[data-testid=\"send-button\"]", "button[aria-label=\"Send prompt\"]", "button[aria-label=\"Send\"]"],
+  "responseSelectors": ["[data-message-author-role=\"assistant\"] .markdown"],
+  "loginDetectors": ["#prompt-textarea", "[data-testid=\"send-button\"]"],
+  "loggedOutDetectors": [],
+  "thinkingDetectors": ["[data-testid=\"stop-button\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop streaming\"]", "button[aria-label=\"Stop\"]"],
+  "stopButtonSelectors": ["[data-testid=\"stop-button\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop streaming\"]", "button[aria-label=\"Stop\"]"],
+  "inputStrategy": "default",
+  "sendStrategy": "click",
+  "timing": { "doneDelayMs": 3000, "chunkDebounceMs": 800, "statusIntervalMs": 10000, "backupPollMs": 3000 }
+}

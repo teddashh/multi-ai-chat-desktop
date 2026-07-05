@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-publish-hackmd"
+description = "Enables the publish_hackmd command without any pre-configured scope."
+commands.allow = ["publish_hackmd"]
+
+[[permission]]
+identifier = "deny-publish-hackmd"
+description = "Denies the publish_hackmd command without any pre-configured scope."
+commands.deny = ["publish_hackmd"]

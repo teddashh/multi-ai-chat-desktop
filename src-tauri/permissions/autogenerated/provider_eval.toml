@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-eval"
+description = "Enables the provider_eval command without any pre-configured scope."
+commands.allow = ["provider_eval"]
+
+[[permission]]
+identifier = "deny-provider-eval"
+description = "Denies the provider_eval command without any pre-configured scope."
+commands.deny = ["provider_eval"]

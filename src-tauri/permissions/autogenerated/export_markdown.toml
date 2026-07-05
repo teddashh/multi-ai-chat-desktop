@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-markdown"
+description = "Enables the export_markdown command without any pre-configured scope."
+commands.allow = ["export_markdown"]
+
+[[permission]]
+identifier = "deny-export-markdown"
+description = "Denies the export_markdown command without any pre-configured scope."
+commands.deny = ["export_markdown"]

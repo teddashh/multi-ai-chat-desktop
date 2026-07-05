@@ -1,0 +1,26 @@
+fn main() {
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
+            "provider_open",
+            "provider_close",
+            "provider_show",
+            "provider_hide",
+            "provider_set_bounds",
+            "provider_eval",
+            "provider_eval_with_callback",
+            "provider_open_login",
+            "provider_open_login_external",
+            "provider_reload",
+            "connections_get",
+            "dev_log",
+            "adapter_push",
+            "report_broken",
+            "open_adapter_issue",
+            "settings_get",
+            "settings_set",
+            "publish_hackmd",
+            "export_markdown",
+        ]),
+    ))
+    .expect("failed to run tauri build script");
+}

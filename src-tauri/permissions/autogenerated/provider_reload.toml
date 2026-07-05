@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-reload"
+description = "Enables the provider_reload command without any pre-configured scope."
+commands.allow = ["provider_reload"]
+
+[[permission]]
+identifier = "deny-provider-reload"
+description = "Denies the provider_reload command without any pre-configured scope."
+commands.deny = ["provider_reload"]

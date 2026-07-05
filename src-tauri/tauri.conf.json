@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Multi-AI Chat Desktop",
+  "version": "0.0.0",
+  "identifier": "com.tedh.multiaichat",
+  "build": {
+    "beforeDevCommand": "pnpm build:injected && pnpm dev",
+    "beforeBuildCommand": "pnpm build:injected && pnpm build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Multi-AI Chat Desktop",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "displayLanguageSelector": true
+      }
+    },
+    "createUpdaterArtifacts": true
+  }
+}

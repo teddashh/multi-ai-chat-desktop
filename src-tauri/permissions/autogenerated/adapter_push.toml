@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-adapter-push"
+description = "Enables the adapter_push command without any pre-configured scope."
+commands.allow = ["adapter_push"]
+
+[[permission]]
+identifier = "deny-adapter-push"
+description = "Denies the adapter_push command without any pre-configured scope."
+commands.deny = ["adapter_push"]

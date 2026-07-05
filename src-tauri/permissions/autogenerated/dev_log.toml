@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-dev-log"
+description = "Enables the dev_log command without any pre-configured scope."
+commands.allow = ["dev_log"]
+
+[[permission]]
+identifier = "deny-dev-log"
+description = "Denies the dev_log command without any pre-configured scope."
+commands.deny = ["dev_log"]

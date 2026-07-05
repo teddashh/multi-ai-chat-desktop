@@ -1,0 +1,23 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "adapterVersion": 1,
+  "provider": "grok",
+  "displayName": "Grok",
+  "urls": {
+    "app": "https://grok.com",
+    "login": "https://grok.com",
+    "match": ["grok.com/*"],
+    "ssoMatch": []
+  },
+  "inputSelectors": ["[data-testid=\"chat-input\"] .ProseMirror[contenteditable=\"true\"]", "[data-testid=\"chat-input\"] [contenteditable=\"true\"]", ".ProseMirror[contenteditable=\"true\"]", "[contenteditable=\"true\"].ProseMirror", "div.ProseMirror[contenteditable=\"true\"]"],
+  "sendButtonSelectors": ["button[data-testid=\"chat-submit\"]", "button[aria-label=\"Submit\"]", "form button[type=\"submit\"]", "button[type=\"submit\"]"],
+  "responseSelectors": ["[data-testid=\"assistant-message\"] .response-content-markdown", "[data-testid=\"assistant-message\"]", ".response-content-markdown", ".message-bubble.assistant"],
+  "loginDetectors": ["[data-testid=\"chat-input\"] .ProseMirror[contenteditable=\"true\"]", ".ProseMirror[contenteditable=\"true\"]", "[data-testid=\"chat-submit\"]"],
+  "loggedOutDetectors": [],
+  "thinkingDetectors": ["button[data-testid=\"chat-stop\"]", "button[aria-label=\"Stop\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop response\"]", "[data-streaming=\"true\"]", { "selector": ".thinking-container", "textIncludes": "Thinking", "textExcludes": "Thought for" }],
+  "stopButtonSelectors": ["button[data-testid=\"chat-stop\"]", "button[aria-label=\"Stop\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop response\"]"],
+  "inputStrategy": "prosemirror-paste",
+  "sendStrategy": "click",
+  "timing": { "doneDelayMs": 8000, "chunkDebounceMs": 600, "statusIntervalMs": 10000, "backupPollMs": 3000 }
+}

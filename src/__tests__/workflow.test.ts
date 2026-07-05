@@ -1,0 +1,439 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
+import { DEFAULT_DEBATE_ROLES, DEFAULT_ROUNDTABLE_ROLES, POLL_PULL_MS, PROMPTS } from '../../shared/constants';
+import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../bridge/bus';
+import { AWAITING_MAX_MS, pullProvider, resetBridgePullForTests } from '../bridge/pull';
+import { host } from '../host';
+import { resetCancelState } from '../workflow/cancel';
+import { emitSystemError } from '../workflow/events';
+import { handleDebateMode } from '../workflow/modes/debate';
+import { handleRoundtableMode, ROUND_LABELS } from '../workflow/modes/roundtable';
+import { preflightSerialMode } from '../workflow/preflight';
+import { isSendable } from '../workflow/sendability';
+import { sendAndWait } from '../workflow/sendAndWait';
+import { runStep } from '../workflow/stepRunner';
+import { getActiveTurn, reserveTurn, resetWorkflowStateForTests, SKIP_RESPONSE } from '../workflow/state';
+import { chooseStepTimeoutAction, onStepTimeoutEvent, resetStepTimeoutForTests } from '../workflow/stepTimeout';
+import { tearDownWaiters } from '../workflow/teardown';
+import { STEP_TIMEOUT_MS, waitForResponse, resetWaitForResponseForTests, hasWaiter } from '../workflow/waitForResponse';
+import { resetWorkflowRuntimeForTests, runWorkflow } from '../workflow';
+
+vi.mock('../host', () => ({
+  host: {
+    provider: {
+      send: vi.fn(),
+      eval: vi.fn(),
+      evalWithCallback: vi.fn(),
+    },
+    connections: {
+      get: vi.fn(),
+    },
+    bridge: {
+      subscribeTitle: vi.fn(),
+    },
+  },
+}));
+
+const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+
+function state(provider: AIProvider, sendable = true): ProviderState {
+  return {
+    provider,
+    webview: sendable ? 'loaded' : 'none',
+    dom: sendable ? 'ready' : 'unknown',
+    login: sendable ? 'logged_in' : 'unknown',
+    thinking: false,
+    lastStatusAt: 1,
+  };
+}
+
+function done(provider: AIProvider, payload = 'final', transport: BridgeMessage['transport'] = 'pull'): BridgeMessage {
+  return { v: 1, action: 'RESPONSE_DONE', provider, payload, transport };
+}
+
+describe('workflow engine', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.restoreAllMocks();
+    resetBusForTests();
+    resetBridgePullForTests();
+    resetWorkflowStateForTests();
+    resetWaitForResponseForTests();
+    resetWorkflowRuntimeForTests();
+    resetCancelState();
+    resetStepTimeoutForTests();
+    vi.mocked(host.provider.send).mockResolvedValue(undefined);
+    vi.mocked(host.provider.eval).mockResolvedValue(undefined);
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
+    vi.mocked(host.connections.get).mockResolvedValue(providers.map((provider) => state(provider)));
+  });
+
+  afterEach(async () => {
+    await Promise.resolve();
+    resetBusForTests();
+    resetBridgePullForTests();
+    resetWorkflowStateForTests();
+    resetWaitForResponseForTests();
+    resetWorkflowRuntimeForTests();
+    resetCancelState();
+    resetStepTimeoutForTests();
+    vi.clearAllTimers();
+    await Promise.resolve();
+    vi.useRealTimers();
+  });
+
+  it('uses the tri-state sendable predicate', () => {
+    expect(isSendable(state('chatgpt'))).toBe(true);
+    expect(isSendable({ ...state('chatgpt'), login: 'logged_out' })).toBe(false);
+  });
+
+  it('resolves only authoritative RESPONSE_DONE, never pull chunks or title DONE', async () => {
+    const promise = sendAndWait('chatgpt', 'hello');
+    await Promise.resolve();
+    publishBridgeMessage({ v: 1, action: 'RESPONSE_CHUNK', provider: 'chatgpt', payload: 'partial', transport: 'pull' });
+    publishBridgeMessage(done('chatgpt', 'title final', 'title'));
+    await vi.advanceTimersByTimeAsync(100);
+
+    let settled = false;
+    void promise.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    publishBridgeMessage(done('chatgpt', 'real final', 'pull'));
+    await expect(promise).resolves.toEqual({ response: 'real final', turn: 1 });
+  });
+
+  it('registers the waiter before sending so a synchronous DONE from send resolves', async () => {
+    vi.mocked(host.provider.send).mockImplementationOnce(async () => {
+      publishBridgeMessage(done('claude', 'fast'));
+    });
+    await expect(sendAndWait('claude', 'fast prompt')).resolves.toEqual({ response: 'fast', turn: 1 });
+  });
+
+  it('keeps the engine timeout strictly after the pull awaiting cap', () => {
+    expect(STEP_TIMEOUT_MS).toBe(AWAITING_MAX_MS + 30_000);
+  });
+
+  it('waitForResponse outer timeout rejects at 630s when no pull cap is armed', async () => {
+    const promise = waitForResponse('grok', 99);
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS - 1);
+    await expect(Promise.race([promise.then(() => 'settled'), Promise.resolve('pending')])).resolves.toBe('pending');
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(promise).rejects.toThrow('Grok response timed out after 630s');
+  });
+
+  it('real pull silent-provider path settles via the 600s cap before engine timeout', async () => {
+    const promise = sendAndWait('gemini', 'silent');
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + 500);
+    await expect(promise).resolves.toEqual({ response: '[Error: bridge degraded]', turn: 1 });
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS + 1);
+  });
+
+  it('keeps polling armed after a pulled chunk', async () => {
+    const promise = sendAndWait('chatgpt', 'chunked');
+    await Promise.resolve();
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValueOnce(
+      JSON.stringify([{ v: 1, action: 'RESPONSE_CHUNK', provider: 'chatgpt', bootId: 'b1', mid: 1, payload: 'partial' }]),
+    );
+    await pullProvider('chatgpt');
+    const callsAfterChunk = vi.mocked(host.provider.evalWithCallback).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(POLL_PULL_MS);
+    expect(vi.mocked(host.provider.evalWithCallback).mock.calls.length).toBeGreaterThan(callsAfterChunk);
+    publishBridgeMessage(done('chatgpt', 'final'));
+    await expect(promise).resolves.toEqual({ response: 'final', turn: 1 });
+  });
+
+  it('blocks serial preflight for unavailable providers and same-provider consult aliasing', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
+    await expect(preflightSerialMode('debate', { pro: 'chatgpt', con: 'claude', judge: 'grok', summary: 'gemini' })).resolves.toMatchObject({
+      ok: false,
+      unavailable: ['claude'],
+    });
+    await expect(
+      preflightSerialMode('consult', { first: 'chatgpt', second: 'chatgpt', reviewer: 'claude', summary: 'gemini' }),
+    ).resolves.toMatchObject({ ok: false, aliased: ['chatgpt'] });
+  });
+
+  it('free mode sends only selected sendable targets and treats an empty target list as no-op', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
+    const run = runWorkflow({ text: 'q', mode: 'free', targets: ['chatgpt', 'claude'] });
+    await Promise.resolve();
+    publishBridgeMessage(done('chatgpt', 'ok'));
+    await expect(run).resolves.toEqual({ ok: true });
+    expect(host.provider.send).toHaveBeenCalledTimes(1);
+    expect(host.provider.send).toHaveBeenCalledWith('chatgpt', 'q');
+
+    vi.mocked(host.provider.send).mockClear();
+    await expect(runWorkflow({ text: 'q', mode: 'free', targets: [] })).resolves.toEqual({ ok: true });
+    expect(host.provider.send).not.toHaveBeenCalled();
+  });
+
+  it('send failures tear down their waiter and polling for serial and free-mode sends', async () => {
+    vi.mocked(host.provider.send).mockRejectedValueOnce(new Error('send failed'));
+    const serial = runStep('chatgpt', 'serial');
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    expect(hasWaiter('chatgpt', 1)).toBe(false);
+    chooseStepTimeoutAction('cancel');
+    await expect(serial).rejects.toThrow('send failed');
+    await vi.advanceTimersByTimeAsync(POLL_PULL_MS * 2);
+    expect(host.provider.evalWithCallback).not.toHaveBeenCalled();
+
+    vi.mocked(host.provider.send).mockRejectedValueOnce(new Error('free failed'));
+    await expect(runWorkflow({ text: 'free', mode: 'free', targets: ['chatgpt'] })).resolves.toEqual({ ok: true });
+    expect(hasWaiter('chatgpt', 2)).toBe(false);
+    await vi.advanceTimersByTimeAsync(POLL_PULL_MS * 2);
+    expect(host.provider.evalWithCallback).not.toHaveBeenCalled();
+  });
+
+  it('waits for a timeout action supplied after the timeout event and then skips', async () => {
+    const events: { provider: string; remainingMs: number; timedOut: boolean }[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => events.push(event));
+    const step = runStep('chatgpt', 'late skip');
+    let settled = false;
+    void step.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    vi.mocked(host.provider.evalWithCallback).mockRejectedValue(new Error('callback failed'));
+    const degrade = pullProvider('chatgpt');
+    await vi.advanceTimersByTimeAsync(1000);
+    await degrade;
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS);
+
+    expect(events.some((event) => event.timedOut)).toBe(true);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    chooseStepTimeoutAction('skip');
+    await expect(step).resolves.toEqual({ response: SKIP_RESPONSE, turn: -1 });
+    unsubscribe();
+  });
+
+  it('enforces one live waiter per provider so newer sends supersede older turns', async () => {
+    const oldWaiter = waitForResponse('chatgpt', 1).catch((error: Error) => error.message);
+    const newWaiter = waitForResponse('chatgpt', 2);
+    expect(hasWaiter('chatgpt', 1)).toBe(false);
+    expect(hasWaiter('chatgpt', 2)).toBe(true);
+    publishBridgeMessage(done('chatgpt', 'new turn'));
+    await expect(oldWaiter).resolves.toBe('superseded by a newer send');
+    await expect(newWaiter).resolves.toBe('new turn');
+    expect(hasWaiter('chatgpt', 2)).toBe(false);
+  });
+
+  it('retry stop-clicks before re-sending the same provider and prompt', async () => {
+    vi.mocked(host.provider.send).mockRejectedValueOnce(new Error('first attempt failed')).mockResolvedValue(undefined);
+    chooseStepTimeoutAction('retry');
+    const step = runStep('chatgpt', 'retry prompt');
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(2));
+    expect(host.provider.eval).toHaveBeenCalledWith(
+      'chatgpt',
+      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
+    );
+    expect(host.provider.send).toHaveBeenNthCalledWith(1, 'chatgpt', 'retry prompt');
+    expect(host.provider.send).toHaveBeenNthCalledWith(2, 'chatgpt', 'retry prompt');
+    expect(vi.mocked(host.provider.eval).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(host.provider.send).mock.invocationCallOrder[1],
+    );
+    expect(hasWaiter('chatgpt', 1)).toBe(false);
+    expect(hasWaiter('chatgpt', 2)).toBe(true);
+    publishBridgeMessage(done('chatgpt', 'retry final'));
+    await expect(step).resolves.toEqual({ response: 'retry final', turn: 2 });
+  });
+
+  it('retry with a reserved turn preserves that turn across the re-send', async () => {
+    vi.mocked(host.provider.send).mockRejectedValueOnce(new Error('first attempt failed')).mockResolvedValue(undefined);
+    chooseStepTimeoutAction('retry');
+    const step = runStep('chatgpt', 'reserved retry prompt', 42);
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(2));
+    expect(hasWaiter('chatgpt', 42)).toBe(true);
+    publishBridgeMessage(done('chatgpt', 'reserved retry final'));
+    await expect(step).resolves.toEqual({ response: 'reserved retry final', turn: 42 });
+  });
+
+  it('retry after degraded clears degraded state, re-arms polling, and resolves via real pull', async () => {
+    const step = runStep('claude', 'degraded retry');
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    vi.mocked(host.provider.evalWithCallback).mockRejectedValue(new Error('callback failed'));
+    const degrade = pullProvider('claude');
+    await vi.advanceTimersByTimeAsync(1000);
+    await degrade;
+
+    chooseStepTimeoutAction('retry');
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS);
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(2));
+    const callsAfterRetry = vi.mocked(host.provider.evalWithCallback).mock.calls.length;
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValue(
+      JSON.stringify([{ v: 1, action: 'RESPONSE_DONE', provider: 'claude', bootId: 'retry', mid: 1, payload: 'recovered' }]),
+    );
+    await vi.advanceTimersByTimeAsync(POLL_PULL_MS);
+    expect(vi.mocked(host.provider.evalWithCallback).mock.calls.length).toBeGreaterThan(callsAfterRetry);
+    await expect(step).resolves.toEqual({ response: 'recovered', turn: 2 });
+  });
+
+  it('skip returns the canonical substitution and flows it into the next serial prompt', async () => {
+    const sentPrompts: string[] = [];
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sentPrompts.push(prompt);
+      if (sentPrompts.length === 1) throw new Error('skip this step');
+      publishBridgeMessage(done(provider, `answer-${sentPrompts.length}`));
+    });
+    chooseStepTimeoutAction('skip');
+    await expect(handleDebateMode('question', DEFAULT_DEBATE_ROLES)).resolves.toBeUndefined();
+    expect(sentPrompts[1]).toBe(PROMPTS.debate.con('question', SKIP_RESPONSE));
+  });
+
+  it('cancel action aborts, stop-clicks, tears down waiters, and rejects the step', async () => {
+    const step = runStep('gemini', 'cancel prompt');
+    const stepError = step.catch((error: Error) => error);
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    vi.mocked(host.provider.evalWithCallback).mockRejectedValue(new Error('callback failed'));
+    const degrade = pullProvider('gemini');
+    await vi.advanceTimersByTimeAsync(1000);
+    await degrade;
+    chooseStepTimeoutAction('cancel');
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS);
+    await expect(stepError).resolves.toMatchObject({ message: 'Gemini response timed out after 630s' });
+    expect(host.provider.eval).toHaveBeenCalledWith(
+      'gemini',
+      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
+    );
+    expect(hasWaiter('gemini', 1)).toBe(false);
+    publishBridgeMessage(done('gemini', 'late'));
+    expect(hasWaiter('gemini', 1)).toBe(false);
+  });
+
+  it('CANCEL_WORKFLOW stop-clicks in-flight providers, rejects waiters, and stops after cancellation', async () => {
+    const seen: BridgeMessage[] = [];
+    const unsubscribe = onBridgeMessage((message) => seen.push(message));
+    const run = runWorkflow({ text: 'q', mode: 'debate' });
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    expect(hasWaiter(DEFAULT_DEBATE_ROLES.pro, 1)).toBe(true);
+    publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
+    await expect(run).resolves.toEqual({ ok: true });
+    expect(host.provider.eval).toHaveBeenCalledWith(
+      DEFAULT_DEBATE_ROLES.pro,
+      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
+    );
+    expect(hasWaiter(DEFAULT_DEBATE_ROLES.pro, 1)).toBe(false);
+    const sendCount = vi.mocked(host.provider.send).mock.calls.length;
+    publishBridgeMessage(done(DEFAULT_DEBATE_ROLES.pro, 'late cancelled'));
+    unsubscribe();
+    expect(vi.mocked(host.provider.send).mock.calls.length).toBe(sendCount);
+    expect(seen.filter((message) => message.action === 'ROLE_ASSIGNMENT')).toHaveLength(1);
+  });
+
+  it('teardown bumps the turn epoch and clears active turns', async () => {
+    const firstTurn = reserveTurn('chatgpt');
+    expect(getActiveTurn('chatgpt')).toBe(firstTurn);
+    await tearDownWaiters(['chatgpt']);
+    expect(getActiveTurn('chatgpt')).toBeUndefined();
+    expect(reserveTurn('chatgpt')).toBe(firstTurn + 2);
+  });
+
+  it('consult emits both parallel role assignments before either send', async () => {
+    const order: string[] = [];
+    const unsubscribe = onBridgeMessage((message) => {
+      if (message.action === 'ROLE_ASSIGNMENT') order.push(`role:${message.provider}`);
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      order.push(`send:${provider}`);
+      publishBridgeMessage(done(provider));
+    });
+    await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
+    unsubscribe();
+    expect(order.slice(0, 4)).toEqual(['role:chatgpt', 'role:grok', 'send:chatgpt', 'send:grok']);
+  });
+
+  it('debate preserves pro to con to judge to summary ordering and threaded prompts', async () => {
+    const order: string[] = [];
+    const prompts: string[] = [];
+    const unsubscribe = onBridgeMessage((message) => {
+      if (message.action === 'ROLE_ASSIGNMENT') order.push(`role:${message.provider}`);
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      order.push(`send:${provider}`);
+      prompts.push(prompt);
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+    await expect(handleDebateMode('debate question', DEFAULT_DEBATE_ROLES)).resolves.toBeUndefined();
+    unsubscribe();
+    expect(order).toEqual([
+      'role:chatgpt',
+      'send:chatgpt',
+      'role:claude',
+      'send:claude',
+      'role:grok',
+      'send:grok',
+      'role:gemini',
+      'send:gemini',
+    ]);
+    expect(prompts[1]).toBe(PROMPTS.debate.con('debate question', 'chatgpt-answer'));
+    expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', 'chatgpt-answer', 'claude-answer'));
+    expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', 'chatgpt-answer', 'claude-answer', 'grok-answer'));
+  });
+
+  it('roundtable runs 5x4 with exact history growth and round labels', async () => {
+    const historyLengths: number[] = [];
+    const statuses: string[] = [];
+    let terminalHistory: { name: string; round: number; text: string }[] | undefined;
+    const originalBuildPrompt = PROMPTS.roundtable.buildPrompt;
+    const buildPromptSpy = vi.spyOn(PROMPTS.roundtable, 'buildPrompt').mockImplementation((question, round, speakerName, history) => {
+      historyLengths.push(history.length);
+      terminalHistory = history;
+      return originalBuildPrompt(question, round, speakerName, history);
+    });
+    const unsubscribe = onBridgeMessage((message) => {
+      if (message.action === 'WORKFLOW_STATUS' && typeof message.payload === 'string') statuses.push(message.payload);
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `round-answer-${vi.mocked(host.provider.send).mock.calls.length}`));
+    });
+    await expect(handleRoundtableMode('roundtable question', DEFAULT_ROUNDTABLE_ROLES)).resolves.toBeUndefined();
+    unsubscribe();
+    buildPromptSpy.mockRestore();
+    expect(host.provider.send).toHaveBeenCalledTimes(20);
+    expect(historyLengths).toEqual(Array.from({ length: 20 }, (_, index) => index));
+    expect(terminalHistory).toHaveLength(20);
+    expect(ROUND_LABELS).toEqual(['開場立論', '交叉質疑', '攻防深化', '核心收斂', '真理浮現']);
+    for (const label of ROUND_LABELS) {
+      expect(statuses.some((status) => status.includes(label))).toBe(true);
+    }
+  });
+
+  it('coding runs the eight ported steps with distinct turns for repeated providers', async () => {
+    const coderTurns: number[] = [];
+    const sends: string[] = [];
+    const unsubscribe = onBridgeMessage((message) => {
+      if (message.action === 'ROLE_ASSIGNMENT' && message.provider === 'claude') {
+        coderTurns.push((message.payload as { turn: number }).turn);
+      }
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sends.push(`${provider}:${prompt}`);
+      publishBridgeMessage(done(provider, `answer-${sends.length}`));
+    });
+    await expect(runWorkflow({ text: 'feature', mode: 'coding' })).resolves.toEqual({ ok: true });
+    unsubscribe();
+    expect(sends).toHaveLength(8);
+    expect(sends[0]).toContain('需求：feature');
+    expect(new Set(coderTurns).size).toBe(3);
+  });
+
+  it('emits the distinct terminal system error shape and pins the skip string codepoint', () => {
+    const messages: BridgeMessage[] = [];
+    const unsubscribe = onBridgeMessage((message: BridgeMessage) => messages.push(message));
+    emitSystemError('boom');
+    unsubscribe();
+    expect(messages[0]).toMatchObject({ action: 'RESPONSE_DONE', provider: 'system', payload: 'Error: boom', transport: 'local' });
+    expect(SKIP_RESPONSE).toBe('(no response — skipped)');
+    expect(SKIP_RESPONSE.charCodeAt('(no response '.length)).toBe(0x2014);
+  });
+});

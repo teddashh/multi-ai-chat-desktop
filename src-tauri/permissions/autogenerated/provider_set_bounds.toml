@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-set-bounds"
+description = "Enables the provider_set_bounds command without any pre-configured scope."
+commands.allow = ["provider_set_bounds"]
+
+[[permission]]
+identifier = "deny-provider-set-bounds"
+description = "Denies the provider_set_bounds command without any pre-configured scope."
+commands.deny = ["provider_set_bounds"]

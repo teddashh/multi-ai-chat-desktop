@@ -1,0 +1,32 @@
+[package]
+name = "multi-ai-chat-desktop"
+version = "0.0.0"
+description = "Multi-AI Chat Desktop"
+authors = ["Ted Huang"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.78"
+
+[lib]
+name = "multi_ai_chat_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.11.5", features = ["unstable"] }
+tauri-plugin-updater = "=2.10.1"
+tauri-plugin-dialog = "=2.7.1"
+tauri-plugin-opener = "=2.5.4"
+reqwest = { version = "0.12.12", features = ["json", "rustls-tls"], default-features = false }
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.134"
+tokio = { version = "1.42.0", features = ["rt-multi-thread", "macros", "sync", "time"] }
+thiserror = "2.0.9"
+
+# windows: still used by settings.rs `replace_file` (MoveFileExW). webview2-com was removed in M7 —
+# the title watcher now uses Tauri's cross-platform WebviewBuilder::on_document_title_changed.
+[target.'cfg(windows)'.dependencies]
+windows = "=0.61.3"

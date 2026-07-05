@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Multi-AI Chat Adapter",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "adapterVersion",
+    "provider",
+    "displayName",
+    "urls",
+    "inputSelectors",
+    "sendButtonSelectors",
+    "responseSelectors",
+    "loginDetectors",
+    "inputStrategy",
+    "sendStrategy",
+    "timing"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "adapterVersion": { "type": "integer", "minimum": 1 },
+    "provider": { "enum": ["chatgpt", "claude", "gemini", "grok"] },
+    "displayName": { "type": "string", "minLength": 1 },
+    "urls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app", "login", "match"],
+      "properties": {
+        "app": { "type": "string", "format": "uri" },
+        "login": { "type": "string", "format": "uri" },
+        "match": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "ssoMatch": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "inputSelectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "sendButtonSelectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "responseSelectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "loginDetectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "loggedOutDetectors": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": []
+    },
+    "thinkingDetectors": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["selector"],
+            "properties": {
+              "selector": { "type": "string", "minLength": 1 },
+              "textIncludes": { "type": "string" },
+              "textExcludes": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "stopButtonSelectors": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "inputStrategy": {
+      "enum": ["default", "prosemirror-paste", "quill-angular"]
+    },
+    "sendStrategy": {
+      "enum": ["click", "enter"]
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["doneDelayMs", "chunkDebounceMs", "statusIntervalMs", "backupPollMs"],
+      "properties": {
+        "doneDelayMs": { "type": "integer", "minimum": 0 },
+        "chunkDebounceMs": { "type": "integer", "minimum": 0 },
+        "statusIntervalMs": { "type": "integer", "minimum": 1000 },
+        "backupPollMs": { "type": "integer", "minimum": 1000 }
+      }
+    }
+  }
+}
