@@ -54,7 +54,7 @@ static REFRESH_LOCK: OnceLock<tauri::async_runtime::Mutex<()>> = OnceLock::new()
 
 const ADAPTER_FETCH_CAP: usize = 64 * 1024;
 const DEFAULT_ADAPTER_BASE: &str =
-    "https://raw.githubusercontent.com/teddashh/multi-ai-chat/main/adapters";
+    "https://raw.githubusercontent.com/teddashh/multi-ai-chat-desktop/main/adapters";
 
 fn overrides() -> &'static RwLock<HashMap<String, Adapter>> {
     OVERRIDES.get_or_init(|| RwLock::new(HashMap::new()))
@@ -148,7 +148,7 @@ pub async fn open_adapter_issue(
 ) -> Result<(), String> {
     crate::webviews::ensure_control_webview(&webview)?;
     let title = format!("[adapter-broken] {provider}");
-    let mut url = tauri::Url::parse("https://github.com/teddashh/multi-ai-chat/issues/new")
+    let mut url = tauri::Url::parse("https://github.com/teddashh/multi-ai-chat-desktop/issues/new")
         .map_err(|error| error.to_string())?;
     url.query_pairs_mut()
         .append_pair("labels", "adapter-broken")
@@ -535,7 +535,7 @@ mod tests {
     fn source_url_defaults_to_repo() {
         assert_eq!(
             build_source_url(None, "chatgpt").unwrap(),
-            "https://raw.githubusercontent.com/teddashh/multi-ai-chat/main/adapters/chatgpt.json"
+            "https://raw.githubusercontent.com/teddashh/multi-ai-chat-desktop/main/adapters/chatgpt.json"
         );
     }
 

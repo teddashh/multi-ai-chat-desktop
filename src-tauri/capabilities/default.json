@@ -25,6 +25,7 @@
     "allow-settings-get",
     "allow-settings-set",
     "allow-publish-hackmd",
-    "allow-export-markdown"
+    "allow-export-markdown",
+    "allow-open-external-url"
   ]
 }

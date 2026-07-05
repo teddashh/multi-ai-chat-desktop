@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:injected": "esbuild injected/bootstrap.ts injected/engine.ts --bundle --format=iife --platform=browser --target=es2020 --outdir=src-tauri/gen/injected",
+    "pack:portable": "node scripts/pack-portable.mjs",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

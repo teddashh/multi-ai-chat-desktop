@@ -224,6 +224,23 @@ pub async fn export_markdown(
     }
 }
 
+// Open an external URL in the OS default browser from the control pane. Tauri does not route
+// `<a target="_blank">` clicks to the OS browser, so the frontend calls this instead. https-only.
+#[tauri::command]
+pub async fn open_external_url(
+    app: AppHandle,
+    webview: tauri::Webview,
+    url: String,
+) -> Result<(), String> {
+    crate::webviews::ensure_control_webview(&webview)?;
+    if !url.starts_with("https://") {
+        return Err("only https URLs may be opened".to_string());
+    }
+    app.opener()
+        .open_url(url.as_str(), None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{read_settings, write_settings};

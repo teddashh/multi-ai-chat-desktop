@@ -4,6 +4,7 @@ import type { AIProvider } from '../../shared/types';
 import { DEFAULT_COLUMN_WIDTHS, type ColumnWidths } from './dockLayout';
 import { assignSlotProvider, SLOT_IDS, type SlotAssignment, type SlotId } from './slotAssignment';
 import { type AppSettings, mergeSettings, normalizeSettings } from './settingsModel';
+import { compareVersions, fetchLatestRelease } from './updateCheck';
 import { host } from '../host';
 
 const SLOT_LABELS: Record<SlotId, string> = {
@@ -12,6 +13,14 @@ const SLOT_LABELS: Record<SlotId, string> = {
   rightTop: 'Right top',
   rightBottom: 'Right bottom',
 };
+
+type UpdateCheckState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'up-to-date'; version: string }
+  | { status: 'available'; tagName: string; htmlUrl: string }
+  | { status: 'unavailable' }
+  | { status: 'error'; message: string };
 
 export function SettingsModal({
   open,
@@ -31,6 +40,7 @@ export function SettingsModal({
   const [draft, setDraft] = useState<AppSettings | undefined>();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({ status: 'idle' });
   const loadedRef = useRef<AppSettings | undefined>();
   const liveRef = useRef({ columnWidths, slotAssignment, openProviders });
   liveRef.current = { columnWidths, slotAssignment, openProviders };
@@ -41,6 +51,7 @@ export function SettingsModal({
     setDraft(undefined);
     setSaved(false);
     setError('');
+    setUpdateCheck({ status: 'idle' });
     void host.settings
       .get()
       .then((value) => {
@@ -105,6 +116,25 @@ export function SettingsModal({
       window.setTimeout(onClose, 400);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
+    }
+  };
+
+  const checkForUpdates = async () => {
+    setUpdateCheck({ status: 'checking' });
+    try {
+      const currentVersion = await host.app.version();
+      const latest = await fetchLatestRelease();
+      if (!latest) {
+        setUpdateCheck({ status: 'unavailable' });
+        return;
+      }
+      if (compareVersions(currentVersion, latest.tagName)) {
+        setUpdateCheck({ status: 'available', tagName: latest.tagName, htmlUrl: latest.htmlUrl });
+      } else {
+        setUpdateCheck({ status: 'up-to-date', version: currentVersion });
+      }
+    } catch (reason) {
+      setUpdateCheck({ status: 'error', message: reason instanceof Error ? reason.message : String(reason) });
     }
   };
 
@@ -195,18 +225,38 @@ export function SettingsModal({
             </section>
 
             {!draft.portable ? (
-              <section className="border-t border-zinc-800 pt-4">
-                <label className="block text-xs text-zinc-400">
-                  <span className="mb-1 block">Updater channel</span>
-                  <select
-                    value={draft.updaterChannel}
-                    onChange={(event) => updateDraft({ updaterChannel: event.target.value })}
-                    className="w-full border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-sky-600"
+              <section className="space-y-3 border-t border-zinc-800 pt-4">
+                <span className="block text-xs text-zinc-400">Updates</span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    className="border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => void checkForUpdates()}
+                    disabled={updateCheck.status === 'checking'}
                   >
-                    <option value="stable">stable</option>
-                    <option value="beta">beta</option>
-                  </select>
-                </label>
+                    {updateCheck.status === 'checking' ? 'Checking...' : 'Check for updates'}
+                  </button>
+                  {updateCheck.status === 'up-to-date' ? (
+                    <span className="text-xs text-zinc-400">You're up to date ({updateCheck.version}).</span>
+                  ) : null}
+                  {updateCheck.status === 'available' ? (
+                    <span className="text-xs text-sky-300">
+                      New version {updateCheck.tagName} available {'->'}{' '}
+                      <button
+                        type="button"
+                        className="underline hover:text-sky-200"
+                        onClick={() => void host.app.openExternal(updateCheck.htmlUrl)}
+                      >
+                        download page
+                      </button>
+                    </span>
+                  ) : null}
+                  {updateCheck.status === 'unavailable' ? (
+                    <span className="text-xs text-amber-300">Could not check releases. Try again later.</span>
+                  ) : null}
+                  {updateCheck.status === 'error' ? (
+                    <span className="text-xs text-red-300">Update check failed: {updateCheck.message}</span>
+                  ) : null}
+                </div>
               </section>
             ) : null}
 

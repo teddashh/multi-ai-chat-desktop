@@ -1,4 +1,5 @@
 import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
+import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { onBridgeMessage } from '../bridge/bus';
@@ -12,6 +13,10 @@ const toBounds = (rect: DOMRectReadOnly) => ({
 });
 
 export const host = {
+  app: {
+    version: (): Promise<string> => getVersion(),
+    openExternal: (url: string): Promise<void> => invoke('open_external_url', { url }),
+  },
   provider: {
     open: (provider: AIProvider, bounds: DOMRectReadOnly): Promise<ProviderState> =>
       invoke('provider_open', { provider, bounds: toBounds(bounds) }),

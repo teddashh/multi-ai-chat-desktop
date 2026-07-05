@@ -20,6 +20,7 @@ fn main() {
             "settings_set",
             "publish_hackmd",
             "export_markdown",
+            "open_external_url",
         ]),
     ))
     .expect("failed to run tauri build script");

@@ -41,7 +41,8 @@ pub fn run() {
             settings::settings_get,
             settings::settings_set,
             settings::publish_hackmd,
-            settings::export_markdown
+            settings::export_markdown,
+            settings::open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

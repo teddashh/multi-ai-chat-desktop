@@ -34,7 +34,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": ["nsis"],
+    "targets": ["nsis", "dmg", "appimage"],
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
@@ -43,6 +43,6 @@
         "displayLanguageSelector": true
       }
     },
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": false
   }
 }
