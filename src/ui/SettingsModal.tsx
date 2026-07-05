@@ -14,6 +14,7 @@ import {
   type EventLogEvent,
   type EventLogProviderFilter,
 } from '../diagnostics/eventLog';
+import { buildDebugBundle, debugBundleFilename } from '../diagnostics/debugBundle';
 import { useEventLog } from './useEventLog';
 
 const SLOT_LABELS: Record<SlotId, string> = {
@@ -273,7 +274,7 @@ export function SettingsModal({
               </section>
             ) : null}
 
-            <DiagnosticsSection providerStates={providerStates} />
+            <DiagnosticsSection providerStates={providerStates} settings={draft} />
 
             <section className="border-t border-zinc-800 pt-4 text-xs text-zinc-400">telemetry: none</section>
           </div>
@@ -300,10 +301,24 @@ export function SettingsModal({
   );
 }
 
-function DiagnosticsSection({ providerStates }: { providerStates: Record<AIProvider, ProviderState> }) {
+type DebugBundleExportState =
+  | { status: 'idle' }
+  | { status: 'exporting' }
+  | { status: 'saved'; message: string }
+  | { status: 'cancelled' }
+  | { status: 'error'; message: string };
+
+function DiagnosticsSection({
+  providerStates,
+  settings,
+}: {
+  providerStates: Record<AIProvider, ProviderState>;
+  settings: AppSettings;
+}) {
   const events = useEventLog();
   const [providerFilter, setProviderFilter] = useState<EventLogProviderFilter>('all');
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [exportState, setExportState] = useState<DebugBundleExportState>({ status: 'idle' });
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -316,6 +331,12 @@ function DiagnosticsSection({ providerStates }: { providerStates: Record<AIProvi
     const timer = window.setTimeout(() => setCopyState('idle'), 2500);
     return () => window.clearTimeout(timer);
   }, [copyState]);
+
+  useEffect(() => {
+    if (exportState.status === 'idle' || exportState.status === 'exporting') return;
+    const timer = window.setTimeout(() => setExportState({ status: 'idle' }), 5000);
+    return () => window.clearTimeout(timer);
+  }, [exportState]);
 
   const lastEventByProvider = useMemo(() => {
     const map = new Map<AIProvider, number>();
@@ -335,6 +356,26 @@ function DiagnosticsSection({ providerStates }: { providerStates: Record<AIProvi
       setCopyState('copied');
     } catch {
       setCopyState('error');
+    }
+  };
+
+  const exportDebugBundle = async () => {
+    setExportState({ status: 'exporting' });
+    try {
+      const generatedAt = new Date();
+      const bundle = buildDebugBundle({
+        appVersion: await host.app.version(),
+        timestampMs: generatedAt.getTime(),
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        providerStates,
+        settings,
+        events,
+      });
+      const saved = await host.share.exportMarkdown(debugBundleFilename(generatedAt), bundle);
+      setExportState(saved ? { status: 'saved', message: `Exported: ${saved}` } : { status: 'cancelled' });
+    } catch (reason) {
+      setExportState({ status: 'error', message: reason instanceof Error ? reason.message : String(reason) });
     }
   };
 
@@ -368,8 +409,25 @@ function DiagnosticsSection({ providerStates }: { providerStates: Record<AIProvi
           >
             {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy log'}
           </button>
+          <button
+            className="border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => void exportDebugBundle()}
+            disabled={exportState.status === 'exporting'}
+          >
+            {exportState.status === 'exporting' ? 'Exporting...' : 'Export debug bundle'}
+          </button>
         </div>
       </div>
+
+      {exportState.status === 'saved' ? (
+        <div className="border border-emerald-900 bg-emerald-950 px-3 py-2 text-xs text-emerald-200">{exportState.message}</div>
+      ) : null}
+      {exportState.status === 'cancelled' ? (
+        <div className="border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-400">Export cancelled.</div>
+      ) : null}
+      {exportState.status === 'error' ? (
+        <div className="border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">Export failed: {exportState.message}</div>
+      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2">
         {PROVIDERS.map((provider) => {

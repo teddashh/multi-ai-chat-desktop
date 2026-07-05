@@ -1,5 +1,12 @@
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, BridgeMessage, ChatMode, ProviderState } from '../../shared/types';
+import {
+  normalizeAdapterStatus,
+  normalizeBridgeStatus,
+  normalizeDomStatus,
+  normalizeLoginStatus,
+  normalizeStatusReason,
+} from './statusValues';
 
 export const EVENT_LOG_CAP = 500;
 
@@ -34,7 +41,22 @@ export interface AdapterNoticeLike {
 }
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
-const SENSITIVE_DETAIL_KEYS = new Set(['text', 'prompt', 'reply', 'body', 'content', 'payload']);
+const SENSITIVE_DETAIL_KEYS = new Set([
+  'text',
+  'prompt',
+  'reply',
+  'body',
+  'content',
+  'payload',
+  'hackmdtoken',
+  'token',
+  'secret',
+  'cookie',
+  'cookies',
+  'session',
+  'sessiondata',
+  'authorization',
+]);
 const MAX_SUMMARY_CHARS = 240;
 const MAX_DETAIL_CHARS = 400;
 
@@ -56,22 +78,25 @@ export function appendEvent(
 }
 
 export function eventFromProviderState(state: ProviderState, source: 'snapshot' | 'update' = 'update'): EventLogInput {
-  const bridge = state.bridge ?? 'unknown';
-  const adapter = state.adapter ?? 'ok';
+  const bridge = normalizeBridgeStatus(state.bridge);
+  const adapter = normalizeAdapterStatus(state.adapter);
+  const login = normalizeLoginStatus(state.login);
+  const dom = normalizeDomStatus(state.dom);
+  const bridgeReason = normalizeStatusReason(state.bridgeReason);
   return {
     provider: state.provider,
     kind: 'provider-state',
-    summary: `${providerName(state.provider)} state: bridge ${bridge}, adapter ${adapter}, login ${state.login}, dom ${state.dom}, thinking ${
+    summary: `${providerName(state.provider)} state: bridge ${bridge}, adapter ${adapter}, login ${login}, dom ${dom}, thinking ${
       state.thinking ? 'yes' : 'no'
     }`,
     detail: {
       source,
       webview: state.webview,
-      dom: state.dom,
-      login: state.login,
+      dom,
+      login,
       thinking: state.thinking,
       bridge,
-      bridgeReason: state.bridgeReason ?? null,
+      bridgeReason,
       adapter,
       lastStatusAt: state.lastStatusAt,
     },
@@ -218,10 +243,11 @@ function statusEvent(message: BridgeMessage): EventLogInput | undefined {
   if (!provider) return undefined;
   const payload = recordPayload(message.payload);
   const parts: string[] = [];
-  const dom = stringProp(payload, 'dom');
-  const login = stringProp(payload, 'login');
-  const bridge = stringProp(payload, 'bridge');
-  const adapter = stringProp(payload, 'adapter');
+  const dom = optionalStatus(payload, 'dom', normalizeDomStatus);
+  const login = optionalStatus(payload, 'login', normalizeLoginStatus);
+  const bridge = optionalStatus(payload, 'bridge', normalizeBridgeStatus);
+  const adapter = optionalStatus(payload, 'adapter', normalizeAdapterStatus);
+  const reason = normalizeStatusReason(payload?.reason);
   const thinking = booleanProp(payload, 'thinking');
   const bulkReady = numberProp(payload, 'bulkReady');
   const doneReady = booleanProp(payload, 'doneReady');
@@ -243,7 +269,7 @@ function statusEvent(message: BridgeMessage): EventLogInput | undefined {
       thinking: thinking ?? null,
       bridge: bridge ?? null,
       adapter: adapter ?? null,
-      reason: stringProp(payload, 'reason') ?? null,
+      reason,
       bulkReady: bulkReady ?? null,
       doneReady: doneReady ?? null,
     },
@@ -432,6 +458,15 @@ function numberProp(record: Record<string, unknown> | undefined, key: string): n
 function booleanProp(record: Record<string, unknown> | undefined, key: string): boolean | undefined {
   const value = record?.[key];
   return typeof value === 'boolean' ? value : undefined;
+}
+
+function optionalStatus<T extends string>(
+  record: Record<string, unknown> | undefined,
+  key: string,
+  normalize: (value: unknown) => T,
+): T | undefined {
+  if (!record || !Object.prototype.hasOwnProperty.call(record, key)) return undefined;
+  return normalize(record[key]);
 }
 
 function safeProvider(provider: unknown): AIProvider | undefined {
