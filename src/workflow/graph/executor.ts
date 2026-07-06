@@ -4,8 +4,10 @@ import { checkAborted } from '../cancel';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
 import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
 import { runStep } from '../stepRunner';
+import { SKIP_RESPONSE } from '../state';
+import { getSnapshotAdapterVersions } from '../snapshot/adapterVersions';
 import { beginSnapshot, completeSnapshot, recordStep } from '../snapshot/recorder';
-import type { AIProviderV2, ExecutionSnapshot } from '../snapshot/types';
+import type { AIProviderV2, ExecutionSnapshot, ExecutionSnapshotStep } from '../snapshot/types';
 import { evaluateTextCondition, renderRegisteredPrompt } from './registries';
 import { resolveGraphRoles } from './preflight';
 import { assertValidGraph } from './validator';
@@ -69,7 +71,7 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
   beginSnapshot({
     graph,
     roleMap: snapshotRoleMap(context),
-    adapterVersions: snapshotAdapterVersions(),
+    adapterVersions: snapshotAdapterVersions(context),
   });
   const abortAware = graph.preflight.kind !== 'free';
   try {
@@ -184,12 +186,13 @@ function prepareStepNode(nodeId: NodeId, node: StepNode, context: ExecutionConte
           sendError = error;
           return undefined;
         });
+        const output = result?.response ?? (sendError ? snapshotErrorText(sendError) : '');
         recordStep({
           nodeId,
           provider,
           input: prompt,
-          output: result?.response ?? (sendError ? snapshotErrorText(sendError) : ''),
-          status: 'done',
+          output,
+          status: sendError ? 'error' : snapshotStepStatus(output),
           startedAt,
           completedAt: snapshotTimestamp(),
         });
@@ -214,7 +217,7 @@ function prepareStepNode(nodeId: NodeId, node: StepNode, context: ExecutionConte
           provider,
           input: prompt,
           output: result.response,
-          status: 'done',
+          status: snapshotStepStatus(result.response),
           startedAt,
           completedAt: snapshotTimestamp(),
         });
@@ -229,7 +232,7 @@ function prepareStepNode(nodeId: NodeId, node: StepNode, context: ExecutionConte
           provider,
           input: prompt,
           output: snapshotErrorText(error),
-          status: 'done',
+          status: 'error',
           startedAt,
           completedAt: snapshotTimestamp(),
         });
@@ -485,13 +488,26 @@ function snapshotRoleMap(context: ExecutionContext): Record<string, AIProviderV2
   return roleMap;
 }
 
-function snapshotAdapterVersions(): Partial<Record<AIProviderV2, number>> {
-  // TODO(N1b): wire this to the control-pane adapter-version state when that store exists.
-  return {};
+function snapshotAdapterVersions(context: ExecutionContext): Partial<Record<AIProviderV2, number>> {
+  return getSnapshotAdapterVersions(snapshotRunProviders(context));
+}
+
+function snapshotRunProviders(context: ExecutionContext): AIProviderV2[] {
+  return [...new Set<AIProviderV2>([...context.roles.values(), ...context.targets])];
 }
 
 function snapshotTimestamp(): string {
   return new Date().toISOString();
+}
+
+function snapshotStepStatus(output: string): ExecutionSnapshotStep['status'] {
+  if (output === SKIP_RESPONSE) return 'skipped';
+  if (errorLikeResponse(output)) return 'error';
+  return 'done';
+}
+
+function errorLikeResponse(text: string): boolean {
+  return /^\[Error:\s*[\s\S]*?\]$/.test(text) || text.startsWith('Error:');
 }
 
 function snapshotErrorText(error: unknown): string {
