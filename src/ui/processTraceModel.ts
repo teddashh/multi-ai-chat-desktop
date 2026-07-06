@@ -1,0 +1,152 @@
+import { AI_PROVIDERS } from '../../shared/constants';
+import type { AIProvider, BridgeMessage, ChatMode } from '../../shared/types';
+
+export type ProcessTraceStepStatus = 'pending' | 'active' | 'done';
+
+export interface ProcessTraceStep {
+  id: string;
+  kind: 'fanout' | 'response' | 'role';
+  label: string;
+  detail?: string;
+  provider?: AIProvider;
+  role?: string;
+  turn?: number;
+  status: ProcessTraceStepStatus;
+}
+
+export interface ProcessTraceState {
+  mode: ChatMode;
+  currentStatus: string;
+  steps: ProcessTraceStep[];
+}
+
+export function createProcessTrace(mode: ChatMode, targets: AIProvider[] = []): ProcessTraceState {
+  if (mode !== 'free') return { mode, currentStatus: '', steps: [] };
+
+  return {
+    mode,
+    currentStatus: '',
+    steps: [
+      {
+        id: 'free-fanout',
+        kind: 'fanout',
+        label: 'Fan-out',
+        detail: targets.length > 0 ? `Sending to ${providerNames(targets)}` : 'No selected AI',
+        status: targets.length > 0 ? 'active' : 'done',
+      },
+      ...targets.map((provider) => responseStep(provider, 'pending')),
+    ],
+  };
+}
+
+export function reduceProcessTraceEvent(trace: ProcessTraceState, message: BridgeMessage): ProcessTraceState {
+  if (message.action === 'WORKFLOW_STATUS') {
+    const status = typeof message.payload === 'string' ? message.payload : '';
+    return applyWorkflowStatus(trace, status);
+  }
+
+  if (message.action === 'ROLE_ASSIGNMENT' && isKnownProvider(message.provider)) {
+    const payload = rolePayload(message.payload);
+    return addRoleStep(trace, message.provider, payload.role, payload.label, payload.turn);
+  }
+
+  if (isTraceResponse(message) && isKnownProvider(message.provider)) {
+    return applyProviderResponse(trace, message.provider, message.action === 'RESPONSE_DONE');
+  }
+
+  return trace;
+}
+
+export function settleProcessTrace(trace: ProcessTraceState): ProcessTraceState {
+  return {
+    ...trace,
+    currentStatus: '',
+    steps: refreshFreeAggregate(
+      trace.steps.map((step) => (step.status === 'done' ? step : { ...step, status: 'done' })),
+    ),
+  };
+}
+
+function applyWorkflowStatus(trace: ProcessTraceState, status: string): ProcessTraceState {
+  if (!status) return settleProcessTrace(trace);
+  const steps =
+    trace.currentStatus && trace.currentStatus !== status
+      ? trace.steps.map((step) => (step.kind === 'role' && step.status === 'active' ? { ...step, status: 'done' as const } : step))
+      : trace.steps;
+  return { ...trace, currentStatus: status, steps };
+}
+
+function addRoleStep(trace: ProcessTraceState, provider: AIProvider, role: string | undefined, label: string | undefined, turn: number | undefined): ProcessTraceState {
+  const providerName = AI_PROVIDERS[provider].name;
+  const displayRole = label || role || 'Step';
+  const step: ProcessTraceStep = {
+    id: turn === undefined ? `role-${trace.steps.length}-${provider}` : `role-${provider}-${turn}`,
+    kind: 'role',
+    provider,
+    role,
+    turn,
+    label: `${displayRole} · ${providerName}`,
+    detail: role && label && role !== label ? role : undefined,
+    status: 'active',
+  };
+  return { ...trace, steps: [...trace.steps, step] };
+}
+
+function applyProviderResponse(trace: ProcessTraceState, provider: AIProvider, final: boolean): ProcessTraceState {
+  let matched = false;
+  const nextStatus: ProcessTraceStepStatus = final ? 'done' : 'active';
+  const steps = trace.steps.map((step) => {
+    if (step.provider !== provider) return step;
+    if (step.kind !== 'role' && step.kind !== 'response') return step;
+    matched = true;
+    if (step.status === 'done') return step;
+    return { ...step, status: nextStatus };
+  });
+
+  const nextSteps = matched || trace.mode !== 'free' ? steps : [...steps, responseStep(provider, nextStatus)];
+  return { ...trace, steps: refreshFreeAggregate(nextSteps) };
+}
+
+function refreshFreeAggregate(steps: ProcessTraceStep[]): ProcessTraceStep[] {
+  const responseRows = steps.filter((step) => step.kind === 'response');
+  if (responseRows.length === 0) return steps;
+  const aggregateStatus: ProcessTraceStepStatus = responseRows.every((step) => step.status === 'done') ? 'done' : 'active';
+  return steps.map((step) => (step.kind === 'fanout' ? { ...step, status: aggregateStatus } : step));
+}
+
+function responseStep(provider: AIProvider, status: ProcessTraceStepStatus): ProcessTraceStep {
+  return {
+    id: `free-response-${provider}`,
+    kind: 'response',
+    provider,
+    label: `${AI_PROVIDERS[provider].name} response`,
+    detail: 'Waiting for response',
+    status,
+  };
+}
+
+function rolePayload(payload: unknown): { role?: string; label?: string; turn?: number } {
+  if (!payload || typeof payload !== 'object') return {};
+  const typed = payload as { role?: unknown; label?: unknown; turn?: unknown };
+  return {
+    role: typeof typed.role === 'string' ? typed.role : undefined,
+    label: typeof typed.label === 'string' ? typed.label : undefined,
+    turn: typeof typed.turn === 'number' ? typed.turn : undefined,
+  };
+}
+
+function isTraceResponse(message: BridgeMessage): boolean {
+  return (
+    (message.action === 'RESPONSE_CHUNK' || message.action === 'RESPONSE_DONE') &&
+    Boolean(message.provider) &&
+    (message.transport === 'pull' || message.transport === 'local')
+  );
+}
+
+function isKnownProvider(provider: unknown): provider is AIProvider {
+  return typeof provider === 'string' && provider in AI_PROVIDERS;
+}
+
+function providerNames(providers: AIProvider[]): string {
+  return providers.map((provider) => AI_PROVIDERS[provider].name).join(', ');
+}

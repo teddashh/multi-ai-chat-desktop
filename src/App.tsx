@@ -13,6 +13,9 @@ import { bubbleAuthorLabel } from './bubbleAuthorLabel';
 import { InputBar } from './ui/InputBar';
 import { ModeSelector } from './ui/ModeSelector';
 import { PreflightDialog } from './ui/PreflightDialog';
+import { PresetCatalog } from './ui/PresetCatalog';
+import { ProcessTrace } from './ui/ProcessTrace';
+import { createProcessTrace, reduceProcessTraceEvent, settleProcessTrace, type ProcessTraceState } from './ui/processTraceModel';
 import { RoleConfig } from './ui/RoleConfig';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
@@ -27,6 +30,7 @@ import {
   type ColumnWidths,
 } from './ui/dockLayout';
 import { defaultRolesForMode, isSerialMode } from './ui/modeRoles';
+import { defaultRolesForPreset } from './ui/presetCatalogData';
 import { buildPreflightDialogModel } from './ui/preflightModel';
 import { preflightFromResult } from './ui/preflightFromResult';
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from './ui/processing';
@@ -88,6 +92,8 @@ export default function App() {
   const [workflowStatus, setWorkflowStatus] = useState('');
   const [mode, setMode] = useState<ChatMode>('free');
   const [roles, setRoles] = useState<ModeRoles>(() => defaultRolesForMode('debate'));
+  const [advancedControlsOpen, setAdvancedControlsOpen] = useState(false);
+  const [processTrace, setProcessTrace] = useState<ProcessTraceState | undefined>();
   const [targets, setTargets] = useState<AIProvider[]>([]);
   const [targetsInitialized, setTargetsInitialized] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -218,6 +224,7 @@ export default function App() {
       if (message.action === 'WORKFLOW_STATUS') {
         const status = typeof message.payload === 'string' ? message.payload : '';
         setWorkflowStatus(status);
+        setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message) : current));
         if (status === '') setStepTimeout((current) => nextStepTimeoutState(current, { type: 'settle' }));
         setIsProcessing((current) => processingAfterWorkflowStatus(current, status));
         return;
@@ -230,9 +237,11 @@ export default function App() {
             label: typeof payload.label === 'string' ? payload.label : undefined,
           });
         }
+        setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message) : current));
         return;
       }
       if (!isRenderableResponseMessage(message) || !message.provider) return;
+      setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message) : current));
       let active = activeTurns.current.get(message.provider);
       if (!active) {
         active = { turn: ++turnRef.current };
@@ -404,6 +413,7 @@ export default function App() {
     setMessages((current) => [...current, { id: `user-${turnId}`, role: 'user', content: trimmed, final: true }]);
     setIsProcessing(processingAfterSend());
     const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
+    setProcessTrace(createProcessTrace(mode, workflowTargets ?? []));
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
     recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
@@ -421,6 +431,7 @@ export default function App() {
         eventFromWorkflowPreflightBlocked(blockedPreflight.mode, blockedPreflight.result.unavailable.length + blockedPreflight.result.aliased.length),
       );
       setPreflight(blockedPreflight);
+      setProcessTrace((current) => (current?.steps.length === 0 ? undefined : current));
     }
     recordEventLog(eventFromWorkflowSettled(mode, Date.now() - workflowStartedAt));
     setStepTimeout(undefined);
@@ -432,6 +443,7 @@ export default function App() {
     setIsProcessing(false);
     setWorkflowStatus('');
     setStepTimeout(undefined);
+    setProcessTrace((current) => (current ? settleProcessTrace(current) : current));
   };
 
   const exportConversation = async () => {
@@ -542,6 +554,12 @@ export default function App() {
     setSlotAssignment(settings.slotAssignment);
   };
 
+  const selectPreset = useCallback((nextMode: ChatMode) => {
+    setMode(nextMode);
+    const nextRoles = defaultRolesForPreset(nextMode);
+    if (nextRoles) setRoles(nextRoles);
+  }, []);
+
   return (
     <main className="h-screen bg-zinc-950 text-zinc-100">
       <div ref={gridRef} className="grid h-full" style={{ gridTemplateColumns: gridTemplateColumns(columnWidths) }}>
@@ -585,10 +603,18 @@ export default function App() {
             </button>
           </div>
           <div className="mt-3">
-            <ModeSelector mode={mode} onModeChange={setMode} />
-            <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />
+            <PresetCatalog
+              mode={mode}
+              onSelectPreset={selectPreset}
+              advancedOpen={advancedControlsOpen}
+              onAdvancedOpenChange={setAdvancedControlsOpen}
+            >
+              <ModeSelector mode={mode} onModeChange={setMode} />
+              <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />
+            </PresetCatalog>
           </div>
           {workflowStatus ? <div className="mt-3 border border-sky-900 bg-sky-950 px-3 py-2 text-xs text-sky-200">{workflowStatus}</div> : null}
+          {processTrace ? <ProcessTrace trace={processTrace} /> : null}
           {shareNotice ? (
             <div
               className={
