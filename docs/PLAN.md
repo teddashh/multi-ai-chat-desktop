@@ -1,9 +1,9 @@
 # PLAN — Multi-AI Chat Desktop implementation
 
-> Status: **v1.1 FINAL** (synced to SPEC v1.1)
-> Date: 2026-07-03
-> Contract: `docs/SPEC.md` v1.1 FINAL. Decisions: `docs/ARCHITECTURE.md` v1.0.
-> Working model: codex (`codex exec --dangerously-bypass-approvals-and-sandbox`, /goal) implements each milestone from this plan; Claude orchestrates, reviews diffs, and gates milestone exit; grok does secondary review passes. Every milestone starts from a clean git state and ends with a commit — codex runs unsandboxed, so git history is the safety net.
+> Status: **v2.0** (v1 M-series shipped; next phase = SPEC §17 roadmap N0–N9 — see "Next phase" below)
+> Date: 2026-07-06 (the M0–M6 map below is the shipped-v1 record; "Next phase" tracks N0–N9)
+> Contract: `docs/SPEC.md` v2.0. Decisions: `docs/ARCHITECTURE.md` v1.0. Roadmap synthesis: `.orchestration/analysis/roadmap-synthesis.md`.
+> Working model: codex (`codex exec --dangerously-bypass-approvals-and-sandbox`, /goal) implements each milestone from this plan; Claude/Opus orchestrates, reviews diffs, and gates milestone exit; grok + codex do independent blind review passes. Every milestone starts from a clean git state and ends with a commit — codex runs unsandboxed, so git history is the safety net.
 
 ## Milestone map (risk-first ordering)
 
@@ -11,6 +11,35 @@
 M0 scaffold ──► M1 bridge spike ──► M2 providers+adapters ──► M3 workflows ──► M4 UI ──► M5 hot-update ──► M6 release
    (blocked on VS Build Tools install)     ▲ highest technical risk lives in M1 — fail fast
 ```
+
+---
+
+## Next phase — v2.0 roadmap (N0–N9)
+
+> Full detail: `docs/SPEC.md` §17 + `.orchestration/analysis/roadmap-synthesis.md`. The M-series (below)
+> shipped the v1 Chrome-extension port; N0–N9 evolve it per the `New Comments2.md` 4-AI design debate
+> ("底線硬、入口軟"; killer feature = reproducibility). Same working model: codex implements · Opus gates ·
+> blind grok/codex reviews · commit-per-milestone · frozen contract preserved every step.
+
+| # | Milestone | Status |
+|---|---|---|
+| N0 | Route all 5 modes through `executeGraph` (retire imperative handlers) | ✅ `978fa0b` |
+| N1a | In-memory `ExecutionSnapshot` capture + `graphVersion` | ✅ `1fd85a2` |
+| N1b1 | Redaction transform (metadata-only / hashes / prompt-text / full-local) | ✅ `4e1ec19` |
+| N1b2 | Opt-in durable snapshot store (Rust, retention, redaction, best-effort) | ⏳ in progress |
+| N1c | Snapshot replay (rerun from snapshot; current sessions; preflight-block) | ⏭ |
+| N1d | Minimum session checkpoint (crash/restart resume) | ⏭ |
+| N2 | Human relay checkpoints (auto-fill draft, never auto-send; `FILL_DRAFT`) | ⏭ |
+| N3 | Workflow pack export/import (`.macflow.json`, share) | ⏭ |
+| N4 | Preset catalog UX + read-only process trace | ⏭ |
+| N5 | RAM three-state webviews (chip → side → center + hibernate) | ⏭ |
+| N6 | Adapter completeness: Claude Code (web-DOM) + hardening | ⏭ |
+| N7 | Local context injection v2 (PDF/DOCX extract, fan-out) | ⏭ |
+| N8 | Contributor graph view → constrained editor (LAST) | ⏭ |
+| N9 | Dynamic preset promotion / temperature feedback | ⏭ |
+
+Sequence: N0 → N1 → N2+N4 → N3 → N5 → N6 → N7 → N8 → N9 (N5 may parallelize with N1).
+**Frozen throughout N0–N9:** §5.1 seeds · §6.1 zero-permission · §7 transport · §8.2 strategies · zero-key identity.
 
 ---
 
