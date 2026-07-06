@@ -48,6 +48,12 @@ describe('snapshot redaction transform', () => {
     const redacted = await redactSnapshot(snapshot, 'prompt-text');
 
     expect(redacted.redactionTier).toBe('prompt-text');
+    expect(redacted.userQuestion).toEqual({
+      tier: 'prompt-text',
+      kind: 'inline',
+      text: 'raw user question',
+      byteLength: byteLength('raw user question'),
+    });
     expect(redacted.steps.map((step) => step.inputRef)).toEqual([
       { tier: 'prompt-text', kind: 'inline', text: 'hello', byteLength: byteLength('hello') },
       { tier: 'prompt-text', kind: 'inline', text: 'follow up prompt', byteLength: byteLength('follow up prompt') },
@@ -120,6 +126,7 @@ function buildFullLocalSnapshot(): ExecutionSnapshot {
     adapterVersions: { chatgpt: 3, claude: 4 },
     roleMap: { pro: 'chatgpt', con: 'claude' },
     redactionTier: 'full-local',
+    userQuestion: inlineRef('raw user question'),
     steps: [
       {
         nodeId: 'pro',
@@ -178,6 +185,7 @@ function pairedRefs(
 
 function snapshotRefs(snapshot: ExecutionSnapshot): RedactedValueRef[] {
   return [
+    snapshot.userQuestion,
     ...snapshot.steps.flatMap((step) => [step.inputRef, step.outputRef]),
     ...snapshot.humanEdits.flatMap((edit) => [edit.beforeRef, edit.afterRef]),
   ];

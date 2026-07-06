@@ -1,36 +1,15 @@
 import type { AIProvider, ChatMode, ModeRoles } from '../../shared/types';
 import { CHAT_MODES } from '../../shared/constants';
 import { host } from '../host';
-import { onBridgeMessage } from '../bridge/bus';
-import { abortWorkflow, resetCancelState, getInFlightProviders } from './cancel';
+import { getInFlightProviders } from './cancel';
 import { emitSystemError, sendWorkflowStatus } from './events';
 import { executeGraph, preflightGraph, workflowGraphs } from './graph';
 import type { PreflightResult } from './preflight';
+import { prepareWorkflowRun } from './runtime';
 import { isSendable } from './sendability';
 import { persistSnapshotIfEnabled } from './snapshot/persistence';
 import type { SnapshotRedactionTier } from './snapshot/types';
-import { resetWorkflowState } from './state';
 import { tearDownWaiters } from './teardown';
-import { cancelPendingStepTimeoutAction, resetStepTimeoutActionState } from './stepTimeout';
-import { ensureWorkflowBusSubscription } from './waitForResponse';
-
-let cancelSubscribed = false;
-
-export function resetWorkflowRuntimeForTests(): void {
-  cancelSubscribed = false;
-}
-
-function ensureCancelSubscription(): void {
-  if (cancelSubscribed) return;
-  cancelSubscribed = true;
-  onBridgeMessage((message) => {
-    if (message.action !== 'CANCEL_WORKFLOW') return;
-    abortWorkflow();
-    cancelPendingStepTimeoutAction();
-    void tearDownWaiters(getInFlightProviders(), { stopClick: true });
-    sendWorkflowStatus('');
-  });
-}
 
 export interface RunWorkflowParams {
   text: string;
@@ -51,11 +30,7 @@ export async function runWorkflow({
   snapshotPersistence,
   snapshotRedactionTier,
 }: RunWorkflowParams): Promise<RunWorkflowResult> {
-  ensureWorkflowBusSubscription();
-  ensureCancelSubscription();
-  resetCancelState();
-  resetWorkflowState();
-  resetStepTimeoutActionState();
+  prepareWorkflowRun();
   const snapshotOptions = {
     enabled: snapshotPersistence,
     tier: snapshotRedactionTier,
@@ -90,4 +65,5 @@ export async function runWorkflow({
 }
 
 export { isSendable } from './sendability';
+export { resetWorkflowRuntimeForTests } from './runtime';
 export { chooseStepTimeoutAction, onStepTimeoutEvent } from './stepTimeout';

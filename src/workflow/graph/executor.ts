@@ -70,6 +70,7 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
   const context = createExecutionContext(graph, params);
   beginSnapshot({
     graph,
+    question: context.question,
     roleMap: snapshotRoleMap(context),
     adapterVersions: snapshotAdapterVersions(context),
   });

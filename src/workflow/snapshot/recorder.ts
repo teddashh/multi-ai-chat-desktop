@@ -16,6 +16,7 @@ let lastSnapshot: ExecutionSnapshot | undefined;
 
 export interface BeginSnapshotParams {
   graph: WorkflowGraph;
+  question: string;
   roleMap: Record<string, AIProviderV2>;
   adapterVersions?: Partial<Record<AIProviderV2, number>>;
   appVersion?: string;
@@ -43,6 +44,7 @@ export interface RecordHumanEditParams {
 
 export function beginSnapshot({
   graph,
+  question,
   roleMap,
   adapterVersions,
   appVersion = SNAPSHOT_APP_VERSION,
@@ -56,6 +58,7 @@ export function beginSnapshot({
     adapterVersions: { ...(adapterVersions ?? {}) },
     roleMap: { ...roleMap },
     redactionTier: REDACTION_TIER,
+    userQuestion: inlineRef(question),
     steps: [],
     humanEdits: [],
   };

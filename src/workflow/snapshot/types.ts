@@ -49,6 +49,7 @@ export interface ExecutionSnapshot {
   adapterVersions: Partial<Record<AIProviderV2, number>>;
   roleMap: Record<string, AIProviderV2>;
   redactionTier: SnapshotRedactionTier;
+  userQuestion: RedactedValueRef;
   steps: ExecutionSnapshotStep[];
   humanEdits: ExecutionSnapshotHumanEdit[];
 }

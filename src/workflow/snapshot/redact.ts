@@ -14,6 +14,7 @@ export async function redactSnapshot(
   snapshot: ExecutionSnapshot,
   tier: SnapshotRedactionTier,
 ): Promise<ExecutionSnapshot> {
+  const userQuestion = await redactRef(snapshot.userQuestion, tier, 'prompt-or-edit');
   const steps = await Promise.all(snapshot.steps.map((step) => redactStep(step, tier)));
   const humanEdits = await Promise.all(snapshot.humanEdits.map((edit) => redactHumanEdit(edit, tier)));
 
@@ -22,6 +23,7 @@ export async function redactSnapshot(
     adapterVersions: { ...snapshot.adapterVersions },
     roleMap: { ...snapshot.roleMap },
     redactionTier: tier,
+    userQuestion,
     steps,
     humanEdits,
   };

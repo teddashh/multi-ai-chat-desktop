@@ -110,6 +110,12 @@ describe('workflow execution snapshots', () => {
       roleMap: DEFAULT_DEBATE_ROLES,
       redactionTier: 'full-local',
       adapterVersions: {},
+      userQuestion: {
+        tier: 'full-local',
+        kind: 'inline',
+        text: 'debate question',
+        byteLength: new TextEncoder().encode('debate question').byteLength,
+      },
     });
     expect(snapshot?.snapshotId).toMatch(SNAPSHOT_ID_PATTERN);
     expect(snapshot?.createdAt).toEqual(expect.any(String));
@@ -360,7 +366,12 @@ describe('workflow execution snapshots', () => {
       snapshotId,
       graphId: 'free',
       redactionTier: 'metadata-only',
+      userQuestion: {
+        tier: 'metadata-only',
+        kind: 'omitted',
+      },
     });
+    expect(persisted.userQuestion.byteLength).toBeUndefined();
     expect(persisted.steps[0].inputRef).toEqual({
       tier: 'metadata-only',
       kind: 'omitted',
