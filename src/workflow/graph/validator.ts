@@ -27,7 +27,8 @@ export interface GraphValidationError {
     | 'unresolved-ref'
     | 'unbounded-loop'
     | 'parallel-provider-collision'
-    | 'dynamic-selector-missing-possible-roles';
+    | 'dynamic-selector-missing-possible-roles'
+    | 'invalid-checkpoint';
   message: string;
   path: string;
 }
@@ -93,6 +94,7 @@ function validateStepNode(context: ValidationContext, nodeId: string, node: Step
   validateTextTemplate(context, node.status, `nodes.${nodeId}.status`);
   validatePromptSpec(context, node.prompt, `nodes.${nodeId}.prompt`);
   validateHistoryAppend(context, node.appendHistory, `nodes.${nodeId}.appendHistory`);
+  validateCheckpointSpec(context, node, `nodes.${nodeId}.checkpoint`);
 }
 
 function validateFanoutNode(context: ValidationContext, nodeId: string, node: FanoutNode): void {
@@ -109,6 +111,9 @@ function validateFanoutNode(context: ValidationContext, nodeId: string, node: Fa
   validateTextTemplate(context, node.template.status, `nodes.${nodeId}.template.status`);
   validatePromptSpec(context, node.template.prompt, `nodes.${nodeId}.template.prompt`);
   validateHistoryAppend(context, node.template.appendHistory, `nodes.${nodeId}.template.appendHistory`);
+  if (node.template.checkpoint) {
+    addError(context, 'invalid-checkpoint', 'Checkpoint policies are not allowed on fanout template steps', `nodes.${nodeId}.template.checkpoint`);
+  }
 }
 
 function validateAggregateNode(context: ValidationContext, nodeId: string, node: AggregateNode): void {
@@ -194,6 +199,19 @@ function validateHistoryAppend(context: ValidationContext, appendHistory: Histor
     addError(context, 'unresolved-ref', `Loop "${appendHistory.value.round.name}" does not exist`, `${path}.value.round`);
   }
   if (appendHistory.value.text.kind === 'output') validateNodeRef(context, appendHistory.value.text.node, `${path}.value.text`);
+}
+
+function validateCheckpointSpec(context: ValidationContext, node: StepNode, path: string): void {
+  if (!node.checkpoint) return;
+  if (node.checkpoint.policy !== 'draft-confirm') {
+    addError(context, 'invalid-checkpoint', 'Checkpoint policy must be "draft-confirm"', `${path}.policy`);
+  }
+  if (node.policy !== 'serialRunStep') {
+    addError(context, 'invalid-checkpoint', 'Checkpoint policies are only allowed on serialRunStep nodes', path);
+  }
+  if (node.parallelGroup) {
+    addError(context, 'invalid-checkpoint', 'Checkpoint policies are not allowed on parallelGroup steps', path);
+  }
 }
 
 function validateProviderRef(context: ValidationContext, ref: ProviderRef, path: string): void {

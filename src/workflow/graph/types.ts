@@ -53,8 +53,13 @@ export interface StepNode {
   prompt: PromptSpec;
   output: string;
   policy: 'serialRunStep' | 'freeSendAndWait';
+  checkpoint?: RelayCheckpointSpec;
   parallelGroup?: string;
   appendHistory?: HistoryAppendSpec;
+}
+
+export interface RelayCheckpointSpec {
+  policy: 'draft-confirm';
 }
 
 export interface HistoryAppendSpec {
@@ -148,6 +153,7 @@ export interface ExecuteGraphParams {
   text: string;
   roles?: ModeRoles | Partial<Record<RoleKey, AIProvider>>;
   targets?: AIProvider[];
+  checkpoints?: boolean;
 }
 
 export interface StepOutput {

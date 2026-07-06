@@ -31,6 +31,7 @@ export type {
   PromptSpec,
   ProviderRef,
   ProviderSelectCase,
+  RelayCheckpointSpec,
   RoleKey,
   StepNode,
   TextCondition,

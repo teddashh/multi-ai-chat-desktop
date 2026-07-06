@@ -1,12 +1,13 @@
 import { AI_PROVIDERS } from '../../../shared/constants';
 import type { AIProvider } from '../../../shared/types';
 import { checkAborted } from '../cancel';
+import { awaitCheckpoint } from '../checkpoint';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
 import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
 import { runStep } from '../stepRunner';
-import { SKIP_RESPONSE } from '../state';
+import { clearActiveTurn, SKIP_RESPONSE } from '../state';
 import { getSnapshotAdapterVersions } from '../snapshot/adapterVersions';
-import { beginSnapshot, completeSnapshot, recordStep } from '../snapshot/recorder';
+import { beginSnapshot, completeSnapshot, recordHumanEdit, recordStep } from '../snapshot/recorder';
 import type { AIProviderV2, ExecutionSnapshot, ExecutionSnapshotStep } from '../snapshot/types';
 import { evaluateTextCondition, renderRegisteredPrompt } from './registries';
 import { resolveGraphRoles } from './preflight';
@@ -39,6 +40,7 @@ interface ExecutionContext {
   histories: Map<string, HistoryItem[]>;
   loopValues: Map<string, unknown>;
   loopIterations: Map<string, number>;
+  checkpoints: boolean;
   completed: Set<NodeId>;
   ready: Set<NodeId>;
   evaluatedEdges: Set<number>;
@@ -122,6 +124,7 @@ function createExecutionContext(graph: WorkflowGraph, params: ExecuteGraphParams
     histories: new Map(),
     loopValues: new Map(),
     loopIterations: new Map(),
+    checkpoints: params.checkpoints === true,
     completed: new Set(),
     ready: new Set(),
     evaluatedEdges: new Set(),
@@ -174,7 +177,12 @@ function prepareNode(nodeId: NodeId, context: ExecutionContext): PreparedNode {
   return { nodeId, run: async () => ({ nodeId, output: { text: '' } }) };
 }
 
-function prepareStepNode(nodeId: NodeId, node: StepNode, context: ExecutionContext): PreparedNode {
+function prepareStepNode(
+  nodeId: NodeId,
+  node: StepNode,
+  context: ExecutionContext,
+  options: { fanoutChild?: boolean } = {},
+): PreparedNode {
   const provider = resolveProviderRef(node.provider, context);
   const prompt = renderPromptSpec(node.prompt, context, nodeId, provider);
   if (node.policy === 'freeSendAndWait') {
@@ -211,12 +219,46 @@ function prepareStepNode(nodeId: NodeId, node: StepNode, context: ExecutionConte
     nodeId,
     run: async () => {
       const startedAt = snapshotTimestamp();
+      let input = prompt;
       try {
-        const result = await runStep(provider, prompt, turn);
+        if (isCheckpointedSerialStep(node, context, options)) {
+          const sourceNodeId = checkpointSourceNodeId(nodeId, context);
+          const decision = await awaitCheckpoint({ nodeId, sourceNodeId, provider, draft: prompt });
+          checkAborted();
+          if (decision.action === 'skip') {
+            clearActiveTurn(provider, turn);
+            recordStep({
+              nodeId,
+              provider,
+              input,
+              output: SKIP_RESPONSE,
+              status: 'skipped',
+              startedAt,
+              completedAt: snapshotTimestamp(),
+            });
+            return {
+              nodeId,
+              output: { text: SKIP_RESPONSE, provider, turn: -1 },
+              appendHistory: renderHistoryAppend(node, context, SKIP_RESPONSE, provider),
+            };
+          }
+          input = decision.draft;
+          if (input !== prompt) {
+            recordHumanEdit({
+              checkpointId: nodeId,
+              sourceNodeId,
+              targetNodeId: nodeId,
+              before: prompt,
+              after: input,
+            });
+          }
+        }
+
+        const result = await runStep(provider, input, turn);
         recordStep({
           nodeId,
           provider,
-          input: prompt,
+          input,
           output: result.response,
           status: snapshotStepStatus(result.response),
           startedAt,
@@ -228,10 +270,11 @@ function prepareStepNode(nodeId: NodeId, node: StepNode, context: ExecutionConte
           appendHistory: renderHistoryAppend(node, context, result.response, provider),
         };
       } catch (error) {
+        clearActiveTurn(provider, turn);
         recordStep({
           nodeId,
           provider,
-          input: prompt,
+          input,
           output: snapshotErrorText(error),
           status: 'error',
           startedAt,
@@ -247,7 +290,12 @@ function prepareFanoutNode(nodeId: NodeId, node: FanoutNode, context: ExecutionC
   const providers = resolveFanoutProviders(node, context);
   const prepared = providers.map((provider, index) => {
     const childContext = cloneContextWithLoopValue(context, node.template.provider, provider);
-    return prepareStepNode(`${nodeId}:${index}`, { ...node.template, kind: 'step', provider: { type: 'provider', provider } }, childContext);
+    return prepareStepNode(
+      `${nodeId}:${index}`,
+      { ...node.template, kind: 'step', provider: { type: 'provider', provider } },
+      childContext,
+      { fanoutChild: true },
+    );
   });
 
   return {
@@ -433,6 +481,20 @@ function resolveFanoutProviders(node: FanoutNode, context: ExecutionContext): AI
 function cloneContextWithLoopValue(context: ExecutionContext, providerRef: ProviderRef, provider: AIProvider): ExecutionContext {
   if (providerRef.type !== 'loopVar') return context;
   return { ...context, loopValues: new Map([...context.loopValues, [providerRef.name, provider]]) };
+}
+
+function isCheckpointedSerialStep(node: StepNode, context: ExecutionContext, options: { fanoutChild?: boolean }): boolean {
+  const enabled = context.checkpoints || node.checkpoint?.policy === 'draft-confirm';
+  return enabled && node.policy === 'serialRunStep' && !node.parallelGroup && options.fanoutChild !== true;
+}
+
+function checkpointSourceNodeId(nodeId: NodeId, context: ExecutionContext): NodeId {
+  const predecessors = context.graph.edges.flatMap((edge) => {
+    if (edge.to !== nodeId) return [];
+    return Array.isArray(edge.from) ? edge.from : [edge.from];
+  });
+  const completedPredecessors = predecessors.filter((predecessor) => context.completed.has(predecessor));
+  return completedPredecessors[completedPredecessors.length - 1] ?? nodeId;
 }
 
 function renderHistoryAppend(

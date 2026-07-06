@@ -7,9 +7,11 @@ import { publishBridgeMessage } from './bridge/bus';
 import { EchoPanel } from './dev/EchoPanel';
 import { host } from './host';
 import { mergePullBridgeState, type PullBridgeState } from './appBridgeState';
+import { onCheckpoint, type PendingCheckpoint } from './workflow/checkpoint';
 import { isSendable, onStepTimeoutEvent, runWorkflow } from './workflow';
 import type { PreflightResult } from './workflow/preflight';
 import { bubbleAuthorLabel } from './bubbleAuthorLabel';
+import { CheckpointCard } from './ui/CheckpointCard';
 import { InputBar } from './ui/InputBar';
 import { ModeSelector } from './ui/ModeSelector';
 import { PreflightDialog } from './ui/PreflightDialog';
@@ -100,6 +102,9 @@ export default function App() {
   const [processTrace, setProcessTrace] = useState<ProcessTraceState | undefined>();
   const [targets, setTargets] = useState<AIProvider[]>([]);
   const [targetsInitialized, setTargetsInitialized] = useState(false);
+  const [confirmEachStep, setConfirmEachStep] = useState(false);
+  const [checkpoint, setCheckpoint] = useState<PendingCheckpoint | undefined>();
+  const [checkpointDraft, setCheckpointDraft] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [preflight, setPreflight] = useState<{ mode: Exclude<ChatMode, 'free'>; result: PreflightResult } | undefined>();
   const [stepTimeout, setStepTimeout] = useState<StepTimeoutDialogState | undefined>();
@@ -144,6 +149,13 @@ export default function App() {
   useEffect(() => {
     settingsRef.current = appSettings;
   }, [appSettings]);
+
+  useEffect(() => {
+    return onCheckpoint((pending) => {
+      setCheckpoint(pending);
+      setCheckpointDraft(pending?.draft ?? '');
+    });
+  }, []);
 
   useEffect(() => {
     if (!shareNotice) return;
@@ -426,6 +438,7 @@ export default function App() {
       mode,
       roles: mode === 'free' ? undefined : roles,
       targets: workflowTargets,
+      checkpoints: confirmEachStep,
       snapshotPersistence: snapshotSettings.snapshotPersistence,
       snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
     });
@@ -439,6 +452,9 @@ export default function App() {
     }
     recordEventLog(eventFromWorkflowSettled(mode, Date.now() - workflowStartedAt));
     setStepTimeout(undefined);
+    setCheckpoint(undefined);
+    setCheckpointDraft('');
+    activeTurns.current.clear();
     setIsProcessing(processingAfterSettle());
   };
 
@@ -447,6 +463,9 @@ export default function App() {
     setIsProcessing(false);
     setWorkflowStatus('');
     setStepTimeout(undefined);
+    setCheckpoint(undefined);
+    setCheckpointDraft('');
+    activeTurns.current.clear();
     setProcessTrace((current) => (current ? settleProcessTrace(current) : current));
   };
 
@@ -644,7 +663,18 @@ export default function App() {
               />
             </PresetCatalog>
           </div>
+          <label className="mt-3 flex w-fit items-center gap-2 border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-amber-500"
+              checked={confirmEachStep}
+              onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
+              disabled={isProcessing}
+            />
+            逐步確認 / Confirm each step
+          </label>
           {workflowStatus ? <div className="mt-3 border border-sky-900 bg-sky-950 px-3 py-2 text-xs text-sky-200">{workflowStatus}</div> : null}
+          <CheckpointCard checkpoint={checkpoint} draft={checkpointDraft} onDraftChange={setCheckpointDraft} />
           {processTrace ? <ProcessTrace trace={processTrace} /> : null}
           {shareNotice ? (
             <div

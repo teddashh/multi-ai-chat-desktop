@@ -5,7 +5,7 @@ import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../brid
 import { resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
-import { debateGraph, executeGraph, preflightGraph, validateGraph, type StepNode, type WorkflowGraph } from '../workflow/graph';
+import { debateGraph, executeGraph, freeGraph, preflightGraph, validateGraph, type StepNode, type WorkflowGraph } from '../workflow/graph';
 import { resetWorkflowStateForTests } from '../workflow/state';
 import { resetStepTimeoutForTests } from '../workflow/stepTimeout';
 import { resetWaitForResponseForTests } from '../workflow/waitForResponse';
@@ -159,5 +159,24 @@ describe('workflow graph foundation', () => {
 
     const errors = validateGraph(graph);
     expect(errors.some((error) => error.code === 'parallel-provider-collision')).toBe(true);
+  });
+
+  it('accepts checkpoint metadata only on serial step nodes', () => {
+    const serial = cloneDebateGraph();
+    (serial.nodes.pro as StepNode).checkpoint = { policy: 'draft-confirm' };
+    expect(validateGraph(serial).filter((error) => error.code === 'invalid-checkpoint')).toEqual([]);
+
+    const parallel = cloneDebateGraph();
+    (parallel.nodes.pro as StepNode).checkpoint = { policy: 'draft-confirm' };
+    (parallel.nodes.pro as StepNode).parallelGroup = 'initial';
+    const parallelErrors = validateGraph(parallel);
+    expect(parallelErrors.some((error) => error.code === 'invalid-checkpoint' && error.path === 'nodes.pro.checkpoint')).toBe(true);
+
+    const fanout = structuredClone(freeGraph) as WorkflowGraph;
+    const fanoutNode = fanout.nodes.fanout;
+    if (fanoutNode.kind !== 'fanout') throw new Error('Expected free graph fanout node');
+    fanoutNode.template.checkpoint = { policy: 'draft-confirm' };
+    const fanoutErrors = validateGraph(fanout);
+    expect(fanoutErrors.some((error) => error.code === 'invalid-checkpoint' && error.path === 'nodes.fanout.template.checkpoint')).toBe(true);
   });
 });

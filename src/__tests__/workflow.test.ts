@@ -13,11 +13,13 @@ import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../brid
 import { AWAITING_MAX_MS, pullProvider, resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
+import { hasPendingCheckpoint, onCheckpoint, resetCheckpointForTests, resolveCheckpoint, type PendingCheckpoint } from '../workflow/checkpoint';
 import { emitSystemError } from '../workflow/events';
 import { ROUND_LABELS } from '../workflow/graph';
 import { preflightSerialMode } from '../workflow/preflight';
 import { isSendable } from '../workflow/sendability';
 import { sendAndWait } from '../workflow/sendAndWait';
+import { getLastSnapshot, resetSnapshotRecorderForTests } from '../workflow/snapshot/recorder';
 import { runStep } from '../workflow/stepRunner';
 import { getActiveTurn, reserveTurn, resetWorkflowStateForTests, SKIP_RESPONSE } from '../workflow/state';
 import { chooseStepTimeoutAction, onStepTimeoutEvent, resetStepTimeoutForTests } from '../workflow/stepTimeout';
@@ -72,7 +74,9 @@ describe('workflow engine', () => {
     resetWaitForResponseForTests();
     resetWorkflowRuntimeForTests();
     resetCancelState();
+    resetCheckpointForTests();
     resetStepTimeoutForTests();
+    resetSnapshotRecorderForTests();
     vi.mocked(host.provider.send).mockResolvedValue(undefined);
     vi.mocked(host.provider.eval).mockResolvedValue(undefined);
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
@@ -87,7 +91,9 @@ describe('workflow engine', () => {
     resetWaitForResponseForTests();
     resetWorkflowRuntimeForTests();
     resetCancelState();
+    resetCheckpointForTests();
     resetStepTimeoutForTests();
+    resetSnapshotRecorderForTests();
     vi.clearAllTimers();
     await Promise.resolve();
     vi.useRealTimers();
@@ -407,6 +413,121 @@ describe('workflow engine', () => {
     expect(prompts[1]).toBe(PROMPTS.debate.con('debate question', 'chatgpt-answer'));
     expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', 'chatgpt-answer', 'claude-answer'));
     expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', 'chatgpt-answer', 'claude-answer', 'grok-answer'));
+  });
+
+  it('does not checkpoint default debate runs', async () => {
+    const checkpoints: PendingCheckpoint[] = [];
+    const unsubscribeCheckpoint = onCheckpoint((pending) => {
+      if (pending) checkpoints.push(pending);
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({ text: 'default checkpoint off', mode: 'debate', roles: DEFAULT_DEBATE_ROLES })).resolves.toEqual({ ok: true });
+
+    unsubscribeCheckpoint();
+    expect(checkpoints).toEqual([]);
+    expect(host.provider.send).toHaveBeenCalledTimes(4);
+  });
+
+  it('checkpoints debate, sends an edited confirmed draft, and records the human edit', async () => {
+    const checkpoints: PendingCheckpoint[] = [];
+    const unsubscribeCheckpoint = onCheckpoint((pending) => {
+      if (!pending) return;
+      checkpoints.push(pending);
+      if (pending.nodeId !== 'pro') resolveCheckpoint(pending.nodeId, { action: 'confirm', draft: pending.draft });
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    const run = runWorkflow({ text: 'checkpoint question', mode: 'debate', roles: DEFAULT_DEBATE_ROLES, checkpoints: true });
+    await vi.waitFor(() => expect(checkpoints.map((checkpoint) => checkpoint.nodeId)).toContain('pro'));
+    expect(host.provider.send).not.toHaveBeenCalled();
+    expect(checkpoints[0]).toMatchObject({
+      nodeId: 'pro',
+      sourceNodeId: 'pro',
+      provider: DEFAULT_DEBATE_ROLES.pro,
+      draft: PROMPTS.debate.pro('checkpoint question'),
+    });
+
+    resolveCheckpoint('pro', { action: 'confirm', draft: 'edited pro draft' });
+    await expect(run).resolves.toEqual({ ok: true });
+
+    unsubscribeCheckpoint();
+    expect(host.provider.send).toHaveBeenNthCalledWith(1, DEFAULT_DEBATE_ROLES.pro, 'edited pro draft');
+    expect(getLastSnapshot()?.humanEdits).toHaveLength(1);
+    expect(getLastSnapshot()?.humanEdits[0]).toMatchObject({
+      checkpointId: 'pro',
+      sourceNodeId: 'pro',
+      targetNodeId: 'pro',
+      beforeRef: { text: PROMPTS.debate.pro('checkpoint question') },
+      afterRef: { text: 'edited pro draft' },
+    });
+  });
+
+  it('checkpoint skip does not send and flows SKIP_RESPONSE downstream with skipped status', async () => {
+    const sent: { provider: AIProvider; prompt: string }[] = [];
+    const unsubscribeCheckpoint = onCheckpoint((pending) => {
+      if (!pending) return;
+      if (pending.nodeId === 'pro') resolveCheckpoint(pending.nodeId, { action: 'skip' });
+      else resolveCheckpoint(pending.nodeId, { action: 'confirm', draft: pending.draft });
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sent.push({ provider, prompt });
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(
+      runWorkflow({ text: 'skip checkpoint question', mode: 'debate', roles: DEFAULT_DEBATE_ROLES, checkpoints: true }),
+    ).resolves.toEqual({ ok: true });
+
+    unsubscribeCheckpoint();
+    expect(sent[0]).toEqual({
+      provider: DEFAULT_DEBATE_ROLES.con,
+      prompt: PROMPTS.debate.con('skip checkpoint question', SKIP_RESPONSE),
+    });
+    expect(sent.some((item) => item.provider === DEFAULT_DEBATE_ROLES.pro)).toBe(false);
+    const skipped = getLastSnapshot()?.steps.find((step) => step.nodeId === 'pro');
+    expect(skipped).toMatchObject({ status: 'skipped', outputRef: { text: SKIP_RESPONSE } });
+  });
+
+  it('does not checkpoint consult parallel first/second steps when checkpoints are enabled', async () => {
+    const sent: { provider: AIProvider; prompt: string }[] = [];
+    const checkpoints: PendingCheckpoint[] = [];
+    const unsubscribeCheckpoint = onCheckpoint((pending) => {
+      if (!pending) return;
+      checkpoints.push(pending);
+      resolveCheckpoint(pending.nodeId, { action: 'confirm', draft: pending.draft });
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sent.push({ provider, prompt });
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({ text: 'consult checkpoint question', mode: 'consult', checkpoints: true })).resolves.toEqual({ ok: true });
+
+    unsubscribeCheckpoint();
+    expect(sent.slice(0, 2).map((item) => item.provider)).toEqual([DEFAULT_CONSULT_ROLES.first, DEFAULT_CONSULT_ROLES.second]);
+    expect(checkpoints.map((checkpoint) => checkpoint.nodeId)).toEqual(['reviewer', 'summary']);
+  });
+
+  it('CANCEL_WORKFLOW rejects a pending checkpoint and settles without sending', async () => {
+    const checkpoints: PendingCheckpoint[] = [];
+    const unsubscribeCheckpoint = onCheckpoint((pending) => {
+      if (pending) checkpoints.push(pending);
+    });
+    const run = runWorkflow({ text: 'cancel checkpoint question', mode: 'debate', roles: DEFAULT_DEBATE_ROLES, checkpoints: true });
+
+    await vi.waitFor(() => expect(checkpoints.map((checkpoint) => checkpoint.nodeId)).toContain('pro'));
+    expect(hasPendingCheckpoint('pro')).toBe(true);
+    publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
+
+    await expect(run).resolves.toEqual({ ok: true });
+    unsubscribeCheckpoint();
+    expect(hasPendingCheckpoint('pro')).toBe(false);
+    expect(host.provider.send).not.toHaveBeenCalled();
   });
 
   it('roundtable runs 5x4 with exact history growth and round labels', async () => {

@@ -16,6 +16,7 @@ export interface RunWorkflowParams {
   mode: ChatMode;
   roles?: ModeRoles;
   targets?: AIProvider[];
+  checkpoints?: boolean;
   snapshotPersistence?: boolean;
   snapshotRedactionTier?: SnapshotRedactionTier;
 }
@@ -27,6 +28,7 @@ export async function runWorkflow({
   mode,
   roles,
   targets,
+  checkpoints,
   snapshotPersistence,
   snapshotRedactionTier,
 }: RunWorkflowParams): Promise<RunWorkflowResult> {
@@ -40,7 +42,7 @@ export async function runWorkflow({
       const snapshot = await host.connections.get();
       const sendable = snapshot.filter(isSendable).map((state) => state.provider);
       const targetSet = targets === undefined ? sendable : targets.filter((provider) => sendable.includes(provider));
-      await executeGraph(workflowGraphs.free, { text, targets: targetSet }, {
+      await executeGraph(workflowGraphs.free, { text, targets: targetSet, checkpoints }, {
         onSnapshotComplete: (snapshot) => persistSnapshotIfEnabled(snapshot, snapshotOptions),
       });
       return { ok: true };
@@ -51,7 +53,7 @@ export async function runWorkflow({
     const preflight = await preflightGraph(graph, roles);
     if (!preflight.ok) return { ok: false, preflight };
 
-    await executeGraph(graph, { text, roles }, {
+    await executeGraph(graph, { text, roles, checkpoints }, {
       onSnapshotComplete: (snapshot) => persistSnapshotIfEnabled(snapshot, snapshotOptions),
     });
 
