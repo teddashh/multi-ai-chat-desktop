@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AI_PROVIDERS } from '../shared/constants';
+import { AI_PROVIDERS, CHAT_MODES } from '../shared/constants';
 import type { AIProvider, BridgeMessage, ChatMode, ModeRoles, ProviderState } from '../shared/types';
 import { startBridgePull, resetProviderBootState } from './bridge/pull';
 import { isRenderableResponseMessage } from './bridge/render';
@@ -16,6 +16,7 @@ import { PreflightDialog } from './ui/PreflightDialog';
 import { PresetCatalog } from './ui/PresetCatalog';
 import { ProcessTrace } from './ui/ProcessTrace';
 import { createProcessTrace, reduceProcessTraceEvent, settleProcessTrace, type ProcessTraceState } from './ui/processTraceModel';
+import { ReplayPanel } from './ui/ReplayPanel';
 import { RoleConfig } from './ui/RoleConfig';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
@@ -44,6 +45,9 @@ import { useOverlayGuard } from './ui/useOverlayGuard';
 import { visibleLoadedProviders } from './ui/visibility';
 import { buildMarkdown, exportFilename } from './ui/exportMarkdown';
 import { formatReportBody, type AdapterNotice, type ReportDigest } from './ui/reportBroken';
+import { persistSnapshotIfEnabled } from './workflow/snapshot/persistence';
+import type { ReplayPlan } from './workflow/snapshot/replay';
+import type { ExecutionSnapshot } from './workflow/snapshot/types';
 import {
   eventFromAdapterNotice,
   eventFromBridgeMessage,
@@ -560,6 +564,28 @@ export default function App() {
     if (nextRoles) setRoles(nextRoles);
   }, []);
 
+  const persistReplaySnapshot = useCallback((snapshot: ExecutionSnapshot) => {
+    const snapshotSettings = settingsRef.current;
+    return persistSnapshotIfEnabled(snapshot, {
+      enabled: snapshotSettings.snapshotPersistence,
+      tier: snapshotSettings.snapshotRedactionTier,
+    });
+  }, []);
+
+  const prepareReplayTrace = useCallback((plan: ReplayPlan) => {
+    const replayMode = modeFromReplayPlan(plan);
+    if (!replayMode) return;
+    const replayTargets = replayMode === 'free' ? plan.targets ?? [] : [];
+    setProcessTrace(createProcessTrace(replayMode, replayTargets));
+    setIsProcessing(processingAfterSend());
+    recordEventLog(eventFromWorkflowStart(replayMode, plan.question?.length ?? 0, replayTargets.length || undefined));
+  }, []);
+
+  const settleReplayTrace = useCallback(() => {
+    setStepTimeout(undefined);
+    setIsProcessing(processingAfterSettle());
+  }, []);
+
   return (
     <main className="h-screen bg-zinc-950 text-zinc-100">
       <div ref={gridRef} className="grid h-full" style={{ gridTemplateColumns: gridTemplateColumns(columnWidths) }}>
@@ -611,6 +637,11 @@ export default function App() {
             >
               <ModeSelector mode={mode} onModeChange={setMode} />
               <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />
+              <ReplayPanel
+                onReplayWillRun={prepareReplayTrace}
+                onReplaySettled={settleReplayTrace}
+                onSnapshotComplete={persistReplaySnapshot}
+              />
             </PresetCatalog>
           </div>
           {workflowStatus ? <div className="mt-3 border border-sky-900 bg-sky-950 px-3 py-2 text-xs text-sky-200">{workflowStatus}</div> : null}
@@ -978,4 +1009,9 @@ function chipState(state: ProviderState): { label: string; className: string } {
   if (state.login === 'logged_out' || state.login === 'blocked') return { label: 'needs-login', className: 'border-amber-700 text-amber-300' };
   if (!isSendable(state)) return { label: 'stale', className: 'border-sky-700 text-sky-300' };
   return { label: 'ready', className: 'border-emerald-700 text-emerald-300' };
+}
+
+function modeFromReplayPlan(plan: ReplayPlan): ChatMode | undefined {
+  const candidate = plan.graph?.mode ?? plan.graph?.id;
+  return typeof candidate === 'string' && candidate in CHAT_MODES ? (candidate as ChatMode) : undefined;
 }
