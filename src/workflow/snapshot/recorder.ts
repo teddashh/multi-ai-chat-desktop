@@ -13,7 +13,6 @@ const SNAPSHOT_APP_VERSION = '0.0.0';
 
 let currentSnapshot: ExecutionSnapshot | undefined;
 let lastSnapshot: ExecutionSnapshot | undefined;
-let snapshotCounter = 0;
 
 export interface BeginSnapshotParams {
   graph: WorkflowGraph;
@@ -103,7 +102,6 @@ export function getLastSnapshot(): ExecutionSnapshot | undefined {
 export function resetSnapshotRecorderForTests(): void {
   currentSnapshot = undefined;
   lastSnapshot = undefined;
-  snapshotCounter = 0;
 }
 
 function inlineRef(text: string): RedactedValueRef {
@@ -120,8 +118,7 @@ function byteLength(text: string): number {
 }
 
 function nextSnapshotId(): string {
-  snapshotCounter += 1;
-  return `snapshot-${snapshotCounter}`;
+  return `snapshot-${crypto.randomUUID()}`;
 }
 
 function nowIso(): string {

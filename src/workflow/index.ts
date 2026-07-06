@@ -7,6 +7,8 @@ import { emitSystemError, sendWorkflowStatus } from './events';
 import { executeGraph, preflightGraph, workflowGraphs } from './graph';
 import type { PreflightResult } from './preflight';
 import { isSendable } from './sendability';
+import { persistSnapshotIfEnabled } from './snapshot/persistence';
+import type { SnapshotRedactionTier } from './snapshot/types';
 import { resetWorkflowState } from './state';
 import { tearDownWaiters } from './teardown';
 import { cancelPendingStepTimeoutAction, resetStepTimeoutActionState } from './stepTimeout';
@@ -35,22 +37,37 @@ export interface RunWorkflowParams {
   mode: ChatMode;
   roles?: ModeRoles;
   targets?: AIProvider[];
+  snapshotPersistence?: boolean;
+  snapshotRedactionTier?: SnapshotRedactionTier;
 }
 
 export type RunWorkflowResult = { ok: true } | { ok: false; preflight: PreflightResult };
 
-export async function runWorkflow({ text, mode, roles, targets }: RunWorkflowParams): Promise<RunWorkflowResult> {
+export async function runWorkflow({
+  text,
+  mode,
+  roles,
+  targets,
+  snapshotPersistence,
+  snapshotRedactionTier,
+}: RunWorkflowParams): Promise<RunWorkflowResult> {
   ensureWorkflowBusSubscription();
   ensureCancelSubscription();
   resetCancelState();
   resetWorkflowState();
   resetStepTimeoutActionState();
+  const snapshotOptions = {
+    enabled: snapshotPersistence,
+    tier: snapshotRedactionTier,
+  };
   try {
     if (!CHAT_MODES[mode].serial) {
       const snapshot = await host.connections.get();
       const sendable = snapshot.filter(isSendable).map((state) => state.provider);
       const targetSet = targets === undefined ? sendable : targets.filter((provider) => sendable.includes(provider));
-      await executeGraph(workflowGraphs.free, { text, targets: targetSet });
+      await executeGraph(workflowGraphs.free, { text, targets: targetSet }, {
+        onSnapshotComplete: (snapshot) => persistSnapshotIfEnabled(snapshot, snapshotOptions),
+      });
       return { ok: true };
     }
 
@@ -59,7 +76,9 @@ export async function runWorkflow({ text, mode, roles, targets }: RunWorkflowPar
     const preflight = await preflightGraph(graph, roles);
     if (!preflight.ok) return { ok: false, preflight };
 
-    await executeGraph(graph, { text, roles });
+    await executeGraph(graph, { text, roles }, {
+      onSnapshotComplete: (snapshot) => persistSnapshotIfEnabled(snapshot, snapshotOptions),
+    });
 
     return { ok: true };
   } catch (error) {

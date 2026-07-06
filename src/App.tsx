@@ -405,12 +405,15 @@ export default function App() {
     setIsProcessing(processingAfterSend());
     const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
     const workflowStartedAt = Date.now();
+    const snapshotSettings = settingsRef.current;
     recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
     const result = await runWorkflow({
       text: trimmed,
       mode,
       roles: mode === 'free' ? undefined : roles,
       targets: workflowTargets,
+      snapshotPersistence: snapshotSettings.snapshotPersistence,
+      snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
     });
     const blockedPreflight = preflightFromResult(mode, result);
     if (blockedPreflight && isSerialMode(mode)) {

@@ -6,6 +6,7 @@ import {
   type SlotAssignment,
   normalizeSlotAssignment,
 } from './slotAssignment';
+import { isSnapshotRedactionTier, type SnapshotRedactionTier } from '../workflow/snapshot/types';
 
 export interface AppSettings {
   hackmdToken: string;
@@ -17,6 +18,8 @@ export interface AppSettings {
   updaterChannel: string;
   portable: boolean;
   telemetry: 'none';
+  snapshotPersistence: boolean;
+  snapshotRedactionTier: SnapshotRedactionTier;
 }
 
 const PROVIDERS: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
@@ -32,6 +35,8 @@ export function defaultSettings(): AppSettings {
     updaterChannel: 'stable',
     portable: false,
     telemetry: 'none',
+    snapshotPersistence: false,
+    snapshotRedactionTier: 'metadata-only',
   };
 }
 
@@ -42,6 +47,10 @@ function stringValue(value: unknown, fallback: string): string {
 function providerList(value: unknown): AIProvider[] {
   if (!Array.isArray(value)) return [];
   return value.filter((provider): provider is AIProvider => PROVIDERS.includes(provider));
+}
+
+function snapshotRedactionTier(value: unknown, fallback: SnapshotRedactionTier): SnapshotRedactionTier {
+  return isSnapshotRedactionTier(value) ? value : fallback;
 }
 
 function columnWidths(value: unknown, fallback: ColumnWidths): ColumnWidths {
@@ -71,6 +80,8 @@ export function normalizeSettings(value: unknown): AppSettings {
     updaterChannel: stringValue(input.updaterChannel, defaults.updaterChannel),
     portable: input.portable === true,
     telemetry: 'none',
+    snapshotPersistence: input.snapshotPersistence === true,
+    snapshotRedactionTier: snapshotRedactionTier(input.snapshotRedactionTier, defaults.snapshotRedactionTier),
   };
 }
 

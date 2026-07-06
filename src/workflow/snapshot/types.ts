@@ -2,7 +2,12 @@ import type { AIProvider } from '../../../shared/types';
 
 export type AIProviderV2 = AIProvider | 'claude-code';
 
-export type SnapshotRedactionTier = 'metadata-only' | 'hashes' | 'prompt-text' | 'full-local';
+export const SNAPSHOT_REDACTION_TIERS = ['metadata-only', 'hashes', 'prompt-text', 'full-local'] as const;
+export type SnapshotRedactionTier = (typeof SNAPSHOT_REDACTION_TIERS)[number];
+
+export function isSnapshotRedactionTier(value: unknown): value is SnapshotRedactionTier {
+  return typeof value === 'string' && (SNAPSHOT_REDACTION_TIERS as readonly string[]).includes(value);
+}
 
 export interface RedactedValueRef {
   tier: SnapshotRedactionTier;

@@ -163,6 +163,17 @@ export function eventFromWorkflowPreflightBlocked(mode: ChatMode, unavailableCou
   };
 }
 
+export function eventFromSnapshotPersistenceFailure(snapshotId: string, reason: unknown): EventLogInput {
+  return {
+    kind: 'workflow-error',
+    summary: 'Snapshot save failed; run continued',
+    detail: {
+      snapshotId,
+      failure: classifySnapshotPersistenceFailure(reason),
+    },
+  };
+}
+
 export function eventFromStepTimeout(event: { provider: string; remainingMs: number; timedOut: boolean }): EventLogInput {
   const provider = isAIProvider(event.provider) ? event.provider : undefined;
   const name = provider ? providerName(provider) : event.provider;
@@ -480,4 +491,12 @@ function isAIProvider(provider: string): provider is AIProvider {
 function clamp(value: string, max: number): string {
   if (value.length <= max) return value;
   return `${value.slice(0, Math.max(0, max - 1))}...`;
+}
+
+function classifySnapshotPersistenceFailure(reason: unknown): string {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (/denied|permission/i.test(message)) return 'permission';
+  if (/space|full|quota/i.test(message)) return 'disk';
+  if (/invalid.*snapshot.*id/i.test(message)) return 'invalid-id';
+  return 'write-failed';
 }

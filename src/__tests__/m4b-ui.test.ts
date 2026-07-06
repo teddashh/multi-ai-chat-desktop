@@ -71,6 +71,8 @@ describe('M4b UI helpers', () => {
       slotAssignment: DEFAULT_SLOT_ASSIGNMENT,
       openProviders: [],
       telemetry: 'none',
+      snapshotPersistence: false,
+      snapshotRedactionTier: 'metadata-only',
     });
 
     const normalized = normalizeSettings({
@@ -79,6 +81,8 @@ describe('M4b UI helpers', () => {
       slotAssignment: { leftTop: 'chatgpt', leftBottom: 'chatgpt' },
       openProviders: ['grok', 'nope', 'grok'],
       portable: true,
+      snapshotPersistence: true,
+      snapshotRedactionTier: 'unknown',
     });
     expect(normalized.hackmdToken).toBe('');
     expect(normalized.columnWidths.left).toBeGreaterThanOrEqual(200);
@@ -86,11 +90,14 @@ describe('M4b UI helpers', () => {
     expect(isProviderPermutation(SLOT_IDS.map((slot) => normalized.slotAssignment[slot]))).toBe(true);
     expect(normalized.openProviders).toEqual(['grok']);
     expect(normalized.portable).toBe(true);
+    expect(normalized.snapshotPersistence).toBe(true);
+    expect(normalized.snapshotRedactionTier).toBe('metadata-only');
 
-    expect(mergeSettings(normalized, { adapterChannel: 'beta' })).toMatchObject({
+    expect(mergeSettings(normalized, { adapterChannel: 'beta', snapshotRedactionTier: 'hashes' })).toMatchObject({
       adapterChannel: 'beta',
       openProviders: ['grok'],
       portable: true,
+      snapshotRedactionTier: 'hashes',
     });
   });
 

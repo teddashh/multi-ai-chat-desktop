@@ -6,15 +6,16 @@ const HELLO_SHA256 = '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e7304336293
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 
 describe('snapshot redaction transform', () => {
-  it('drops all ref content at metadata-only while preserving byte lengths', async () => {
+  it('drops all ref content and byte lengths at metadata-only', async () => {
     const snapshot = buildFullLocalSnapshot();
     const original = structuredClone(snapshot);
 
     const redacted = await redactSnapshot(snapshot, 'metadata-only');
 
     expect(redacted.redactionTier).toBe('metadata-only');
-    for (const [source, ref] of pairedRefs(original, redacted)) {
-      expect(ref).toEqual({ tier: 'metadata-only', kind: 'omitted', byteLength: source.byteLength });
+    for (const [, ref] of pairedRefs(original, redacted)) {
+      expect(ref).toEqual({ tier: 'metadata-only', kind: 'omitted' });
+      expect(ref.byteLength).toBeUndefined();
       expect(ref).not.toHaveProperty('text');
       expect(ref).not.toHaveProperty('sha256');
     }
@@ -32,6 +33,7 @@ describe('snapshot redaction transform', () => {
       expect(ref.kind).toBe('hash');
       expect(ref.tier).toBe('hashes');
       expect(ref.byteLength).toBe(source.byteLength);
+      expect(ref.byteLength).toBeDefined();
       expect(ref.sha256).toMatch(HASH_PATTERN);
       expect(ref).not.toHaveProperty('text');
     }

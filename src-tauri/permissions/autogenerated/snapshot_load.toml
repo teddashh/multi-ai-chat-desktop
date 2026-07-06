@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-snapshot-load"
+description = "Enables the snapshot_load command without any pre-configured scope."
+commands.allow = ["snapshot_load"]
+
+[[permission]]
+identifier = "deny-snapshot-load"
+description = "Denies the snapshot_load command without any pre-configured scope."
+commands.deny = ["snapshot_load"]

@@ -10,6 +10,8 @@ import { resetWorkflowStateForTests } from '../workflow/state';
 import { resetStepTimeoutForTests } from '../workflow/stepTimeout';
 import { resetWaitForResponseForTests } from '../workflow/waitForResponse';
 import { getCurrentSnapshot, getLastSnapshot, resetSnapshotRecorderForTests } from '../workflow/snapshot/recorder';
+import { getEventLogSnapshot, resetEventLogForTests } from '../diagnostics/eventLogStore';
+import type { ExecutionSnapshot } from '../workflow/snapshot/types';
 
 vi.mock('../host', () => ({
   host: {
@@ -24,10 +26,17 @@ vi.mock('../host', () => ({
     bridge: {
       subscribeTitle: vi.fn(),
     },
+    snapshot: {
+      save: vi.fn(),
+      list: vi.fn(),
+      load: vi.fn(),
+      delete: vi.fn(),
+    },
   },
 }));
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const SNAPSHOT_ID_PATTERN = /^snapshot-[0-9a-f-]{36}$/;
 
 function state(provider: AIProvider, sendable = true): ProviderState {
   return {
@@ -55,10 +64,12 @@ describe('workflow execution snapshots', () => {
     resetCancelState();
     resetStepTimeoutForTests();
     resetSnapshotRecorderForTests();
+    resetEventLogForTests();
     vi.mocked(host.provider.send).mockResolvedValue(undefined);
     vi.mocked(host.provider.eval).mockResolvedValue(undefined);
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
     vi.mocked(host.connections.get).mockResolvedValue(providers.map((provider) => state(provider)));
+    vi.mocked(host.snapshot.save).mockResolvedValue(undefined);
   });
 
   afterEach(async () => {
@@ -71,6 +82,7 @@ describe('workflow execution snapshots', () => {
     resetCancelState();
     resetStepTimeoutForTests();
     resetSnapshotRecorderForTests();
+    resetEventLogForTests();
   });
 
   it('captures a completed debate run without changing the golden prompt threading', async () => {
@@ -91,7 +103,7 @@ describe('workflow execution snapshots', () => {
       redactionTier: 'full-local',
       adapterVersions: {},
     });
-    expect(snapshot?.snapshotId).toBe('snapshot-1');
+    expect(snapshot?.snapshotId).toMatch(SNAPSHOT_ID_PATTERN);
     expect(snapshot?.createdAt).toEqual(expect.any(String));
     expect(snapshot?.completedAt).toEqual(expect.any(String));
     expect(snapshot?.humanEdits).toEqual([]);
@@ -144,6 +156,22 @@ describe('workflow execution snapshots', () => {
     expect(snapshot?.steps[0].inputRef.byteLength).toBe(new TextEncoder().encode(PROMPTS.debate.pro('debate question')).byteLength);
   });
 
+  it('generates unique snapshot ids across runs', async () => {
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({ text: 'first question', mode: 'free', targets: ['chatgpt'] })).resolves.toEqual({ ok: true });
+    const firstSnapshotId = getLastSnapshot()?.snapshotId;
+
+    await expect(runWorkflow({ text: 'second question', mode: 'free', targets: ['chatgpt'] })).resolves.toEqual({ ok: true });
+    const secondSnapshotId = getLastSnapshot()?.snapshotId;
+
+    expect(firstSnapshotId).toMatch(SNAPSHOT_ID_PATTERN);
+    expect(secondSnapshotId).toMatch(SNAPSHOT_ID_PATTERN);
+    expect(secondSnapshotId).not.toBe(firstSnapshotId);
+  });
+
   it('captures free-mode fanout child steps', async () => {
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       publishBridgeMessage(done(provider, `${provider}-free-answer`));
@@ -172,5 +200,82 @@ describe('workflow execution snapshots', () => {
     ]);
     expect(snapshot?.createdAt).toEqual(expect.any(String));
     expect(snapshot?.completedAt).toEqual(expect.any(String));
+  });
+
+  it('does not persist completed snapshots when persistence is disabled', async () => {
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(
+      runWorkflow({
+        text: 'private question',
+        mode: 'free',
+        targets: ['chatgpt'],
+        snapshotPersistence: false,
+        snapshotRedactionTier: 'full-local',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(host.snapshot.save).not.toHaveBeenCalled();
+  });
+
+  it('persists redacted completed snapshots when explicitly enabled', async () => {
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(
+      runWorkflow({
+        text: 'private question',
+        mode: 'free',
+        targets: ['chatgpt'],
+        snapshotPersistence: true,
+        snapshotRedactionTier: 'metadata-only',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(host.snapshot.save).toHaveBeenCalledTimes(1);
+    const [snapshotId, snapshotJson] = vi.mocked(host.snapshot.save).mock.calls[0];
+    expect(snapshotId).toMatch(SNAPSHOT_ID_PATTERN);
+    const persisted = JSON.parse(snapshotJson) as ExecutionSnapshot;
+    expect(persisted).toMatchObject({
+      snapshotId,
+      graphId: 'free',
+      redactionTier: 'metadata-only',
+    });
+    expect(persisted.steps[0].inputRef).toEqual({
+      tier: 'metadata-only',
+      kind: 'omitted',
+    });
+    expect(persisted.steps[0].outputRef).toEqual({
+      tier: 'metadata-only',
+      kind: 'omitted',
+    });
+    expect(persisted.steps[0].inputRef.byteLength).toBeUndefined();
+    expect(persisted.steps[0].outputRef.byteLength).toBeUndefined();
+    expect(snapshotJson).not.toContain('private question');
+    expect(snapshotJson).not.toContain('chatgpt-answer');
+  });
+
+  it('keeps the workflow successful and records an event when snapshot save fails', async () => {
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+    vi.mocked(host.snapshot.save).mockRejectedValueOnce(new Error('disk full at C:\\Users\\private\\snapshots'));
+
+    await expect(
+      runWorkflow({
+        text: 'private question',
+        mode: 'free',
+        targets: ['chatgpt'],
+        snapshotPersistence: true,
+        snapshotRedactionTier: 'metadata-only',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    const events = getEventLogSnapshot();
+    expect(events.some((event) => event.summary === 'Snapshot save failed; run continued')).toBe(true);
+    expect(JSON.stringify(events)).not.toContain('C:\\Users\\private');
   });
 });

@@ -5,7 +5,7 @@ import { sendRoleAssignment, sendWorkflowStatus } from '../events';
 import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
 import { runStep } from '../stepRunner';
 import { beginSnapshot, completeSnapshot, recordStep } from '../snapshot/recorder';
-import type { AIProviderV2 } from '../snapshot/types';
+import type { AIProviderV2, ExecutionSnapshot } from '../snapshot/types';
 import { evaluateTextCondition, renderRegisteredPrompt } from './registries';
 import { resolveGraphRoles } from './preflight';
 import { assertValidGraph } from './validator';
@@ -59,7 +59,11 @@ interface NodeRunResult {
 
 type RenderedPromptArg = string | number | HistoryItem[] | undefined;
 
-export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphParams): Promise<void> {
+export interface ExecuteGraphOptions {
+  onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
+}
+
+export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphParams, options: ExecuteGraphOptions = {}): Promise<void> {
   assertValidGraph(graph);
   const context = createExecutionContext(graph, params);
   beginSnapshot({
@@ -93,7 +97,14 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
     if (graph.onComplete?.status !== undefined) sendWorkflowStatus(graph.onComplete.status);
     else sendWorkflowStatus('');
   } finally {
-    completeSnapshot();
+    const snapshot = completeSnapshot();
+    if (snapshot) {
+      try {
+        await options.onSnapshotComplete?.(snapshot);
+      } catch {
+        // Snapshot persistence is best-effort (SPEC §13).
+      }
+    }
   }
 }
 

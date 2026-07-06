@@ -238,6 +238,39 @@ export function SettingsModal({
               </label>
             </section>
 
+            <section className="space-y-3 border-t border-zinc-800 pt-4">
+              <label className="flex items-start gap-3 text-xs text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={draft.snapshotPersistence}
+                  onChange={(event) => updateDraft({ snapshotPersistence: event.target.checked })}
+                  className="mt-0.5 h-4 w-4 accent-sky-700"
+                />
+                <span>
+                  <span className="block font-medium text-zinc-300">Durable snapshots</span>
+                  <span className="mt-1 block leading-relaxed">
+                    Off by default. Stored locally under app data after redaction; never cookies or provider storage.
+                  </span>
+                </span>
+              </label>
+              <label className="block text-xs text-zinc-400">
+                <span className="mb-1 block">Snapshot redaction tier</span>
+                <select
+                  value={draft.snapshotRedactionTier}
+                  onChange={(event) =>
+                    updateDraft({ snapshotRedactionTier: event.target.value as AppSettings['snapshotRedactionTier'] })
+                  }
+                  disabled={!draft.snapshotPersistence}
+                  className="w-full border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="metadata-only">metadata-only</option>
+                  <option value="hashes">hashes</option>
+                  <option value="prompt-text">prompt-text</option>
+                  <option value="full-local">full-local</option>
+                </select>
+              </label>
+            </section>
+
             {!draft.portable ? (
               <section className="space-y-3 border-t border-zinc-800 pt-4">
                 <span className="block text-xs text-zinc-400">Updates</span>

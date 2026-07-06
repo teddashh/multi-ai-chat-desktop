@@ -26,6 +26,10 @@
     "allow-settings-set",
     "allow-publish-hackmd",
     "allow-export-markdown",
-    "allow-open-external-url"
+    "allow-open-external-url",
+    "allow-snapshot-save",
+    "allow-snapshot-list",
+    "allow-snapshot-load",
+    "allow-snapshot-delete"
   ]
 }

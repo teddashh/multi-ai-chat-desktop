@@ -91,6 +91,12 @@ async function hashRef(ref: RedactedValueRef, tier: SnapshotRedactionTier): Prom
 }
 
 function omittedRef(ref: RedactedValueRef, tier: SnapshotRedactionTier): RedactedValueRef {
+  if (tier === 'metadata-only') {
+    return {
+      tier,
+      kind: 'omitted',
+    };
+  }
   return {
     tier,
     kind: 'omitted',

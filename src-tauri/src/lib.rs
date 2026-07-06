@@ -1,6 +1,7 @@
 mod adapters;
 mod bridge;
 mod settings;
+mod snapshots;
 mod webviews;
 
 pub fn run() {
@@ -13,7 +14,8 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 adapters::refresh_all_adapters(handle.clone(), false).await;
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
+                let mut interval =
+                    tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
                 interval.tick().await; // consume the immediate first tick (startup run already done)
                 loop {
                     interval.tick().await;
@@ -42,7 +44,11 @@ pub fn run() {
             settings::settings_set,
             settings::publish_hackmd,
             settings::export_markdown,
-            settings::open_external_url
+            settings::open_external_url,
+            snapshots::snapshot_save,
+            snapshots::snapshot_list,
+            snapshots::snapshot_load,
+            snapshots::snapshot_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,6 +6,8 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
+const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
+const SNAPSHOT_REDACTION_TIERS: &[&str] = &["metadata-only", "hashes", "prompt-text", "full-local"];
 
 pub(crate) fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
@@ -41,6 +43,34 @@ pub fn write_settings(path: &Path, settings: &Value) -> Result<(), String> {
     write_atomic(path, &bytes)
 }
 
+pub fn normalize_settings_value(settings: Value) -> Value {
+    let mut settings = match settings {
+        Value::Object(map) => Value::Object(map),
+        _ => Value::Object(Map::new()),
+    };
+    if let Value::Object(map) = &mut settings {
+        let snapshot_persistence = map
+            .get("snapshotPersistence")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        map.insert(
+            "snapshotPersistence".to_string(),
+            Value::Bool(snapshot_persistence),
+        );
+
+        let tier = map
+            .get("snapshotRedactionTier")
+            .and_then(|value| value.as_str())
+            .filter(|value| SNAPSHOT_REDACTION_TIERS.contains(value))
+            .unwrap_or(DEFAULT_SNAPSHOT_REDACTION_TIER);
+        map.insert(
+            "snapshotRedactionTier".to_string(),
+            Value::String(tier.to_string()),
+        );
+    }
+    settings
+}
+
 pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -48,7 +78,9 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
     let tmp_path = path.with_file_name(format!(
         "{}.{}.{}.tmp",
-        path.file_name().and_then(|name| name.to_str()).unwrap_or("adapter.json"),
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("adapter.json"),
         std::process::id(),
         seq
     ));
@@ -67,10 +99,20 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
 fn replace_file(tmp_path: &Path, path: &Path) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows::core::PCWSTR;
-    use windows::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
+    use windows::Win32::Storage::FileSystem::{
+        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
 
-    let src: Vec<u16> = tmp_path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
-    let dst: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    let src: Vec<u16> = tmp_path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let dst: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
     unsafe {
         MoveFileExW(
             PCWSTR(src.as_ptr()),
@@ -89,12 +131,12 @@ fn replace_file(tmp_path: &Path, path: &Path) -> Result<(), String> {
 #[tauri::command]
 pub async fn settings_get(app: AppHandle) -> Result<serde_json::Value, String> {
     let path = settings_path(&app)?;
-    let mut settings = read_settings(&path)?;
-    if !settings.is_object() {
-        settings = Value::Object(Map::new());
-    }
+    let mut settings = normalize_settings_value(read_settings(&path)?);
     if let Value::Object(map) = &mut settings {
-        map.insert("portable".to_string(), Value::Bool(portable_marker_exists()));
+        map.insert(
+            "portable".to_string(),
+            Value::Bool(portable_marker_exists()),
+        );
     }
     Ok(settings)
 }
@@ -103,6 +145,7 @@ pub async fn settings_get(app: AppHandle) -> Result<serde_json::Value, String> {
 pub async fn settings_set(app: AppHandle, settings: serde_json::Value) -> Result<(), String> {
     let path = settings_path(&app)?;
     let previous = read_settings(&path).unwrap_or_else(|_| Value::Object(Map::new()));
+    let settings = normalize_settings_value(settings);
     write_settings(&path, &settings)?;
     let changed = |key: &str| {
         previous.get(key).and_then(|value| value.as_str())
@@ -243,7 +286,7 @@ pub async fn open_external_url(
 
 #[cfg(test)]
 mod tests {
-    use super::{read_settings, write_settings};
+    use super::{normalize_settings_value, read_settings, write_settings};
     use serde_json::json;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -288,7 +331,10 @@ mod tests {
     fn missing_file_reads_as_empty_object() {
         let path = unique_path("missing");
 
-        assert_eq!(read_settings(&path).expect("read missing settings"), json!({}));
+        assert_eq!(
+            read_settings(&path).expect("read missing settings"),
+            json!({})
+        );
     }
 
     #[test]
@@ -298,7 +344,10 @@ mod tests {
         write_settings(&path, &json!({ "value": 1 })).expect("first write");
         write_settings(&path, &json!({ "value": 2 })).expect("second write");
 
-        assert_eq!(read_settings(&path).expect("read overwritten settings"), json!({ "value": 2 }));
+        assert_eq!(
+            read_settings(&path).expect("read overwritten settings"),
+            json!({ "value": 2 })
+        );
 
         // No leftover temp file for this target. write_atomic uses a unique
         // `<name>.<pid>.<seq>.tmp` scheme, so scan for any `.tmp` sibling of this base
@@ -319,5 +368,36 @@ mod tests {
         assert!(leftover.is_empty(), "temp files left behind: {leftover:?}");
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn normalizes_snapshot_settings_to_opt_in_safe_defaults() {
+        assert_eq!(
+            normalize_settings_value(json!({})),
+            json!({
+                "snapshotPersistence": false,
+                "snapshotRedactionTier": "metadata-only"
+            })
+        );
+        assert_eq!(
+            normalize_settings_value(json!({
+                "snapshotPersistence": true,
+                "snapshotRedactionTier": "full-local"
+            })),
+            json!({
+                "snapshotPersistence": true,
+                "snapshotRedactionTier": "full-local"
+            })
+        );
+        assert_eq!(
+            normalize_settings_value(json!({
+                "snapshotPersistence": "true",
+                "snapshotRedactionTier": "unknown"
+            })),
+            json!({
+                "snapshotPersistence": false,
+                "snapshotRedactionTier": "metadata-only"
+            })
+        );
     }
 }

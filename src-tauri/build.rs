@@ -21,6 +21,10 @@ fn main() {
             "publish_hackmd",
             "export_markdown",
             "open_external_url",
+            "snapshot_save",
+            "snapshot_list",
+            "snapshot_load",
+            "snapshot_delete",
         ]),
     ))
     .expect("failed to run tauri build script");

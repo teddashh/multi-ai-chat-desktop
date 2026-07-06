@@ -5,12 +5,28 @@ import { listen } from '@tauri-apps/api/event';
 import { onBridgeMessage } from '../bridge/bus';
 import type { AdapterNotice } from '../ui/reportBroken';
 
+export interface StoredSnapshotInfo {
+  id: string;
+  graphId?: string;
+  createdAt?: string;
+  completedAt?: string;
+}
+
 const toBounds = (rect: DOMRectReadOnly) => ({
   x: Math.round(rect.x),
   y: Math.round(rect.y),
   width: Math.round(rect.width),
   height: Math.round(rect.height),
 });
+
+const SNAPSHOT_ID_RE = /^[A-Za-z0-9._-]{1,80}$/;
+
+function safeSnapshotId(snapshotId: string): string {
+  if (!SNAPSHOT_ID_RE.test(snapshotId) || snapshotId === '.' || snapshotId === '..') {
+    throw new Error('Invalid snapshot id');
+  }
+  return snapshotId;
+}
 
 export const host = {
   app: {
@@ -79,6 +95,14 @@ export const host = {
   settings: {
     get: (): Promise<unknown> => invoke('settings_get'),
     set: (settings: unknown): Promise<void> => invoke('settings_set', { settings }),
+  },
+  snapshot: {
+    save: async (snapshotId: string, snapshotJson: string): Promise<void> =>
+      invoke('snapshot_save', { snapshotId: safeSnapshotId(snapshotId), snapshotJson }),
+    list: (): Promise<StoredSnapshotInfo[]> => invoke('snapshot_list'),
+    load: async (snapshotId: string): Promise<string | null> =>
+      invoke('snapshot_load', { snapshotId: safeSnapshotId(snapshotId) }),
+    delete: async (snapshotId: string): Promise<void> => invoke('snapshot_delete', { snapshotId: safeSnapshotId(snapshotId) }),
   },
   publish: {
     hackmd: (title: string, markdown: string): Promise<string> => invoke('publish_hackmd', { title, markdown }),
