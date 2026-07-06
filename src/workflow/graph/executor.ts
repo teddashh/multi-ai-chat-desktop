@@ -55,16 +55,22 @@ interface NodeRunResult {
   enqueue?: NodeId[];
 }
 
+type RenderedPromptArg = string | number | HistoryItem[] | undefined;
+
 export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphParams): Promise<void> {
   assertValidGraph(graph);
   const context = createExecutionContext(graph, params);
+  const abortAware = graph.preflight.kind !== 'free';
   addReady(context, graph.start);
   addParallelSiblings(context, graph.start);
 
   for (;;) {
-    checkAborted();
     const batch = takeReadyBatch(context);
     if (batch.length === 0) break;
+    // Abort point matches the old imperative handlers: checked before each step that
+    // actually runs, never after the final step (placing it after the empty-batch break
+    // guard avoids a post-terminal-step check that the old handlers did not have).
+    if (abortAware) checkAborted();
 
     const status = renderBatchStatus(batch, context);
     if (status !== undefined) sendWorkflowStatus(status);
@@ -73,7 +79,6 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
     const results = await Promise.all(prepared.map((item) => item.run()));
     results.forEach((result) => applyNodeResult(context, result));
 
-    checkAborted();
     evaluateEdges(context);
   }
 
@@ -283,6 +288,7 @@ function renderBatchStatus(batch: NodeId[], context: ExecutionContext): string |
     const node = context.graph.nodes[nodeId];
     const status = node.kind === 'step' || node.kind === 'noop' ? node.status : node.kind === 'fanout' ? node.template.status : undefined;
     if (!status) continue;
+    if (node.kind === 'fanout' && node.over.type === 'targets' && resolveFanoutProviders(node, context).length === 0) return undefined;
     const provider = node.kind === 'step' ? resolveProviderRef(node.provider, context) : undefined;
     return renderTextTemplate(status, context, nodeId, provider);
   }
@@ -291,7 +297,7 @@ function renderBatchStatus(batch: NodeId[], context: ExecutionContext): string |
 
 function renderPromptSpec(prompt: PromptSpec, context: ExecutionContext, nodeId: NodeId, provider?: AIProvider): string {
   const args = prompt.args.map((promptArg) => renderPromptArg(promptArg, context));
-  return renderRegisteredPrompt(prompt, args, { graph: context.graph, nodeId, provider });
+  return renderRegisteredPrompt(prompt, args, { graph: context.graph, nodeId, provider, targets: context.targets });
 }
 
 function renderTextTemplate(template: TextTemplate, context: ExecutionContext, nodeId: NodeId, provider?: AIProvider): string {
@@ -301,15 +307,17 @@ function renderTextTemplate(template: TextTemplate, context: ExecutionContext, n
     graph: context.graph,
     nodeId,
     provider,
+    targets: context.targets,
   });
 }
 
-function renderPromptArg(promptArg: PromptArg, context: ExecutionContext): string {
+function renderPromptArg(promptArg: PromptArg, context: ExecutionContext): RenderedPromptArg {
   if (promptArg.kind === 'input') return context.question;
   if (promptArg.kind === 'output') return context.outputs.get(promptArg.node)?.text ?? '';
   if (promptArg.kind === 'aggregate') return context.aggregates.get(promptArg.name) ?? '';
   if (promptArg.kind === 'providerName') return AI_PROVIDERS[resolveProviderRef(promptArg.provider, context)].name;
-  if (promptArg.kind === 'history') return renderHistory(context.histories.get(promptArg.name) ?? []);
+  if (promptArg.kind === 'history') return context.histories.get(promptArg.name) ?? [];
+  if (promptArg.kind === 'literal') return promptArg.value;
   return String(context.loopValues.get(promptArg.name) ?? '');
 }
 
@@ -374,7 +382,11 @@ function renderHistoryAppend(
   const name = node.appendHistory.value.name
     ? AI_PROVIDERS[resolveProviderRef(node.appendHistory.value.name.provider, context)].name
     : AI_PROVIDERS[selfProvider].name;
-  const roundValue = node.appendHistory.value.round ? context.loopValues.get(node.appendHistory.value.round.name) : undefined;
+  const roundValue = node.appendHistory.value.round
+    ? node.appendHistory.value.round.kind === 'literal'
+      ? node.appendHistory.value.round.value
+      : context.loopValues.get(node.appendHistory.value.round.name)
+    : undefined;
   const text =
     node.appendHistory.value.text.kind === 'selfOutput'
       ? selfOutput

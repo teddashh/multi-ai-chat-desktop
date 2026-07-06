@@ -190,7 +190,7 @@ function validatePromptArg(context: ValidationContext, promptArg: PromptArg, pat
 function validateHistoryAppend(context: ValidationContext, appendHistory: HistoryAppendSpec | undefined, path: string): void {
   if (!appendHistory) return;
   if (appendHistory.value.name) validateProviderRef(context, appendHistory.value.name.provider, `${path}.value.name.provider`);
-  if (appendHistory.value.round && !context.loopIds.has(appendHistory.value.round.name)) {
+  if (appendHistory.value.round?.kind === 'loop' && !context.loopIds.has(appendHistory.value.round.name)) {
     addError(context, 'unresolved-ref', `Loop "${appendHistory.value.round.name}" does not exist`, `${path}.value.round`);
   }
   if (appendHistory.value.text.kind === 'output') validateNodeRef(context, appendHistory.value.text.node, `${path}.value.text`);

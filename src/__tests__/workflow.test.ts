@@ -1,13 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
-import { DEFAULT_DEBATE_ROLES, DEFAULT_ROUNDTABLE_ROLES, POLL_PULL_MS, PROMPTS } from '../../shared/constants';
+import {
+  AI_PROVIDERS,
+  DEFAULT_CODING_ROLES,
+  DEFAULT_CONSULT_ROLES,
+  DEFAULT_DEBATE_ROLES,
+  DEFAULT_ROUNDTABLE_ROLES,
+  POLL_PULL_MS,
+  PROMPTS,
+} from '../../shared/constants';
 import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../bridge/bus';
 import { AWAITING_MAX_MS, pullProvider, resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
 import { emitSystemError } from '../workflow/events';
-import { handleDebateMode } from '../workflow/modes/debate';
-import { handleRoundtableMode, ROUND_LABELS } from '../workflow/modes/roundtable';
+import { ROUND_LABELS } from '../workflow/graph';
 import { preflightSerialMode } from '../workflow/preflight';
 import { isSendable } from '../workflow/sendability';
 import { sendAndWait } from '../workflow/sendAndWait';
@@ -35,6 +42,10 @@ vi.mock('../host', () => ({
 }));
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+
+function providerName(provider: AIProvider): string {
+  return AI_PROVIDERS[provider].name;
+}
 
 function state(provider: AIProvider, sendable = true): ProviderState {
   return {
@@ -157,6 +168,10 @@ describe('workflow engine', () => {
   });
 
   it('free mode sends only selected sendable targets and treats an empty target list as no-op', async () => {
+    const statuses: string[] = [];
+    const unsubscribe = onBridgeMessage((message) => {
+      if (message.action === 'WORKFLOW_STATUS' && typeof message.payload === 'string') statuses.push(message.payload);
+    });
     vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
     const run = runWorkflow({ text: 'q', mode: 'free', targets: ['chatgpt', 'claude'] });
     await Promise.resolve();
@@ -164,10 +179,14 @@ describe('workflow engine', () => {
     await expect(run).resolves.toEqual({ ok: true });
     expect(host.provider.send).toHaveBeenCalledTimes(1);
     expect(host.provider.send).toHaveBeenCalledWith('chatgpt', 'q');
+    expect(statuses).toEqual([`⚡ ${providerName('chatgpt')} 同時作答中...`, '']);
 
     vi.mocked(host.provider.send).mockClear();
+    statuses.length = 0;
     await expect(runWorkflow({ text: 'q', mode: 'free', targets: [] })).resolves.toEqual({ ok: true });
+    unsubscribe();
     expect(host.provider.send).not.toHaveBeenCalled();
+    expect(statuses).toEqual(['']);
   });
 
   it('send failures tear down their waiter and polling for serial and free-mode sends', async () => {
@@ -285,8 +304,10 @@ describe('workflow engine', () => {
       if (sentPrompts.length === 1) throw new Error('skip this step');
       publishBridgeMessage(done(provider, `answer-${sentPrompts.length}`));
     });
+    const run = runWorkflow({ text: 'question', mode: 'debate', roles: DEFAULT_DEBATE_ROLES });
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
     chooseStepTimeoutAction('skip');
-    await expect(handleDebateMode('question', DEFAULT_DEBATE_ROLES)).resolves.toBeUndefined();
+    await expect(run).resolves.toEqual({ ok: true });
     expect(sentPrompts[1]).toBe(PROMPTS.debate.con('question', SKIP_RESPONSE));
   });
 
@@ -340,8 +361,10 @@ describe('workflow engine', () => {
 
   it('consult emits both parallel role assignments before either send', async () => {
     const order: string[] = [];
+    const statuses: string[] = [];
     const unsubscribe = onBridgeMessage((message) => {
       if (message.action === 'ROLE_ASSIGNMENT') order.push(`role:${message.provider}`);
+      if (message.action === 'WORKFLOW_STATUS' && typeof message.payload === 'string') statuses.push(message.payload);
     });
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       order.push(`send:${provider}`);
@@ -350,6 +373,12 @@ describe('workflow engine', () => {
     await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
     unsubscribe();
     expect(order.slice(0, 4)).toEqual(['role:chatgpt', 'role:grok', 'send:chatgpt', 'send:grok']);
+    expect(statuses).toEqual([
+      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.first)} 與 ${providerName(DEFAULT_CONSULT_ROLES.second)} 同時回答中...`,
+      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.reviewer)} 審查中...`,
+      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.summary)} 總結中...`,
+      '',
+    ]);
   });
 
   it('debate preserves pro to con to judge to summary ordering and threaded prompts', async () => {
@@ -363,7 +392,7 @@ describe('workflow engine', () => {
       prompts.push(prompt);
       publishBridgeMessage(done(provider, `${provider}-answer`));
     });
-    await expect(handleDebateMode('debate question', DEFAULT_DEBATE_ROLES)).resolves.toBeUndefined();
+    await expect(runWorkflow({ text: 'debate question', mode: 'debate', roles: DEFAULT_DEBATE_ROLES })).resolves.toEqual({ ok: true });
     unsubscribe();
     expect(order).toEqual([
       'role:chatgpt',
@@ -396,7 +425,9 @@ describe('workflow engine', () => {
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       publishBridgeMessage(done(provider, `round-answer-${vi.mocked(host.provider.send).mock.calls.length}`));
     });
-    await expect(handleRoundtableMode('roundtable question', DEFAULT_ROUNDTABLE_ROLES)).resolves.toBeUndefined();
+    await expect(runWorkflow({ text: 'roundtable question', mode: 'roundtable', roles: DEFAULT_ROUNDTABLE_ROLES })).resolves.toEqual({
+      ok: true,
+    });
     unsubscribe();
     buildPromptSpy.mockRestore();
     expect(host.provider.send).toHaveBeenCalledTimes(20);
@@ -410,21 +441,84 @@ describe('workflow engine', () => {
 
   it('coding runs the eight ported steps with distinct turns for repeated providers', async () => {
     const coderTurns: number[] = [];
+    const roleAssignments: { role: string; label: string }[] = [];
+    const statuses: string[] = [];
+    const sent: { provider: AIProvider; prompt: string }[] = [];
     const sends: string[] = [];
+    const responses = [
+      'spec',
+      'spec-review',
+      'code-v1',
+      'code-review',
+      'test-report',
+      'code-v2',
+      'acceptance',
+      'final-code',
+    ];
     const unsubscribe = onBridgeMessage((message) => {
-      if (message.action === 'ROLE_ASSIGNMENT' && message.provider === 'claude') {
-        coderTurns.push((message.payload as { turn: number }).turn);
+      if (message.action === 'WORKFLOW_STATUS' && typeof message.payload === 'string') statuses.push(message.payload);
+      if (message.action === 'ROLE_ASSIGNMENT') {
+        const payload = message.payload as { role: string; label: string; turn: number };
+        roleAssignments.push({ role: payload.role, label: payload.label });
+        if (message.provider === DEFAULT_CODING_ROLES.coder) {
+          coderTurns.push(payload.turn);
+        }
       }
     });
     vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sent.push({ provider, prompt });
       sends.push(`${provider}:${prompt}`);
-      publishBridgeMessage(done(provider, `answer-${sends.length}`));
+      publishBridgeMessage(done(provider, responses[sends.length - 1]));
     });
-    await expect(runWorkflow({ text: 'feature', mode: 'coding' })).resolves.toEqual({ ok: true });
+    await expect(runWorkflow({ text: 'feature', mode: 'coding', roles: DEFAULT_CODING_ROLES })).resolves.toEqual({ ok: true });
     unsubscribe();
     expect(sends).toHaveLength(8);
     expect(sends[0]).toContain('需求：feature');
     expect(new Set(coderTurns).size).toBe(3);
+    expect(statuses).toEqual([
+      `💻 Step 1/8 — ${providerName(DEFAULT_CODING_ROLES.planner)} 撰寫規格中...`,
+      `💻 Step 2/8 — ${providerName(DEFAULT_CODING_ROLES.reviewer)} 審查規格中...`,
+      `💻 Step 3/8 — ${providerName(DEFAULT_CODING_ROLES.coder)} 撰寫 v1 中...`,
+      `💻 Step 4/8 — ${providerName(DEFAULT_CODING_ROLES.reviewer)} Code Review 中...`,
+      `💻 Step 5/8 — ${providerName(DEFAULT_CODING_ROLES.tester)} 測試分析中...`,
+      `💻 Step 6/8 — ${providerName(DEFAULT_CODING_ROLES.coder)} 修正 → v2 中...`,
+      `💻 Step 7/8 — ${providerName(DEFAULT_CODING_ROLES.planner)} 驗收中...`,
+      `💻 Step 8/8 — ${providerName(DEFAULT_CODING_ROLES.coder)} 最終修正中...`,
+      '',
+    ]);
+    expect(roleAssignments).toEqual([
+      { role: 'planner', label: '規劃師' },
+      { role: 'reviewer', label: '審查者' },
+      { role: 'coder', label: 'Coder' },
+      { role: 'reviewer', label: 'Code Review' },
+      { role: 'tester', label: 'Tester' },
+      { role: 'coder', label: 'v2 修正' },
+      { role: 'planner', label: '驗收' },
+      { role: 'coder', label: '最終版' },
+    ]);
+    expect(sent.map((item) => item.prompt)).toEqual([
+      PROMPTS.coding.plannerSpec('feature'),
+      PROMPTS.coding.reviewerSpec('feature', responses[0], providerName(DEFAULT_CODING_ROLES.planner)),
+      PROMPTS.coding.coderV1(
+        'feature',
+        responses[0],
+        providerName(DEFAULT_CODING_ROLES.planner),
+        responses[1],
+        providerName(DEFAULT_CODING_ROLES.reviewer),
+      ),
+      PROMPTS.coding.reviewerCode('feature', responses[2], providerName(DEFAULT_CODING_ROLES.coder)),
+      PROMPTS.coding.testerCases('feature', responses[2], providerName(DEFAULT_CODING_ROLES.coder)),
+      PROMPTS.coding.coderV2(
+        'feature',
+        responses[2],
+        responses[3],
+        providerName(DEFAULT_CODING_ROLES.reviewer),
+        responses[4],
+        providerName(DEFAULT_CODING_ROLES.tester),
+      ),
+      PROMPTS.coding.plannerAcceptance('feature', responses[5], providerName(DEFAULT_CODING_ROLES.coder), responses[0]),
+      PROMPTS.coding.coderFinal('feature', responses[5], responses[6], providerName(DEFAULT_CODING_ROLES.planner)),
+    ]);
   });
 
   it('emits the distinct terminal system error shape and pins the skip string codepoint', () => {

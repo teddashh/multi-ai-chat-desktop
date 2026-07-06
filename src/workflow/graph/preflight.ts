@@ -78,7 +78,7 @@ function providerForRequiredRole(graph: WorkflowGraph, resolved: Map<RoleKey, AI
 
 function aliasedProviders(resolved: Map<RoleKey, AIProvider>, roles: RoleKey[]): AIProvider[] {
   const providers = roles.map((role) => resolved.get(role)).filter((provider): provider is AIProvider => provider !== undefined);
-  return [...new Set(providers.filter((provider, index) => providers.indexOf(provider) !== index))];
+  return providers.filter((provider, index) => providers.indexOf(provider) !== index);
 }
 
 function missingState(provider: AIProvider): ProviderState {

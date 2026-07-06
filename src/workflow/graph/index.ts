@@ -1,5 +1,9 @@
+export { workflowGraphs } from './builtinGraphs';
+export { codingGraph } from './codingGraph';
+export { consultGraph } from './consultGraph';
 export { debateGraph } from './debateGraph';
 export { executeGraph } from './executor';
+export { freeGraph } from './freeGraph';
 export { preflightGraph, resolveGraphRoles, resolveRequiredRoles } from './preflight';
 export {
   evaluateTextCondition,
@@ -8,6 +12,7 @@ export {
   promptBuilders,
   textConditionEvaluators,
 } from './registries';
+export { ROUND_LABELS, roundtableGraph } from './roundtableGraph';
 export { assertValidGraph, validateGraph } from './validator';
 export type {
   AggregateNode,

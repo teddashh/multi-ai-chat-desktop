@@ -60,7 +60,7 @@ export interface HistoryAppendSpec {
   history: string;
   value: {
     name?: { kind: 'providerName'; provider: ProviderRef };
-    round?: { kind: 'loop'; name: string };
+    round?: { kind: 'loop'; name: string } | { kind: 'literal'; value: number };
     text: { kind: 'output'; node: NodeId } | { kind: 'selfOutput' };
   };
 }
@@ -117,7 +117,8 @@ export type PromptArg =
   | { kind: 'aggregate'; name: string }
   | { kind: 'providerName'; provider: ProviderRef }
   | { kind: 'history'; name: string }
-  | { kind: 'loop'; name: string };
+  | { kind: 'loop'; name: string }
+  | { kind: 'literal'; value: string | number };
 
 export type TextRef =
   | { kind: 'input'; name: 'question' }
