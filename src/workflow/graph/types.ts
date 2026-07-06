@@ -8,6 +8,7 @@ export type TextTemplate = string | { builder: string; args?: PromptArg[] };
 export interface WorkflowGraph {
   schemaVersion: 1;
   id: string;
+  version?: number;
   mode?: ChatMode;
   start: NodeId;
   roles: Record<RoleKey, GraphRole>;

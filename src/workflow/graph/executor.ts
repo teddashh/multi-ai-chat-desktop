@@ -4,6 +4,8 @@ import { checkAborted } from '../cancel';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
 import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
 import { runStep } from '../stepRunner';
+import { beginSnapshot, completeSnapshot, recordStep } from '../snapshot/recorder';
+import type { AIProviderV2 } from '../snapshot/types';
 import { evaluateTextCondition, renderRegisteredPrompt } from './registries';
 import { resolveGraphRoles } from './preflight';
 import { assertValidGraph } from './validator';
@@ -60,30 +62,39 @@ type RenderedPromptArg = string | number | HistoryItem[] | undefined;
 export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphParams): Promise<void> {
   assertValidGraph(graph);
   const context = createExecutionContext(graph, params);
+  beginSnapshot({
+    graph,
+    roleMap: snapshotRoleMap(context),
+    adapterVersions: snapshotAdapterVersions(),
+  });
   const abortAware = graph.preflight.kind !== 'free';
-  addReady(context, graph.start);
-  addParallelSiblings(context, graph.start);
+  try {
+    addReady(context, graph.start);
+    addParallelSiblings(context, graph.start);
 
-  for (;;) {
-    const batch = takeReadyBatch(context);
-    if (batch.length === 0) break;
-    // Abort point matches the old imperative handlers: checked before each step that
-    // actually runs, never after the final step (placing it after the empty-batch break
-    // guard avoids a post-terminal-step check that the old handlers did not have).
-    if (abortAware) checkAborted();
+    for (;;) {
+      const batch = takeReadyBatch(context);
+      if (batch.length === 0) break;
+      // Abort point matches the old imperative handlers: checked before each step that
+      // actually runs, never after the final step (placing it after the empty-batch break
+      // guard avoids a post-terminal-step check that the old handlers did not have).
+      if (abortAware) checkAborted();
 
-    const status = renderBatchStatus(batch, context);
-    if (status !== undefined) sendWorkflowStatus(status);
+      const status = renderBatchStatus(batch, context);
+      if (status !== undefined) sendWorkflowStatus(status);
 
-    const prepared = batch.map((nodeId) => prepareNode(nodeId, context));
-    const results = await Promise.all(prepared.map((item) => item.run()));
-    results.forEach((result) => applyNodeResult(context, result));
+      const prepared = batch.map((nodeId) => prepareNode(nodeId, context));
+      const results = await Promise.all(prepared.map((item) => item.run()));
+      results.forEach((result) => applyNodeResult(context, result));
 
-    evaluateEdges(context);
+      evaluateEdges(context);
+    }
+
+    if (graph.onComplete?.status !== undefined) sendWorkflowStatus(graph.onComplete.status);
+    else sendWorkflowStatus('');
+  } finally {
+    completeSnapshot();
   }
-
-  if (graph.onComplete?.status !== undefined) sendWorkflowStatus(graph.onComplete.status);
-  else sendWorkflowStatus('');
 }
 
 function createExecutionContext(graph: WorkflowGraph, params: ExecuteGraphParams): ExecutionContext {
@@ -156,7 +167,21 @@ function prepareStepNode(nodeId: NodeId, node: StepNode, context: ExecutionConte
     return {
       nodeId,
       run: async () => {
-        const result = await sendAndWait(provider, prompt).catch(() => undefined);
+        const startedAt = snapshotTimestamp();
+        let sendError: unknown;
+        const result = await sendAndWait(provider, prompt).catch((error: unknown) => {
+          sendError = error;
+          return undefined;
+        });
+        recordStep({
+          nodeId,
+          provider,
+          input: prompt,
+          output: result?.response ?? (sendError ? snapshotErrorText(sendError) : ''),
+          status: 'done',
+          startedAt,
+          completedAt: snapshotTimestamp(),
+        });
         return { nodeId, output: { text: result?.response ?? '', provider, turn: result?.turn } };
       },
     };
@@ -170,12 +195,35 @@ function prepareStepNode(nodeId: NodeId, node: StepNode, context: ExecutionConte
   return {
     nodeId,
     run: async () => {
-      const result = await runStep(provider, prompt, turn);
-      return {
-        nodeId,
-        output: { text: result.response, provider, turn: result.turn },
-        appendHistory: renderHistoryAppend(node, context, result.response, provider),
-      };
+      const startedAt = snapshotTimestamp();
+      try {
+        const result = await runStep(provider, prompt, turn);
+        recordStep({
+          nodeId,
+          provider,
+          input: prompt,
+          output: result.response,
+          status: 'done',
+          startedAt,
+          completedAt: snapshotTimestamp(),
+        });
+        return {
+          nodeId,
+          output: { text: result.response, provider, turn: result.turn },
+          appendHistory: renderHistoryAppend(node, context, result.response, provider),
+        };
+      } catch (error) {
+        recordStep({
+          nodeId,
+          provider,
+          input: prompt,
+          output: snapshotErrorText(error),
+          status: 'done',
+          startedAt,
+          completedAt: snapshotTimestamp(),
+        });
+        throw error;
+      }
     },
   };
 }
@@ -416,4 +464,26 @@ function isAIProvider(value: unknown): value is AIProvider {
 
 function isProviderRef(value: unknown): value is ProviderRef {
   return Boolean(value && typeof value === 'object' && 'type' in value);
+}
+
+function snapshotRoleMap(context: ExecutionContext): Record<string, AIProviderV2> {
+  const roleMap: Record<string, AIProviderV2> = {};
+  context.roles.forEach((provider, role) => {
+    roleMap[role] = provider;
+  });
+  return roleMap;
+}
+
+function snapshotAdapterVersions(): Partial<Record<AIProviderV2, number>> {
+  // TODO(N1b): wire this to the control-pane adapter-version state when that store exists.
+  return {};
+}
+
+function snapshotTimestamp(): string {
+  return new Date().toISOString();
+}
+
+function snapshotErrorText(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return `[Error: ${message}]`;
 }

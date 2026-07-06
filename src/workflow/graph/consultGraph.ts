@@ -4,6 +4,7 @@ import type { WorkflowGraph } from './types';
 export const consultGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'consult',
+  version: 1,
   mode: 'consult',
   start: 'first',
   roles: {
