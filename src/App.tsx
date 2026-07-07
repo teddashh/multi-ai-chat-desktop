@@ -13,6 +13,7 @@ import type { PreflightResult } from './workflow/preflight';
 import { bubbleAuthorLabel } from './bubbleAuthorLabel';
 import { CheckpointCard } from './ui/CheckpointCard';
 import { InputBar } from './ui/InputBar';
+import { makeFileDragGuard } from './ui/fileDrop';
 import { ModeSelector } from './ui/ModeSelector';
 import { PreflightDialog } from './ui/PreflightDialog';
 import { PresetCatalog } from './ui/PresetCatalog';
@@ -218,6 +219,16 @@ export default function App() {
     Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || Boolean(accessProvider);
   overlayGuardOpenRef.current = overlayGuardOpen;
   useOverlayGuard(overlayGuardOpen, loadedModalProviders);
+
+  useEffect(() => {
+    const guard = makeFileDragGuard();
+    window.addEventListener('dragover', guard);
+    window.addEventListener('drop', guard);
+    return () => {
+      window.removeEventListener('dragover', guard);
+      window.removeEventListener('drop', guard);
+    };
+  }, []);
 
   useEffect(() => {
     statesRef.current = states;

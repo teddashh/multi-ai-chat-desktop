@@ -6,6 +6,7 @@ import {
   MAX_TEXT_FILE_CHARS,
   fenceForContent,
   formatInsertedFilePrompt,
+  formatInsertedFilesPrompt,
   languageFromExtension,
   readTextFileForInsert,
   type FileLike,
@@ -57,6 +58,42 @@ describe('file insert helpers', () => {
         'Explain the edge cases.',
       ].join('\n'),
     );
+  });
+
+  it('formats zero, one, and many attached files with the composer text appended once', () => {
+    const a: InsertedTextFile = {
+      name: 'a.ts',
+      size: 10,
+      extension: '.ts',
+      typeLabel: '.ts',
+      language: 'ts',
+      content: 'const a = 1;',
+    };
+    const b: InsertedTextFile = {
+      name: 'b.md',
+      size: 20,
+      extension: '.md',
+      typeLabel: '.md',
+      language: 'markdown',
+      content: 'Use this\n```txt\ninner fence\n```',
+    };
+
+    expect(formatInsertedFilesPrompt([], '  plain composer  ')).toBe('plain composer');
+    expect(formatInsertedFilesPrompt([], '')).toBe('');
+    expect(formatInsertedFilesPrompt([a], 'Explain it.')).toBe(formatInsertedFilePrompt(a, 'Explain it.'));
+
+    const out = formatInsertedFilesPrompt([a, b], 'Summarize both.');
+    expect(out).toBe(
+      [
+        formatInsertedFilePrompt(a),
+        '',
+        formatInsertedFilePrompt(b),
+        '',
+        'Summarize both.',
+      ].join('\n'),
+    );
+    expect(out.match(/Summarize both\./g)).toHaveLength(1);
+    expect(out).toContain('````markdown\nUse this\n```txt\ninner fence\n```\n````');
   });
 
   it('uses a fence longer than any backtick run so a Markdown file with its own ``` blocks survives', () => {

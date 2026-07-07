@@ -2,9 +2,14 @@ export const BINARY_UNSUPPORTED_MESSAGE =
   "Binary/rich files (PDF, images, DOCX…) aren't supported yet — this milestone inserts text file content only.";
 export const FILE_TOO_LARGE_MESSAGE =
   'Text files are limited to 262,144 UTF-8 bytes or 120,000 characters for this milestone. Choose a smaller file.';
+export const ATTACHMENT_LIMIT_MESSAGE =
+  'Text attachments are limited to 8 files and 262,144 UTF-8 bytes or 120,000 characters total for this milestone. Remove a file or choose smaller files.';
 
 export const MAX_TEXT_FILE_BYTES = 256 * 1024;
 export const MAX_TEXT_FILE_CHARS = 120_000;
+export const MAX_ATTACHMENTS = 8;
+export const MAX_ATTACHMENT_TOTAL_BYTES = MAX_TEXT_FILE_BYTES;
+export const MAX_ATTACHMENT_TOTAL_CHARS = MAX_TEXT_FILE_CHARS;
 
 export interface FileLike {
   name: string;
@@ -184,12 +189,11 @@ export function fenceForContent(content: string): string {
   return '`'.repeat(Math.max(3, longest + 1));
 }
 
-export function formatInsertedFilePrompt(file: InsertedTextFile, composerText = ''): string {
+function formatInsertedFileBlock(file: InsertedTextFile): string {
   const language = file.language ? file.language : '';
   const content = file.content.endsWith('\n') ? file.content : `${file.content}\n`;
   const fence = fenceForContent(file.content);
-  const prompt = composerText.trim();
-  const formatted = [
+  return [
     'Please use the attached file content below.',
     '',
     `Filename: ${file.name.replace(/[\r\n]+/g, ' ')}`,
@@ -199,6 +203,18 @@ export function formatInsertedFilePrompt(file: InsertedTextFile, composerText = 
     `${fence}${language}`,
     `${content}${fence}`,
   ].join('\n');
+}
 
+export function formatInsertedFilePrompt(file: InsertedTextFile, composerText = ''): string {
+  const formatted = formatInsertedFileBlock(file);
+  const prompt = composerText.trim();
+
+  return prompt ? `${formatted}\n\n${prompt}` : formatted;
+}
+
+export function formatInsertedFilesPrompt(files: readonly InsertedTextFile[], composerText = ''): string {
+  const formatted = files.map((file) => formatInsertedFileBlock(file)).join('\n\n');
+  const prompt = composerText.trim();
+  if (!formatted) return prompt;
   return prompt ? `${formatted}\n\n${prompt}` : formatted;
 }

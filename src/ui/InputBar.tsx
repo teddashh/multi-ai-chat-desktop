@@ -1,5 +1,18 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { formatInsertedFilePrompt, readTextFileForInsert, TEXT_FILE_EXTENSIONS, type InsertedTextFile } from './fileInsert';
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+import {
+  attachmentChipName,
+  attachmentChipSize,
+  beginAttachmentBatch,
+  hasReadingAttachment,
+  readAttachmentJobs,
+  readyAttachmentFiles,
+  removeAttachment,
+  removeReadingAttachmentIds,
+  settleAttachmentReadResults,
+  type AttachmentChip,
+} from './fileAttachments';
+import { filesFromDataTransfer, isOsFileDrag, markFileDragCopy, preventFileDragDefaults } from './fileDrop';
+import { formatInsertedFilesPrompt, TEXT_FILE_EXTENSIONS, type FileLike } from './fileInsert';
 
 export function InputBar({
   onSend,
@@ -13,12 +26,13 @@ export function InputBar({
   isProcessing: boolean;
 }) {
   const [text, setText] = useState('');
-  const [selectedFile, setSelectedFile] = useState<InsertedTextFile | undefined>();
-  const [fileError, setFileError] = useState<string | undefined>();
-  const [isReadingFile, setIsReadingFile] = useState(false);
+  const [attachmentChips, setAttachmentChips] = useState<AttachmentChip[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | undefined>();
+  const [dropActive, setDropActive] = useState(false);
+  const attachmentChipsRef = useRef<AttachmentChip[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pickGeneration = useRef(0);
+  const batchGeneration = useRef(0);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -27,49 +41,114 @@ export function InputBar({
     textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
   }, [text]);
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = '';
-    // Guard against a stale earlier read settling after a newer pick and clobbering it
-    // (which could otherwise show the wrong file and broadcast the wrong content).
-    const generation = (pickGeneration.current += 1);
-    setSelectedFile(undefined);
-    setFileError(undefined);
-    if (!file) return;
-
-    setIsReadingFile(true);
-    try {
-      const result = await readTextFileForInsert(file);
-      if (generation === pickGeneration.current) setSelectedFile(result);
-    } catch (error) {
-      if (generation === pickGeneration.current) {
-        setFileError(error instanceof Error ? error.message : String(error));
-      }
-    } finally {
-      if (generation === pickGeneration.current) setIsReadingFile(false);
-    }
+  const commitAttachmentChips = (chips: AttachmentChip[]) => {
+    attachmentChipsRef.current = chips;
+    setAttachmentChips(chips);
   };
 
-  const clearSelectedFile = () => {
-    setSelectedFile(undefined);
-    setFileError(undefined);
+  const canAddFilesFromRef = () => !disabled && !isProcessing && !hasReadingAttachment(attachmentChipsRef.current);
+
+  const addAttachmentFiles = async (files: readonly FileLike[]) => {
+    if (files.length === 0) return;
+    if (!canAddFilesFromRef()) return;
+
+    // Guard against a stale earlier batch settling after the composer was cleared or a newer
+    // batch was accepted, which would otherwise reattach stale content.
+    const generation = (batchGeneration.current += 1);
+    setAttachmentError(undefined);
+
+    const begun = beginAttachmentBatch(attachmentChipsRef.current, files);
+    commitAttachmentChips(begun.chips);
+    if (begun.error) setAttachmentError(begun.error.message);
+    if (begun.jobs.length === 0) return;
+
+    const results = await readAttachmentJobs(begun.jobs);
+    if (generation !== batchGeneration.current) {
+      commitAttachmentChips(removeReadingAttachmentIds(attachmentChipsRef.current, begun.jobs.map((job) => job.id)));
+      return;
+    }
+
+    const settled = settleAttachmentReadResults(attachmentChipsRef.current, results);
+    commitAttachmentChips(settled.chips);
+    if (settled.error) setAttachmentError(settled.error.message);
+  };
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    await addAttachmentFiles(files);
+  };
+
+  const clearAttachments = () => {
+    batchGeneration.current += 1;
+    commitAttachmentChips([]);
+    setAttachmentError(undefined);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const removeAttachmentChip = (id: string) => {
+    commitAttachmentChips(removeAttachment(attachmentChipsRef.current, id));
+    setAttachmentError(undefined);
+  };
+
+  const isReadingFile = hasReadingAttachment(attachmentChips);
+  const readyFiles = readyAttachmentFiles(attachmentChips);
+  const hasReadyAttachments = readyFiles.length > 0;
+  const canAddFiles = !disabled && !isProcessing && !isReadingFile;
+
   const submit = () => {
     const trimmed = text.trim();
-    if ((!trimmed && !selectedFile) || disabled || isProcessing || isReadingFile) return;
-    onSend(selectedFile ? formatInsertedFilePrompt(selectedFile, trimmed) : trimmed);
+    if ((!trimmed && !hasReadyAttachments) || disabled || isProcessing || isReadingFile) return;
+    onSend(hasReadyAttachments ? formatInsertedFilesPrompt(readyFiles, trimmed) : trimmed);
     setText('');
-    clearSelectedFile();
+    clearAttachments();
+  };
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!isOsFileDrag(event.dataTransfer)) return;
+    const canAcceptFiles = canAddFilesFromRef();
+    markFileDragCopy(event, canAcceptFiles);
+    setDropActive(canAcceptFiles);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!isOsFileDrag(event.dataTransfer)) return;
+    const canAcceptFiles = canAddFilesFromRef();
+    markFileDragCopy(event, canAcceptFiles);
+    if (!canAcceptFiles) setDropActive(false);
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!isOsFileDrag(event.dataTransfer)) return;
+    preventFileDragDefaults(event);
+    if (dragLeaveStayedInside(event.currentTarget, event.relatedTarget)) return;
+    setDropActive(false);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!isOsFileDrag(event.dataTransfer)) return;
+    const canAcceptFiles = canAddFilesFromRef();
+    markFileDragCopy(event, canAcceptFiles);
+    setDropActive(false);
+    if (!canAcceptFiles) return;
+    void addAttachmentFiles(filesFromDataTransfer(event.dataTransfer));
   };
 
   const placeholder = isProcessing ? 'Workflow running' : disabled ? 'Connect a provider to start' : 'Send to selected providers';
-  const sendDisabled = disabled || isProcessing || isReadingFile || (!text.trim() && !selectedFile);
+  const sendDisabled = disabled || isProcessing || isReadingFile || (!text.trim() && !hasReadyAttachments);
   const insertDisabled = disabled || isProcessing || isReadingFile;
+  const showDropActive = dropActive && canAddFiles;
 
   return (
-    <div className="mt-3 space-y-2">
+    <div
+      className={`mt-3 space-y-2 rounded border p-2 transition-colors ${
+        showDropActive ? 'border-emerald-500 bg-emerald-950/20' : 'border-transparent'
+      }`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="flex gap-2">
         <textarea
           ref={textareaRef}
@@ -86,7 +165,14 @@ export function InputBar({
           disabled={disabled}
           rows={2}
         />
-        <input ref={fileInputRef} className="hidden" type="file" accept={TEXT_FILE_EXTENSIONS.join(',')} onChange={handleFileChange} />
+        <input
+          ref={fileInputRef}
+          className="hidden"
+          type="file"
+          accept={TEXT_FILE_EXTENSIONS.join(',')}
+          multiple
+          onChange={handleFileChange}
+        />
         <button
           type="button"
           className="border border-zinc-700 px-3 text-sm hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -108,21 +194,52 @@ export function InputBar({
           Send
         </button>
       </div>
-      {selectedFile ? (
-        <div className="flex items-center justify-between gap-2 border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300">
-          <span className="min-w-0 truncate">
-            {selectedFile.name} · {selectedFile.size} bytes
-          </span>
-          <button type="button" className="text-zinc-400 hover:text-zinc-100" onClick={clearSelectedFile} disabled={isProcessing}>
-            Remove
-          </button>
+      {attachmentChips.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {attachmentChips.map((chip) => (
+            <div
+              key={chip.id}
+              className={`flex max-w-full items-center gap-2 border px-2 py-1 text-xs ${
+                chip.phase === 'error'
+                  ? 'border-red-800 bg-red-950 text-red-200'
+                  : chip.phase === 'reading'
+                    ? 'border-zinc-800 bg-zinc-950 text-zinc-500'
+                    : 'border-zinc-800 bg-zinc-900 text-zinc-300'
+              }`}
+            >
+              <span className="max-w-48 truncate" title={attachmentChipName(chip)}>
+                {attachmentChipName(chip)}
+              </span>
+              <span className="shrink-0 text-zinc-500">{attachmentChipSize(chip)} bytes</span>
+              {chip.phase === 'reading' ? <span className="shrink-0 text-zinc-500">Reading...</span> : null}
+              {chip.phase === 'error' ? (
+                <span className="max-w-64 truncate text-red-300" title={chip.message}>
+                  {chip.message}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                className="shrink-0 text-base leading-none text-zinc-400 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => removeAttachmentChip(chip.id)}
+                disabled={isProcessing}
+                aria-label={`Remove ${attachmentChipName(chip)}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
         </div>
       ) : null}
-      {fileError ? (
+      {attachmentError ? (
         <div className="border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200" role="alert">
-          {fileError}
+          {attachmentError}
         </div>
       ) : null}
     </div>
   );
+}
+
+function dragLeaveStayedInside(currentTarget: HTMLDivElement, relatedTarget: EventTarget | null): boolean {
+  if (!relatedTarget || typeof Node === 'undefined' || !(relatedTarget instanceof Node)) return false;
+  return currentTarget.contains(relatedTarget);
 }
