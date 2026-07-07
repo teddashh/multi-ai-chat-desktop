@@ -47,4 +47,20 @@ describe('host snapshot bindings', () => {
     await expect(host.snapshot.delete('/tmp/secret')).rejects.toThrow('Invalid snapshot id');
     expect(invokeMock).not.toHaveBeenCalled();
   });
+
+  it('wraps session checkpoint commands with Tauri invoke argument names', async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+    await host.sessionCheckpoint.save('{"graphId":"free"}');
+    expect(invokeMock).toHaveBeenLastCalledWith('session_checkpoint_save', {
+      json: '{"graphId":"free"}',
+    });
+
+    invokeMock.mockResolvedValueOnce('{"graphId":"free"}');
+    await expect(host.sessionCheckpoint.load()).resolves.toBe('{"graphId":"free"}');
+    expect(invokeMock).toHaveBeenLastCalledWith('session_checkpoint_load');
+
+    invokeMock.mockResolvedValueOnce(undefined);
+    await host.sessionCheckpoint.clear();
+    expect(invokeMock).toHaveBeenLastCalledWith('session_checkpoint_clear');
+  });
 });

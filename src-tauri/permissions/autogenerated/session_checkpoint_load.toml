@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-session-checkpoint-load"
+description = "Enables the session_checkpoint_load command without any pre-configured scope."
+commands.allow = ["session_checkpoint_load"]
+
+[[permission]]
+identifier = "deny-session-checkpoint-load"
+description = "Denies the session_checkpoint_load command without any pre-configured scope."
+commands.deny = ["session_checkpoint_load"]

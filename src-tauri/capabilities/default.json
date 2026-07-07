@@ -30,6 +30,9 @@
     "allow-snapshot-save",
     "allow-snapshot-list",
     "allow-snapshot-load",
-    "allow-snapshot-delete"
+    "allow-snapshot-delete",
+    "allow-session-checkpoint-save",
+    "allow-session-checkpoint-load",
+    "allow-session-checkpoint-clear"
   ]
 }

@@ -1,5 +1,6 @@
 mod adapters;
 mod bridge;
+mod session_checkpoint;
 mod settings;
 mod snapshots;
 mod webviews;
@@ -48,7 +49,10 @@ pub fn run() {
             snapshots::snapshot_save,
             snapshots::snapshot_list,
             snapshots::snapshot_load,
-            snapshots::snapshot_delete
+            snapshots::snapshot_delete,
+            session_checkpoint::session_checkpoint_save,
+            session_checkpoint::session_checkpoint_load,
+            session_checkpoint::session_checkpoint_clear
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

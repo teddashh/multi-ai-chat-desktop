@@ -1,5 +1,5 @@
-import { AI_PROVIDERS } from '../../../shared/constants';
-import type { AIProvider } from '../../../shared/types';
+import { AI_PROVIDERS, CHAT_MODES } from '../../../shared/constants';
+import type { AIProvider, ChatMode } from '../../../shared/types';
 import { checkAborted } from '../cancel';
 import { awaitCheckpoint } from '../checkpoint';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
@@ -9,6 +9,11 @@ import { clearActiveTurn, SKIP_RESPONSE } from '../state';
 import { getSnapshotAdapterVersions } from '../snapshot/adapterVersions';
 import { beginSnapshot, completeSnapshot, recordHumanEdit, recordStep } from '../snapshot/recorder';
 import type { AIProviderV2, ExecutionSnapshot, ExecutionSnapshotStep } from '../snapshot/types';
+import {
+  beginSessionCheckpoint,
+  clearSessionCheckpoint,
+  updateSessionCheckpoint,
+} from '../sessionCheckpoint';
 import { evaluateTextCondition, renderRegisteredPrompt } from './registries';
 import { resolveGraphRoles } from './preflight';
 import { assertValidGraph } from './validator';
@@ -70,6 +75,12 @@ export interface ExecuteGraphOptions {
 export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphParams, options: ExecuteGraphOptions = {}): Promise<void> {
   assertValidGraph(graph);
   const context = createExecutionContext(graph, params);
+  beginSessionCheckpoint({
+    graphId: graph.id,
+    graphVersion: graph.version ?? 1,
+    mode: checkpointMode(graph),
+    question: context.question,
+  });
   beginSnapshot({
     graph,
     question: context.question,
@@ -77,6 +88,7 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
     adapterVersions: snapshotAdapterVersions(context),
   });
   const abortAware = graph.preflight.kind !== 'free';
+  let completedCleanly = false;
   try {
     addReady(context, graph.start);
     addParallelSiblings(context, graph.start);
@@ -95,12 +107,14 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
       const prepared = batch.map((nodeId) => prepareNode(nodeId, context));
       const results = await Promise.all(prepared.map((item) => item.run()));
       results.forEach((result) => applyNodeResult(context, result));
+      updateSessionCheckpoint({ stepIndex: context.completed.size });
 
       evaluateEdges(context);
     }
 
     if (graph.onComplete?.status !== undefined) sendWorkflowStatus(graph.onComplete.status);
     else sendWorkflowStatus('');
+    completedCleanly = true;
   } finally {
     const snapshot = completeSnapshot();
     if (snapshot) {
@@ -110,6 +124,7 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
         // Snapshot persistence is best-effort (SPEC §13).
       }
     }
+    if (completedCleanly) clearSessionCheckpoint();
   }
 }
 
@@ -223,7 +238,9 @@ function prepareStepNode(
       try {
         if (isCheckpointedSerialStep(node, context, options)) {
           const sourceNodeId = checkpointSourceNodeId(nodeId, context);
+          updateSessionCheckpoint({ pendingCheckpointNodeId: nodeId });
           const decision = await awaitCheckpoint({ nodeId, sourceNodeId, provider, draft: prompt });
+          updateSessionCheckpoint({ pendingCheckpointNodeId: null });
           checkAborted();
           if (decision.action === 'skip') {
             clearActiveTurn(provider, turn);
@@ -557,6 +574,12 @@ function snapshotAdapterVersions(context: ExecutionContext): Partial<Record<AIPr
 
 function snapshotRunProviders(context: ExecutionContext): AIProviderV2[] {
   return [...new Set<AIProviderV2>([...context.roles.values(), ...context.targets])];
+}
+
+function checkpointMode(graph: WorkflowGraph): ChatMode {
+  if (graph.mode && graph.mode in CHAT_MODES) return graph.mode;
+  if (graph.id in CHAT_MODES) return graph.id as ChatMode;
+  return 'free';
 }
 
 function snapshotTimestamp(): string {

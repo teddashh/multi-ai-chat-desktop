@@ -25,6 +25,9 @@ fn main() {
             "snapshot_list",
             "snapshot_load",
             "snapshot_delete",
+            "session_checkpoint_save",
+            "session_checkpoint_load",
+            "session_checkpoint_clear",
         ]),
     ))
     .expect("failed to run tauri build script");

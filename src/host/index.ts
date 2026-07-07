@@ -104,6 +104,11 @@ export const host = {
       invoke('snapshot_load', { snapshotId: safeSnapshotId(snapshotId) }),
     delete: async (snapshotId: string): Promise<void> => invoke('snapshot_delete', { snapshotId: safeSnapshotId(snapshotId) }),
   },
+  sessionCheckpoint: {
+    save: (json: string): Promise<void> => invoke('session_checkpoint_save', { json }),
+    load: (): Promise<string | null> => invoke('session_checkpoint_load'),
+    clear: (): Promise<void> => invoke('session_checkpoint_clear'),
+  },
   publish: {
     hackmd: (title: string, markdown: string): Promise<string> => invoke('publish_hackmd', { title, markdown }),
   },

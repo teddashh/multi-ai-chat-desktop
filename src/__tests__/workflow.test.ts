@@ -19,6 +19,7 @@ import { ROUND_LABELS } from '../workflow/graph';
 import { preflightSerialMode } from '../workflow/preflight';
 import { isSendable } from '../workflow/sendability';
 import { sendAndWait } from '../workflow/sendAndWait';
+import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { getLastSnapshot, resetSnapshotRecorderForTests } from '../workflow/snapshot/recorder';
 import { runStep } from '../workflow/stepRunner';
 import { getActiveTurn, reserveTurn, resetWorkflowStateForTests, SKIP_RESPONSE } from '../workflow/state';
@@ -39,6 +40,11 @@ vi.mock('../host', () => ({
     },
     bridge: {
       subscribeTitle: vi.fn(),
+    },
+    sessionCheckpoint: {
+      save: vi.fn(),
+      load: vi.fn(),
+      clear: vi.fn(),
     },
   },
 }));
@@ -77,13 +83,17 @@ describe('workflow engine', () => {
     resetCheckpointForTests();
     resetStepTimeoutForTests();
     resetSnapshotRecorderForTests();
+    resetSessionCheckpointForTests();
     vi.mocked(host.provider.send).mockResolvedValue(undefined);
     vi.mocked(host.provider.eval).mockResolvedValue(undefined);
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
     vi.mocked(host.connections.get).mockResolvedValue(providers.map((provider) => state(provider)));
+    vi.mocked(host.sessionCheckpoint.save).mockResolvedValue(undefined);
+    vi.mocked(host.sessionCheckpoint.clear).mockResolvedValue(undefined);
   });
 
   afterEach(async () => {
+    await flushSessionCheckpointForTests();
     await Promise.resolve();
     resetBusForTests();
     resetBridgePullForTests();
@@ -94,6 +104,7 @@ describe('workflow engine', () => {
     resetCheckpointForTests();
     resetStepTimeoutForTests();
     resetSnapshotRecorderForTests();
+    resetSessionCheckpointForTests();
     vi.clearAllTimers();
     await Promise.resolve();
     vi.useRealTimers();

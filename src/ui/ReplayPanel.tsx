@@ -13,7 +13,7 @@ import {
 } from '../workflow/snapshot/replay';
 import type { ExecutionSnapshot } from '../workflow/snapshot/types';
 
-type ReplaySource =
+export type ReplaySource =
   | { kind: 'last'; snapshot: ExecutionSnapshot }
   | { kind: 'stored'; snapshotId: string; info?: StoredSnapshotInfo };
 

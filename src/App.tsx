@@ -18,8 +18,9 @@ import { PreflightDialog } from './ui/PreflightDialog';
 import { PresetCatalog } from './ui/PresetCatalog';
 import { ProcessTrace } from './ui/ProcessTrace';
 import { createProcessTrace, reduceProcessTraceEvent, settleProcessTrace, type ProcessTraceState } from './ui/processTraceModel';
-import { ReplayPanel } from './ui/ReplayPanel';
+import { ReplayPanel, type ReplaySource } from './ui/ReplayPanel';
 import { RoleConfig } from './ui/RoleConfig';
+import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
 import { buildAdapterPermissionSummary, type AdapterPermissionSummary } from './ui/adapterPermissions';
@@ -40,6 +41,11 @@ import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStat
 import { Resizer } from './ui/Resizer';
 import { SettingsModal } from './ui/SettingsModal';
 import { defaultSettings, mergeSettings, normalizeSettings, slotProviders, type AppSettings } from './ui/settingsModel';
+import {
+  clearStartupSessionCheckpointNotice,
+  loadStartupSessionCheckpointNotice,
+  type StartupSessionCheckpointNotice,
+} from './ui/sessionCheckpointStartup';
 import { DEFAULT_SLOT_ASSIGNMENT, type SlotAssignment } from './ui/slotAssignment';
 import { nextStepTimeoutState } from './ui/stepTimeoutState';
 import { defaultTargets, freeModeTargets } from './ui/targets';
@@ -110,6 +116,8 @@ export default function App() {
   const [stepTimeout, setStepTimeout] = useState<StepTimeoutDialogState | undefined>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareNotice, setShareNotice] = useState<{ kind: 'ok' | 'error'; text: string } | undefined>();
+  const [sessionCheckpointNotice, setSessionCheckpointNotice] = useState<StartupSessionCheckpointNotice | undefined>();
+  const [sessionCheckpointReplayBusy, setSessionCheckpointReplayBusy] = useState(false);
   const [reportPreview, setReportPreview] = useState<{ provider: AIProvider; digest: ReportDigest; body: string } | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
   const [adapterNotice, setAdapterNotice] = useState<AdapterNotice | null>(null);
@@ -131,6 +139,7 @@ export default function App() {
   const turnRef = useRef(0);
   const activeTurns = useRef(new Map<AIProvider, { turn: number; label?: string }>());
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
+  const replayPanelRef = useRef<ReplayPanel | null>(null);
   const loadedModalProviders = useMemo(() => visibleLoadedProviders(states, userHidden, PROVIDERS), [states, userHidden]);
   const sendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
   const noSendableProviders = sendableTargets.length === 0;
@@ -168,6 +177,20 @@ export default function App() {
     const t = window.setTimeout(() => setAdapterNotice(null), 5000);
     return () => window.clearTimeout(t);
   }, [adapterNotice]);
+
+  useEffect(() => {
+    let disposed = false;
+    void loadStartupSessionCheckpointNotice()
+      .then((notice) => {
+        if (!disposed) setSessionCheckpointNotice(notice);
+      })
+      .catch(() => {
+        // Startup interruption detection is best-effort.
+      });
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -458,6 +481,28 @@ export default function App() {
     setIsProcessing(processingAfterSettle());
   };
 
+  const dismissStartupSessionCheckpoint = useCallback(() => {
+    setSessionCheckpointNotice(undefined);
+    void clearStartupSessionCheckpointNotice();
+  }, []);
+
+  const replayStartupSessionCheckpoint = useCallback(() => {
+    if (!sessionCheckpointNotice?.replaySnapshot) return;
+    const source: ReplaySource = {
+      kind: 'stored',
+      snapshotId: sessionCheckpointNotice.replaySnapshot.id,
+      info: sessionCheckpointNotice.replaySnapshot,
+    };
+    setAdvancedControlsOpen(true);
+    setSessionCheckpointReplayBusy(true);
+    const replay = replayPanelRef.current?.startReplay(source);
+    if (replay) {
+      void replay.finally(() => setSessionCheckpointReplayBusy(false));
+    } else {
+      setSessionCheckpointReplayBusy(false);
+    }
+  }, [sessionCheckpointNotice]);
+
   const cancelWorkflow = () => {
     publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
     setIsProcessing(false);
@@ -657,6 +702,7 @@ export default function App() {
               <ModeSelector mode={mode} onModeChange={setMode} />
               <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />
               <ReplayPanel
+                ref={replayPanelRef}
                 onReplayWillRun={prepareReplayTrace}
                 onReplaySettled={settleReplayTrace}
                 onSnapshotComplete={persistReplaySnapshot}
@@ -674,6 +720,14 @@ export default function App() {
             逐步確認 / Confirm each step
           </label>
           {workflowStatus ? <div className="mt-3 border border-sky-900 bg-sky-950 px-3 py-2 text-xs text-sky-200">{workflowStatus}</div> : null}
+          {sessionCheckpointNotice ? (
+            <SessionCheckpointNotice
+              notice={sessionCheckpointNotice}
+              replaying={sessionCheckpointReplayBusy}
+              onDismiss={dismissStartupSessionCheckpoint}
+              onReplay={sessionCheckpointNotice.replaySnapshot ? replayStartupSessionCheckpoint : undefined}
+            />
+          ) : null}
           <CheckpointCard checkpoint={checkpoint} draft={checkpointDraft} onDraftChange={setCheckpointDraft} />
           {processTrace ? <ProcessTrace trace={processTrace} /> : null}
           {shareNotice ? (

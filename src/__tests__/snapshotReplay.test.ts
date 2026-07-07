@@ -7,6 +7,7 @@ import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
 import { executeGraph, workflowGraphs } from '../workflow/graph';
 import { resetWorkflowRuntimeForTests } from '../workflow/runtime';
+import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { getLastSnapshot, resetSnapshotRecorderForTests } from '../workflow/snapshot/recorder';
 import {
   parseStoredSnapshot,
@@ -37,6 +38,11 @@ vi.mock('../host', () => ({
       list: vi.fn(),
       load: vi.fn(),
       delete: vi.fn(),
+    },
+    sessionCheckpoint: {
+      save: vi.fn(),
+      load: vi.fn(),
+      clear: vi.fn(),
     },
   },
 }));
@@ -78,6 +84,7 @@ describe('snapshot replay', () => {
     resetCancelState();
     resetStepTimeoutForTests();
     resetSnapshotRecorderForTests();
+    resetSessionCheckpointForTests();
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       publishBridgeMessage(done(provider));
     });
@@ -85,9 +92,12 @@ describe('snapshot replay', () => {
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
     vi.mocked(host.connections.get).mockResolvedValue(providers.map((provider) => state(provider)));
     vi.mocked(host.snapshot.load).mockResolvedValue(null);
+    vi.mocked(host.sessionCheckpoint.save).mockResolvedValue(undefined);
+    vi.mocked(host.sessionCheckpoint.clear).mockResolvedValue(undefined);
   });
 
   afterEach(async () => {
+    await flushSessionCheckpointForTests();
     await Promise.resolve();
     resetBusForTests();
     resetBridgePullForTests();
@@ -97,6 +107,7 @@ describe('snapshot replay', () => {
     resetCancelState();
     resetStepTimeoutForTests();
     resetSnapshotRecorderForTests();
+    resetSessionCheckpointForTests();
   });
 
   it('plans a version-matched snapshot and derives free replay targets', () => {
