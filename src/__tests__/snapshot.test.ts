@@ -44,6 +44,7 @@ vi.mock('../host', () => ({
 }));
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const allProviders: AIProvider[] = [...providers, 'claude-code'];
 const SNAPSHOT_ID_PATTERN = /^snapshot-[0-9a-f-]{36}$/;
 
 function state(provider: AIProvider, sendable = true): ProviderState {
@@ -191,6 +192,30 @@ describe('workflow execution snapshots', () => {
     await expect(runWorkflow({ text: 'versioned free question', mode: 'free', targets: ['chatgpt', 'gemini'] })).resolves.toEqual({ ok: true });
 
     expect(getLastSnapshot()?.adapterVersions).toEqual({ chatgpt: 11 });
+  });
+
+  it('captures explicit claude-code targets and adapter versions', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
+    publishBridgeMessage(adapterUpdate('claude-code', 33));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({ text: 'claude-code snapshot', mode: 'free', targets: ['claude-code'] })).resolves.toEqual({ ok: true });
+
+    expect(getLastSnapshot()).toMatchObject({
+      graphId: 'free',
+      adapterVersions: { 'claude-code': 33 },
+      steps: [
+        {
+          nodeId: 'fanout:0',
+          provider: 'claude-code',
+          inputRef: { text: 'claude-code snapshot' },
+          outputRef: { text: 'claude-code-answer' },
+          status: 'done',
+        },
+      ],
+    });
   });
 
   it('generates unique snapshot ids across runs', async () => {

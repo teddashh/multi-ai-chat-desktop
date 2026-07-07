@@ -48,13 +48,11 @@ interface ReplayPanelState {
   block?: ReplayBlockState;
   question: string;
   notice?: ReplayNotice;
-  disabledReplayKeys: string[];
 }
 
 const initialState: ReplayPanelState = {
   storedSnapshots: [],
   loadingStored: false,
-  disabledReplayKeys: [],
   question: '',
 };
 
@@ -151,7 +149,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
 
   render() {
     const lastSnapshot = getLastSnapshot();
-    const { storedSnapshots, loadingStored, listError, busyKey, block, question, notice, disabledReplayKeys } = this.state;
+    const { storedSnapshots, loadingStored, listError, busyKey, block, question, notice } = this.state;
 
     return (
       <section aria-label="Snapshot replay" className="mt-4 border-t border-zinc-800 pt-4">
@@ -175,7 +173,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                 <button
                   type="button"
                   className="border border-emerald-700 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={Boolean(busyKey) || disabledReplayKeys.includes(sourceKey({ kind: 'last', snapshot: lastSnapshot }))}
+                  disabled={Boolean(busyKey)}
                   onClick={() => void this.startReplay({ kind: 'last', snapshot: lastSnapshot })}
                 >
                   Replay last run
@@ -212,7 +210,6 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
               <div className="divide-y divide-zinc-800 border border-zinc-800">
                 {storedSnapshots.map((snapshot) => {
                   const replaySource: ReplaySource = { kind: 'stored', snapshotId: snapshot.id, info: snapshot };
-                  const replayKey = sourceKey(replaySource);
                   return (
                     <div key={snapshot.id} className="grid gap-2 p-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                       <div className="min-w-0">
@@ -223,7 +220,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                         <button
                           type="button"
                           className="border border-emerald-700 px-2 py-1 text-emerald-100 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={Boolean(busyKey) || disabledReplayKeys.includes(replayKey)}
+                          disabled={Boolean(busyKey)}
                           onClick={() => void this.startReplay(replaySource)}
                         >
                           Replay
@@ -298,20 +295,6 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
       );
     }
 
-    if (block.reason === 'roleMap-unrunnable') {
-      const roles = rolesFromDetail(block.detail);
-      return (
-        <section className="mt-3 border border-red-900 bg-red-950 p-3 text-xs text-red-100">
-          <h4 className="font-semibold">Replay blocked</h4>
-          <p className="mt-1 text-red-200">
-            This snapshot used a provider that is not runnable yet in the graph path, for example claude-code. Replay is disabled for
-            these roles.
-          </p>
-          <div className="mt-2 text-red-100">Roles: {roles.length > 0 ? roles.join(', ') : 'unknown'}</div>
-        </section>
-      );
-    }
-
     if (block.reason === 'preflight') {
       const unavailable = block.preflight?.unavailable ?? [];
       const aliased = block.preflight?.aliased ?? [];
@@ -377,10 +360,6 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
   }
 
   private showBlockedResult(source: ReplaySource, result: Extract<ReplayResult, { ok: false }>): void {
-    const disabledReplayKeys =
-      result.blocked === 'roleMap-unrunnable'
-        ? Array.from(new Set([...this.state.disabledReplayKeys, sourceKey(source)]))
-        : this.state.disabledReplayKeys;
     this.updateState({
       block: {
         reason: result.blocked,
@@ -389,7 +368,6 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
         preflight: result.preflight,
       },
       question: result.blocked === 'question-required' ? this.state.question : '',
-      disabledReplayKeys,
     });
   }
 
@@ -449,11 +427,6 @@ function versionMismatchDetail(detail: unknown): { snapshotVersion?: number; cur
 function unknownGraphDetail(detail: unknown): { graphId?: string } {
   if (!isRecord(detail)) return {};
   return { graphId: typeof detail.graphId === 'string' ? detail.graphId : undefined };
-}
-
-function rolesFromDetail(detail: unknown): string[] {
-  if (!isRecord(detail) || !Array.isArray(detail.roles)) return [];
-  return detail.roles.filter((role): role is string => typeof role === 'string');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

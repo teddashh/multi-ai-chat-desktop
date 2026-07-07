@@ -1,7 +1,13 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_CODING_ROLES, DEFAULT_CONSULT_ROLES, DEFAULT_DEBATE_ROLES, DEFAULT_ROUNDTABLE_ROLES } from '../../shared/constants';
+import {
+  DEFAULT_CODING_ROLES,
+  DEFAULT_CONSULT_ROLES,
+  DEFAULT_DEBATE_ROLES,
+  DEFAULT_FREE_TARGET_PROVIDERS,
+  DEFAULT_ROUNDTABLE_ROLES,
+} from '../../shared/constants';
 import type { AIProvider, BridgeMessage } from '../../shared/types';
 import { ModeSelector } from '../ui/ModeSelector';
 import { PresetCatalog } from '../ui/PresetCatalog';
@@ -73,6 +79,9 @@ describe('N4 preset catalog', () => {
       expect(card).toBeTruthy();
       expect(textOf(card)).toContain(preset.costLabel);
     }
+    expect(PRESET_CATALOG.filter((preset) => preset.id !== 'free').map((preset) => preset.requiredProviders)).toEqual(
+      Array.from({ length: 4 }, () => [...DEFAULT_FREE_TARGET_PROVIDERS]),
+    );
   });
 
   it('selects the clicked mode and exposes default roles for preset selection', () => {

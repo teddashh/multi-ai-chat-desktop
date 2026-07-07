@@ -5,6 +5,7 @@ import {
   DEFAULT_CODING_ROLES,
   DEFAULT_CONSULT_ROLES,
   DEFAULT_DEBATE_ROLES,
+  DEFAULT_FREE_TARGET_PROVIDERS,
   DEFAULT_ROUNDTABLE_ROLES,
 } from '../../shared/constants';
 import { defaultRolesForMode, updateModeRole } from '../ui/modeRoles';
@@ -12,12 +13,20 @@ import { OverlayGuardCounter } from '../ui/overlayGuard';
 import { buildPreflightDialogModel } from '../ui/preflightModel';
 import { preflightFromResult } from '../ui/preflightFromResult';
 import { nextStepTimeoutState } from '../ui/stepTimeoutState';
-import { defaultTargets, freeModeTargets, toggleTarget } from '../ui/targets';
+import {
+  applyFreeTargetDefaults,
+  defaultTargets,
+  freeModeTargets,
+  hasEffectiveFreeModeTargets,
+  markFreeTargetsTouched,
+  toggleTarget,
+} from '../ui/targets';
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from '../ui/processing';
 import { chooseTimeoutDialogAction } from '../ui/timeoutActions';
 import { awaitStepTimeoutAction, resetStepTimeoutForTests } from '../workflow/stepTimeout';
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const selectableProviders: AIProvider[] = [...providers, 'claude-code'];
 
 function state(provider: AIProvider, sendable = true): ProviderState {
   return {
@@ -31,7 +40,7 @@ function state(provider: AIProvider, sendable = true): ProviderState {
 }
 
 function states(overrides: Partial<Record<AIProvider, ProviderState>> = {}): Record<AIProvider, ProviderState> {
-  return Object.fromEntries(providers.map((provider) => [provider, overrides[provider] ?? state(provider)])) as Record<
+  return Object.fromEntries(selectableProviders.map((provider) => [provider, overrides[provider] ?? state(provider)])) as Record<
     AIProvider,
     ProviderState
   >;
@@ -100,9 +109,9 @@ describe('M4a UI helpers', () => {
     expect(model.aliased).toEqual([{ provider: 'chatgpt', label: 'ChatGPT', reason: 'two roles resolve to the same provider' }]);
   });
 
-  it('defaults free targets to all sendable providers and toggles the selected send list', () => {
+  it('defaults free targets to four shipped sendable providers and toggles the selected send list', () => {
     const snapshot = states({ claude: state('claude', false) });
-    expect(defaultTargets(snapshot, providers)).toEqual(['chatgpt', 'gemini', 'grok']);
+    expect(defaultTargets(snapshot, [...DEFAULT_FREE_TARGET_PROVIDERS])).toEqual(['chatgpt', 'gemini', 'grok']);
     expect(
       defaultTargets(
         states({
@@ -110,17 +119,67 @@ describe('M4a UI helpers', () => {
           claude: state('claude', false),
           gemini: state('gemini', false),
           grok: state('grok', false),
+          'claude-code': state('claude-code', true),
         }),
-        providers,
+        [...DEFAULT_FREE_TARGET_PROVIDERS],
       ),
     ).toEqual([]);
 
-    let selected = defaultTargets(snapshot, providers);
+    let selected = defaultTargets(snapshot, [...DEFAULT_FREE_TARGET_PROVIDERS]);
     selected = toggleTarget(selected, 'gemini');
     expect(freeModeTargets(selected, snapshot)).toEqual(['chatgpt', 'grok']);
     selected = toggleTarget(selected, 'gemini');
     expect(freeModeTargets(selected, snapshot)).toEqual(['chatgpt', 'grok', 'gemini']);
+    selected = toggleTarget(selected, 'claude-code');
+    expect(freeModeTargets(selected, snapshot)).toEqual(['chatgpt', 'grok', 'gemini', 'claude-code']);
     expect(freeModeTargets([], snapshot)).toEqual([]);
+  });
+
+  it('keeps manually selected claude-code targets after shipped providers become sendable', () => {
+    const claudeCodeOnly = states({
+      chatgpt: state('chatgpt', false),
+      claude: state('claude', false),
+      gemini: state('gemini', false),
+      grok: state('grok', false),
+      'claude-code': state('claude-code', true),
+    });
+
+    let selection = applyFreeTargetDefaults(
+      { targets: [], defaultsInitialized: false, userTouched: false },
+      defaultTargets(claudeCodeOnly, [...DEFAULT_FREE_TARGET_PROVIDERS]),
+    );
+    expect(selection.targets).toEqual([]);
+
+    selection = markFreeTargetsTouched(selection, ['claude-code']);
+    selection = applyFreeTargetDefaults(
+      selection,
+      defaultTargets(
+        states({
+          claude: state('claude', false),
+          gemini: state('gemini', false),
+          grok: state('grok', false),
+          'claude-code': state('claude-code', true),
+        }),
+        [...DEFAULT_FREE_TARGET_PROVIDERS],
+      ),
+    );
+
+    expect(selection.targets).toEqual(['claude-code']);
+    expect(selection.userTouched).toBe(true);
+    expect(freeModeTargets(selection.targets, claudeCodeOnly)).toEqual(['claude-code']);
+  });
+
+  it('has no effective free-mode send target when only claude-code is sendable and nothing is selected', () => {
+    const claudeCodeOnly = states({
+      chatgpt: state('chatgpt', false),
+      claude: state('claude', false),
+      gemini: state('gemini', false),
+      grok: state('grok', false),
+      'claude-code': state('claude-code', true),
+    });
+
+    expect(hasEffectiveFreeModeTargets([], claudeCodeOnly)).toBe(false);
+    expect(freeModeTargets([], claudeCodeOnly)).toEqual([]);
   });
 
   it('records timeout dialog retry, skip, and cancel actions', async () => {

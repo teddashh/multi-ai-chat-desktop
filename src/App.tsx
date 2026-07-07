@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AI_PROVIDERS, CHAT_MODES } from '../shared/constants';
+import { AI_PROVIDERS, CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../shared/constants';
 import type { AIProvider, BridgeMessage, ChatMode, ModeRoles, ProviderState } from '../shared/types';
 import { startBridgePull, resetProviderBootState } from './bridge/pull';
 import { isRenderableResponseMessage } from './bridge/render';
@@ -66,7 +66,14 @@ import {
 } from './ui/sessionCheckpointStartup';
 import { DEFAULT_SLOT_ASSIGNMENT, type SlotAssignment } from './ui/slotAssignment';
 import { nextStepTimeoutState } from './ui/stepTimeoutState';
-import { defaultTargets, freeModeTargets } from './ui/targets';
+import {
+  applyFreeTargetDefaults,
+  defaultTargets,
+  freeModeTargets,
+  hasEffectiveFreeModeTargets,
+  markFreeTargetsTouched,
+  type FreeTargetSelection,
+} from './ui/targets';
 import { useOverlayGuard } from './ui/useOverlayGuard';
 import { visibleLoadedProviders } from './ui/visibility';
 import { buildMarkdown, exportFilename } from './ui/exportMarkdown';
@@ -144,8 +151,11 @@ export default function App() {
   const [roles, setRoles] = useState<ModeRoles>(() => defaultRolesForMode('debate'));
   const [advancedControlsOpen, setAdvancedControlsOpen] = useState(false);
   const [processTrace, setProcessTrace] = useState<ProcessTraceState | undefined>();
-  const [targets, setTargets] = useState<AIProvider[]>([]);
-  const [targetsInitialized, setTargetsInitialized] = useState(false);
+  const [targetSelection, setTargetSelection] = useState<FreeTargetSelection>(() => ({
+    targets: [],
+    defaultsInitialized: false,
+    userTouched: false,
+  }));
   const [confirmEachStep, setConfirmEachStep] = useState(false);
   const [checkpoint, setCheckpoint] = useState<PendingCheckpoint | undefined>();
   const [checkpointDraft, setCheckpointDraft] = useState('');
@@ -191,10 +201,13 @@ export default function App() {
   const activeTurns = useRef(new Map<AIProvider, { turn: number; label?: string }>());
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
+  const targets = targetSelection.targets;
   const effectiveHidden = useMemo(() => new Set<AIProvider>([...userHidden, ...centerHidden]), [centerHidden, userHidden]);
   const loadedModalProviders = useMemo(() => visibleLoadedProviders(states, effectiveHidden, PROVIDERS), [effectiveHidden, states]);
-  const sendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
-  const noSendableProviders = sendableTargets.length === 0;
+  const defaultSendableTargets = useMemo(() => defaultTargets(states, [...DEFAULT_FREE_TARGET_PROVIDERS]), [states]);
+  const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
+  const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
+  const noSendableProviders = mode === 'free' ? !hasFreeModeTargets : anySendableTargets.length === 0;
   const openProviders = useMemo(() => PROVIDERS.filter((provider) => states[provider].webview === 'loaded'), [states]);
   const centeredProvider = useMemo(() => centerPresentationProvider(presentation), [presentation]);
   const chipRailProviders = useMemo(() => chipProviders(presentation, PROVIDERS), [presentation]);
@@ -439,12 +452,13 @@ export default function App() {
   }, [mode]);
 
   useEffect(() => {
-    if (mode !== 'free' || targetsInitialized) return;
-    const nextTargets = defaultTargets(states, PROVIDERS);
-    if (nextTargets.length === 0) return;
-    setTargets(nextTargets);
-    setTargetsInitialized(true);
-  }, [mode, states, targetsInitialized]);
+    if (mode !== 'free') return;
+    setTargetSelection((current) => applyFreeTargetDefaults(current, defaultSendableTargets));
+  }, [defaultSendableTargets, mode]);
+
+  const handleTargetsChange = useCallback((nextTargets: AIProvider[]) => {
+    setTargetSelection((current) => markFreeTargetsTouched(current, nextTargets));
+  }, []);
 
   const boundsForProvider = useCallback((provider: AIProvider): DOMRectReadOnly | undefined => {
     if (presentationRef.current[provider] === 'center') {
@@ -795,10 +809,11 @@ export default function App() {
 
   const send = async (trimmed: string) => {
     if (!trimmed) return;
+    const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
+    if (workflowTargets?.length === 0) return;
     const turnId = ++turnRef.current;
     setMessages((current) => [...current, { id: `user-${turnId}`, role: 'user', content: trimmed, final: true }]);
     setIsProcessing(processingAfterSend());
-    const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
     setProcessTrace(createProcessTrace(mode, workflowTargets ?? []));
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
@@ -1024,7 +1039,7 @@ export default function App() {
         <section className="flex min-w-0 flex-col border-x border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-start gap-3 border-b border-zinc-800 pb-3">
             <div className="min-w-0 flex-1">
-              <ConnectionBar states={states} presentation={presentation} mode={mode} targets={targets} onTargetsChange={setTargets} />
+              <ConnectionBar states={states} presentation={presentation} mode={mode} targets={targets} onTargetsChange={handleTargetsChange} />
             </div>
             <button
               className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"

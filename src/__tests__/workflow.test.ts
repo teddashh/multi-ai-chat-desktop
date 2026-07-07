@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
+import type { AIProvider, BridgeMessage, ChatMode, ModeRoles, ProviderState } from '../../shared/types';
 import {
   AI_PROVIDERS,
   DEFAULT_CODING_ROLES,
   DEFAULT_CONSULT_ROLES,
   DEFAULT_DEBATE_ROLES,
+  DEFAULT_FREE_TARGET_PROVIDERS,
   DEFAULT_ROUNDTABLE_ROLES,
   POLL_PULL_MS,
   PROMPTS,
@@ -50,6 +51,7 @@ vi.mock('../host', () => ({
 }));
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const allProviders: AIProvider[] = [...providers, 'claude-code'];
 
 function providerName(provider: AIProvider): string {
   return AI_PROVIDERS[provider].name;
@@ -204,6 +206,54 @@ describe('workflow engine', () => {
     unsubscribe();
     expect(host.provider.send).not.toHaveBeenCalled();
     expect(statuses).toEqual(['']);
+  });
+
+  it('free mode implicit targets stay on the four shipped providers even when claude-code is sendable', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({ text: 'implicit free', mode: 'free' })).resolves.toEqual({ ok: true });
+
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual([...DEFAULT_FREE_TARGET_PROVIDERS]);
+    expect(vi.mocked(host.provider.send).mock.calls.some(([provider]) => provider === 'claude-code')).toBe(false);
+  });
+
+  it('free mode explicit targets may include claude-code', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({ text: 'explicit free', mode: 'free', targets: ['claude-code'] })).resolves.toEqual({ ok: true });
+
+    expect(host.provider.send).toHaveBeenCalledTimes(1);
+    expect(host.provider.send).toHaveBeenCalledWith('claude-code', 'explicit free');
+  });
+
+  it('runs all serial modes with explicit claude-code role assignments', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
+
+    const cases: Array<{ mode: Exclude<ChatMode, 'free'>; roles: ModeRoles; expectedSends: number }> = [
+      { mode: 'debate', roles: { ...DEFAULT_DEBATE_ROLES, pro: 'claude-code' }, expectedSends: 4 },
+      { mode: 'consult', roles: { ...DEFAULT_CONSULT_ROLES, second: 'claude-code' }, expectedSends: 4 },
+      { mode: 'coding', roles: { ...DEFAULT_CODING_ROLES, coder: 'claude-code' }, expectedSends: 8 },
+      { mode: 'roundtable', roles: { ...DEFAULT_ROUNDTABLE_ROLES, third: 'claude-code' }, expectedSends: 20 },
+    ];
+
+    for (const item of cases) {
+      vi.mocked(host.provider.send).mockClear();
+      vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+        publishBridgeMessage(done(provider, `${provider}-answer-${vi.mocked(host.provider.send).mock.calls.length}`));
+      });
+
+      await expect(runWorkflow({ text: `${item.mode} claude-code`, mode: item.mode, roles: item.roles })).resolves.toEqual({ ok: true });
+
+      const sentProviders = vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider);
+      expect(sentProviders).toContain('claude-code');
+      expect(sentProviders).toHaveLength(item.expectedSends);
+    }
   });
 
   it('send failures tear down their waiter and polling for serial and free-mode sends', async () => {

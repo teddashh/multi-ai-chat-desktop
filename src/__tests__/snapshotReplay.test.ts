@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
-import { DEFAULT_CODING_ROLES, DEFAULT_DEBATE_ROLES, PROMPTS } from '../../shared/constants';
+import { DEFAULT_CODING_ROLES, DEFAULT_DEBATE_ROLES, DEFAULT_FREE_TARGET_PROVIDERS, PROMPTS } from '../../shared/constants';
 import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../bridge/bus';
 import { resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
@@ -56,6 +56,7 @@ vi.mock('../workflow/graph', async () => {
 });
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const allProviders: AIProvider[] = [...providers, 'claude-code'];
 const HASH = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 function state(provider: AIProvider, sendable = true): ProviderState {
@@ -239,6 +240,46 @@ describe('snapshot replay', () => {
     );
   });
 
+  it('falls back to the four shipped free targets when a free snapshot has no derived targets', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
+    const snapshot = buildSnapshot({
+      graphId: 'free',
+      roleMap: {},
+      userQuestion: inlineRef('legacy free replay'),
+      steps: [],
+    });
+
+    await expect(replaySnapshot({ snapshot }, {})).resolves.toMatchObject({ ok: true });
+
+    expect(planReplay(snapshot).targets).toBeUndefined();
+    expect(executeGraph).toHaveBeenCalledWith(
+      workflowGraphs.free,
+      { text: 'legacy free replay', roles: {}, targets: [...DEFAULT_FREE_TARGET_PROVIDERS] },
+      { onSnapshotComplete: undefined },
+    );
+    expect(host.provider.send).not.toHaveBeenCalledWith('claude-code', 'legacy free replay');
+  });
+
+  it('replays explicit free claude-code snapshot targets when currently sendable', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
+    const snapshot = buildSnapshot({
+      graphId: 'free',
+      roleMap: {},
+      userQuestion: inlineRef('explicit claude-code replay'),
+      steps: [step('fanout:0', { provider: 'claude-code', input: inlineRef('explicit claude-code replay'), output: inlineRef('code') })],
+    });
+
+    await expect(replaySnapshot({ snapshot }, {})).resolves.toMatchObject({ ok: true });
+
+    expect(planReplay(snapshot).targets).toEqual(['claude-code']);
+    expect(executeGraph).toHaveBeenCalledWith(
+      workflowGraphs.free,
+      { text: 'explicit claude-code replay', roles: {}, targets: ['claude-code'] },
+      { onSnapshotComplete: undefined },
+    );
+    expect(host.provider.send).toHaveBeenCalledWith('claude-code', 'explicit claude-code replay');
+  });
+
   it('exposes full-local prior outputs for comparison', () => {
     const snapshot = buildSnapshot({
       steps: [
@@ -266,20 +307,29 @@ describe('snapshot replay', () => {
     });
   });
 
-  it('blocks required claude-code roles until that graph runtime exists and does not execute', async () => {
+  it('replays required claude-code roles when sendable and blocks through normal preflight when not sendable', async () => {
     const snapshot = buildSnapshot({
       roleMap: { ...DEFAULT_DEBATE_ROLES, pro: 'claude-code' },
     });
 
-    expect(planReplay(snapshot)).toMatchObject({
-      blocked: 'roleMap-unrunnable',
-      detail: { roles: ['pro'] },
-      roles: { con: 'claude', judge: 'grok', summary: 'gemini' },
-    });
+    const plan = planReplay(snapshot);
+    expect(plan.blocked).toBeUndefined();
+    expect(plan.roles).toEqual({ pro: 'claude-code', con: 'claude', judge: 'grok', summary: 'gemini' });
+
+    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
+    await expect(replaySnapshot({ snapshot }, {})).resolves.toMatchObject({ ok: true });
+    expect(executeGraph).toHaveBeenCalledWith(
+      workflowGraphs.debate,
+      { text: 'clean replay question', roles: { ...DEFAULT_DEBATE_ROLES, pro: 'claude-code' }, targets: undefined },
+      { onSnapshotComplete: undefined },
+    );
+
+    vi.mocked(executeGraph).mockClear();
+    vi.mocked(host.connections.get).mockResolvedValue([...providers.map((provider) => state(provider)), state('claude-code', false)]);
     await expect(replaySnapshot({ snapshot }, {})).resolves.toEqual({
       ok: false,
-      blocked: 'roleMap-unrunnable',
-      detail: { roles: ['pro'] },
+      blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['claude-code'], aliased: [] },
     });
     expect(executeGraph).not.toHaveBeenCalled();
   });

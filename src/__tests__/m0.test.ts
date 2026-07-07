@@ -1,13 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import chatgpt from '../../adapters/chatgpt.json';
 import claude from '../../adapters/claude.json';
+import claudeCode from '../../adapters/claude-code.json';
 import gemini from '../../adapters/gemini.json';
 import grok from '../../adapters/grok.json';
-import { AI_PROVIDERS, CHAT_MODES, OUTBOX_MAX_BYTES, POLL_PULL_MS, PROMPTS, PULL_MAX_DECODED_BYTES, SSO_ALLOWLIST_HOSTS } from '../../shared/constants';
+import {
+  AI_PROVIDERS,
+  CHAT_MODES,
+  DEFAULT_FREE_TARGET_PROVIDERS,
+  DOCK_SLOT_PROVIDERS,
+  OUTBOX_MAX_BYTES,
+  POLL_PULL_MS,
+  PROMPTS,
+  PULL_MAX_DECODED_BYTES,
+  SSO_ALLOWLIST_HOSTS,
+} from '../../shared/constants';
 
 describe('M0 shared constants and adapter seeds', () => {
   it('exports bridge and navigation constants from SPEC sections 6.3 and 7.3', () => {
     expect(AI_PROVIDERS.gemini.url).toBe('https://gemini.google.com');
+    expect(AI_PROVIDERS['claude-code']).toMatchObject({
+      name: 'Claude Code',
+      url: 'https://claude.ai/code',
+      loginUrl: 'https://claude.ai/login',
+    });
+    expect(DOCK_SLOT_PROVIDERS).toEqual(['chatgpt', 'claude', 'gemini', 'grok']);
+    expect(DEFAULT_FREE_TARGET_PROVIDERS).toEqual(['chatgpt', 'claude', 'gemini', 'grok']);
     expect(PULL_MAX_DECODED_BYTES).toBe(1_048_576);
     expect(OUTBOX_MAX_BYTES).toBe(10_485_760);
     expect(POLL_PULL_MS).toBe(500);
@@ -45,5 +63,28 @@ describe('M0 shared constants and adapter seeds', () => {
     expect(grok.inputStrategy).toBe('prosemirror-paste');
     expect(grok.timing.doneDelayMs).toBe(8000);
     expect(grok.timing.chunkDebounceMs).toBe(600);
+  });
+
+  it('keeps the claude-code seed adapter additive and narrow', () => {
+    expect(claudeCode.provider).toBe('claude-code');
+    expect(claudeCode.displayName).toBe('Claude Code');
+    expect(claudeCode.urls).toEqual({
+      app: 'https://claude.ai/code',
+      login: 'https://claude.ai/login',
+      match: ['https://claude.ai/code'],
+      ssoMatch: [],
+    });
+    expect(claudeCode.inputStrategy).toBe('prosemirror-paste');
+    expect(claudeCode.sendStrategy).toBe('click');
+    expect(claudeCode.timing).toMatchObject({
+      doneDelayMs: 5000,
+      chunkDebounceMs: 500,
+      statusIntervalMs: 10000,
+      backupPollMs: 3000,
+    });
+    expect(claudeCode.inputSelectors).toEqual(claude.inputSelectors);
+    expect(claudeCode.responseSelectors).toEqual(claude.responseSelectors);
+    expect(claudeCode.thinkingDetectors).toEqual(claude.thinkingDetectors);
+    expect(claudeCode.stopButtonSelectors).toEqual(claude.stopButtonSelectors);
   });
 });

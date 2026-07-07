@@ -1,0 +1,54 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "adapterVersion": 1,
+  "provider": "claude-code",
+  "displayName": "Claude Code",
+  "urls": {
+    "app": "https://claude.ai/code",
+    "login": "https://claude.ai/login",
+    "match": ["https://claude.ai/code"],
+    "ssoMatch": []
+  },
+  "inputSelectors": [
+    ".ProseMirror[contenteditable=\"true\"]",
+    "[contenteditable=\"true\"].ProseMirror",
+    "div.ProseMirror",
+    "fieldset div[contenteditable=\"true\"]"
+  ],
+  "sendButtonSelectors": [
+    "button[aria-label=\"Send Message\"]",
+    "button[aria-label=\"Send message\"]",
+    "button[aria-label=\"Send\"]",
+    "fieldset button[type=\"button\"]:last-of-type"
+  ],
+  "responseSelectors": [
+    ".font-claude-response",
+    "[data-is-streaming] .font-claude-response",
+    ".font-claude-message"
+  ],
+  "loginDetectors": [
+    ".ProseMirror[contenteditable=\"true\"]",
+    "[contenteditable=\"true\"].ProseMirror"
+  ],
+  "loggedOutDetectors": [],
+  "thinkingDetectors": [
+    "[data-is-streaming=\"true\"]",
+    "button[aria-label=\"Stop Response\"]",
+    "button[aria-label=\"Stop response\"]",
+    "button[aria-label=\"Stop\"]"
+  ],
+  "stopButtonSelectors": [
+    "button[aria-label=\"Stop Response\"]",
+    "button[aria-label=\"Stop response\"]",
+    "button[aria-label=\"Stop\"]"
+  ],
+  "inputStrategy": "prosemirror-paste",
+  "sendStrategy": "click",
+  "timing": {
+    "doneDelayMs": 5000,
+    "chunkDebounceMs": 500,
+    "statusIntervalMs": 10000,
+    "backupPollMs": 3000
+  }
+}

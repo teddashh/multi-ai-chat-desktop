@@ -218,13 +218,13 @@ describe('ReplayPanel', () => {
     expect(replaySnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it('explains unrunnable role maps and disables replay for that source', async () => {
+  it('shows claude-code replay blocks through normal preflight and keeps replay available', async () => {
     const snapshot = buildSnapshot();
     vi.mocked(getLastSnapshot).mockReturnValue(snapshot);
     vi.mocked(replaySnapshot).mockResolvedValueOnce({
       ok: false,
-      blocked: 'roleMap-unrunnable',
-      detail: { roles: ['planner', 'reviewer'] },
+      blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['claude-code'], aliased: [] },
     });
     const panel = new ReplayPanel({});
 
@@ -232,9 +232,11 @@ describe('ReplayPanel', () => {
     await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
 
     const blockedTree = panel.render();
-    expect(renderToStaticMarkup(blockedTree)).toContain('claude-code');
-    expect(renderToStaticMarkup(blockedTree)).toContain('planner, reviewer');
-    expect(propsOf(buttonWithText(blockedTree, 'Replay last run')).disabled).toBe(true);
+    expect(renderToStaticMarkup(blockedTree)).toContain('Cannot start replay');
+    expect(renderToStaticMarkup(blockedTree)).toContain('Claude Code unavailable');
+    expect(propsOf(buttonWithText(blockedTree, 'Replay last run')).disabled).toBe(false);
+    propsOf(buttonWithText(blockedTree, 'Open/Login')).onClick?.();
+    expect(host.provider.openLogin).toHaveBeenCalledWith('claude-code');
   });
 
   it('shows missing snapshots as a small error line', async () => {

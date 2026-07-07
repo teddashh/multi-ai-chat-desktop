@@ -35,7 +35,16 @@ export const AI_PROVIDERS: Record<AIProvider, {
     loginUrl: 'https://grok.com',
     color: '#e11d48',
   },
+  'claude-code': {
+    name: 'Claude Code',
+    url: 'https://claude.ai/code',
+    loginUrl: 'https://claude.ai/login',
+    color: '#7c3aed',
+  },
 };
+
+export const DOCK_SLOT_PROVIDERS = ['chatgpt', 'claude', 'gemini', 'grok'] as const satisfies readonly AIProvider[];
+export const DEFAULT_FREE_TARGET_PROVIDERS = ['chatgpt', 'claude', 'gemini', 'grok'] as const satisfies readonly AIProvider[];
 
 // === Mode Definitions ===
 

@@ -184,7 +184,7 @@ pub(crate) fn get_adapter(provider: &str) -> Result<Adapter, String> {
 }
 
 pub(crate) fn all_provider_states() -> Vec<String> {
-    let mut providers = vec!["chatgpt", "claude", "gemini", "grok"]
+    let mut providers = vec!["chatgpt", "claude", "gemini", "grok", "claude-code"]
         .into_iter()
         .map(str::to_string)
         .collect::<Vec<_>>();
@@ -211,6 +211,7 @@ fn init_adapters() {
     for (provider, text) in [
         ("chatgpt", include_str!("../../adapters/chatgpt.json")),
         ("claude", include_str!("../../adapters/claude.json")),
+        ("claude-code", include_str!("../../adapters/claude-code.json")),
         ("gemini", include_str!("../../adapters/gemini.json")),
         ("grok", include_str!("../../adapters/grok.json")),
     ] {
@@ -345,9 +346,16 @@ fn url_matches(pattern: &str, url: &tauri::Url) -> bool {
         tauri::Url::parse(pattern).ok().is_some_and(|expected| {
             expected.scheme() == "https"
                 && expected.host_str() == url.host_str()
-                && url.path().starts_with(expected.path())
+                && path_matches_prefix(expected.path(), url.path())
         })
     }
+}
+
+fn path_matches_prefix(expected: &str, actual: &str) -> bool {
+    actual == expected
+        || actual
+            .strip_prefix(expected)
+            .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
 fn cache_path(app: &tauri::AppHandle, provider: &str) -> Result<std::path::PathBuf, String> {
@@ -513,7 +521,7 @@ fn login_url_matches(login: &str, url: &tauri::Url) -> bool {
     tauri::Url::parse(login).ok().is_some_and(|expected| {
         expected.scheme() == "https"
             && expected.host_str() == url.host_str()
-            && url.path().starts_with(expected.path())
+            && path_matches_prefix(expected.path(), url.path())
     })
 }
 
@@ -547,6 +555,76 @@ mod tests {
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(!url_allowed_for_provider("grok", &url).unwrap());
+        }
+    }
+
+    #[test]
+    fn shipped_provider_login_and_app_paths_keep_shared_matcher_parity() {
+        for (provider, login, deep_app, http_app) in [
+            (
+                "chatgpt",
+                "https://chatgpt.com/auth/login",
+                "https://chatgpt.com/c/123",
+                "http://chatgpt.com/c/123",
+            ),
+            (
+                "claude",
+                "https://claude.ai/login",
+                "https://claude.ai/new",
+                "http://claude.ai/new",
+            ),
+            (
+                "gemini",
+                "https://gemini.google.com/app",
+                "https://gemini.google.com/app/123",
+                "http://gemini.google.com/app/123",
+            ),
+            (
+                "grok",
+                "https://grok.com",
+                "https://grok.com/chat/123",
+                "http://grok.com/chat/123",
+            ),
+        ] {
+            let login = tauri::Url::parse(login).unwrap();
+            assert!(url_allowed_for_provider(provider, &login).unwrap(), "{provider} login");
+
+            let deep_app = tauri::Url::parse(deep_app).unwrap();
+            assert!(
+                url_allowed_for_provider(provider, &deep_app).unwrap(),
+                "{provider} deep app"
+            );
+
+            let http_app = tauri::Url::parse(http_app).unwrap();
+            assert!(
+                !url_allowed_for_provider(provider, &http_app).unwrap(),
+                "{provider} http denied"
+            );
+        }
+    }
+
+    #[test]
+    fn claude_code_navigation_is_narrow_to_code_and_login() {
+        for value in [
+            "https://claude.ai/code",
+            "https://claude.ai/code/project",
+            "https://claude.ai/code/project?x=1",
+            "https://claude.ai/login",
+        ] {
+            let url = tauri::Url::parse(value).unwrap();
+            assert!(url_allowed_for_provider("claude-code", &url).unwrap(), "{value}");
+        }
+
+        for value in [
+            "https://claude.ai/new",
+            "https://claude.ai",
+            "https://claude.ai/chats",
+            "https://claude.ai/codeevil",
+            "https://claude.ai/loginevil",
+            "http://claude.ai/code",
+        ] {
+            let url = tauri::Url::parse(value).unwrap();
+            assert!(!url_allowed_for_provider("claude-code", &url).unwrap(), "{value}");
         }
     }
 

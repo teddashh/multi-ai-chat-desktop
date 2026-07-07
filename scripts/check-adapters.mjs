@@ -109,4 +109,67 @@ for (const provider of Object.keys(expected)) {
   assertEqual(adapter.stopButtonSelectors, spec.stopButtonSelectors, `${provider}.stopButtonSelectors`);
 }
 
+const claudeCodeExpected = {
+  urls: {
+    app: 'https://claude.ai/code',
+    login: 'https://claude.ai/login',
+    match: ['https://claude.ai/code'],
+    ssoMatch: [],
+  },
+  inputStrategy: 'prosemirror-paste',
+  doneDelayMs: 5000,
+  chunkDebounceMs: 500,
+  inputSelectors: [
+    '.ProseMirror[contenteditable="true"]',
+    '[contenteditable="true"].ProseMirror',
+    'div.ProseMirror',
+    'fieldset div[contenteditable="true"]',
+  ],
+  sendButtonSelectors: [
+    'button[aria-label="Send Message"]',
+    'button[aria-label="Send message"]',
+    'button[aria-label="Send"]',
+    'fieldset button[type="button"]:last-of-type',
+  ],
+  responseSelectors: [
+    '.font-claude-response',
+    '[data-is-streaming] .font-claude-response',
+    '.font-claude-message',
+  ],
+  loginDetectors: ['.ProseMirror[contenteditable="true"]', '[contenteditable="true"].ProseMirror'],
+  loggedOutDetectors: [],
+  thinkingDetectors: [
+    '[data-is-streaming="true"]',
+    'button[aria-label="Stop Response"]',
+    'button[aria-label="Stop response"]',
+    'button[aria-label="Stop"]',
+  ],
+  stopButtonSelectors: [
+    'button[aria-label="Stop Response"]',
+    'button[aria-label="Stop response"]',
+    'button[aria-label="Stop"]',
+  ],
+};
+
+const claudeCode = JSON.parse(await readFile(path.join(adapterDir, 'claude-code.json'), 'utf8'));
+if (!validate(claudeCode)) {
+  throw new Error(`claude-code.json schema errors: ${JSON.stringify(validate.errors, null, 2)}`);
+}
+assertEqual(claudeCode.provider, 'claude-code', 'claude-code.provider');
+assertEqual(claudeCode.displayName, 'Claude Code', 'claude-code.displayName');
+assertEqual(claudeCode.urls, claudeCodeExpected.urls, 'claude-code.urls');
+assertEqual(claudeCode.inputStrategy, claudeCodeExpected.inputStrategy, 'claude-code.inputStrategy');
+assertEqual(claudeCode.sendStrategy, 'click', 'claude-code.sendStrategy');
+assertEqual(claudeCode.timing.doneDelayMs, claudeCodeExpected.doneDelayMs, 'claude-code.doneDelayMs');
+assertEqual(claudeCode.timing.chunkDebounceMs, claudeCodeExpected.chunkDebounceMs, 'claude-code.chunkDebounceMs');
+assertEqual(claudeCode.timing.statusIntervalMs, 10000, 'claude-code.statusIntervalMs');
+assertEqual(claudeCode.timing.backupPollMs, 3000, 'claude-code.backupPollMs');
+assertEqual(claudeCode.inputSelectors, claudeCodeExpected.inputSelectors, 'claude-code.inputSelectors');
+assertEqual(claudeCode.sendButtonSelectors, claudeCodeExpected.sendButtonSelectors, 'claude-code.sendButtonSelectors');
+assertEqual(claudeCode.responseSelectors, claudeCodeExpected.responseSelectors, 'claude-code.responseSelectors');
+assertEqual(claudeCode.loginDetectors, claudeCodeExpected.loginDetectors, 'claude-code.loginDetectors');
+assertEqual(claudeCode.loggedOutDetectors, claudeCodeExpected.loggedOutDetectors, 'claude-code.loggedOutDetectors');
+assertEqual(claudeCode.thinkingDetectors, claudeCodeExpected.thinkingDetectors, 'claude-code.thinkingDetectors');
+assertEqual(claudeCode.stopButtonSelectors, claudeCodeExpected.stopButtonSelectors, 'claude-code.stopButtonSelectors');
+
 console.log('Adapter schema and SPEC section 5.1 seed checks passed.');

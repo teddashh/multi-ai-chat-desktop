@@ -1,7 +1,7 @@
-import { AI_PROVIDERS } from '../../../shared/constants';
+import { AI_PROVIDERS, DEFAULT_FREE_TARGET_PROVIDERS } from '../../../shared/constants';
 import type { AIProvider, ChatMode } from '../../../shared/types';
 import { host } from '../../host';
-import { executeGraph, preflightGraph, resolveRequiredRoles, workflowGraphs } from '../graph';
+import { executeGraph, preflightGraph, workflowGraphs } from '../graph';
 import type { WorkflowGraph } from '../graph';
 import type { PreflightResult } from '../preflight';
 import { prepareWorkflowRun } from '../runtime';
@@ -25,7 +25,6 @@ export class SnapshotReplayError extends Error {
 export type ReplayBlockReason =
   | 'unknown-graph'
   | 'graph-version-mismatch'
-  | 'roleMap-unrunnable'
   | 'question-required'
   | 'preflight'
   | 'not-found';
@@ -115,16 +114,6 @@ export function planReplay(snapshot: ExecutionSnapshot, opts: { replayWithCurren
     };
   }
 
-  const unrunnableRoles = resolveRequiredRoles(liveGraph).filter((role) => snapshot.roleMap[role] === 'claude-code');
-  if (unrunnableRoles.length > 0) {
-    return {
-      ...basePlan,
-      graph: liveGraph,
-      blocked: 'roleMap-unrunnable',
-      detail: { roles: unrunnableRoles },
-    };
-  }
-
   return {
     ...basePlan,
     graph: liveGraph,
@@ -208,7 +197,9 @@ async function replayTargets(plan: ReplayPlan): Promise<AIProvider[] | undefined
   if (plan.graph?.preflight.kind !== 'free') return plan.targets;
   const snapshot = await host.connections.get();
   const sendable = snapshot.filter(isSendable).map((state) => state.provider);
-  return plan.targets === undefined ? sendable : plan.targets.filter((provider) => sendable.includes(provider));
+  return plan.targets === undefined
+    ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
+    : plan.targets.filter((provider) => sendable.includes(provider));
 }
 
 function inlineText(ref: RedactedValueRef | undefined): string | undefined {

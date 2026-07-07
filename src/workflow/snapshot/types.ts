@@ -1,6 +1,5 @@
-import type { AIProvider } from '../../../shared/types';
-
-export type AIProviderV2 = AIProvider | 'claude-code';
+import type { AIProviderV2 } from '../../../shared/types';
+export type { AIProviderV2 } from '../../../shared/types';
 
 export const SNAPSHOT_REDACTION_TIERS = ['metadata-only', 'hashes', 'prompt-text', 'full-local'] as const;
 export type SnapshotRedactionTier = (typeof SNAPSHOT_REDACTION_TIERS)[number];

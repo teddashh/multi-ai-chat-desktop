@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AI_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS, DOCK_SLOT_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { DEFAULT_COLUMN_WIDTHS, type ColumnWidths } from './dockLayout';
 import type { PresentationByProvider } from './presentation';
@@ -26,6 +26,7 @@ const SLOT_LABELS: Record<SlotId, string> = {
 };
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
+const DOCK_PROVIDERS = [...DOCK_SLOT_PROVIDERS] as AIProvider[];
 
 type UpdateCheckState =
   | { status: 'idle' }
@@ -199,7 +200,7 @@ export function SettingsModal({
                       onChange={(event) => updateSlot(slot, event.target.value as AIProvider)}
                       className="w-full border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-sky-600"
                     >
-                      {PROVIDERS.map((provider) => (
+                      {DOCK_PROVIDERS.map((provider) => (
                         <option key={provider} value={provider}>
                           {AI_PROVIDERS[provider].name}
                         </option>

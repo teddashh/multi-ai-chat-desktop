@@ -1,5 +1,5 @@
 import type { AIProvider, ChatMode, ModeRoles } from '../../shared/types';
-import { CHAT_MODES } from '../../shared/constants';
+import { CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
 import { host } from '../host';
 import { getInFlightProviders } from './cancel';
 import { emitSystemError, sendWorkflowStatus } from './events';
@@ -41,7 +41,10 @@ export async function runWorkflow({
     if (!CHAT_MODES[mode].serial) {
       const snapshot = await host.connections.get();
       const sendable = snapshot.filter(isSendable).map((state) => state.provider);
-      const targetSet = targets === undefined ? sendable : targets.filter((provider) => sendable.includes(provider));
+      const targetSet =
+        targets === undefined
+          ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
+          : targets.filter((provider) => sendable.includes(provider));
       await executeGraph(workflowGraphs.free, { text, targets: targetSet, checkpoints }, {
         onSnapshotComplete: (snapshot) => persistSnapshotIfEnabled(snapshot, snapshotOptions),
       });

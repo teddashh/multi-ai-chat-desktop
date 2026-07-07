@@ -8,7 +8,7 @@ use tauri_plugin_opener::OpenerExt;
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
 const SNAPSHOT_REDACTION_TIERS: &[&str] = &["metadata-only", "hashes", "prompt-text", "full-local"];
-const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok"];
+const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok", "claude-code"];
 const PRESENTATION_STATES: &[&str] = &["chip", "side", "center"];
 
 pub(crate) fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -86,7 +86,7 @@ fn normalize_presentation_value(value: Option<&Value>) -> Value {
             .and_then(|object| object.get(*provider))
             .and_then(|value| value.as_str())
             .filter(|value| PRESENTATION_STATES.contains(value))
-            .unwrap_or("side");
+            .unwrap_or_else(|| default_presentation(provider));
         let normalized = if candidate == "center" {
             if center_seen {
                 "side"
@@ -104,6 +104,14 @@ fn normalize_presentation_value(value: Option<&Value>) -> Value {
     }
 
     Value::Object(map)
+}
+
+fn default_presentation(provider: &str) -> &'static str {
+    if provider == "claude-code" {
+        "chip"
+    } else {
+        "side"
+    }
 }
 
 pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -416,7 +424,8 @@ mod tests {
                     "chatgpt": "side",
                     "claude": "side",
                     "gemini": "side",
-                    "grok": "side"
+                    "grok": "side",
+                    "claude-code": "chip"
                 }
             })
         );
@@ -428,7 +437,8 @@ mod tests {
                     "chatgpt": "chip",
                     "claude": "center",
                     "gemini": "side",
-                    "grok": "side"
+                    "grok": "side",
+                    "claude-code": "chip"
                 }
             })),
             json!({
@@ -438,7 +448,8 @@ mod tests {
                     "chatgpt": "chip",
                     "claude": "center",
                     "gemini": "side",
-                    "grok": "side"
+                    "grok": "side",
+                    "claude-code": "chip"
                 }
             })
         );
@@ -450,6 +461,7 @@ mod tests {
                     "chatgpt": "center",
                     "claude": "center",
                     "gemini": "bad",
+                    "claude-code": "bad",
                     "unknown": "chip"
                 }
             })),
@@ -460,7 +472,8 @@ mod tests {
                     "chatgpt": "center",
                     "claude": "side",
                     "gemini": "side",
-                    "grok": "side"
+                    "grok": "side",
+                    "claude-code": "chip"
                 }
             })
         );

@@ -4,7 +4,7 @@ import { dragColumnWidth, gridTemplateColumns } from '../ui/dockLayout';
 import { OverlayGuardCounter } from '../ui/overlayGuard';
 import { defaultPresentation } from '../ui/presentation';
 import { defaultSettings, mergeSettings, normalizeSettings } from '../ui/settingsModel';
-import { DEFAULT_SLOT_ASSIGNMENT, SLOT_IDS, assignSlotProvider, isProviderPermutation } from '../ui/slotAssignment';
+import { DEFAULT_SLOT_ASSIGNMENT, SLOT_IDS, assignSlotProvider, isProviderPermutation, normalizeSlotAssignment } from '../ui/slotAssignment';
 import { visibleLoadedProviders } from '../ui/visibility';
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
@@ -51,6 +51,20 @@ describe('M4b UI helpers', () => {
       rightBottom: 'chatgpt',
     });
     expect(isProviderPermutation(SLOT_IDS.map((slot) => assigned[slot]))).toBe(true);
+    expect(isProviderPermutation(['chatgpt', 'claude', 'gemini', 'claude-code'])).toBe(false);
+    expect(
+      normalizeSlotAssignment({
+        leftTop: 'claude-code',
+        leftBottom: 'chatgpt',
+        rightTop: 'claude',
+        rightBottom: 'gemini',
+      }),
+    ).toEqual({
+      leftTop: 'grok',
+      leftBottom: 'chatgpt',
+      rightTop: 'claude',
+      rightBottom: 'gemini',
+    });
   });
 
   it('filters visible loaded providers by webview state and user-hidden set', () => {
@@ -81,7 +95,7 @@ describe('M4b UI helpers', () => {
       hackmdToken: 123,
       columnWidths: { left: 10, right: 900 },
       slotAssignment: { leftTop: 'chatgpt', leftBottom: 'chatgpt' },
-      openProviders: ['grok', 'nope', 'grok'],
+      openProviders: ['grok', 'nope', 'grok', 'claude-code'],
       portable: true,
       snapshotPersistence: true,
       snapshotRedactionTier: 'unknown',
@@ -91,15 +105,15 @@ describe('M4b UI helpers', () => {
     expect(normalized.columnWidths.left).toBeGreaterThanOrEqual(200);
     expect(normalized.columnWidths.right).toBeLessThanOrEqual(520);
     expect(isProviderPermutation(SLOT_IDS.map((slot) => normalized.slotAssignment[slot]))).toBe(true);
-    expect(normalized.openProviders).toEqual(['grok']);
+    expect(normalized.openProviders).toEqual(['grok', 'claude-code']);
     expect(normalized.portable).toBe(true);
     expect(normalized.snapshotPersistence).toBe(true);
     expect(normalized.snapshotRedactionTier).toBe('metadata-only');
-    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side' });
+    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side', 'claude-code': 'chip' });
 
     expect(mergeSettings(normalized, { adapterChannel: 'beta', snapshotRedactionTier: 'hashes' })).toMatchObject({
       adapterChannel: 'beta',
-      openProviders: ['grok'],
+      openProviders: ['grok', 'claude-code'],
       portable: true,
       snapshotRedactionTier: 'hashes',
     });

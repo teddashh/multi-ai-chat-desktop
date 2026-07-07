@@ -1,4 +1,10 @@
-import { AI_PROVIDERS, DEFAULT_CODING_ROLES, DEFAULT_CONSULT_ROLES, DEFAULT_DEBATE_ROLES, DEFAULT_ROUNDTABLE_ROLES } from '../../shared/constants';
+import {
+  DEFAULT_CODING_ROLES,
+  DEFAULT_CONSULT_ROLES,
+  DEFAULT_DEBATE_ROLES,
+  DEFAULT_FREE_TARGET_PROVIDERS,
+  DEFAULT_ROUNDTABLE_ROLES,
+} from '../../shared/constants';
 import type { AIProvider, ChatMode, ModeRoles } from '../../shared/types';
 
 export interface PresetCatalogEntry {
@@ -13,7 +19,7 @@ export interface PresetCatalogEntry {
   source: 'builtin' | 'imported' | 'community';
 }
 
-const ALL_PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
+const DEFAULT_REQUIRED_PROVIDERS = [...DEFAULT_FREE_TARGET_PROVIDERS] as AIProvider[];
 
 export const PRESET_CATALOG: PresetCatalogEntry[] = [
   {
@@ -33,7 +39,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     displayName: 'Debate',
     description: 'Use this when a question needs opposing arguments and a neutral synthesis. You get pro, con, judge, and summary passes.',
     costLabel: '4 AI · 4 logins · 3–5 min · 中 RAM',
-    requiredProviders: ALL_PROVIDERS,
+    requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
     estMinutes: 4,
     ramHint: 'medium',
     source: 'builtin',
@@ -44,7 +50,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     displayName: 'Consult',
     description: 'Use this for research-style questions. Two AIs answer first, another checks them, and one produces a concise combined answer.',
     costLabel: '4 AI · ~2 min · 低 RAM',
-    requiredProviders: ALL_PROVIDERS,
+    requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
     estMinutes: 2,
     ramHint: 'low',
     source: 'builtin',
@@ -55,7 +61,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     displayName: 'Coding',
     description: 'Use this for implementation work. The run plans, reviews, writes, tests, revises, and finishes a concrete answer.',
     costLabel: '4 AI · 4 logins · 8–12 min · 高 RAM',
-    requiredProviders: ALL_PROVIDERS,
+    requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
     estMinutes: 10,
     ramHint: 'high',
     source: 'builtin',
@@ -66,7 +72,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     displayName: 'Roundtable',
     description: 'Use this when you want a slower multi-round discussion. Four AIs revisit the question across five rounds and converge on takeaways.',
     costLabel: '4 AI · 4 logins · 10–15 min · 高 RAM',
-    requiredProviders: ALL_PROVIDERS,
+    requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
     estMinutes: 12,
     ramHint: 'high',
     source: 'builtin',

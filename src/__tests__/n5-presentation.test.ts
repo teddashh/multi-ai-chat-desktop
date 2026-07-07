@@ -22,6 +22,7 @@ import { mergeSettings, normalizeSettings } from '../ui/settingsModel';
 import { visibleLoadedProviders } from '../ui/visibility';
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const allProviders: AIProvider[] = [...providers, 'claude-code'];
 
 function state(provider: AIProvider, webview: ProviderState['webview'] = 'loaded'): ProviderState {
   return {
@@ -35,7 +36,7 @@ function state(provider: AIProvider, webview: ProviderState['webview'] = 'loaded
 }
 
 function states(overrides: Partial<Record<AIProvider, ProviderState>> = {}): Record<AIProvider, ProviderState> {
-  return Object.fromEntries(providers.map((provider) => [provider, overrides[provider] ?? state(provider)])) as Record<
+  return Object.fromEntries(allProviders.map((provider) => [provider, overrides[provider] ?? state(provider)])) as Record<
     AIProvider,
     ProviderState
   >;
@@ -64,12 +65,12 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 }
 
 describe('N5 webview presentation model', () => {
-  it('defaults every provider to the existing side dock behavior', () => {
+  it('defaults dock providers to side and claude-code to chip', () => {
     const presentation = defaultPresentation();
 
-    expect(presentation).toEqual({ chatgpt: 'side', claude: 'side', gemini: 'side', grok: 'side' });
+    expect(presentation).toEqual({ chatgpt: 'side', claude: 'side', gemini: 'side', grok: 'side', 'claude-code': 'chip' });
     expect(sideProviders(presentation, providers)).toEqual(providers);
-    expect(chipProviders(presentation, providers)).toEqual([]);
+    expect(chipProviders(presentation, allProviders)).toEqual(['claude-code']);
     expect(centerPresentationProvider(presentation)).toBeUndefined();
   });
 
@@ -77,23 +78,28 @@ describe('N5 webview presentation model', () => {
     let presentation = defaultPresentation();
 
     presentation = setProviderPresentation(presentation, 'chatgpt', 'chip');
-    expect(chipProviders(presentation, providers)).toEqual(['chatgpt']);
+    expect(chipProviders(presentation, allProviders)).toEqual(['chatgpt', 'claude-code']);
     expect(sideProviders(presentation, providers)).toEqual(['claude', 'gemini', 'grok']);
 
     presentation = setProviderPresentation(presentation, 'chatgpt', 'center');
-    expect(chipProviders(presentation, providers)).toEqual([]);
+    expect(chipProviders(presentation, allProviders)).toEqual(['claude-code']);
     expect(centerPresentationProvider(presentation)).toBe('chatgpt');
 
     presentation = setProviderPresentation(presentation, 'chatgpt', 'side');
     expect(sideProviders(presentation, providers)).toEqual(providers);
     expect(centerPresentationProvider(presentation)).toBeUndefined();
+
+    presentation = setProviderPresentation(presentation, 'claude-code', 'side');
+    expect(sideProviders(presentation, allProviders)).toContain('claude-code');
+    presentation = setProviderPresentation(presentation, 'claude-code', 'center');
+    expect(centerPresentationProvider(presentation)).toBe('claude-code');
   });
 
   it('keeps only one provider in center and computes center-hidden side webviews', () => {
     let presentation = setProviderPresentation(defaultPresentation(), 'chatgpt', 'center');
     presentation = setProviderPresentation(presentation, 'claude', 'center');
 
-    expect(presentation).toEqual({ chatgpt: 'side', claude: 'center', gemini: 'side', grok: 'side' });
+    expect(presentation).toEqual({ chatgpt: 'side', claude: 'center', gemini: 'side', grok: 'side', 'claude-code': 'chip' });
     expect(centerHiddenProviders(presentation, states({ grok: state('grok', 'none') }), new Set<AIProvider>(['gemini']), providers)).toEqual([
       'chatgpt',
     ]);
@@ -105,7 +111,7 @@ describe('N5 webview presentation model', () => {
       presentation: { chatgpt: 'chip', claude: 'center', gemini: 'bad', grok: 'side' },
     });
 
-    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side' });
+    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side', 'claude-code': 'chip' });
     expect(restorableOpenProviders(normalized.openProviders, normalized.presentation)).toEqual(['claude', 'gemini']);
 
     const persisted = mergeSettings(normalized, {
@@ -115,13 +121,20 @@ describe('N5 webview presentation model', () => {
   });
 
   it('normalizes invalid presentation entries to side instead of fallback state', () => {
-    const fallback: ReturnType<typeof defaultPresentation> = { chatgpt: 'chip', claude: 'center', gemini: 'chip', grok: 'side' };
+    const fallback: ReturnType<typeof defaultPresentation> = {
+      chatgpt: 'chip',
+      claude: 'center',
+      gemini: 'chip',
+      grok: 'side',
+      'claude-code': 'center',
+    };
 
-    expect(normalizePresentation({ chatgpt: 'bad', claude: 'side', gemini: 'bad', grok: 'bad' }, fallback)).toEqual({
+    expect(normalizePresentation({ chatgpt: 'bad', claude: 'side', gemini: 'bad', grok: 'bad', 'claude-code': 'bad' }, fallback)).toEqual({
       chatgpt: 'side',
       claude: 'side',
       gemini: 'side',
       grok: 'side',
+      'claude-code': 'chip',
     });
   });
 

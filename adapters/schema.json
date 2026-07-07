@@ -21,7 +21,7 @@
     "$schema": { "type": "string" },
     "schemaVersion": { "type": "integer", "minimum": 1 },
     "adapterVersion": { "type": "integer", "minimum": 1 },
-    "provider": { "enum": ["chatgpt", "claude", "gemini", "grok"] },
+    "provider": { "enum": ["chatgpt", "claude", "gemini", "grok", "claude-code"] },
     "displayName": { "type": "string", "minLength": 1 },
     "urls": {
       "type": "object",

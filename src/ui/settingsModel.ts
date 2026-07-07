@@ -1,4 +1,5 @@
 import type { AIProvider } from '../../shared/types';
+import { AI_PROVIDERS } from '../../shared/constants';
 import { DEFAULT_COLUMN_WIDTHS, type ColumnWidths, clampColumnWidths } from './dockLayout';
 import {
   DEFAULT_SLOT_ASSIGNMENT,
@@ -24,7 +25,7 @@ export interface AppSettings {
   presentation: PresentationByProvider;
 }
 
-const PROVIDERS: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
 export function defaultSettings(): AppSettings {
   return {

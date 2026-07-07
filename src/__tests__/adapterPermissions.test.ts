@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider } from '../../shared/types';
 import { buildAdapterPermissionSummary } from '../ui/adapterPermissions';
 
-const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const providers = Object.keys(AI_PROVIDERS) as AIProvider[];
 
 describe('adapter permission summaries', () => {
   it('always includes the fixed architectural cannot list', () => {

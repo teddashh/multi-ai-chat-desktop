@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { buildDebugBundle, debugBundleFilename, pickDebugSettings } from '../diagnostics/debugBundle';
 import { appendEvent, eventFromBridgeMessage, formatEventLogText, type EventLogEvent } from '../diagnostics/eventLog';
 
-const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
+const providers = Object.keys(AI_PROVIDERS) as AIProvider[];
 
 function state(provider: AIProvider, patch: Partial<ProviderState> = {}): ProviderState {
   return {
@@ -231,6 +232,7 @@ describe('debug bundle builder', () => {
       eventLog: string;
     };
     const chatgpt = parsed.providers.find((provider) => provider.provider === 'chatgpt');
+    const claudeCode = parsed.providers.find((provider) => provider.provider === 'claude-code');
 
     expect(parsed.generatedAt).toBe('2026-07-05T01:02:03.000Z');
     expect(parsed.app.version).toBe('0.2.0');
@@ -248,6 +250,13 @@ describe('debug bundle builder', () => {
       thinking: true,
     });
     expect(chatgpt?.adapterVersion).toBe(7);
+    expect(parsed.providers.map((provider) => provider.provider)).toEqual(providers);
+    expect(claudeCode?.status).toEqual({
+      bridge: 'unknown',
+      adapter: 'unknown',
+      login: 'unknown',
+      thinking: false,
+    });
     expect(parsed.eventLog).toContain('ChatGPT adapter update v7');
     expect(debugBundleFilename(new Date('2026-07-05T01:02:03Z'))).toBe('multi-ai-chat-debug-2026-07-05-01-02-03.txt');
   });
