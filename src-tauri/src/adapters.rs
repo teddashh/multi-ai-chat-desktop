@@ -112,8 +112,8 @@ pub async fn report_broken(
         .get_webview(&label)
         .ok_or_else(|| format!("provider not open: {provider}"))?;
     let adapter_json = serde_json::to_string(&adapter).map_err(|error| error.to_string())?;
-    let app_version =
-        serde_json::to_string(&app.package_info().version.to_string()).map_err(|error| error.to_string())?;
+    let app_version = serde_json::to_string(&app.package_info().version.to_string())
+        .map_err(|error| error.to_string())?;
     let js = format!(
         "window.__MAC_REPORT__ ? window.__MAC_REPORT__.collect({adapter_json}, {app_version}) : null"
     );
@@ -384,7 +384,11 @@ async fn fetch_adapter_text(url: &str) -> Result<String, String> {
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|error| error.to_string())?;
-    let response = client.get(url).send().await.map_err(|error| error.to_string())?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
     let status = response.status();
     if !status.is_success() {
         return Err(format!(
@@ -405,7 +409,13 @@ async fn fetch_adapter_text(url: &str) -> Result<String, String> {
     String::from_utf8(bytes.to_vec()).map_err(|error| error.to_string())
 }
 
-fn emit_notice(app: &tauri::AppHandle, provider: &str, kind: &str, message: &str, version: Option<u32>) {
+fn emit_notice(
+    app: &tauri::AppHandle,
+    provider: &str,
+    kind: &str,
+    message: &str,
+    version: Option<u32>,
+) {
     let payload = serde_json::json!({
         "provider": provider,
         "kind": kind,
@@ -461,13 +471,22 @@ async fn refresh_one(app: &tauri::AppHandle, provider: &str, allow_downgrade: bo
     };
     if adapter.provider != provider {
         if allow_downgrade {
-            emit_notice(app, provider, "validation-failed", "provider mismatch", None);
+            emit_notice(
+                app,
+                provider,
+                "validation-failed",
+                "provider mismatch",
+                None,
+            );
         }
         return;
     }
 
-    let Some(kind) = apply_decision(adapter.adapter_version, current_version(provider), allow_downgrade)
-    else {
+    let Some(kind) = apply_decision(
+        adapter.adapter_version,
+        current_version(provider),
+        allow_downgrade,
+    ) else {
         return;
     };
 

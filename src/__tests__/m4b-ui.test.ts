@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { dragColumnWidth, gridTemplateColumns } from '../ui/dockLayout';
 import { OverlayGuardCounter } from '../ui/overlayGuard';
+import { defaultPresentation } from '../ui/presentation';
 import { defaultSettings, mergeSettings, normalizeSettings } from '../ui/settingsModel';
 import { DEFAULT_SLOT_ASSIGNMENT, SLOT_IDS, assignSlotProvider, isProviderPermutation } from '../ui/slotAssignment';
 import { visibleLoadedProviders } from '../ui/visibility';
@@ -73,6 +74,7 @@ describe('M4b UI helpers', () => {
       telemetry: 'none',
       snapshotPersistence: false,
       snapshotRedactionTier: 'metadata-only',
+      presentation: defaultPresentation(),
     });
 
     const normalized = normalizeSettings({
@@ -83,6 +85,7 @@ describe('M4b UI helpers', () => {
       portable: true,
       snapshotPersistence: true,
       snapshotRedactionTier: 'unknown',
+      presentation: { chatgpt: 'chip', claude: 'center', gemini: 'bad', grok: 'center' },
     });
     expect(normalized.hackmdToken).toBe('');
     expect(normalized.columnWidths.left).toBeGreaterThanOrEqual(200);
@@ -92,6 +95,7 @@ describe('M4b UI helpers', () => {
     expect(normalized.portable).toBe(true);
     expect(normalized.snapshotPersistence).toBe(true);
     expect(normalized.snapshotRedactionTier).toBe('metadata-only');
+    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side' });
 
     expect(mergeSettings(normalized, { adapterChannel: 'beta', snapshotRedactionTier: 'hashes' })).toMatchObject({
       adapterChannel: 'beta',

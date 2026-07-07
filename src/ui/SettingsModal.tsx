@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { DEFAULT_COLUMN_WIDTHS, type ColumnWidths } from './dockLayout';
+import type { PresentationByProvider } from './presentation';
 import { assignSlotProvider, SLOT_IDS, type SlotAssignment, type SlotId } from './slotAssignment';
 import { type AppSettings, mergeSettings, normalizeSettings } from './settingsModel';
 import { compareVersions, fetchLatestRelease } from './updateCheck';
@@ -39,6 +40,7 @@ export function SettingsModal({
   columnWidths,
   slotAssignment,
   openProviders,
+  presentation,
   providerStates,
   onClose,
   onSaved,
@@ -47,6 +49,7 @@ export function SettingsModal({
   columnWidths: ColumnWidths;
   slotAssignment: SlotAssignment;
   openProviders: AIProvider[];
+  presentation: PresentationByProvider;
   providerStates: Record<AIProvider, ProviderState>;
   onClose: () => void;
   onSaved: (settings: AppSettings) => void;
@@ -56,8 +59,8 @@ export function SettingsModal({
   const [error, setError] = useState('');
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({ status: 'idle' });
   const loadedRef = useRef<AppSettings | undefined>();
-  const liveRef = useRef({ columnWidths, slotAssignment, openProviders });
-  liveRef.current = { columnWidths, slotAssignment, openProviders };
+  const liveRef = useRef({ columnWidths, slotAssignment, openProviders, presentation });
+  liveRef.current = { columnWidths, slotAssignment, openProviders, presentation };
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +81,7 @@ export function SettingsModal({
           columnWidths: live.columnWidths,
           slotAssignment: live.slotAssignment,
           openProviders: live.openProviders,
+          presentation: live.presentation,
         });
       })
       .catch((reason: unknown) => {
@@ -91,6 +95,7 @@ export function SettingsModal({
           columnWidths: live.columnWidths,
           slotAssignment: live.slotAssignment,
           openProviders: live.openProviders,
+          presentation: live.presentation,
         });
       });
     return () => {
@@ -121,6 +126,7 @@ export function SettingsModal({
     const next = mergeSettings(loadedRef.current, {
       ...draft,
       openProviders,
+      presentation,
     });
     try {
       await host.settings.set(next);

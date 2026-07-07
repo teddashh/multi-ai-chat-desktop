@@ -8,6 +8,8 @@ use tauri_plugin_opener::OpenerExt;
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
 const SNAPSHOT_REDACTION_TIERS: &[&str] = &["metadata-only", "hashes", "prompt-text", "full-local"];
+const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok"];
+const PRESENTATION_STATES: &[&str] = &["chip", "side", "center"];
 
 pub(crate) fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
@@ -67,8 +69,41 @@ pub fn normalize_settings_value(settings: Value) -> Value {
             "snapshotRedactionTier".to_string(),
             Value::String(tier.to_string()),
         );
+
+        let presentation = normalize_presentation_value(map.get("presentation"));
+        map.insert("presentation".to_string(), presentation);
     }
     settings
+}
+
+fn normalize_presentation_value(value: Option<&Value>) -> Value {
+    let input = value.and_then(|value| value.as_object());
+    let mut map = Map::new();
+    let mut center_seen = false;
+
+    for provider in PROVIDERS {
+        let candidate = input
+            .and_then(|object| object.get(*provider))
+            .and_then(|value| value.as_str())
+            .filter(|value| PRESENTATION_STATES.contains(value))
+            .unwrap_or("side");
+        let normalized = if candidate == "center" {
+            if center_seen {
+                "side"
+            } else {
+                center_seen = true;
+                "center"
+            }
+        } else {
+            candidate
+        };
+        map.insert(
+            (*provider).to_string(),
+            Value::String(normalized.to_string()),
+        );
+    }
+
+    Value::Object(map)
 }
 
 pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -376,27 +411,57 @@ mod tests {
             normalize_settings_value(json!({})),
             json!({
                 "snapshotPersistence": false,
-                "snapshotRedactionTier": "metadata-only"
+                "snapshotRedactionTier": "metadata-only",
+                "presentation": {
+                    "chatgpt": "side",
+                    "claude": "side",
+                    "gemini": "side",
+                    "grok": "side"
+                }
             })
         );
         assert_eq!(
             normalize_settings_value(json!({
                 "snapshotPersistence": true,
-                "snapshotRedactionTier": "full-local"
+                "snapshotRedactionTier": "full-local",
+                "presentation": {
+                    "chatgpt": "chip",
+                    "claude": "center",
+                    "gemini": "side",
+                    "grok": "side"
+                }
             })),
             json!({
                 "snapshotPersistence": true,
-                "snapshotRedactionTier": "full-local"
+                "snapshotRedactionTier": "full-local",
+                "presentation": {
+                    "chatgpt": "chip",
+                    "claude": "center",
+                    "gemini": "side",
+                    "grok": "side"
+                }
             })
         );
         assert_eq!(
             normalize_settings_value(json!({
                 "snapshotPersistence": "true",
-                "snapshotRedactionTier": "unknown"
+                "snapshotRedactionTier": "unknown",
+                "presentation": {
+                    "chatgpt": "center",
+                    "claude": "center",
+                    "gemini": "bad",
+                    "unknown": "chip"
+                }
             })),
             json!({
                 "snapshotPersistence": false,
-                "snapshotRedactionTier": "metadata-only"
+                "snapshotRedactionTier": "metadata-only",
+                "presentation": {
+                    "chatgpt": "center",
+                    "claude": "side",
+                    "gemini": "side",
+                    "grok": "side"
+                }
             })
         );
     }

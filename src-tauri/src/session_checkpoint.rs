@@ -6,7 +6,9 @@ const SESSION_CHECKPOINT_FILE: &str = "session-checkpoint.json";
 
 pub(crate) fn session_checkpoint_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(session_checkpoint_path_in_dir(
-        &app.path().app_data_dir().map_err(|error| error.to_string())?,
+        &app.path()
+            .app_data_dir()
+            .map_err(|error| error.to_string())?,
     ))
 }
 

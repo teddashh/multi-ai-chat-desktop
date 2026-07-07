@@ -34,6 +34,24 @@ import {
   type ColumnWidths,
 } from './ui/dockLayout';
 import { defaultRolesForMode, isSerialMode } from './ui/modeRoles';
+import {
+  centerHiddenProviders,
+  centerPresentationProvider,
+  chipProviders,
+  defaultPresentation,
+  restorableOpenProviders,
+  setProviderPresentation,
+  sideProviders,
+  type PresentationByProvider,
+  type WebviewPresentationState,
+} from './ui/presentation';
+import {
+  applyCenterHiddenCommands,
+  applyCenterStageCommand,
+  applyPresentationTransitionCommand,
+  type PresentationCommandHost,
+  waitForPresentationTargetBounds,
+} from './ui/presentationCommands';
 import { defaultRolesForPreset } from './ui/presetCatalogData';
 import { buildPreflightDialogModel } from './ui/preflightModel';
 import { preflightFromResult } from './ui/preflightFromResult';
@@ -78,6 +96,26 @@ interface Bubble {
 }
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
+
+const presentationHost: PresentationCommandHost = {
+  close: host.provider.close,
+  hide: host.provider.hide,
+  open: host.provider.open,
+  setBounds: host.layout.setBounds,
+  show: host.provider.show,
+};
+
+function nextAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
+function providerSetEquals(left: ReadonlySet<AIProvider>, right: ReadonlySet<AIProvider>): boolean {
+  if (left.size !== right.size) return false;
+  for (const provider of left) {
+    if (!right.has(provider)) return false;
+  }
+  return true;
+}
 
 function renderablePayload(payload: unknown): { content: string; truncated: boolean } {
   if (typeof payload === 'string') return { content: payload, truncated: false };
@@ -128,27 +166,44 @@ export default function App() {
   const [connectionSnapshotLoaded, setConnectionSnapshotLoaded] = useState(false);
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(() => ({ ...DEFAULT_COLUMN_WIDTHS }));
   const [slotAssignment, setSlotAssignment] = useState<SlotAssignment>(() => ({ ...DEFAULT_SLOT_ASSIGNMENT }));
+  const [presentation, setPresentation] = useState<PresentationByProvider>(() => defaultPresentation());
   const [userHidden, setUserHidden] = useState<Set<AIProvider>>(() => new Set());
+  const [centerHidden, setCenterHidden] = useState<Set<AIProvider>>(() => new Set());
+  const [centerTransitionsInFlight, setCenterTransitionsInFlight] = useState<Set<AIProvider>>(() => new Set());
   const [accessProvider, setAccessProvider] = useState<AIProvider | null>(null);
   const paneRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const centerStageRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const statesRef = useRef(states);
+  const userHiddenRef = useRef<Set<AIProvider>>(userHidden);
   const settingsRef = useRef<AppSettings>(appSettings);
+  const presentationRef = useRef<PresentationByProvider>(presentation);
+  const centerHiddenRef = useRef<Set<AIProvider>>(centerHidden);
+  const centerTransitionsInFlightRef = useRef<Set<AIProvider>>(centerTransitionsInFlight);
+  const centerTransitionGenerations = useRef<Map<AIProvider, number>>(new Map());
+  const presentationTransitionGenerations = useRef<Record<AIProvider, number>>(
+    Object.fromEntries(PROVIDERS.map((provider) => [provider, 0])) as Record<AIProvider, number>,
+  );
+  const overlayGuardOpenRef = useRef(false);
   const pendingRestore = useRef<Set<AIProvider>>(new Set());
   const dragStartWidths = useRef<ColumnWidths>({ ...DEFAULT_COLUMN_WIDTHS });
   const turnRef = useRef(0);
   const activeTurns = useRef(new Map<AIProvider, { turn: number; label?: string }>());
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
-  const loadedModalProviders = useMemo(() => visibleLoadedProviders(states, userHidden, PROVIDERS), [states, userHidden]);
+  const effectiveHidden = useMemo(() => new Set<AIProvider>([...userHidden, ...centerHidden]), [centerHidden, userHidden]);
+  const loadedModalProviders = useMemo(() => visibleLoadedProviders(states, effectiveHidden, PROVIDERS), [effectiveHidden, states]);
   const sendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
   const noSendableProviders = sendableTargets.length === 0;
   const openProviders = useMemo(() => PROVIDERS.filter((provider) => states[provider].webview === 'loaded'), [states]);
-  const leftProviders = useMemo(() => slotProviders(slotAssignment, 'left'), [slotAssignment]);
-  const rightProviders = useMemo(() => slotProviders(slotAssignment, 'right'), [slotAssignment]);
+  const centeredProvider = useMemo(() => centerPresentationProvider(presentation), [presentation]);
+  const chipRailProviders = useMemo(() => chipProviders(presentation, PROVIDERS), [presentation]);
+  const leftProviders = useMemo(() => sideProviders(presentation, slotProviders(slotAssignment, 'left')), [presentation, slotAssignment]);
+  const rightProviders = useMemo(() => sideProviders(presentation, slotProviders(slotAssignment, 'right')), [presentation, slotAssignment]);
 
   const overlayGuardOpen =
     Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || Boolean(accessProvider);
+  overlayGuardOpenRef.current = overlayGuardOpen;
   useOverlayGuard(overlayGuardOpen, loadedModalProviders);
 
   useEffect(() => {
@@ -156,8 +211,24 @@ export default function App() {
   }, [states]);
 
   useEffect(() => {
+    userHiddenRef.current = userHidden;
+  }, [userHidden]);
+
+  useEffect(() => {
     settingsRef.current = appSettings;
   }, [appSettings]);
+
+  useEffect(() => {
+    presentationRef.current = presentation;
+  }, [presentation]);
+
+  useEffect(() => {
+    centerHiddenRef.current = centerHidden;
+  }, [centerHidden]);
+
+  useEffect(() => {
+    centerTransitionsInFlightRef.current = centerTransitionsInFlight;
+  }, [centerTransitionsInFlight]);
 
   useEffect(() => {
     return onCheckpoint((pending) => {
@@ -221,14 +292,16 @@ export default function App() {
         setAppSettings(loaded);
         setColumnWidths(loaded.columnWidths);
         setSlotAssignment(loaded.slotAssignment);
-        pendingRestore.current = new Set(loaded.openProviders);
-        setInitialRestoreComplete(loaded.openProviders.length === 0);
+        setPresentation(loaded.presentation);
+        pendingRestore.current = new Set(restorableOpenProviders(loaded.openProviders, loaded.presentation));
+        setInitialRestoreComplete(pendingRestore.current.size === 0);
       })
       .catch(() => {
         if (disposed) return;
         const defaults = defaultSettings();
         settingsRef.current = defaults;
         setAppSettings(defaults);
+        setPresentation(defaults.presentation);
         setInitialRestoreComplete(true);
       })
       .finally(() => {
@@ -373,17 +446,94 @@ export default function App() {
     setTargetsInitialized(true);
   }, [mode, states, targetsInitialized]);
 
-  const openProvider = useCallback(async (provider: AIProvider) => {
-    const rect = paneRefs.current[provider]?.getBoundingClientRect() ?? new DOMRect(24, 24, 420, 320);
-    resetProviderBootState(provider);
-    await host.provider.open(provider, rect);
+  const boundsForProvider = useCallback((provider: AIProvider): DOMRectReadOnly | undefined => {
+    if (presentationRef.current[provider] === 'center') {
+      return centerStageRef.current?.getBoundingClientRect() ?? paneRefs.current[provider]?.getBoundingClientRect();
+    }
+    return paneRefs.current[provider]?.getBoundingClientRect();
   }, []);
 
+  const fallbackBoundsForProvider = useCallback(
+    (provider: AIProvider): DOMRectReadOnly => boundsForProvider(provider) ?? new DOMRect(24, 24, 420, 320),
+    [boundsForProvider],
+  );
+
+  const boundsForPresentationTarget = useCallback((provider: AIProvider, state: WebviewPresentationState): DOMRectReadOnly | undefined => {
+    if (state === 'center') return centerStageRef.current?.getBoundingClientRect();
+    if (state === 'side') return paneRefs.current[provider]?.getBoundingClientRect();
+    return undefined;
+  }, []);
+
+  const beginPresentationTransition = useCallback((provider: AIProvider): number => {
+    const generation = presentationTransitionGenerations.current[provider] + 1;
+    presentationTransitionGenerations.current[provider] = generation;
+    return generation;
+  }, []);
+
+  const presentationTransitionCurrent = useCallback(
+    (provider: AIProvider, state: WebviewPresentationState, generation: number): boolean =>
+      presentationTransitionGenerations.current[provider] === generation && presentationRef.current[provider] === state,
+    [],
+  );
+
+  const publishCenterTransitionsInFlight = useCallback(() => {
+    const next = new Set(centerTransitionGenerations.current.keys());
+    centerTransitionsInFlightRef.current = next;
+    setCenterTransitionsInFlight(next);
+  }, []);
+
+  const startCenterTransitionInFlight = useCallback(
+    (provider: AIProvider, generation: number) => {
+      centerTransitionGenerations.current.set(provider, generation);
+      publishCenterTransitionsInFlight();
+    },
+    [publishCenterTransitionsInFlight],
+  );
+
+  const clearCenterTransitionInFlight = useCallback(
+    (provider: AIProvider, generation?: number) => {
+      if (generation !== undefined && centerTransitionGenerations.current.get(provider) !== generation) return;
+      if (!centerTransitionGenerations.current.delete(provider)) return;
+      publishCenterTransitionsInFlight();
+    },
+    [publishCenterTransitionsInFlight],
+  );
+
+  const clearUserHiddenProvider = useCallback((provider: AIProvider) => {
+    setUserHidden((current) => {
+      if (!current.has(provider)) {
+        userHiddenRef.current = current;
+        return current;
+      }
+      const copy = new Set(current);
+      copy.delete(provider);
+      userHiddenRef.current = copy;
+      return copy;
+    });
+  }, []);
+
+  const waitForProviderPresentationBounds = useCallback(
+    (provider: AIProvider, state: WebviewPresentationState, generation: number): Promise<DOMRectReadOnly | undefined> =>
+      waitForPresentationTargetBounds({
+        getBounds: () => boundsForPresentationTarget(provider, state),
+        waitFrame: nextAnimationFrame,
+        shouldContinue: () => presentationTransitionCurrent(provider, state, generation),
+      }),
+    [boundsForPresentationTarget, presentationTransitionCurrent],
+  );
+
+  const openProvider = useCallback(async (provider: AIProvider) => {
+    const rect = fallbackBoundsForProvider(provider);
+    resetProviderBootState(provider);
+    await host.provider.open(provider, rect);
+  }, [fallbackBoundsForProvider]);
+
   const syncBounds = useCallback(async (provider: AIProvider) => {
-    const rect = paneRefs.current[provider]?.getBoundingClientRect();
+    if (presentationRef.current[provider] === 'chip') return;
+    const rect = boundsForProvider(provider);
     if (!rect || statesRef.current[provider].webview !== 'loaded') return;
     await host.layout.setBounds(provider, rect);
-  }, []);
+  }, [boundsForProvider]);
 
   const syncAllBounds = useCallback(() => {
     for (const provider of PROVIDERS) void syncBounds(provider);
@@ -403,6 +553,196 @@ export default function App() {
     },
     [openProvider, syncBounds],
   );
+
+  const setCenterStageRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      centerStageRef.current = el;
+      if (!el) return;
+      const provider = centerPresentationProvider(presentationRef.current);
+      if (!provider) return;
+      void syncBounds(provider);
+      if (pendingRestore.current.has(provider)) {
+        pendingRestore.current.delete(provider);
+        void openProvider(provider).finally(() => {
+          if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
+        });
+      }
+    },
+    [openProvider, syncBounds],
+  );
+
+  useEffect(() => {
+    if (!settingsLoaded || initialRestoreComplete || pendingRestore.current.size === 0) return;
+
+    for (const provider of Array.from(pendingRestore.current)) {
+      const state = presentation[provider];
+      if (state === 'chip') {
+        pendingRestore.current.delete(provider);
+        continue;
+      }
+      const hasPlaceholder = state === 'center' ? Boolean(centerStageRef.current) : Boolean(paneRefs.current[provider]);
+      if (!hasPlaceholder) continue;
+      pendingRestore.current.delete(provider);
+      void openProvider(provider).finally(() => {
+        if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
+      });
+    }
+
+    if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
+  }, [centeredProvider, initialRestoreComplete, leftProviders, openProvider, presentation, rightProviders, settingsLoaded]);
+
+  const persistPresentation = useCallback(
+    async (next: PresentationByProvider) => {
+      presentationRef.current = next;
+      setPresentation(next);
+      await persistSettingsPatch({ presentation: next });
+      if (presentationRef.current !== next) {
+        await host.settings.set(settingsRef.current);
+      }
+    },
+    [persistSettingsPatch],
+  );
+
+  const hideCenterSiblingsForTransition = useCallback(
+    async (provider: AIProvider, generation: number) => {
+      const previous = centerHiddenRef.current;
+      const next = new Set(
+        centerHiddenProviders(
+          presentationRef.current,
+          statesRef.current,
+          userHiddenRef.current,
+          PROVIDERS,
+          centerTransitionsInFlightRef.current,
+        ),
+      );
+
+      await applyCenterHiddenCommands({
+        host: presentationHost,
+        previousHidden: previous,
+        nextHidden: next,
+        snapshot: () => ({
+          states: statesRef.current,
+          presentation: presentationRef.current,
+          userHidden: userHiddenRef.current,
+          overlayGuardOpen: overlayGuardOpenRef.current,
+        }),
+        shouldContinue: () => presentationTransitionCurrent(provider, 'center', generation),
+        restoreRemoved: false,
+      });
+
+      if (presentationTransitionCurrent(provider, 'center', generation) && !providerSetEquals(previous, next)) {
+        centerHiddenRef.current = next;
+        setCenterHidden(next);
+      }
+    },
+    [presentationTransitionCurrent],
+  );
+
+  const changeProviderPresentation = useCallback(
+    async (provider: AIProvider, state: WebviewPresentationState) => {
+      const generation = beginPresentationTransition(provider);
+      const next = setProviderPresentation(presentationRef.current, provider, state);
+      if (state === 'center') startCenterTransitionInFlight(provider, generation);
+      else clearCenterTransitionInFlight(provider);
+
+      await persistPresentation(next);
+      clearUserHiddenProvider(provider);
+
+      if (state === 'chip') {
+        await applyPresentationTransitionCommand({
+          host: presentationHost,
+          provider,
+          state,
+          bounds: new DOMRect(0, 0, 0, 0),
+          webview: statesRef.current[provider].webview,
+          currentWebview: () => statesRef.current[provider].webview,
+          shouldContinue: () => presentationTransitionCurrent(provider, state, generation),
+        });
+        if (presentationTransitionCurrent(provider, state, generation)) resetProviderBootState(provider);
+        return;
+      }
+
+      const bounds = await waitForProviderPresentationBounds(provider, state, generation);
+      if (!bounds) {
+        if (state === 'center') clearCenterTransitionInFlight(provider, generation);
+        return;
+      }
+
+      if (state === 'center') await hideCenterSiblingsForTransition(provider, generation);
+      if (!presentationTransitionCurrent(provider, state, generation)) return;
+
+      try {
+        if (statesRef.current[provider].webview !== 'loaded') resetProviderBootState(provider);
+        await applyPresentationTransitionCommand({
+          host: presentationHost,
+          provider,
+          state,
+          bounds,
+          webview: statesRef.current[provider].webview,
+          currentWebview: () => statesRef.current[provider].webview,
+          shouldContinue: () => presentationTransitionCurrent(provider, state, generation),
+        });
+      } catch (error) {
+        if (state === 'center') clearCenterTransitionInFlight(provider, generation);
+        throw error;
+      }
+    },
+    [
+      beginPresentationTransition,
+      clearCenterTransitionInFlight,
+      clearUserHiddenProvider,
+      hideCenterSiblingsForTransition,
+      persistPresentation,
+      presentationTransitionCurrent,
+      startCenterTransitionInFlight,
+      waitForProviderPresentationBounds,
+    ],
+  );
+
+  useEffect(() => {
+    const next = new Set(centerHiddenProviders(presentation, states, userHidden, PROVIDERS, centerTransitionsInFlight));
+    const previous = centerHiddenRef.current;
+    const centered = centerPresentationProvider(presentation);
+
+    if (centered && states[centered].webview === 'loaded') {
+      const bounds = centerStageRef.current?.getBoundingClientRect();
+      if (bounds) {
+        void applyCenterStageCommand({
+          host: presentationHost,
+          provider: centered,
+          bounds,
+          overlappingProviders: Array.from(next),
+          currentWebview: (candidate) => statesRef.current[candidate].webview,
+          shouldContinue: () => presentationRef.current[centered] === 'center',
+        });
+      }
+    }
+
+    void applyCenterHiddenCommands({
+      host: presentationHost,
+      previousHidden: previous,
+      nextHidden: next,
+      snapshot: () => ({
+        states: statesRef.current,
+        presentation: presentationRef.current,
+        userHidden: userHiddenRef.current,
+        overlayGuardOpen: overlayGuardOpenRef.current,
+      }),
+    });
+
+    if (!providerSetEquals(previous, next)) {
+      centerHiddenRef.current = next;
+      setCenterHidden(next);
+    }
+  }, [centerTransitionsInFlight, presentation, states, userHidden]);
+
+  useEffect(() => {
+    for (const provider of Array.from(centerTransitionsInFlight)) {
+      if (presentation[provider] !== 'center' || states[provider].webview === 'loaded') {
+        clearCenterTransitionInFlight(provider);
+      }
+    }
+  }, [centerTransitionsInFlight, clearCenterTransitionInFlight, presentation, states]);
 
   useEffect(() => {
     if (
@@ -431,6 +771,13 @@ export default function App() {
         observer.observe(el);
         observers.push(observer);
       }
+      if (centeredProvider && centerStageRef.current) {
+        const observer = new ResizeObserver(() => {
+          void syncBounds(centeredProvider);
+        });
+        observer.observe(centerStageRef.current);
+        observers.push(observer);
+      }
     }
 
     const timer = window.setInterval(onResize, 2500);
@@ -440,11 +787,11 @@ export default function App() {
       window.clearInterval(timer);
       for (const observer of observers) observer.disconnect();
     };
-  }, [leftProviders, rightProviders, syncAllBounds, syncBounds]);
+  }, [centeredProvider, leftProviders, rightProviders, syncAllBounds, syncBounds]);
 
   useEffect(() => {
     syncAllBounds();
-  }, [columnWidths, syncAllBounds]);
+  }, [columnWidths, presentation, syncAllBounds]);
 
   const send = async (trimmed: string) => {
     if (!trimmed) return;
@@ -617,9 +964,11 @@ export default function App() {
 
   const applySavedSettings = (settings: AppSettings) => {
     settingsRef.current = settings;
+    presentationRef.current = settings.presentation;
     setAppSettings(settings);
     setColumnWidths(settings.columnWidths);
     setSlotAssignment(settings.slotAssignment);
+    setPresentation(settings.presentation);
   };
 
   const selectPreset = useCallback((nextMode: ChatMode) => {
@@ -656,10 +1005,13 @@ export default function App() {
         <ProviderColumn
           providers={leftProviders}
           states={states}
+          presentation={presentation}
           userHidden={userHidden}
+          presentationHidden={centerHidden}
           setPaneRef={setPaneRef}
           openProvider={openProvider}
           togglePaneVisibility={togglePaneVisibility}
+          changeProviderPresentation={changeProviderPresentation}
           accessProvider={accessProvider}
           toggleAdapterAccess={toggleAdapterAccess}
           syncBounds={syncBounds}
@@ -672,7 +1024,7 @@ export default function App() {
         <section className="flex min-w-0 flex-col border-x border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-start gap-3 border-b border-zinc-800 pb-3">
             <div className="min-w-0 flex-1">
-              <ConnectionBar states={states} mode={mode} targets={targets} onTargetsChange={setTargets} />
+              <ConnectionBar states={states} presentation={presentation} mode={mode} targets={targets} onTargetsChange={setTargets} />
             </div>
             <button
               className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -692,6 +1044,22 @@ export default function App() {
               Settings
             </button>
           </div>
+          <ChipRail
+            providers={chipRailProviders}
+            states={states}
+            onPromoteSide={(provider) => changeProviderPresentation(provider, 'side')}
+            onPromoteCenter={(provider) => changeProviderPresentation(provider, 'center')}
+          />
+          {centeredProvider ? (
+            <CenterStage
+              provider={centeredProvider}
+              state={states[centeredProvider]}
+              setCenterStageRef={setCenterStageRef}
+              openProvider={openProvider}
+              changeProviderPresentation={changeProviderPresentation}
+              syncBounds={syncBounds}
+            />
+          ) : null}
           <div className="mt-3">
             <PresetCatalog
               mode={mode}
@@ -759,10 +1127,13 @@ export default function App() {
         <ProviderColumn
           providers={rightProviders}
           states={states}
+          presentation={presentation}
           userHidden={userHidden}
+          presentationHidden={centerHidden}
           setPaneRef={setPaneRef}
           openProvider={openProvider}
           togglePaneVisibility={togglePaneVisibility}
+          changeProviderPresentation={changeProviderPresentation}
           accessProvider={accessProvider}
           toggleAdapterAccess={toggleAdapterAccess}
           syncBounds={syncBounds}
@@ -789,6 +1160,7 @@ export default function App() {
         columnWidths={columnWidths}
         slotAssignment={slotAssignment}
         openProviders={openProviders}
+        presentation={presentation}
         providerStates={states}
         onClose={() => setSettingsOpen(false)}
         onSaved={applySavedSettings}
@@ -808,10 +1180,13 @@ export default function App() {
 function ProviderColumn({
   providers,
   states,
+  presentation,
   userHidden,
+  presentationHidden,
   setPaneRef,
   openProvider,
   togglePaneVisibility,
+  changeProviderPresentation,
   accessProvider,
   toggleAdapterAccess,
   syncBounds,
@@ -820,10 +1195,13 @@ function ProviderColumn({
 }: {
   providers: AIProvider[];
   states: Record<AIProvider, ProviderState>;
+  presentation: PresentationByProvider;
   userHidden: ReadonlySet<AIProvider>;
+  presentationHidden: ReadonlySet<AIProvider>;
   setPaneRef: (provider: AIProvider, el: HTMLDivElement | null) => void;
   openProvider: (provider: AIProvider) => Promise<void>;
   togglePaneVisibility: (provider: AIProvider) => Promise<void>;
+  changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
   accessProvider: AIProvider | null;
   toggleAdapterAccess: (provider: AIProvider) => void;
   syncBounds: (provider: AIProvider) => Promise<void>;
@@ -833,7 +1211,9 @@ function ProviderColumn({
   return (
     <aside className="space-y-3 border-zinc-800 p-3">
       {providers.map((provider) => {
-        const hidden = userHidden.has(provider);
+        const hiddenByUser = userHidden.has(provider);
+        const hiddenByCenter = presentationHidden.has(provider);
+        const hidden = hiddenByUser || hiddenByCenter;
         const accessOpen = accessProvider === provider;
         const permissionSummary = buildAdapterPermissionSummary(provider);
         return (
@@ -859,9 +1239,22 @@ function ProviderColumn({
                   onClick={() => {
                     void togglePaneVisibility(provider);
                   }}
-                  disabled={states[provider].webview !== 'loaded'}
+                  disabled={states[provider].webview !== 'loaded' || hiddenByCenter}
                 >
-                  {hidden ? 'Show' : 'Hide'}
+                  {hiddenByCenter ? 'Hidden' : hiddenByUser ? 'Show' : 'Hide'}
+                </button>
+                <button
+                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
+                  onClick={() => void changeProviderPresentation(provider, 'chip')}
+                >
+                  Chip
+                </button>
+                <button
+                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
+                  onClick={() => void changeProviderPresentation(provider, 'center')}
+                  disabled={presentation[provider] === 'center'}
+                >
+                  Center
                 </button>
                 <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void host.provider.openLogin(provider)}>
                   Login
@@ -922,6 +1315,97 @@ function ProviderColumn({
         );
       })}
     </aside>
+  );
+}
+
+function ChipRail({
+  providers,
+  states,
+  onPromoteSide,
+  onPromoteCenter,
+}: {
+  providers: AIProvider[];
+  states: Record<AIProvider, ProviderState>;
+  onPromoteSide: (provider: AIProvider) => Promise<void>;
+  onPromoteCenter: (provider: AIProvider) => Promise<void>;
+}) {
+  if (providers.length === 0) return null;
+
+  return (
+    <section className="mt-3 flex flex-wrap gap-2 border-b border-zinc-800 pb-3">
+      {providers.map((provider) => (
+        <div key={provider} className="flex items-center gap-1 border border-zinc-700 bg-zinc-900 text-xs">
+          <button className="px-2 py-1.5 text-left hover:bg-zinc-800" onClick={() => void onPromoteSide(provider)}>
+            <span className="font-medium text-zinc-100">{AI_PROVIDERS[provider].name}</span>
+            <span className="ml-2 text-zinc-400">{chipState(states[provider], 'chip').label}</span>
+          </button>
+          <button className="border-l border-zinc-700 px-2 py-1.5 text-zinc-300 hover:bg-zinc-800" onClick={() => void onPromoteCenter(provider)}>
+            Center
+          </button>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function CenterStage({
+  provider,
+  state,
+  setCenterStageRef,
+  openProvider,
+  changeProviderPresentation,
+  syncBounds,
+}: {
+  provider: AIProvider;
+  state: ProviderState;
+  setCenterStageRef: (el: HTMLDivElement | null) => void;
+  openProvider: (provider: AIProvider) => Promise<void>;
+  changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
+  syncBounds: (provider: AIProvider) => Promise<void>;
+}) {
+  return (
+    <section
+      ref={setCenterStageRef}
+      className="mt-3 flex min-h-[340px] flex-col border border-sky-900 bg-zinc-900"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-sky-900 px-3 py-2 text-sm">
+        <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
+        <div className="flex flex-wrap justify-end gap-2 text-xs">
+          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'side')}>
+            Side
+          </button>
+          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'chip')}>
+            Chip
+          </button>
+          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void host.provider.openLogin(provider)}>
+            Login
+          </button>
+          <button
+            className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
+            onClick={() => {
+              resetProviderBootState(provider);
+              void host.provider.reload(provider).then(() => syncBounds(provider));
+            }}
+            disabled={state.webview !== 'loaded'}
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+      {state.adapter === 'broken' ? <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">Adapter broken</div> : null}
+      {state.bridge === 'degraded' ? (
+        <div className="border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">Bridge degraded. Reload suggested.</div>
+      ) : null}
+      {state.webview === 'loaded' ? (
+        <div className="grid flex-1 place-items-center p-3 text-xs text-zinc-500">Native webview centered here</div>
+      ) : (
+        <div className="grid flex-1 place-items-center">
+          <button className="border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800" onClick={() => void openProvider(provider)}>
+            Open {AI_PROVIDERS[provider].name}
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1031,11 +1515,13 @@ function adapterNoticeText(notice: AdapterNotice): string {
 
 function ConnectionBar({
   states,
+  presentation,
   mode,
   targets,
   onTargetsChange,
 }: {
   states: Record<AIProvider, ProviderState>;
+  presentation: PresentationByProvider;
   mode: ChatMode;
   targets: AIProvider[];
   onTargetsChange: (targets: AIProvider[]) => void;
@@ -1046,7 +1532,7 @@ function ConnectionBar({
         <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={onTargetsChange} />
       ) : (
         PROVIDERS.map((provider) => {
-          const chip = chipState(states[provider]);
+          const chip = chipState(states[provider], presentation[provider]);
           return (
             <div key={provider} className={`border px-2 py-1 text-xs ${chip.className}`}>
               {AI_PROVIDERS[provider].name}: {chip.label}
@@ -1086,7 +1572,8 @@ function ChatArea({ messages }: { messages: Bubble[] }) {
   );
 }
 
-function chipState(state: ProviderState): { label: string; className: string } {
+function chipState(state: ProviderState, presentation: WebviewPresentationState = 'side'): { label: string; className: string } {
+  if (presentation === 'chip') return { label: 'session-ready', className: 'border-zinc-700 text-zinc-300' };
   if (state.webview !== 'loaded') return { label: 'no-webview', className: 'border-zinc-700 text-zinc-400' };
   if (state.adapter === 'broken') return { label: 'adapter-broken', className: 'border-red-700 text-red-300' };
   if (state.bridge === 'degraded') return { label: 'degraded', className: 'border-amber-700 text-amber-300' };

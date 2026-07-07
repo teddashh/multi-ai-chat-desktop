@@ -7,6 +7,7 @@ import {
   normalizeSlotAssignment,
 } from './slotAssignment';
 import { isSnapshotRedactionTier, type SnapshotRedactionTier } from '../workflow/snapshot/types';
+import { defaultPresentation, normalizePresentation, type PresentationByProvider } from './presentation';
 
 export interface AppSettings {
   hackmdToken: string;
@@ -20,6 +21,7 @@ export interface AppSettings {
   telemetry: 'none';
   snapshotPersistence: boolean;
   snapshotRedactionTier: SnapshotRedactionTier;
+  presentation: PresentationByProvider;
 }
 
 const PROVIDERS: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
@@ -37,6 +39,7 @@ export function defaultSettings(): AppSettings {
     telemetry: 'none',
     snapshotPersistence: false,
     snapshotRedactionTier: 'metadata-only',
+    presentation: defaultPresentation(),
   };
 }
 
@@ -82,6 +85,7 @@ export function normalizeSettings(value: unknown): AppSettings {
     telemetry: 'none',
     snapshotPersistence: input.snapshotPersistence === true,
     snapshotRedactionTier: snapshotRedactionTier(input.snapshotRedactionTier, defaults.snapshotRedactionTier),
+    presentation: normalizePresentation(input.presentation, defaults.presentation),
   };
 }
 
