@@ -1122,7 +1122,14 @@ export default function App() {
               onReplay={sessionCheckpointNotice.replaySnapshot ? replayStartupSessionCheckpoint : undefined}
             />
           ) : null}
-          <CheckpointCard checkpoint={checkpoint} draft={checkpointDraft} onDraftChange={setCheckpointDraft} />
+          <CheckpointCard
+            checkpoint={checkpoint}
+            draft={checkpointDraft}
+            onDraftChange={setCheckpointDraft}
+            onNativeEdit={(provider) => {
+              void changeProviderPresentation(provider, 'center');
+            }}
+          />
           {processTrace ? <ProcessTrace trace={processTrace} /> : null}
           {shareNotice ? (
             <div

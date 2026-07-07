@@ -63,4 +63,20 @@ describe('host snapshot bindings', () => {
     await host.sessionCheckpoint.clear();
     expect(invokeMock).toHaveBeenLastCalledWith('session_checkpoint_clear');
   });
+
+  it('wraps provider draft fill as an outbound FILL_DRAFT eval', async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+    await host.provider.fill('grok', 'draft text');
+
+    expect(invokeMock).toHaveBeenLastCalledWith('provider_eval', {
+      provider: 'grok',
+      js: `window.__MAC_BRIDGE__ && window.__MAC_BRIDGE__.dispatch(${JSON.stringify({
+        v: 1,
+        action: 'FILL_DRAFT',
+        provider: 'grok',
+        payload: { text: 'draft text' },
+      })});`,
+    });
+    expect(String(invokeMock.mock.calls.at(-1)?.[1]?.js)).not.toContain('SEND_MESSAGE');
+  });
 });

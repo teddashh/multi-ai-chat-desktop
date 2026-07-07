@@ -1,4 +1,5 @@
 import { AI_PROVIDERS } from '../../shared/constants';
+import type { AIProvider } from '../../shared/types';
 import type { PendingCheckpoint } from '../workflow/checkpoint';
 import { resolveCheckpoint } from '../workflow/checkpoint';
 
@@ -6,10 +7,12 @@ export function CheckpointCard({
   checkpoint,
   draft,
   onDraftChange,
+  onNativeEdit,
 }: {
   checkpoint: PendingCheckpoint | undefined;
   draft: string;
   onDraftChange: (draft: string) => void;
+  onNativeEdit?: (provider: AIProvider) => void;
 }) {
   if (!checkpoint) return null;
 
@@ -32,6 +35,20 @@ export function CheckpointCard({
             onClick={() => resolveCheckpoint(checkpoint.nodeId, { action: 'skip' })}
           >
             Skip
+          </button>
+          <button
+            type="button"
+            className="border border-sky-700 px-3 py-1.5 text-xs text-sky-100 hover:bg-sky-950"
+            onClick={() => {
+              try {
+                onNativeEdit?.(checkpoint.provider);
+              } catch {
+                // Presentation is best-effort; checkpoint resolution owns workflow progress.
+              }
+              resolveCheckpoint(checkpoint.nodeId, { action: 'native-edit', draft });
+            }}
+          >
+            Edit in provider
           </button>
           <button
             type="button"

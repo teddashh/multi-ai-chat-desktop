@@ -3,6 +3,7 @@ import type { AIProvider, ChatMode } from '../../../shared/types';
 import { checkAborted } from '../cancel';
 import { awaitCheckpoint } from '../checkpoint';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
+import { fillAndAwaitNativeSend } from '../nativeEdit';
 import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
 import { runStep } from '../stepRunner';
 import { clearActiveTurn, SKIP_RESPONSE } from '../state';
@@ -235,6 +236,7 @@ function prepareStepNode(
     run: async () => {
       const startedAt = snapshotTimestamp();
       let input = prompt;
+      let checkpointAction: 'confirm' | 'native-edit' | undefined;
       try {
         if (isCheckpointedSerialStep(node, context, options)) {
           const sourceNodeId = checkpointSourceNodeId(nodeId, context);
@@ -259,6 +261,7 @@ function prepareStepNode(
               appendHistory: renderHistoryAppend(node, context, SKIP_RESPONSE, provider),
             };
           }
+          checkpointAction = decision.action;
           input = decision.draft;
           if (input !== prompt) {
             recordHumanEdit({
@@ -271,7 +274,11 @@ function prepareStepNode(
           }
         }
 
-        const result = await runStep(provider, input, turn);
+        if (checkpointAction === 'native-edit') {
+          sendWorkflowStatus(`已填入 ${AI_PROVIDERS[provider].name}，請在 provider 內編輯並按原生送出（10 分鐘內）`);
+        }
+        const result =
+          checkpointAction === 'native-edit' ? await fillAndAwaitNativeSend(provider, input, turn) : await runStep(provider, input, turn);
         recordStep({
           nodeId,
           provider,

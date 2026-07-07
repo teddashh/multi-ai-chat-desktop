@@ -251,6 +251,86 @@ describe('injected engine input hardening', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(errorDone(env)?.payload).toBe('[Error: grok send activation failed: enter key dispatch failed]');
   });
+
+  it('FILL_DRAFT inserts text without clicking send, dispatching Enter, or scheduling send retry', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+
+    fill(handler, 'draft only');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_RETRY_DELAY_MS + SEND_BUTTON_SELECTOR_TIMEOUT_MS + 1);
+
+    expect(env.input.textContent).toBe('draft only');
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('FILL_DRAFT arms response capture for the later native send response', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    fill(handler, 'native draft');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'native answer')];
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(env.emitted).toContainEqual({ v: 1, action: 'RESPONSE_CHUNK', provider: 'grok', payload: 'native answer' });
+    expect(env.emitted).toContainEqual({ v: 1, action: 'RESPONSE_DONE', provider: 'grok', payload: 'native answer' });
+  });
+
+  it('FILL_DRAFT with no adapter emits adapter-not-installed DONE', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+
+    fill(handler, 'draft before adapter');
+    await flushMicrotasks();
+
+    expect(errorDone(env)?.payload).toBe('[Error: adapter not installed]');
+    expect(env.input.textContent).toBe('');
+    expect(env.sendButton?.clickCount).toBe(0);
+  });
+
+  it('FILL_DRAFT while a send is in flight is ignored without disturbing the active response wait', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, 'sent draft');
+    await flushMicrotasks();
+    fill(handler, 'ignored draft');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    env.responses = [new FakeElement(env.document, 'div', 'sent response')];
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(env.input.textContent).toBe('sent draft');
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.emitted).toContainEqual({ v: 1, action: 'RESPONSE_DONE', provider: 'grok', payload: 'sent response' });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(1);
+  });
 });
 
 function createEnv(options: { inputKind: 'textarea' | 'contenteditable'; sendButton?: FakeElement | null }): FakeDomEnv {
@@ -304,6 +384,10 @@ function dispatchAdapter(handler: (message: BridgeMessage) => void, overrides: P
 
 function send(handler: (message: BridgeMessage) => void, text: string) {
   handler({ v: 1, action: 'SEND_MESSAGE', provider: 'grok', payload: { text } });
+}
+
+function fill(handler: (message: BridgeMessage) => void, text: string) {
+  handler({ v: 1, action: 'FILL_DRAFT', provider: 'grok', payload: { text } });
 }
 
 function errorDone(env: FakeDomEnv): BridgeMessage | undefined {

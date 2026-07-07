@@ -143,6 +143,11 @@ class InputInjectionError extends Error {
       void sendMessage(payload?.text ?? '', message.provider);
       return;
     }
+    if (message.action === 'FILL_DRAFT' && (!adapter || !message.provider || message.provider === adapter.provider)) {
+      const payload = message.payload as { text?: string } | undefined;
+      void fillDraft(payload?.text ?? '', message.provider);
+      return;
+    }
     if (message.action === 'CHECK_STATUS') {
       reportStatus();
     }
@@ -215,11 +220,14 @@ class InputInjectionError extends Error {
     });
   }
 
-  async function sendMessage(text: string, providerHint?: AIProvider) {
+  async function stageDraftForResponse(
+    text: string,
+    providerHint?: AIProvider,
+  ): Promise<{ activeAdapter: AdapterConfig; input: Element; injectionStartedAt: number } | undefined> {
     const activeAdapter = adapter;
     if (!activeAdapter) {
       doneWithError('adapter not installed', providerHint);
-      return;
+      return undefined;
     }
     const input = await retryLookup(() => queryFirst(activeAdapter.inputSelectors), {
       intervalMs: SELECTOR_RETRY_INTERVAL_MS,
@@ -227,7 +235,7 @@ class InputInjectionError extends Error {
     });
     if (!input) {
       doneWithError(`${activeAdapter.provider} input element not found`, activeAdapter.provider);
-      return;
+      return undefined;
     }
 
     const existingResponses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
@@ -242,8 +250,16 @@ class InputInjectionError extends Error {
       assertInputLanded(input, text, activeAdapter.inputStrategy);
     } catch (error) {
       doneWithError(`${activeAdapter.provider} input injection failed: ${errorMessage(error)}`, activeAdapter.provider);
-      return;
+      return undefined;
     }
+
+    return { activeAdapter, input, injectionStartedAt };
+  }
+
+  async function sendMessage(text: string, providerHint?: AIProvider) {
+    const staged = await stageDraftForResponse(text, providerHint);
+    if (!staged) return;
+    const { activeAdapter, input, injectionStartedAt } = staged;
 
     const preSendDelayMs = Math.max(0, PRE_SEND_DELAY_MS - (Date.now() - injectionStartedAt));
     window.setTimeout(() => {
@@ -255,6 +271,16 @@ class InputInjectionError extends Error {
         }, SEND_RETRY_DELAY_MS);
       })();
     }, preSendDelayMs);
+  }
+
+  async function fillDraft(text: string, providerHint?: AIProvider) {
+    if (waitingForResponse) {
+      logEngine(`${providerHint ?? adapter?.provider ?? 'provider'} fill rejected: response in flight`);
+      return;
+    }
+    const staged = await stageDraftForResponse(text, providerHint);
+    if (!staged) return;
+    logEngine(`${staged.activeAdapter.provider} fill: draft staged, awaiting native send`);
   }
 
   async function retrySendIfStillPending(originalInput: Element, firstAttempt: SendActivationResult, originalAdapter: AdapterConfig) {

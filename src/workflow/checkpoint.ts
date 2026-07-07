@@ -9,7 +9,7 @@ export interface PendingCheckpoint {
   draft: string;
 }
 
-export type CheckpointDecision = { action: 'confirm'; draft: string } | { action: 'skip' };
+export type CheckpointDecision = { action: 'confirm'; draft: string } | { action: 'native-edit'; draft: string } | { action: 'skip' };
 
 type CheckpointSubscriber = (checkpoint: PendingCheckpoint | undefined) => void;
 

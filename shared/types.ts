@@ -87,6 +87,7 @@ export type MessageAction =
   | 'CANCEL_WORKFLOW'
   | 'PUBLISH_HACKMD'
   | 'ADAPTER_UPDATE'
+  | 'FILL_DRAFT'
   | 'REPORT_BROKEN';
 
 export interface BridgeMessage {

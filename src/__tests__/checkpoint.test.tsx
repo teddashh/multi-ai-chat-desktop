@@ -93,4 +93,22 @@ describe('CheckpointCard', () => {
 
     await expect(decision).resolves.toEqual({ action: 'skip' });
   });
+
+  it('resolves native-edit with the current draft and invokes the provider promotion hook', async () => {
+    const checkpoint = pendingCheckpoint({ provider: 'gemini' });
+    const decision = awaitCheckpoint(checkpoint);
+    const onNativeEdit = vi.fn();
+    const tree = CheckpointCard({
+      checkpoint,
+      draft: 'provider-side draft',
+      onDraftChange: vi.fn(),
+      onNativeEdit,
+    });
+    const nativeEdit = firstElement(tree, (element) => element.type === 'button' && textOf(element).includes('Edit in provider'));
+
+    propsOf(nativeEdit).onClick?.();
+
+    expect(onNativeEdit).toHaveBeenCalledWith('gemini');
+    await expect(decision).resolves.toEqual({ action: 'native-edit', draft: 'provider-side draft' });
+  });
 });

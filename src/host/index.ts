@@ -52,6 +52,16 @@ export const host = {
           payload: { text },
         })});`,
       }),
+    fill: (provider: AIProvider, text: string): Promise<void> =>
+      invoke('provider_eval', {
+        provider,
+        js: `window.__MAC_BRIDGE__ && window.__MAC_BRIDGE__.dispatch(${JSON.stringify({
+          v: 1,
+          action: 'FILL_DRAFT',
+          provider,
+          payload: { text },
+        })});`,
+      }),
     openLogin: (provider: AIProvider): Promise<void> => invoke('provider_open_login', { provider }),
     openLoginExternal: (provider: AIProvider): Promise<void> => invoke('provider_open_login_external', { provider }),
     reload: (provider: AIProvider): Promise<void> => invoke('provider_reload', { provider }),
