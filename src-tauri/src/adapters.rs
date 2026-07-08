@@ -564,6 +564,10 @@ mod tests {
             ("grok", "https://twitter.com/i/oauth2/authorize"),
             ("grok", "https://accounts.x.ai/session"),
             ("grok", "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b"),
+            ("chatgpt", "https://accounts.google.com.tw/accounts/SetSID"),
+            ("claude", "https://accounts.google.com.tw/accounts/SetSID"),
+            ("claude-code", "https://accounts.google.com.tw/accounts/SetSID"),
+            ("grok", "https://accounts.google.com.tw/accounts/SetSID"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(url_allowed_for_sso(provider, &url).unwrap(), "{provider} {value}");
@@ -577,6 +581,8 @@ mod tests {
             ("chatgpt", "http://auth.openai.com/"),
             ("grok", "https://grok.community/"),
             ("claude", "https://auth.openai.com/authorize"),
+            ("grok", "https://accounts.google.com.tw.evil.net/"),
+            ("grok", "http://accounts.google.com.tw/"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(!url_allowed_for_sso(provider, &url).unwrap(), "{provider} {value}");

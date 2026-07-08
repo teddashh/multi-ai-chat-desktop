@@ -1,14 +1,14 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 2,
+  "adapterVersion": 3,
   "provider": "claude",
   "displayName": "Claude",
   "urls": {
     "app": "https://claude.ai",
     "login": "https://claude.ai/login",
     "match": ["claude.ai/*"],
-    "ssoMatch": ["auth.anthropic.com/*", "gsi.google.com/*", "https://www.google.com/accounts"]
+    "ssoMatch": ["auth.anthropic.com/*", "gsi.google.com/*", "https://www.google.com/accounts", "accounts.google.com.tw/*"]
   },
   "inputSelectors": [".ProseMirror[contenteditable=\"true\"]", "[contenteditable=\"true\"].ProseMirror", "div.ProseMirror", "fieldset div[contenteditable=\"true\"]"],
   "sendButtonSelectors": ["button[aria-label=\"Send Message\"]", "button[aria-label=\"Send message\"]", "button[aria-label=\"Send\"]", "fieldset button[type=\"button\"]:last-of-type"],

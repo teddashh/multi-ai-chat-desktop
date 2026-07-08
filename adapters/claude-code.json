@@ -1,14 +1,14 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 2,
+  "adapterVersion": 3,
   "provider": "claude-code",
   "displayName": "Claude Code",
   "urls": {
     "app": "https://claude.ai/code",
     "login": "https://claude.ai/login",
     "match": ["https://claude.ai/code"],
-    "ssoMatch": ["auth.anthropic.com/*", "gsi.google.com/*", "https://www.google.com/accounts", "https://claude.ai/oauth"]
+    "ssoMatch": ["auth.anthropic.com/*", "gsi.google.com/*", "https://www.google.com/accounts", "https://claude.ai/oauth", "accounts.google.com.tw/*"]
   },
   "inputSelectors": [
     ".ProseMirror[contenteditable=\"true\"]",

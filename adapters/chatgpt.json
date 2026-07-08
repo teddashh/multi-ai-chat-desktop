@@ -1,14 +1,14 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 2,
+  "adapterVersion": 3,
   "provider": "chatgpt",
   "displayName": "ChatGPT",
   "urls": {
     "app": "https://chatgpt.com",
     "login": "https://chatgpt.com/auth/login",
     "match": ["chatgpt.com/*", "chat.openai.com/*"],
-    "ssoMatch": ["auth.openai.com/*", "auth0.openai.com/*", "gsi.google.com/*", "https://www.google.com/accounts"]
+    "ssoMatch": ["auth.openai.com/*", "auth0.openai.com/*", "gsi.google.com/*", "https://www.google.com/accounts", "accounts.google.com.tw/*"]
   },
   "inputSelectors": ["#prompt-textarea", "[id=\"prompt-textarea\"]", "div[contenteditable=\"true\"][data-placeholder]"],
   "sendButtonSelectors": ["[data-testid=\"send-button\"]", "button[aria-label=\"Send prompt\"]", "button[aria-label=\"Send\"]"],

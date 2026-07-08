@@ -11,12 +11,12 @@ const validate = ajv.compile(schema);
 
 const expected = {
   chatgpt: {
-    adapterVersion: 2,
+    adapterVersion: 3,
     urls: {
       app: 'https://chatgpt.com',
       login: 'https://chatgpt.com/auth/login',
       match: ['chatgpt.com/*', 'chat.openai.com/*'],
-      ssoMatch: ['auth.openai.com/*', 'auth0.openai.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts'],
+      ssoMatch: ['auth.openai.com/*', 'auth0.openai.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'accounts.google.com.tw/*'],
     },
     inputStrategy: 'default',
     doneDelayMs: 3000,
@@ -29,12 +29,12 @@ const expected = {
     stopButtonSelectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
   },
   claude: {
-    adapterVersion: 2,
+    adapterVersion: 3,
     urls: {
       app: 'https://claude.ai',
       login: 'https://claude.ai/login',
       match: ['claude.ai/*'],
-      ssoMatch: ['auth.anthropic.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts'],
+      ssoMatch: ['auth.anthropic.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'accounts.google.com.tw/*'],
     },
     inputStrategy: 'prosemirror-paste',
     doneDelayMs: 5000,
@@ -65,12 +65,12 @@ const expected = {
     stopButtonSelectors: ['button[aria-label="Stop response"]', 'button[aria-label="Stop"]', 'button[aria-label="停止回應"]'],
   },
   grok: {
-    adapterVersion: 2,
+    adapterVersion: 3,
     urls: {
       app: 'https://grok.com',
       login: 'https://grok.com',
       match: ['grok.com/*'],
-      ssoMatch: ['x.com/*', 'twitter.com/*', 'accounts.x.ai/*', 'challenges.cloudflare.com/*'],
+      ssoMatch: ['x.com/*', 'twitter.com/*', 'accounts.x.ai/*', 'challenges.cloudflare.com/*', 'accounts.google.com.tw/*'],
     },
     inputStrategy: 'prosemirror-paste',
     doneDelayMs: 8000,
@@ -115,12 +115,12 @@ for (const provider of Object.keys(expected)) {
 }
 
 const claudeCodeExpected = {
-  adapterVersion: 2,
+  adapterVersion: 3,
   urls: {
     app: 'https://claude.ai/code',
     login: 'https://claude.ai/login',
     match: ['https://claude.ai/code'],
-    ssoMatch: ['auth.anthropic.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'https://claude.ai/oauth'],
+    ssoMatch: ['auth.anthropic.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'https://claude.ai/oauth', 'accounts.google.com.tw/*'],
   },
   inputStrategy: 'prosemirror-paste',
   doneDelayMs: 5000,

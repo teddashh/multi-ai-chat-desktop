@@ -72,7 +72,7 @@ describe('M0 shared constants and adapter seeds', () => {
       app: 'https://claude.ai/code',
       login: 'https://claude.ai/login',
       match: ['https://claude.ai/code'],
-      ssoMatch: ['auth.anthropic.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'https://claude.ai/oauth'],
+      ssoMatch: ['auth.anthropic.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'https://claude.ai/oauth', 'accounts.google.com.tw/*'],
     });
     expect(claudeCode.inputStrategy).toBe('prosemirror-paste');
     expect(claudeCode.sendStrategy).toBe('click');

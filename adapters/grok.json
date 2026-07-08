@@ -1,14 +1,14 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 2,
+  "adapterVersion": 3,
   "provider": "grok",
   "displayName": "Grok",
   "urls": {
     "app": "https://grok.com",
     "login": "https://grok.com",
     "match": ["grok.com/*"],
-    "ssoMatch": ["x.com/*", "twitter.com/*", "accounts.x.ai/*", "challenges.cloudflare.com/*"]
+    "ssoMatch": ["x.com/*", "twitter.com/*", "accounts.x.ai/*", "challenges.cloudflare.com/*", "accounts.google.com.tw/*"]
   },
   "inputSelectors": ["[data-testid=\"chat-input\"] .ProseMirror[contenteditable=\"true\"]", "[data-testid=\"chat-input\"] [contenteditable=\"true\"]", ".ProseMirror[contenteditable=\"true\"]", "[contenteditable=\"true\"].ProseMirror", "div.ProseMirror[contenteditable=\"true\"]"],
   "sendButtonSelectors": ["button[data-testid=\"chat-submit\"]", "button[aria-label=\"Submit\"]", "form button[type=\"submit\"]", "button[type=\"submit\"]"],
