@@ -3,6 +3,7 @@ import type { EventLogEvent } from '../diagnostics/eventLog';
 import {
   appendEvent,
   eventFromBridgeMessage,
+  eventFromNavBlocked,
   eventFromProviderSend,
   filterEventLogByProvider,
   formatEventLogText,
@@ -116,6 +117,28 @@ describe('event log reducer', () => {
 
     expect(events[0].detail).toEqual({ chars: 5 });
     expect(JSON.stringify(events)).not.toContain('secret');
+  });
+
+  it('stores nav-blocked diagnostics as provider and host only', () => {
+    const payload = {
+      provider: 'chatgpt',
+      host: 'auth.openai.com',
+    };
+    const events = appendEvent(
+      [],
+      eventFromNavBlocked(payload),
+      { now: () => 789 },
+    );
+
+    expect({ provider: events[0].provider, ...events[0].detail }).toEqual({
+      provider: 'chatgpt',
+      host: 'auth.openai.com',
+    });
+    expect(events[0].kind).toBe('nav-blocked');
+    expect(Object.keys(events[0].detail ?? {})).toEqual(['host']);
+    expect(events[0].detail).not.toHaveProperty('url');
+    expect(events[0].detail).not.toHaveProperty('path');
+    expect(events[0].detail).not.toHaveProperty('query');
   });
 
   it('formats only provider-filtered events when copying a filtered log', () => {

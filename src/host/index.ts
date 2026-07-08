@@ -12,6 +12,11 @@ export interface StoredSnapshotInfo {
   completedAt?: string;
 }
 
+export interface NavBlockedPayload {
+  provider: string;
+  host: string;
+}
+
 const toBounds = (rect: DOMRectReadOnly) => ({
   x: Math.round(rect.x),
   y: Math.round(rect.y),
@@ -32,6 +37,10 @@ export const host = {
   app: {
     version: (): Promise<string> => getVersion(),
     openExternal: (url: string): Promise<void> => invoke('open_external_url', { url }),
+  },
+  onNavBlocked: async (handler: (payload: NavBlockedPayload) => void): Promise<() => void> => {
+    const unlisten = await listen<NavBlockedPayload>('nav://blocked', (event) => handler(event.payload));
+    return unlisten;
   },
   provider: {
     open: (provider: AIProvider, bounds: DOMRectReadOnly): Promise<ProviderState> =>

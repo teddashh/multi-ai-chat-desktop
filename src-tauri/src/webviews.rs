@@ -5,7 +5,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{
-    webview::WebviewBuilder, AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl,
+    webview::{NewWindowResponse, WebviewBuilder},
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl,
 };
 use tauri_plugin_opener::OpenerExt;
 
@@ -104,6 +105,9 @@ pub async fn provider_open(
     );
     let nav_app = app.clone();
     let nav_provider = provider.clone();
+    let popup_app = app.clone();
+    let popup_provider = provider.clone();
+    let popup_label = label.clone();
     // Inbound-hint transport: the document.title codec (SPEC §7). Cross-platform via Tauri's
     // WebviewBuilder hook — wry implements the underlying observer natively on WebView2 (Windows),
     // WKWebView KVO (macOS), and WebKitGTK (Linux), and it fires for child webviews. This replaces
@@ -126,9 +130,40 @@ pub async fn provider_open(
                 return true;
             }
             if url.scheme() == "https" || url.scheme() == "http" {
+                if let Some(host) = url.host_str() {
+                    let _ = nav_app.emit_to(
+                        "main",
+                        "nav://blocked",
+                        serde_json::json!({ "provider": &nav_provider, "host": host }),
+                    );
+                }
                 let _ = nav_app.opener().open_url(url.as_str(), None::<&str>);
             }
             false
+        })
+        .on_new_window(move |url, _features| {
+            if url.host_str() == Some("mac-bridge.invalid") {
+                return NewWindowResponse::Deny;
+            }
+            if adapters::url_allowed_for_provider(&popup_provider, &url).unwrap_or(false)
+                || adapters::url_allowed_for_sso(&popup_provider, &url).unwrap_or(false)
+            {
+                if let Some(webview) = popup_app.get_webview(&popup_label) {
+                    let _ = webview.navigate(url);
+                }
+                return NewWindowResponse::Deny;
+            }
+            if url.scheme() == "https" || url.scheme() == "http" {
+                if let Some(host) = url.host_str() {
+                    let _ = popup_app.emit_to(
+                        "main",
+                        "nav://blocked",
+                        serde_json::json!({ "provider": &popup_provider, "host": host }),
+                    );
+                }
+                let _ = popup_app.opener().open_url(url.as_str(), None::<&str>);
+            }
+            NewWindowResponse::Deny
         });
 
     let webview = window

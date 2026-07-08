@@ -547,6 +547,46 @@ mod tests {
     }
 
     #[test]
+    fn provider_sso_match_table_allows_seed_patterns() {
+        for (provider, value) in [
+            ("chatgpt", "https://auth.openai.com/authorize"),
+            ("chatgpt", "https://auth0.openai.com/u/login"),
+            ("chatgpt", "https://gsi.google.com/client"),
+            ("chatgpt", "https://www.google.com/accounts/ServiceLogin"),
+            ("claude", "https://auth.anthropic.com/login"),
+            ("claude", "https://gsi.google.com/client"),
+            ("claude", "https://www.google.com/accounts/ServiceLogin"),
+            ("claude-code", "https://auth.anthropic.com/login"),
+            ("claude-code", "https://gsi.google.com/client"),
+            ("claude-code", "https://www.google.com/accounts/ServiceLogin"),
+            ("claude-code", "https://claude.ai/oauth/callback"),
+            ("grok", "https://x.com/i/oauth2/authorize"),
+            ("grok", "https://twitter.com/i/oauth2/authorize"),
+            ("grok", "https://accounts.x.ai/session"),
+            ("grok", "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b"),
+        ] {
+            let url = tauri::Url::parse(value).unwrap();
+            assert!(url_allowed_for_sso(provider, &url).unwrap(), "{provider} {value}");
+        }
+    }
+
+    #[test]
+    fn provider_sso_match_table_denies_prefix_scheme_and_cross_provider() {
+        for (provider, value) in [
+            ("chatgpt", "https://auth.openai.com.evil.net/"),
+            ("chatgpt", "http://auth.openai.com/"),
+            ("grok", "https://grok.community/"),
+            ("claude", "https://auth.openai.com/authorize"),
+        ] {
+            let url = tauri::Url::parse(value).unwrap();
+            assert!(!url_allowed_for_sso(provider, &url).unwrap(), "{provider} {value}");
+        }
+
+        let claude_code_chat = tauri::Url::parse("https://claude.ai/new").unwrap();
+        assert!(!url_allowed_for_provider("claude-code", &claude_code_chat).unwrap());
+    }
+
+    #[test]
     fn navigation_denies_prefix_and_non_https_bypasses() {
         for value in [
             "https://grok.community",

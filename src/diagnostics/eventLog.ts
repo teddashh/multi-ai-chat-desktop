@@ -13,6 +13,7 @@ export const EVENT_LOG_CAP = 500;
 export type EventLogKind =
   | 'provider-state'
   | 'adapter-notice'
+  | 'nav-blocked'
   | 'send'
   | 'response'
   | 'response-error'
@@ -38,6 +39,11 @@ export interface AdapterNoticeLike {
   kind: string;
   message?: string;
   version?: number | null;
+}
+
+export interface NavBlockedLike {
+  provider: string;
+  host: string;
 }
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
@@ -117,6 +123,19 @@ export function eventFromAdapterNotice(notice: AdapterNoticeLike): EventLogInput
       noticeKind: notice.kind,
       version,
       reason,
+    },
+  };
+}
+
+export function eventFromNavBlocked(payload: NavBlockedLike): EventLogInput {
+  const provider = isAIProvider(payload.provider) ? payload.provider : undefined;
+  const host = clamp(payload.host, MAX_DETAIL_CHARS);
+  return {
+    provider,
+    kind: 'nav-blocked',
+    summary: `${provider ? providerName(provider) : payload.provider} navigation blocked: ${host}`,
+    detail: {
+      host,
     },
   };
 }

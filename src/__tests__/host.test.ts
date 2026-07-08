@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const invokeMock = vi.hoisted(() => vi.fn());
+const listenMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@tauri-apps/api/app', () => ({
   getVersion: vi.fn(),
@@ -11,7 +12,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(),
+  listen: listenMock,
 }));
 
 import { host } from '../host';
@@ -19,6 +20,7 @@ import { host } from '../host';
 describe('host snapshot bindings', () => {
   beforeEach(() => {
     invokeMock.mockReset();
+    listenMock.mockReset();
   });
 
   it('wraps snapshot commands with Tauri invoke argument names', async () => {
@@ -78,5 +80,19 @@ describe('host snapshot bindings', () => {
       })});`,
     });
     expect(String(invokeMock.mock.calls.at(-1)?.[1]?.js)).not.toContain('SEND_MESSAGE');
+  });
+
+  it('subscribes to nav-blocked diagnostics and forwards the host-only payload', async () => {
+    const unlisten = vi.fn();
+    const handler = vi.fn();
+    listenMock.mockResolvedValueOnce(unlisten);
+
+    await expect(host.onNavBlocked(handler)).resolves.toBe(unlisten);
+
+    expect(listenMock).toHaveBeenCalledWith('nav://blocked', expect.any(Function));
+    const listener = listenMock.mock.calls[0][1] as (event: { payload: { provider: string; host: string } }) => void;
+    listener({ payload: { provider: 'chatgpt', host: 'auth.openai.com' } });
+
+    expect(handler).toHaveBeenCalledWith({ provider: 'chatgpt', host: 'auth.openai.com' });
   });
 });

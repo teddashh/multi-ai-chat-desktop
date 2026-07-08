@@ -85,6 +85,7 @@ import type { ExecutionSnapshot } from './workflow/snapshot/types';
 import {
   eventFromAdapterNotice,
   eventFromBridgeMessage,
+  eventFromNavBlocked,
   eventFromProviderState,
   eventFromStepTimeout,
   eventFromWorkflowPreflightBlocked,
@@ -296,6 +297,24 @@ export default function App() {
       })
       .then((fn) => (unlisten = fn));
     return () => unlisten?.();
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void host.onNavBlocked((payload) => {
+      recordEventLog(eventFromNavBlocked(payload));
+    }).then((fn) => {
+      if (disposed) {
+        fn();
+        return;
+      }
+      unlisten = fn;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   const persistSettingsPatch = useCallback(async (patch: Partial<AppSettings>) => {
