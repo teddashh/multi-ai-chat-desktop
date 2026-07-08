@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import {
-  CHAT_MODES,
   DEFAULT_CODING_ROLES,
   DEFAULT_CONSULT_ROLES,
   DEFAULT_DEBATE_ROLES,
   DEFAULT_FREE_TARGET_PROVIDERS,
   DEFAULT_ROUNDTABLE_ROLES,
 } from '../../shared/constants';
+import { modeName } from '../i18n/modes';
+import { formatI18n, t } from '../i18n/t';
 import { defaultRolesForMode, updateModeRole } from '../ui/modeRoles';
 import { OverlayGuardCounter } from '../ui/overlayGuard';
 import { buildPreflightDialogModel } from '../ui/preflightModel';
@@ -91,22 +92,21 @@ describe('M4a UI helpers', () => {
       }),
     );
 
-    expect(model.title).toContain('Cannot start');
-    expect(model.title).toContain(CHAT_MODES.debate.name);
+    expect(model.title).toBe(formatI18n(t('preflight.cannotStart', 'en'), { mode: modeName('debate', 'en') }));
     expect(model.unavailable.map((item) => [item.provider, item.reason])).toEqual([
-      ['chatgpt', 'No webview'],
-      ['claude', 'Needs login'],
-      ['gemini', 'Stale'],
+      ['chatgpt', t('preflight.noWebview', 'en')],
+      ['claude', t('preflight.needsLogin', 'en')],
+      ['gemini', t('preflight.stale', 'en')],
     ]);
-    expect(model.aliased).toEqual([{ provider: 'grok', label: 'Grok', reason: 'two roles resolve to the same provider' }]);
+    expect(model.aliased).toEqual([{ provider: 'grok', label: 'Grok', reason: t('preflight.aliasedProvider', 'en') }]);
   });
 
   it('keeps aliased-only preflight actionable through role reassignment', () => {
     const model = buildPreflightDialogModel('consult', { ok: false, unavailable: [], aliased: ['chatgpt'] }, states());
 
-    expect(model.title).toContain(CHAT_MODES.consult.name);
+    expect(model.title).toBe(formatI18n(t('preflight.cannotStart', 'en'), { mode: modeName('consult', 'en') }));
     expect(model.unavailable).toEqual([]);
-    expect(model.aliased).toEqual([{ provider: 'chatgpt', label: 'ChatGPT', reason: 'two roles resolve to the same provider' }]);
+    expect(model.aliased).toEqual([{ provider: 'chatgpt', label: 'ChatGPT', reason: t('preflight.aliasedProvider', 'en') }]);
   });
 
   it('defaults free targets to four shipped sendable providers and toggles the selected send list', () => {

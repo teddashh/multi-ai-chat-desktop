@@ -6,6 +6,8 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
+const DEFAULT_LANGUAGE: &str = "system";
+const LANGUAGES: &[&str] = &["system", "en", "zh-TW"];
 const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
 const SNAPSHOT_REDACTION_TIERS: &[&str] = &["metadata-only", "hashes", "prompt-text", "full-local"];
 const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok", "claude-code"];
@@ -51,6 +53,16 @@ pub fn normalize_settings_value(settings: Value) -> Value {
         _ => Value::Object(Map::new()),
     };
     if let Value::Object(map) = &mut settings {
+        let language = map
+            .get("language")
+            .and_then(|value| value.as_str())
+            .filter(|value| LANGUAGES.contains(value))
+            .unwrap_or(DEFAULT_LANGUAGE);
+        map.insert(
+            "language".to_string(),
+            Value::String(language.to_string()),
+        );
+
         let snapshot_persistence = map
             .get("snapshotPersistence")
             .and_then(|value| value.as_bool())
@@ -418,6 +430,7 @@ mod tests {
         assert_eq!(
             normalize_settings_value(json!({})),
             json!({
+                "language": "system",
                 "snapshotPersistence": false,
                 "snapshotRedactionTier": "metadata-only",
                 "presentation": {
@@ -442,6 +455,7 @@ mod tests {
                 }
             })),
             json!({
+                "language": "system",
                 "snapshotPersistence": true,
                 "snapshotRedactionTier": "full-local",
                 "presentation": {
@@ -466,6 +480,7 @@ mod tests {
                 }
             })),
             json!({
+                "language": "system",
                 "snapshotPersistence": false,
                 "snapshotRedactionTier": "metadata-only",
                 "presentation": {
@@ -476,6 +491,26 @@ mod tests {
                     "claude-code": "chip"
                 }
             })
+        );
+    }
+
+    #[test]
+    fn normalizes_language_setting_to_supported_values() {
+        assert_eq!(
+            normalize_settings_value(json!({ "language": "en" })).get("language"),
+            Some(&json!("en"))
+        );
+        assert_eq!(
+            normalize_settings_value(json!({ "language": "zh-TW" })).get("language"),
+            Some(&json!("zh-TW"))
+        );
+        assert_eq!(
+            normalize_settings_value(json!({ "language": "fr" })).get("language"),
+            Some(&json!("system"))
+        );
+        assert_eq!(
+            normalize_settings_value(json!({ "language": 123 })).get("language"),
+            Some(&json!("system"))
         );
     }
 }

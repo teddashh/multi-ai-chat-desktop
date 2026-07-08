@@ -9,6 +9,7 @@ import {
   DEFAULT_ROUNDTABLE_ROLES,
 } from '../../shared/constants';
 import type { AIProvider, BridgeMessage } from '../../shared/types';
+import { t } from '../i18n/t';
 import { ModeSelector } from '../ui/ModeSelector';
 import { PresetCatalog } from '../ui/PresetCatalog';
 import { ProcessTrace } from '../ui/ProcessTrace';
@@ -60,24 +61,25 @@ function response(provider: AIProvider, action: 'RESPONSE_CHUNK' | 'RESPONSE_DON
 }
 
 describe('N4 preset catalog', () => {
-  it('renders the five built-in cards with cost labels', () => {
+  it.each(['en', 'zh-TW'] as const)('renders the five built-in cards with %s cost labels', (locale) => {
     const tree = PresetCatalog({
       mode: 'free',
       onSelectPreset: vi.fn(),
       advancedOpen: false,
       onAdvancedOpenChange: vi.fn(),
+      locale,
     });
     const cardButtons = findAllElements(
       tree,
-      (element) => element.type === 'button' && PRESET_CATALOG.some((preset) => textOf(element).includes(preset.displayName)),
+      (element) => element.type === 'button' && PRESET_CATALOG.some((preset) => textOf(element).includes(t(preset.displayNameKey, locale))),
     );
 
     expect(PRESET_CATALOG).toHaveLength(5);
     expect(cardButtons).toHaveLength(5);
     for (const preset of PRESET_CATALOG) {
-      const card = cardButtons.find((button) => textOf(button).includes(preset.displayName));
+      const card = cardButtons.find((button) => textOf(button).includes(t(preset.displayNameKey, locale)));
       expect(card).toBeTruthy();
-      expect(textOf(card)).toContain(preset.costLabel);
+      expect(textOf(card)).toContain(t(preset.costLabelKey, locale));
     }
     expect(PRESET_CATALOG.filter((preset) => preset.id !== 'free').map((preset) => preset.requiredProviders)).toEqual(
       Array.from({ length: 4 }, () => [...DEFAULT_FREE_TARGET_PROVIDERS]),
@@ -91,8 +93,9 @@ describe('N4 preset catalog', () => {
       onSelectPreset,
       advancedOpen: false,
       onAdvancedOpenChange: vi.fn(),
+      locale: 'en',
     });
-    const debateCard = firstElement(tree, (element) => element.type === 'button' && textOf(element).includes('Debate'));
+    const debateCard = firstElement(tree, (element) => element.type === 'button' && textOf(element).includes(t('preset.debate.displayName', 'en')));
 
     propsOf(debateCard).onClick?.();
 
@@ -111,9 +114,10 @@ describe('N4 preset catalog', () => {
       onSelectPreset: vi.fn(),
       advancedOpen: false,
       onAdvancedOpenChange,
-      children: <ModeSelector mode="free" onModeChange={vi.fn()} />,
+      locale: 'en',
+      children: <ModeSelector mode="free" onModeChange={vi.fn()} locale="en" />,
     });
-    const more = firstElement(closedTree, (element) => element.type === 'button' && textOf(element).includes('More'));
+    const more = firstElement(closedTree, (element) => element.type === 'button' && textOf(element).includes(t('preset.more', 'en')));
     const closedDrawer = firstElement(closedTree, (element) => propsOf(element).id === 'advanced-workflow-controls');
 
     propsOf(more).onClick?.();
@@ -126,22 +130,33 @@ describe('N4 preset catalog', () => {
       onSelectPreset: vi.fn(),
       advancedOpen: true,
       onAdvancedOpenChange: vi.fn(),
-      children: <ModeSelector mode="free" onModeChange={vi.fn()} />,
+      locale: 'zh-TW',
+      children: <ModeSelector mode="free" onModeChange={vi.fn()} locale="zh-TW" />,
     });
     const openDrawer = firstElement(openTree, (element) => propsOf(element).id === 'advanced-workflow-controls');
     expect(propsOf(openDrawer).hidden).toBe(false);
-    expect(renderToStaticMarkup(openTree)).toContain('自由模式');
+    expect(renderToStaticMarkup(openTree)).toContain(t('mode.free.name', 'zh-TW'));
+
+    const englishTree = PresetCatalog({
+      mode: 'free',
+      onSelectPreset: vi.fn(),
+      advancedOpen: true,
+      onAdvancedOpenChange: vi.fn(),
+      locale: 'en',
+      children: <ModeSelector mode="free" onModeChange={vi.fn()} locale="en" />,
+    });
+    expect(renderToStaticMarkup(englishTree)).toContain(t('mode.free.name', 'en'));
   });
 });
 
 describe('N4 process trace', () => {
-  it('reduces role assignments, workflow status, and responses into ordered step rows', () => {
-    let trace = createProcessTrace('debate');
-    trace = reduceProcessTraceEvent(trace, status('Debate: pro'));
-    trace = reduceProcessTraceEvent(trace, role('chatgpt', 'pro', 'Pro', 1));
-    trace = reduceProcessTraceEvent(trace, response('chatgpt', 'RESPONSE_DONE'));
-    trace = reduceProcessTraceEvent(trace, status('Debate: con'));
-    trace = reduceProcessTraceEvent(trace, role('claude', 'con', 'Con', 2));
+  it.each(['en', 'zh-TW'] as const)('reduces role assignments, workflow status, and responses into ordered %s step rows', (locale) => {
+    let trace = createProcessTrace('debate', [], locale);
+    trace = reduceProcessTraceEvent(trace, status('Debate: pro'), locale);
+    trace = reduceProcessTraceEvent(trace, role('chatgpt', 'pro', 'Pro', 1), locale);
+    trace = reduceProcessTraceEvent(trace, response('chatgpt', 'RESPONSE_DONE'), locale);
+    trace = reduceProcessTraceEvent(trace, status('Debate: con'), locale);
+    trace = reduceProcessTraceEvent(trace, role('claude', 'con', 'Con', 2), locale);
 
     expect(trace.currentStatus).toBe('Debate: con');
     expect(trace.steps.map((step) => [step.label, step.status])).toEqual([
@@ -149,36 +164,36 @@ describe('N4 process trace', () => {
       ['Con · Claude', 'active'],
     ]);
 
-    const html = renderToStaticMarkup(<ProcessTrace trace={trace} />);
-    expect(html).toContain('Process trace');
+    const html = renderToStaticMarkup(<ProcessTrace trace={trace} locale={locale} />);
+    expect(html).toContain(t('processTrace.title', locale));
     expect(html).toContain('Debate: con');
     expect(html).toContain('Pro · ChatGPT');
-    expect(html).toContain('Done');
-    expect(html).toContain('Active');
+    expect(html).toContain(t('processTrace.done', locale));
+    expect(html).toContain(t('processTrace.active', locale));
   });
 
-  it('renders free fan-out as an aggregate row plus one response row per selected provider', () => {
-    let trace = createProcessTrace('free', ['chatgpt', 'gemini']);
+  it.each(['en', 'zh-TW'] as const)('renders %s free fan-out as an aggregate row plus one response row per selected provider', (locale) => {
+    let trace = createProcessTrace('free', ['chatgpt', 'gemini'], locale);
 
     expect(trace.steps.map((step) => [step.label, step.status])).toEqual([
-      ['Fan-out', 'active'],
-      ['ChatGPT response', 'pending'],
-      ['Gemini response', 'pending'],
+      [t('processTrace.fanout', locale), 'active'],
+      [`ChatGPT ${t('processTrace.response', locale)}`, 'pending'],
+      [`Gemini ${t('processTrace.response', locale)}`, 'pending'],
     ]);
 
-    trace = reduceProcessTraceEvent(trace, response('chatgpt', 'RESPONSE_CHUNK'));
-    trace = reduceProcessTraceEvent(trace, response('chatgpt', 'RESPONSE_DONE'));
-    trace = reduceProcessTraceEvent(trace, response('gemini', 'RESPONSE_DONE'));
+    trace = reduceProcessTraceEvent(trace, response('chatgpt', 'RESPONSE_CHUNK'), locale);
+    trace = reduceProcessTraceEvent(trace, response('chatgpt', 'RESPONSE_DONE'), locale);
+    trace = reduceProcessTraceEvent(trace, response('gemini', 'RESPONSE_DONE'), locale);
 
     expect(trace.steps.map((step) => [step.label, step.status])).toEqual([
-      ['Fan-out', 'done'],
-      ['ChatGPT response', 'done'],
-      ['Gemini response', 'done'],
+      [t('processTrace.fanout', locale), 'done'],
+      [`ChatGPT ${t('processTrace.response', locale)}`, 'done'],
+      [`Gemini ${t('processTrace.response', locale)}`, 'done'],
     ]);
 
-    const html = renderToStaticMarkup(<ProcessTrace trace={trace} />);
-    expect(html).toContain('Fan-out');
-    expect(html).toContain('ChatGPT response');
-    expect(html).toContain('Gemini response');
+    const html = renderToStaticMarkup(<ProcessTrace trace={trace} locale={locale} />);
+    expect(html).toContain(t('processTrace.fanout', locale));
+    expect(html).toContain(`ChatGPT ${t('processTrace.response', locale)}`);
+    expect(html).toContain(`Gemini ${t('processTrace.response', locale)}`);
   });
 });

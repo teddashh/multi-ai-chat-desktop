@@ -1,5 +1,7 @@
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider } from '../../shared/types';
+import type { Locale } from '../i18n/resolve';
+import { formatI18n, t } from '../i18n/t';
 
 export type AdapterSelectorRef =
   | string
@@ -35,34 +37,19 @@ export interface AdapterPermissionSummary {
   note?: string;
 }
 
-const CANNOT_LINES: readonly AdapterPermissionLine[] = [
-  {
-    title: 'Cookies, passwords, and browser storage',
-    detail: 'Provider webviews get zero Tauri permissions, and the injected engine has no code path to read cookies, password values, or localStorage.',
-  },
-  {
-    title: 'Other tabs, webviews, apps, or files',
-    detail: 'The adapter runs only inside this provider webview. It cannot inspect another provider, browser tab, window, file, or desktop app.',
-  },
-  {
-    title: 'A hidden third-party relay',
-    detail:
-      'This adapter does not relay your prompts or replies to any server other than the AI provider site you opened; that provider naturally receives your prompt and returns the reply. There is no separate or hidden third-party relay. Beyond that provider, conversation data leaves your machine only when YOU explicitly export it (Share to a file / HackMD) or file a broken-adapter report.',
-  },
-];
-
 export function buildAdapterPermissionSummary(
   provider: AIProvider,
   selectors?: AdapterPermissionSelectorDetails,
+  locale: Locale = 'en',
 ): AdapterPermissionSummary {
   const providerName = AI_PROVIDERS[provider].name;
-  const responseSelectors = normalizeSelectorRefs(selectors?.responseSelectors);
-  const loginSelectors = normalizeSelectorRefs(selectors?.loginDetectors);
-  const loggedOutSelectors = normalizeSelectorRefs(selectors?.loggedOutDetectors);
-  const thinkingSelectors = normalizeSelectorRefs(selectors?.thinkingDetectors);
-  const inputSelectors = normalizeSelectorRefs(selectors?.inputSelectors);
-  const sendSelectors = normalizeSelectorRefs(selectors?.sendButtonSelectors);
-  const stopSelectors = normalizeSelectorRefs(selectors?.stopButtonSelectors);
+  const responseSelectors = normalizeSelectorRefs(selectors?.responseSelectors, locale);
+  const loginSelectors = normalizeSelectorRefs(selectors?.loginDetectors, locale);
+  const loggedOutSelectors = normalizeSelectorRefs(selectors?.loggedOutDetectors, locale);
+  const thinkingSelectors = normalizeSelectorRefs(selectors?.thinkingDetectors, locale);
+  const inputSelectors = normalizeSelectorRefs(selectors?.inputSelectors, locale);
+  const sendSelectors = normalizeSelectorRefs(selectors?.sendButtonSelectors, locale);
+  const stopSelectors = normalizeSelectorRefs(selectors?.stopButtonSelectors, locale);
   const selectorDetailsAvailable =
     responseSelectors.length > 0 ||
     loginSelectors.length > 0 ||
@@ -78,77 +65,89 @@ export function buildAdapterPermissionSummary(
     selectorDetailsAvailable,
     reads: [
       {
-        title: "The AI's reply text",
+        title: t('provider.access.replyTitle', locale),
         detail: responseSelectors.length
-          ? `Reads text from ${providerName} page elements that match these adapter response selectors (intended: the assistant's reply).`
-          : `Reads text from the page elements this adapter's response selectors match (intended: the assistant's reply).`,
+          ? formatI18n(t('provider.access.replyDetailWithSelectors', locale), { provider: providerName })
+          : t('provider.access.replyDetailGeneric', locale),
         selectors: optionalSelectors(responseSelectors),
       },
       {
-        title: 'Login, logged-out, and thinking status',
+        title: t('provider.access.statusTitle', locale),
         detail:
           loginSelectors.length || loggedOutSelectors.length || thinkingSelectors.length
-            ? `Runs presence / text-match checks on ${providerName}'s adapter-defined login, logged-out, and thinking selectors.`
-            : 'Runs presence / text-match checks on adapter-defined login, logged-out, and thinking selectors so the control pane can show ready, logged out, blocked, or streaming status.',
+            ? formatI18n(t('provider.access.statusDetailWithSelectors', locale), { provider: providerName })
+            : t('provider.access.statusDetailGeneric', locale),
         selectors: optionalSelectors([...loginSelectors, ...loggedOutSelectors, ...thinkingSelectors]),
       },
       {
-        title: 'The composer text after insertion',
-        detail: 'Reads the composer text after insertion to verify/retry that your prompt was entered.',
+        title: t('provider.access.composerVerifyTitle', locale),
+        detail: t('provider.access.composerVerifyDetail', locale),
         selectors: optionalSelectors(inputSelectors),
       },
       {
-        title: 'Broken-adapter diagnostics',
-        detail:
-          'Reads broken-adapter diagnostics only when YOU click Report: which selectors match/miss, allowlisted element attributes, and text LENGTHS - never the page/message text itself.',
+        title: t('provider.access.diagnosticsTitle', locale),
+        detail: t('provider.access.diagnosticsDetail', locale),
       },
     ],
     writes: [
       {
-        title: 'The prompt composer',
+        title: t('provider.access.promptComposerTitle', locale),
         detail: inputSelectors.length
-          ? `Types your prompt into ${providerName}'s composer element that matches these adapter selectors.`
-          : `Types your prompt into ${providerName}'s composer element identified by the adapter.`,
+          ? formatI18n(t('provider.access.promptComposerDetailWithSelectors', locale), { provider: providerName })
+          : formatI18n(t('provider.access.promptComposerDetailGeneric', locale), { provider: providerName }),
         selectors: optionalSelectors(inputSelectors),
       },
       {
-        title: 'The Send control',
+        title: t('provider.access.sendControlTitle', locale),
         detail: sendSelectors.length
-          ? `Clicks ${providerName}'s send control that matches these adapter selectors.`
-          : `Clicks ${providerName}'s Send control identified by the adapter.`,
+          ? formatI18n(t('provider.access.sendControlDetailWithSelectors', locale), { provider: providerName })
+          : formatI18n(t('provider.access.sendControlDetailGeneric', locale), { provider: providerName }),
         selectors: optionalSelectors(sendSelectors),
       },
       {
-        title: 'Enter key (fallback)',
-        detail: 'Dispatches Enter to the composer when the send button is missing/disabled or the adapter uses the enter send-strategy.',
+        title: t('provider.access.enterFallbackTitle', locale),
+        detail: t('provider.access.enterFallbackDetail', locale),
         selectors: optionalSelectors(inputSelectors),
       },
       {
-        title: 'Stop control (only when YOU cancel)',
-        detail: 'Clicks the adapter-defined stop button to cancel an in-flight run.',
+        title: t('provider.access.stopControlTitle', locale),
+        detail: t('provider.access.stopControlDetail', locale),
         selectors: optionalSelectors(stopSelectors),
       },
     ],
-    cannot: CANNOT_LINES.map((line) => ({ ...line })),
+    cannot: [
+      {
+        title: t('provider.access.cannotCredentialsTitle', locale),
+        detail: t('provider.access.cannotCredentialsDetail', locale),
+      },
+      {
+        title: t('provider.access.cannotOtherContextsTitle', locale),
+        detail: t('provider.access.cannotOtherContextsDetail', locale),
+      },
+      {
+        title: t('provider.access.cannotRelayTitle', locale),
+        detail: t('provider.access.cannotRelayDetail', locale),
+      },
+    ],
     note: selectorDetailsAvailable
       ? undefined
-      : 'Exact selector names are not exposed to the control pane yet; this shows the fixed adapter envelope.',
+      : t('provider.access.noSelectorDetails', locale),
   };
 }
 
-function normalizeSelectorRefs(selectors: readonly AdapterSelectorRef[] | undefined): string[] {
+function normalizeSelectorRefs(selectors: readonly AdapterSelectorRef[] | undefined, locale: Locale): string[] {
   if (!selectors) return [];
-  const normalized = selectors.map(formatSelectorRef).filter((selector): selector is string => selector.length > 0);
+  const normalized = selectors.map((selector) => formatSelectorRef(selector, locale)).filter((selector): selector is string => selector.length > 0);
   return [...new Set(normalized)];
 }
 
-function formatSelectorRef(selector: AdapterSelectorRef): string {
+function formatSelectorRef(selector: AdapterSelectorRef, locale: Locale): string {
   if (typeof selector === 'string') return selector.trim();
   const base = selector.selector?.trim() ?? '';
   if (!base) return '';
   const clauses = [
-    selector.textIncludes ? `text includes "${selector.textIncludes}"` : '',
-    selector.textExcludes ? `text excludes "${selector.textExcludes}"` : '',
+    selector.textIncludes ? formatI18n(t('provider.access.selectorTextIncludes', locale), { value: selector.textIncludes }) : '',
+    selector.textExcludes ? formatI18n(t('provider.access.selectorTextExcludes', locale), { value: selector.textExcludes }) : '',
   ].filter(Boolean);
   return clauses.length ? `${base} (${clauses.join('; ')})` : base;
 }

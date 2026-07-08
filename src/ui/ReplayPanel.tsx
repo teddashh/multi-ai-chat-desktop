@@ -1,6 +1,9 @@
 import { Component, type ChangeEvent, type FormEvent } from 'react';
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider } from '../../shared/types';
+import type { I18nKey } from '../i18n/keys';
+import type { Locale } from '../i18n/resolve';
+import { formatI18n, t } from '../i18n/t';
 import { host, type StoredSnapshotInfo } from '../host';
 import { getLastSnapshot } from '../workflow/snapshot/recorder';
 import {
@@ -35,6 +38,7 @@ interface ReplayNotice {
 }
 
 export interface ReplayPanelProps {
+  locale?: Locale;
   onReplayWillRun?: (plan: ReplayPlan) => void;
   onReplaySettled?: () => void;
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
@@ -114,7 +118,12 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
         this.updateState({
           block: undefined,
           question: '',
-          notice: { kind: 'ok', text: result.newSnapshotId ? `Replay completed: ${result.newSnapshotId}` : 'Replay completed.' },
+          notice: {
+            kind: 'ok',
+            text: result.newSnapshotId
+              ? formatI18n(this.t('replay.completedWithSnapshot'), { snapshotId: result.newSnapshotId })
+              : this.t('replay.completed'),
+          },
         });
         await this.refreshStoredSnapshots();
         return result;
@@ -138,7 +147,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
     this.updateState({ busyKey, notice: undefined });
     try {
       await host.snapshot.delete(snapshotId);
-      this.updateState({ notice: { kind: 'ok', text: 'Snapshot deleted.' } });
+      this.updateState({ notice: { kind: 'ok', text: this.t('replay.snapshotDeleted') } });
       await this.refreshStoredSnapshots();
     } catch (error) {
       this.updateState({ notice: { kind: 'error', text: errorMessage(error) } });
@@ -152,11 +161,11 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
     const { storedSnapshots, loadingStored, listError, busyKey, block, question, notice } = this.state;
 
     return (
-      <section aria-label="Snapshot replay" className="mt-4 border-t border-zinc-800 pt-4">
+      <section aria-label={this.t('replay.snapshotReplay')} className="mt-4 border-t border-zinc-800 pt-4">
         <div className="mb-3">
-          <h3 className="text-sm font-semibold text-zinc-100">Snapshot replay</h3>
+          <h3 className="text-sm font-semibold text-zinc-100">{this.t('replay.snapshotReplay')}</h3>
           <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-            Re-run the last in-memory snapshot or an opt-in stored snapshot through the normal workflow path.
+            {this.t('replay.description')}
           </p>
         </div>
 
@@ -164,9 +173,9 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
           <section className="border border-zinc-800 bg-zinc-900 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-xs font-semibold uppercase text-zinc-300">Replay last run</h4>
+                <h4 className="text-xs font-semibold uppercase text-zinc-300">{this.t('replay.lastRun')}</h4>
                 <p className="mt-1 text-xs text-zinc-500">
-                  {lastSnapshot ? `${lastSnapshot.graphId} - ${lastSnapshot.createdAt}` : 'No in-memory snapshot is available yet.'}
+                  {lastSnapshot ? `${lastSnapshot.graphId} - ${lastSnapshot.createdAt}` : this.t('replay.noInMemorySnapshot')}
                 </p>
               </div>
               {lastSnapshot ? (
@@ -176,7 +185,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                   disabled={Boolean(busyKey)}
                   onClick={() => void this.startReplay({ kind: 'last', snapshot: lastSnapshot })}
                 >
-                  Replay last run
+                  {this.t('replay.lastRun')}
                 </button>
               ) : null}
             </div>
@@ -185,8 +194,8 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
           <section className="border border-zinc-800 bg-zinc-900 p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-xs font-semibold uppercase text-zinc-300">Stored snapshots</h4>
-                <p className="mt-1 text-xs text-zinc-500">Durable snapshots are opt-in in Settings.</p>
+                <h4 className="text-xs font-semibold uppercase text-zinc-300">{this.t('replay.storedSnapshots')}</h4>
+                <p className="mt-1 text-xs text-zinc-500">{this.t('replay.durableSnapshotsOptIn')}</p>
               </div>
               <button
                 type="button"
@@ -194,16 +203,16 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                 disabled={loadingStored || Boolean(busyKey)}
                 onClick={() => void this.refreshStoredSnapshots()}
               >
-                Refresh
+                {this.t('replay.refresh')}
               </button>
             </div>
 
             {listError ? <div className="mb-2 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{listError}</div> : null}
 
-            {loadingStored ? <div className="text-xs text-zinc-500">Loading stored snapshots...</div> : null}
+            {loadingStored ? <div className="text-xs text-zinc-500">{this.t('replay.loadingStoredSnapshots')}</div> : null}
             {!loadingStored && storedSnapshots.length === 0 ? (
               <div className="border border-dashed border-zinc-700 px-3 py-2 text-xs text-zinc-500">
-                No stored snapshots. Turn on durable snapshots in Settings to keep replay records after restart.
+                {this.t('replay.noStoredSnapshots')}
               </div>
             ) : null}
             {!loadingStored && storedSnapshots.length > 0 ? (
@@ -213,8 +222,8 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                   return (
                     <div key={snapshot.id} className="grid gap-2 p-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                       <div className="min-w-0">
-                        <div className="truncate font-medium text-zinc-100">{snapshot.graphId ?? 'unknown graph'}</div>
-                        <div className="truncate text-zinc-500">{snapshot.createdAt ?? 'created time unknown'}</div>
+                        <div className="truncate font-medium text-zinc-100">{snapshot.graphId ?? this.t('replay.unknownGraph')}</div>
+                        <div className="truncate text-zinc-500">{snapshot.createdAt ?? this.t('replay.createdTimeUnknown')}</div>
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -223,7 +232,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                           disabled={Boolean(busyKey)}
                           onClick={() => void this.startReplay(replaySource)}
                         >
-                          Replay
+                          {this.t('replay.replay')}
                         </button>
                         <button
                           type="button"
@@ -231,7 +240,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                           disabled={Boolean(busyKey)}
                           onClick={() => void this.deleteStoredSnapshot(snapshot.id)}
                         >
-                          Delete
+                          {this.t('replay.delete')}
                         </button>
                       </div>
                     </div>
@@ -252,23 +261,23 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
     if (block.reason === 'question-required') {
       return (
         <section className="mt-3 border border-amber-900 bg-amber-950 p-3 text-xs text-amber-100">
-          <h4 className="font-semibold">Original question required</h4>
+          <h4 className="font-semibold">{this.t('replay.originalQuestionRequired')}</h4>
           <p className="mt-1 text-amber-200">
-            This snapshot did not retain the original prompt. Enter the question to replay {sourceLabel(block.source)}.
+            {formatI18n(this.t('replay.originalQuestionDescription'), { source: sourceLabel(block.source, this.locale()) })}
           </p>
           <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(event) => this.submitQuestion(event, block)}>
             <input
               className="min-w-0 flex-1 border border-amber-800 bg-zinc-950 px-2 py-1.5 text-zinc-100"
               value={question}
               onChange={(event) => this.updateQuestion(event)}
-              placeholder="Original question"
+              placeholder={this.t('replay.originalQuestion')}
             />
             <button
               type="submit"
               className="border border-emerald-700 px-3 py-1.5 text-emerald-100 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={Boolean(busyKey) || question.trim().length === 0}
             >
-              Replay
+              {this.t('replay.replay')}
             </button>
           </form>
         </section>
@@ -279,9 +288,12 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
       const detail = versionMismatchDetail(block.detail);
       return (
         <section className="mt-3 border border-amber-900 bg-amber-950 p-3 text-xs text-amber-100">
-          <h4 className="font-semibold">Graph version changed</h4>
+          <h4 className="font-semibold">{this.t('replay.graphVersionChanged')}</h4>
           <p className="mt-1 text-amber-200">
-            Snapshot version {detail.snapshotVersion ?? 'unknown'} does not match current version {detail.currentVersion ?? 'unknown'}.
+            {formatI18n(this.t('replay.graphVersionMismatch'), {
+              snapshotVersion: detail.snapshotVersion,
+              currentVersion: detail.currentVersion,
+            })}
           </p>
           <button
             type="button"
@@ -289,7 +301,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
             disabled={Boolean(busyKey)}
             onClick={() => void this.startReplay(block.source, { replayWithCurrentGraph: true })}
           >
-            Replay with current graph
+            {this.t('replay.replayWithCurrentGraph')}
           </button>
         </section>
       );
@@ -300,47 +312,55 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
       const aliased = block.preflight?.aliased ?? [];
       return (
         <section className="mt-3 border border-amber-900 bg-amber-950 p-3 text-xs text-amber-100">
-          <h4 className="font-semibold">Cannot start replay</h4>
-          <p className="mt-1 text-amber-200">Open or log in to the unavailable providers, then replay again.</p>
+          <h4 className="font-semibold">{this.t('replay.cannotStartReplay')}</h4>
+          <p className="mt-1 text-amber-200">{this.t('replay.preflightHelp')}</p>
           {unavailable.length > 0 ? (
             <div className="mt-3 grid gap-2">
               {unavailable.map((provider) => (
                 <div key={provider} className="flex items-center justify-between gap-3 border border-amber-800 bg-zinc-950 px-2 py-1.5">
-                  <span>{providerName(provider)} unavailable</span>
+                  <span>{providerName(provider)} {this.t('replay.unavailable')}</span>
                   <button
                     type="button"
                     className="border border-emerald-700 px-2 py-1 text-emerald-100 hover:bg-emerald-950"
                     onClick={() => void host.provider.openLogin(provider)}
                   >
-                    Open/Login
+                    {this.t('replay.openLogin')}
                   </button>
                 </div>
               ))}
             </div>
           ) : null}
-          {aliased.length > 0 ? <div className="mt-2 text-amber-200">Aliased roles: {aliased.map(providerName).join(', ')}</div> : null}
+          {aliased.length > 0 ? <div className="mt-2 text-amber-200">{this.t('replay.aliasedRoles')} {aliased.map(providerName).join(', ')}</div> : null}
         </section>
       );
     }
 
     if (block.reason === 'not-found') {
-      return <div className="mt-3 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">Snapshot not found.</div>;
+      return <div className="mt-3 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{this.t('replay.snapshotNotFound')}</div>;
     }
 
     if (block.reason === 'unknown-graph') {
       const detail = unknownGraphDetail(block.detail);
       return (
         <div className="mt-3 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">
-          Snapshot graph is not available{detail.graphId ? `: ${detail.graphId}` : ''}.
+          {this.t('replay.snapshotGraphUnavailable')}{detail.graphId ? `: ${detail.graphId}` : ''}.
         </div>
       );
     }
 
     return (
       <div className="mt-3 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">
-        Replay blocked: {block.reason}.
+        {this.t('replay.blocked')} {block.reason}.
       </div>
     );
+  }
+
+  private locale(): Locale {
+    return this.props.locale ?? 'en';
+  }
+
+  private t(key: I18nKey): string {
+    return t(key, this.locale());
   }
 
   private async planReplayForSource(source: ReplaySource, options: ReplayRunOptions): Promise<ReplayPlan | undefined> {
@@ -395,8 +415,8 @@ function sourceKey(source: ReplaySource): string {
   return source.kind === 'last' ? `last:${source.snapshot.snapshotId}` : `stored:${source.snapshotId}`;
 }
 
-function sourceLabel(source: ReplaySource): string {
-  return source.kind === 'last' ? 'the last run' : source.snapshotId;
+function sourceLabel(source: ReplaySource, locale: Locale): string {
+  return source.kind === 'last' ? t('replay.sourceLastRun', locale) : source.snapshotId;
 }
 
 function snapshotTime(snapshot: StoredSnapshotInfo): number {

@@ -6,6 +6,9 @@ import { isRenderableResponseMessage } from './bridge/render';
 import { publishBridgeMessage } from './bridge/bus';
 import { EchoPanel } from './dev/EchoPanel';
 import { host } from './host';
+import { useI18n } from './i18n/context';
+import type { Locale } from './i18n/resolve';
+import { formatI18n, t as translateKey } from './i18n/t';
 import { mergePullBridgeState, type PullBridgeState } from './appBridgeState';
 import { onCheckpoint, type PendingCheckpoint } from './workflow/checkpoint';
 import { isSendable, onStepTimeoutEvent, runWorkflow } from './workflow';
@@ -139,6 +142,7 @@ function renderablePayload(payload: unknown): { content: string; truncated: bool
 }
 
 export default function App() {
+  const { locale, t: translate, setLanguage } = useI18n();
   const [states, setStates] = useState<Record<AIProvider, ProviderState>>(() =>
     Object.fromEntries(
       PROVIDERS.map((provider) => [
@@ -189,6 +193,7 @@ export default function App() {
   const statesRef = useRef(states);
   const userHiddenRef = useRef<Set<AIProvider>>(userHidden);
   const settingsRef = useRef<AppSettings>(appSettings);
+  const localeRef = useRef(locale);
   const presentationRef = useRef<PresentationByProvider>(presentation);
   const centerHiddenRef = useRef<Set<AIProvider>>(centerHidden);
   const centerTransitionsInFlightRef = useRef<Set<AIProvider>>(centerTransitionsInFlight);
@@ -242,6 +247,9 @@ export default function App() {
   useEffect(() => {
     settingsRef.current = appSettings;
   }, [appSettings]);
+  useEffect(() => {
+    localeRef.current = locale;
+  }, [locale]);
 
   useEffect(() => {
     presentationRef.current = presentation;
@@ -321,8 +329,9 @@ export default function App() {
     const next = mergeSettings(settingsRef.current, patch);
     settingsRef.current = next;
     setAppSettings(next);
+    setLanguage(next.language);
     await host.settings.set(next);
-  }, []);
+  }, [setLanguage]);
 
   useEffect(() => {
     let disposed = false;
@@ -333,6 +342,7 @@ export default function App() {
         const loaded = normalizeSettings(value);
         settingsRef.current = loaded;
         setAppSettings(loaded);
+        setLanguage(loaded.language);
         setColumnWidths(loaded.columnWidths);
         setSlotAssignment(loaded.slotAssignment);
         setPresentation(loaded.presentation);
@@ -344,6 +354,7 @@ export default function App() {
         const defaults = defaultSettings();
         settingsRef.current = defaults;
         setAppSettings(defaults);
+        setLanguage(defaults.language);
         setPresentation(defaults.presentation);
         setInitialRestoreComplete(true);
       })
@@ -353,7 +364,7 @@ export default function App() {
     return () => {
       disposed = true;
     };
-  }, []);
+  }, [setLanguage]);
 
   useEffect(() => {
     const handleBridgeMessage = (message: BridgeMessage) => {
@@ -379,7 +390,7 @@ export default function App() {
       if (message.action === 'WORKFLOW_STATUS') {
         const status = typeof message.payload === 'string' ? message.payload : '';
         setWorkflowStatus(status);
-        setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message) : current));
+        setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message, localeRef.current) : current));
         if (status === '') setStepTimeout((current) => nextStepTimeoutState(current, { type: 'settle' }));
         setIsProcessing((current) => processingAfterWorkflowStatus(current, status));
         return;
@@ -392,11 +403,11 @@ export default function App() {
             label: typeof payload.label === 'string' ? payload.label : undefined,
           });
         }
-        setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message) : current));
+        setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message, localeRef.current) : current));
         return;
       }
       if (!isRenderableResponseMessage(message) || !message.provider) return;
-      setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message) : current));
+      setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message, localeRef.current) : current));
       let active = activeTurns.current.get(message.provider);
       if (!active) {
         active = { turn: ++turnRef.current };
@@ -844,7 +855,7 @@ export default function App() {
     const turnId = ++turnRef.current;
     setMessages((current) => [...current, { id: `user-${turnId}`, role: 'user', content: trimmed, final: true }]);
     setIsProcessing(processingAfterSend());
-    setProcessTrace(createProcessTrace(mode, workflowTargets ?? []));
+    setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current));
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
     recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
@@ -913,7 +924,7 @@ export default function App() {
       const now = new Date();
       const { content } = buildMarkdown(messages, mode, now);
       const saved = await host.share.exportMarkdown(exportFilename(mode, now), content);
-      if (saved) setShareNotice({ kind: 'ok', text: `Exported: ${saved}` });
+      if (saved) setShareNotice({ kind: 'ok', text: formatI18n(translateKey('share.exported', localeRef.current), { path: saved }) });
     } catch (reason) {
       setShareNotice({ kind: 'error', text: reason instanceof Error ? reason.message : String(reason) });
     } finally {
@@ -929,7 +940,7 @@ export default function App() {
       const { title, content } = buildMarkdown(messages, mode, now);
       const dated = `${title} — ${now.toLocaleString()}`;
       const url = await host.publish.hackmd(dated, content);
-      setShareNotice({ kind: 'ok', text: `Published: ${url}` });
+      setShareNotice({ kind: 'ok', text: formatI18n(translateKey('share.published', localeRef.current), { url }) });
     } catch (reason) {
       setShareNotice({ kind: 'error', text: reason instanceof Error ? reason.message : String(reason) });
     } finally {
@@ -1011,6 +1022,7 @@ export default function App() {
     settingsRef.current = settings;
     presentationRef.current = settings.presentation;
     setAppSettings(settings);
+    setLanguage(settings.language);
     setColumnWidths(settings.columnWidths);
     setSlotAssignment(settings.slotAssignment);
     setPresentation(settings.presentation);
@@ -1034,7 +1046,7 @@ export default function App() {
     const replayMode = modeFromReplayPlan(plan);
     if (!replayMode) return;
     const replayTargets = replayMode === 'free' ? plan.targets ?? [] : [];
-    setProcessTrace(createProcessTrace(replayMode, replayTargets));
+    setProcessTrace(createProcessTrace(replayMode, replayTargets, localeRef.current));
     setIsProcessing(processingAfterSend());
     recordEventLog(eventFromWorkflowStart(replayMode, plan.question?.length ?? 0, replayTargets.length || undefined));
   }, []);
@@ -1062,6 +1074,7 @@ export default function App() {
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
+          locale={locale}
         />
 
         <Resizer label="Resize left provider column" onDrag={(deltaX, phase) => dragProviderColumn('left', deltaX, phase)} />
@@ -1069,24 +1082,31 @@ export default function App() {
         <section className="flex min-w-0 flex-col border-x border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-start gap-3 border-b border-zinc-800 pb-3">
             <div className="min-w-0 flex-1">
-              <ConnectionBar states={states} presentation={presentation} mode={mode} targets={targets} onTargetsChange={handleTargetsChange} />
+              <ConnectionBar
+                states={states}
+                presentation={presentation}
+                mode={mode}
+                targets={targets}
+                onTargetsChange={handleTargetsChange}
+                locale={locale}
+              />
             </div>
             <button
               className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => void exportConversation()}
               disabled={messages.length === 0 || sharing}
             >
-              Export .md
+              {translate('header.exportMarkdown')}
             </button>
             <button
               className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => void publishConversation()}
               disabled={messages.length === 0 || sharing}
             >
-              Publish HackMD
+              {translate('header.publishHackmd')}
             </button>
             <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
-              Settings
+              {translate('header.settings')}
             </button>
           </div>
           <ChipRail
@@ -1094,6 +1114,7 @@ export default function App() {
             states={states}
             onPromoteSide={(provider) => changeProviderPresentation(provider, 'side')}
             onPromoteCenter={(provider) => changeProviderPresentation(provider, 'center')}
+            locale={locale}
           />
           {centeredProvider ? (
             <CenterStage
@@ -1103,6 +1124,7 @@ export default function App() {
               openProvider={openProvider}
               changeProviderPresentation={changeProviderPresentation}
               syncBounds={syncBounds}
+              locale={locale}
             />
           ) : null}
           <div className="mt-3">
@@ -1111,11 +1133,13 @@ export default function App() {
               onSelectPreset={selectPreset}
               advancedOpen={advancedControlsOpen}
               onAdvancedOpenChange={setAdvancedControlsOpen}
+              locale={locale}
             >
-              <ModeSelector mode={mode} onModeChange={setMode} />
+              <ModeSelector mode={mode} onModeChange={setMode} locale={locale} />
               <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />
               <ReplayPanel
                 ref={replayPanelRef}
+                locale={locale}
                 onReplayWillRun={prepareReplayTrace}
                 onReplaySettled={settleReplayTrace}
                 onSnapshotComplete={persistReplaySnapshot}
@@ -1130,7 +1154,7 @@ export default function App() {
               onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
               disabled={isProcessing}
             />
-            逐步確認 / Confirm each step
+            {translate('checkpoint.confirmEachStep')}
           </label>
           {workflowStatus ? <div className="mt-3 border border-sky-900 bg-sky-950 px-3 py-2 text-xs text-sky-200">{workflowStatus}</div> : null}
           {sessionCheckpointNotice ? (
@@ -1139,6 +1163,7 @@ export default function App() {
               replaying={sessionCheckpointReplayBusy}
               onDismiss={dismissStartupSessionCheckpoint}
               onReplay={sessionCheckpointNotice.replaySnapshot ? replayStartupSessionCheckpoint : undefined}
+              locale={locale}
             />
           ) : null}
           <CheckpointCard
@@ -1148,8 +1173,9 @@ export default function App() {
             onNativeEdit={(provider) => {
               void changeProviderPresentation(provider, 'center');
             }}
+            locale={locale}
           />
-          {processTrace ? <ProcessTrace trace={processTrace} /> : null}
+          {processTrace ? <ProcessTrace trace={processTrace} locale={locale} /> : null}
           {shareNotice ? (
             <div
               className={
@@ -1166,12 +1192,20 @@ export default function App() {
               {adapterNoticeText(adapterNotice)}
             </div>
           ) : null}
-          {stepTimeout && !stepTimeout.timedOut ? <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} /> : null}
+          {stepTimeout && !stepTimeout.timedOut ? (
+            <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />
+          ) : null}
           <div className="mt-4 min-h-0 flex-1 overflow-auto border-y border-zinc-800 py-3">
-            <ChatArea messages={messages} />
+            <ChatArea messages={messages} locale={locale} />
             {import.meta.env.DEV ? <EchoPanel /> : null}
           </div>
-          <InputBar onSend={(value) => void send(value)} onCancel={cancelWorkflow} disabled={noSendableProviders} isProcessing={isProcessing} />
+          <InputBar
+            onSend={(value) => void send(value)}
+            onCancel={cancelWorkflow}
+            disabled={noSendableProviders}
+            isProcessing={isProcessing}
+            locale={locale}
+          />
         </section>
 
         <Resizer label="Resize right provider column" onDrag={(deltaX, phase) => dragProviderColumn('right', deltaX, phase)} />
@@ -1191,11 +1225,12 @@ export default function App() {
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
+          locale={locale}
         />
       </div>
       {preflight ? (
         <PreflightDialog
-          model={buildPreflightDialogModel(preflight.mode, preflight.result, states)}
+          model={buildPreflightDialogModel(preflight.mode, preflight.result, states, locale)}
           onOpenLogin={(provider) => {
             void host.provider.openLogin(provider);
           }}
@@ -1204,9 +1239,10 @@ export default function App() {
             setMode('free');
             setPreflight(undefined);
           }}
+          locale={locale}
         />
       ) : null}
-      {stepTimeout?.timedOut ? <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} /> : null}
+      {stepTimeout?.timedOut ? <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} /> : null}
       <SettingsModal
         open={settingsOpen}
         columnWidths={columnWidths}
@@ -1223,6 +1259,7 @@ export default function App() {
           busy={reportBusy}
           onOpenIssue={() => void openReportIssue()}
           onCancel={() => setReportPreview(null)}
+          locale={locale}
         />
       ) : null}
     </main>
@@ -1244,6 +1281,7 @@ function ProviderColumn({
   syncBounds,
   reportProvider,
   reportBusy,
+  locale,
 }: {
   providers: AIProvider[];
   states: Record<AIProvider, ProviderState>;
@@ -1259,6 +1297,7 @@ function ProviderColumn({
   syncBounds: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
+  locale: Locale;
 }) {
   return (
     <aside className="space-y-3 border-zinc-800 p-3">
@@ -1267,7 +1306,7 @@ function ProviderColumn({
         const hiddenByCenter = presentationHidden.has(provider);
         const hidden = hiddenByUser || hiddenByCenter;
         const accessOpen = accessProvider === provider;
-        const permissionSummary = buildAdapterPermissionSummary(provider);
+        const permissionSummary = buildAdapterPermissionSummary(provider, undefined, locale);
         return (
           <div
             key={provider}
@@ -1279,12 +1318,12 @@ function ProviderColumn({
               <div className="flex flex-wrap justify-end gap-2 text-xs">
                 <button
                   className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-                  aria-label={`${AI_PROVIDERS[provider].name} adapter access`}
+                  aria-label={formatI18n(translateKey('provider.access.aria', locale), { provider: AI_PROVIDERS[provider].name })}
                   aria-expanded={accessOpen}
                   aria-controls={`adapter-access-${provider}`}
                   onClick={() => toggleAdapterAccess(provider)}
                 >
-                  Access
+                  {translateKey('provider.access', locale)}
                 </button>
                 <button
                   className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
@@ -1293,30 +1332,30 @@ function ProviderColumn({
                   }}
                   disabled={states[provider].webview !== 'loaded' || hiddenByCenter}
                 >
-                  {hiddenByCenter ? 'Hidden' : hiddenByUser ? 'Show' : 'Hide'}
+                  {hiddenByCenter ? translateKey('provider.hidden', locale) : hiddenByUser ? translateKey('provider.show', locale) : translateKey('provider.hide', locale)}
                 </button>
                 <button
                   className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
                   onClick={() => void changeProviderPresentation(provider, 'chip')}
                 >
-                  Chip
+                  {translateKey('provider.chip', locale)}
                 </button>
                 <button
                   className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
                   onClick={() => void changeProviderPresentation(provider, 'center')}
                   disabled={presentation[provider] === 'center'}
                 >
-                  Center
+                  {translateKey('provider.center', locale)}
                 </button>
                 <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void host.provider.openLogin(provider)}>
-                  Login
+                  {translateKey('provider.login', locale)}
                 </button>
                 {provider === 'gemini' ? (
                   <button
                     className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
                     onClick={() => void host.provider.openLoginExternal(provider)}
                   >
-                    Browser
+                    {translateKey('provider.browser', locale)}
                   </button>
                 ) : null}
                 <button
@@ -1326,40 +1365,42 @@ function ProviderColumn({
                     void host.provider.reload(provider).then(() => syncBounds(provider));
                   }}
                 >
-                  Reload
+                  {translateKey('provider.reload', locale)}
                 </button>
                 <button
                   className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => void reportProvider(provider)}
                   disabled={reportBusy}
                 >
-                  Report
+                  {translateKey('provider.report', locale)}
                 </button>
               </div>
             </div>
-            {accessOpen ? <AdapterAccessPanel id={`adapter-access-${provider}`} summary={permissionSummary} /> : null}
+            {accessOpen ? <AdapterAccessPanel id={`adapter-access-${provider}`} summary={permissionSummary} locale={locale} /> : null}
             {states[provider].adapter === 'broken' ? (
-              <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">Adapter broken</div>
+              <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{translateKey('provider.adapterBroken', locale)}</div>
             ) : null}
             {states[provider].bridge === 'degraded' ? (
               <div className="border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">
-                Bridge degraded. Reload suggested.
+                {translateKey('provider.bridgeDegradedReload', locale)}
               </div>
             ) : null}
             {provider === 'gemini' && states[provider].login === 'blocked' ? (
               <div className="flex items-center justify-between gap-2 border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">
-                <span>Embedded login blocked. Use your browser, then reload Gemini here.</span>
+                <span>{translateKey('provider.embeddedLoginBlocked', locale)}</span>
                 <button className="border border-amber-700 px-2 py-1 hover:bg-amber-900" onClick={() => void host.provider.openLoginExternal(provider)}>
-                  Open in browser
+                  {translateKey('provider.openInBrowser', locale)}
                 </button>
               </div>
             ) : null}
             {states[provider].webview === 'loaded' ? (
-              <div className="p-3 text-xs text-zinc-500">{hidden ? 'Native webview hidden; background activity continues.' : 'Native webview mounted here'}</div>
+              <div className="p-3 text-xs text-zinc-500">
+                {hidden ? translateKey('provider.nativeWebviewHidden', locale) : translateKey('provider.nativeWebviewMounted', locale)}
+              </div>
             ) : (
               <div className="grid h-[calc(100%-38px)] place-items-center">
                 <button className="border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800" onClick={() => void openProvider(provider)}>
-                  Open {AI_PROVIDERS[provider].name}
+                  {translateKey('provider.open', locale)} {AI_PROVIDERS[provider].name}
                 </button>
               </div>
             )}
@@ -1375,11 +1416,13 @@ function ChipRail({
   states,
   onPromoteSide,
   onPromoteCenter,
+  locale,
 }: {
   providers: AIProvider[];
   states: Record<AIProvider, ProviderState>;
   onPromoteSide: (provider: AIProvider) => Promise<void>;
   onPromoteCenter: (provider: AIProvider) => Promise<void>;
+  locale: Locale;
 }) {
   if (providers.length === 0) return null;
 
@@ -1389,10 +1432,10 @@ function ChipRail({
         <div key={provider} className="flex items-center gap-1 border border-zinc-700 bg-zinc-900 text-xs">
           <button className="px-2 py-1.5 text-left hover:bg-zinc-800" onClick={() => void onPromoteSide(provider)}>
             <span className="font-medium text-zinc-100">{AI_PROVIDERS[provider].name}</span>
-            <span className="ml-2 text-zinc-400">{chipState(states[provider], 'chip').label}</span>
+            <span className="ml-2 text-zinc-400">{chipState(states[provider], 'chip', locale).label}</span>
           </button>
           <button className="border-l border-zinc-700 px-2 py-1.5 text-zinc-300 hover:bg-zinc-800" onClick={() => void onPromoteCenter(provider)}>
-            Center
+            {translateKey('provider.center', locale)}
           </button>
         </div>
       ))}
@@ -1407,6 +1450,7 @@ function CenterStage({
   openProvider,
   changeProviderPresentation,
   syncBounds,
+  locale,
 }: {
   provider: AIProvider;
   state: ProviderState;
@@ -1414,6 +1458,7 @@ function CenterStage({
   openProvider: (provider: AIProvider) => Promise<void>;
   changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
   syncBounds: (provider: AIProvider) => Promise<void>;
+  locale: Locale;
 }) {
   return (
     <section
@@ -1424,13 +1469,13 @@ function CenterStage({
         <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
         <div className="flex flex-wrap justify-end gap-2 text-xs">
           <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'side')}>
-            Side
+            {translateKey('provider.side', locale)}
           </button>
           <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'chip')}>
-            Chip
+            {translateKey('provider.chip', locale)}
           </button>
           <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void host.provider.openLogin(provider)}>
-            Login
+            {translateKey('provider.login', locale)}
           </button>
           <button
             className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
@@ -1440,20 +1485,24 @@ function CenterStage({
             }}
             disabled={state.webview !== 'loaded'}
           >
-            Reload
+            {translateKey('provider.reload', locale)}
           </button>
         </div>
       </div>
-      {state.adapter === 'broken' ? <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">Adapter broken</div> : null}
+      {state.adapter === 'broken' ? (
+        <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{translateKey('provider.adapterBroken', locale)}</div>
+      ) : null}
       {state.bridge === 'degraded' ? (
-        <div className="border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">Bridge degraded. Reload suggested.</div>
+        <div className="border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">
+          {translateKey('provider.bridgeDegradedReload', locale)}
+        </div>
       ) : null}
       {state.webview === 'loaded' ? (
-        <div className="grid flex-1 place-items-center p-3 text-xs text-zinc-500">Native webview centered here</div>
+        <div className="grid flex-1 place-items-center p-3 text-xs text-zinc-500">{translateKey('provider.nativeWebviewCentered', locale)}</div>
       ) : (
         <div className="grid flex-1 place-items-center">
           <button className="border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800" onClick={() => void openProvider(provider)}>
-            Open {AI_PROVIDERS[provider].name}
+            {translateKey('provider.open', locale)} {AI_PROVIDERS[provider].name}
           </button>
         </div>
       )}
@@ -1461,17 +1510,17 @@ function CenterStage({
   );
 }
 
-function AdapterAccessPanel({ id, summary }: { id: string; summary: AdapterPermissionSummary }) {
+function AdapterAccessPanel({ id, summary, locale }: { id: string; summary: AdapterPermissionSummary; locale: Locale }) {
   return (
     <section id={id} className="border-b border-sky-900 bg-sky-950/30 px-3 py-3 text-xs text-zinc-300">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-zinc-100">What this adapter can access</h3>
+        <h3 className="text-sm font-semibold text-zinc-100">{translateKey('provider.access.heading', locale)}</h3>
         <span className="shrink-0 text-[11px] text-sky-200">{summary.providerName}</span>
       </div>
       <div className="grid gap-3">
-        <PermissionGroup title="CAN read (from the page)" lines={summary.reads} />
-        <PermissionGroup title="CAN write (to the page)" lines={summary.writes} />
-        <PermissionGroup title="CANNOT (guaranteed by architecture)" lines={summary.cannot} />
+        <PermissionGroup title={translateKey('provider.access.readTitle', locale)} lines={summary.reads} />
+        <PermissionGroup title={translateKey('provider.access.writeTitle', locale)} lines={summary.writes} />
+        <PermissionGroup title={translateKey('provider.access.cannotTitle', locale)} lines={summary.cannot} />
       </div>
       {summary.note ? <p className="mt-3 border-t border-sky-900 pt-2 text-[11px] leading-relaxed text-zinc-500">{summary.note}</p> : null}
     </section>
@@ -1507,41 +1556,51 @@ function ReportPreviewDialog({
   busy,
   onOpenIssue,
   onCancel,
+  locale,
 }: {
   preview: { provider: AIProvider; digest: ReportDigest; body: string };
   busy: boolean;
   onOpenIssue: () => void;
   onCancel: () => void;
+  locale: Locale;
 }) {
   const digest = preview.digest;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <section className="max-h-[92vh] w-full max-w-2xl overflow-auto border border-zinc-700 bg-zinc-950 p-5 shadow-2xl">
         <div className="mb-4 border-b border-zinc-800 pb-3">
-          <h2 className="text-base font-semibold text-zinc-100">Report preview</h2>
+          <h2 className="text-base font-semibold text-zinc-100">{translateKey('reportPreview.title', locale)}</h2>
         </div>
         <div className="grid gap-2 text-xs text-zinc-300 sm:grid-cols-2">
           <div>
-            Provider: {digest.displayName} ({digest.provider})
+            {translateKey('reportPreview.provider', locale)}: {digest.displayName} ({digest.provider})
           </div>
-          <div>Adapter version: {digest.adapterVersion}</div>
-          <div>App version: {digest.appVersion}</div>
-          <div>Path: {digest.path}</div>
-          <div className="sm:col-span-2">First missing field: {digest.firstMissingField ?? 'none'}</div>
+          <div>
+            {translateKey('reportPreview.adapterVersion', locale)}: {digest.adapterVersion}
+          </div>
+          <div>
+            {translateKey('reportPreview.appVersion', locale)}: {digest.appVersion}
+          </div>
+          <div>
+            {translateKey('reportPreview.path', locale)}: {digest.path}
+          </div>
+          <div className="sm:col-span-2">
+            {translateKey('reportPreview.firstMissingField', locale)}: {digest.firstMissingField ?? translateKey('reportPreview.none', locale)}
+          </div>
         </div>
         <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap border border-zinc-800 bg-zinc-900 p-3 text-xs leading-relaxed text-zinc-200">
           {preview.body}
         </pre>
         <div className="mt-5 flex items-center justify-end gap-2 border-t border-zinc-800 pt-4">
           <button className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100" onClick={onCancel}>
-            Cancel
+            {translateKey('reportPreview.cancel', locale)}
           </button>
           <button
             className="border border-emerald-700 bg-emerald-950 px-3 py-1.5 text-sm text-emerald-100 hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onOpenIssue}
             disabled={busy}
           >
-            Open GitHub issue
+            {translateKey('reportPreview.openGithubIssue', locale)}
           </button>
         </div>
       </section>
@@ -1571,20 +1630,22 @@ function ConnectionBar({
   mode,
   targets,
   onTargetsChange,
+  locale,
 }: {
   states: Record<AIProvider, ProviderState>;
   presentation: PresentationByProvider;
   mode: ChatMode;
   targets: AIProvider[];
   onTargetsChange: (targets: AIProvider[]) => void;
+  locale: Locale;
 }) {
   return (
     <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-3">
       {mode === 'free' ? (
-        <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={onTargetsChange} />
+        <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={onTargetsChange} locale={locale} />
       ) : (
         PROVIDERS.map((provider) => {
-          const chip = chipState(states[provider], presentation[provider]);
+          const chip = chipState(states[provider], presentation[provider], locale);
           return (
             <div key={provider} className={`border px-2 py-1 text-xs ${chip.className}`}>
               {AI_PROVIDERS[provider].name}: {chip.label}
@@ -1596,7 +1657,7 @@ function ConnectionBar({
   );
 }
 
-function ChatArea({ messages }: { messages: Bubble[] }) {
+function ChatArea({ messages, locale }: { messages: Bubble[]; locale: Locale }) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -1604,7 +1665,7 @@ function ChatArea({ messages }: { messages: Bubble[] }) {
   }, [messages]);
 
   if (messages.length === 0) {
-    return <div className="p-4 text-sm text-zinc-500">No messages yet.</div>;
+    return <div className="p-4 text-sm text-zinc-500">{translateKey('chat.noMessages', locale)}</div>;
   }
   return (
     <div className="space-y-3 p-2">
@@ -1613,10 +1674,10 @@ function ChatArea({ messages }: { messages: Bubble[] }) {
           <div className="mb-1 text-xs uppercase text-zinc-500">
             {bubbleAuthorLabel(message)}
             {message.modeRole ? ` · ${message.modeRole}` : ''}
-            {message.role === 'ai' && !message.final ? ' streaming' : ''}
+            {message.role === 'ai' && !message.final ? ` ${translateKey('chat.streaming', locale)}` : ''}
           </div>
           <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-          {message.truncated ? <div className="mt-2 text-xs text-amber-300">(truncated)</div> : null}
+          {message.truncated ? <div className="mt-2 text-xs text-amber-300">{translateKey('chat.truncated', locale)}</div> : null}
         </article>
       ))}
       <div ref={bottomRef} />
@@ -1624,14 +1685,20 @@ function ChatArea({ messages }: { messages: Bubble[] }) {
   );
 }
 
-function chipState(state: ProviderState, presentation: WebviewPresentationState = 'side'): { label: string; className: string } {
-  if (presentation === 'chip') return { label: 'session-ready', className: 'border-zinc-700 text-zinc-300' };
-  if (state.webview !== 'loaded') return { label: 'no-webview', className: 'border-zinc-700 text-zinc-400' };
-  if (state.adapter === 'broken') return { label: 'adapter-broken', className: 'border-red-700 text-red-300' };
-  if (state.bridge === 'degraded') return { label: 'degraded', className: 'border-amber-700 text-amber-300' };
-  if (state.login === 'logged_out' || state.login === 'blocked') return { label: 'needs-login', className: 'border-amber-700 text-amber-300' };
-  if (!isSendable(state)) return { label: 'stale', className: 'border-sky-700 text-sky-300' };
-  return { label: 'ready', className: 'border-emerald-700 text-emerald-300' };
+function chipState(
+  state: ProviderState,
+  presentation: WebviewPresentationState = 'side',
+  locale: Locale = 'en',
+): { label: string; className: string } {
+  if (presentation === 'chip') return { label: translateKey('connection.sessionReady', locale), className: 'border-zinc-700 text-zinc-300' };
+  if (state.webview !== 'loaded') return { label: translateKey('connection.noWebview', locale), className: 'border-zinc-700 text-zinc-400' };
+  if (state.adapter === 'broken') return { label: translateKey('connection.adapterBroken', locale), className: 'border-red-700 text-red-300' };
+  if (state.bridge === 'degraded') return { label: translateKey('connection.degraded', locale), className: 'border-amber-700 text-amber-300' };
+  if (state.login === 'logged_out' || state.login === 'blocked') {
+    return { label: translateKey('connection.needsLogin', locale), className: 'border-amber-700 text-amber-300' };
+  }
+  if (!isSendable(state)) return { label: translateKey('connection.stale', locale), className: 'border-sky-700 text-sky-300' };
+  return { label: translateKey('connection.ready', locale), className: 'border-emerald-700 text-emerald-300' };
 }
 
 function modeFromReplayPlan(plan: ReplayPlan): ChatMode | undefined {

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AI_PROVIDERS, DOCK_SLOT_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
+import type { I18nKey } from '../i18n/keys';
+import { useI18n } from '../i18n/context';
+import { formatI18n } from '../i18n/t';
 import { DEFAULT_COLUMN_WIDTHS, type ColumnWidths } from './dockLayout';
 import type { PresentationByProvider } from './presentation';
 import { assignSlotProvider, SLOT_IDS, type SlotAssignment, type SlotId } from './slotAssignment';
@@ -18,11 +21,11 @@ import {
 import { buildDebugBundle, debugBundleFilename } from '../diagnostics/debugBundle';
 import { useEventLog } from './useEventLog';
 
-const SLOT_LABELS: Record<SlotId, string> = {
-  leftTop: 'Left top',
-  leftBottom: 'Left bottom',
-  rightTop: 'Right top',
-  rightBottom: 'Right bottom',
+const SLOT_LABEL_KEYS: Record<SlotId, I18nKey> = {
+  leftTop: 'settings.slot.leftTop',
+  leftBottom: 'settings.slot.leftBottom',
+  rightTop: 'settings.slot.rightTop',
+  rightBottom: 'settings.slot.rightBottom',
 };
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
@@ -55,6 +58,7 @@ export function SettingsModal({
   onClose: () => void;
   onSaved: (settings: AppSettings) => void;
 }) {
+  const { t, setLanguage } = useI18n();
   const [draft, setDraft] = useState<AppSettings | undefined>();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -121,6 +125,30 @@ export function SettingsModal({
     );
   };
 
+  const updateLanguage = async (language: AppSettings['language']) => {
+    const previousLanguage = loadedRef.current?.language ?? 'system';
+    setError('');
+    updateDraft({ language });
+    setLanguage(language);
+    const live = liveRef.current;
+    const next = mergeSettings(loadedRef.current, {
+      language,
+      columnWidths: live.columnWidths,
+      slotAssignment: live.slotAssignment,
+      openProviders: live.openProviders,
+      presentation: live.presentation,
+    });
+    try {
+      await host.settings.set(next);
+      loadedRef.current = next;
+      onSaved(next);
+    } catch (reason) {
+      updateDraft({ language: previousLanguage });
+      setLanguage(previousLanguage);
+      setError(reason instanceof Error ? reason.message : String(reason));
+    }
+  };
+
   const save = async () => {
     if (!draft) return;
     setError('');
@@ -166,16 +194,16 @@ export function SettingsModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between border-b border-zinc-800 pb-3">
-          <h2 className="text-base font-semibold text-zinc-100">Settings</h2>
+          <h2 className="text-base font-semibold text-zinc-100">{t('settings.title')}</h2>
           <button className="border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800" onClick={onClose}>
-            Close
+            {t('settings.close')}
           </button>
         </div>
 
         {draft ? (
           <div className="space-y-5">
             <section>
-              <label className="mb-1 block text-xs font-medium text-zinc-300">HackMD token</label>
+              <label className="mb-1 block text-xs font-medium text-zinc-300">{t('settings.hackmdToken')}</label>
               <input
                 type="password"
                 value={draft.hackmdToken}
@@ -185,16 +213,33 @@ export function SettingsModal({
                 autoFocus
               />
               <p className="mt-1.5 text-xs leading-relaxed text-zinc-400">
-                Token 以純文字存放於本機 settings.json，未加密
+                {t('settings.hackmdTokenHint')}
               </p>
             </section>
 
             <section>
-              <div className="mb-2 text-xs font-medium text-zinc-300">Pane slots</div>
+              <label className="block text-xs text-zinc-400">
+                <span className="mb-1 block font-medium text-zinc-300">{t('settings.language')}</span>
+                <select
+                  value={draft.language}
+                  onChange={(event) => {
+                    void updateLanguage(event.target.value as AppSettings['language']);
+                  }}
+                  className="w-full border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-sky-600"
+                >
+                  <option value="system">{t('settings.language.system')}</option>
+                  <option value="en">{t('settings.language.en')}</option>
+                  <option value="zh-TW">{t('settings.language.zhTW')}</option>
+                </select>
+              </label>
+            </section>
+
+            <section>
+              <div className="mb-2 text-xs font-medium text-zinc-300">{t('settings.paneSlots')}</div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {SLOT_IDS.map((slot) => (
                   <label key={slot} className="block text-xs text-zinc-400">
-                    <span className="mb-1 block">{SLOT_LABELS[slot]}</span>
+                    <span className="mb-1 block">{t(SLOT_LABEL_KEYS[slot])}</span>
                     <select
                       value={draft.slotAssignment[slot]}
                       onChange={(event) => updateSlot(slot, event.target.value as AIProvider)}
@@ -213,22 +258,22 @@ export function SettingsModal({
 
             <section className="flex items-center justify-between gap-3 border-t border-zinc-800 pt-4">
               <div>
-                <div className="text-xs font-medium text-zinc-300">Column widths</div>
+                <div className="text-xs font-medium text-zinc-300">{t('settings.columnWidths')}</div>
                 <div className="mt-1 text-xs text-zinc-500">
-                  Left {draft.columnWidths.left}px / Right {draft.columnWidths.right}px
+                  {t('settings.left')} {draft.columnWidths.left}px / {t('settings.right')} {draft.columnWidths.right}px
                 </div>
               </div>
               <button
                 className="border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800"
                 onClick={() => updateDraft({ columnWidths: { ...DEFAULT_COLUMN_WIDTHS } })}
               >
-                Reset layout
+                {t('settings.resetLayout')}
               </button>
             </section>
 
             <section className="grid gap-3 border-t border-zinc-800 pt-4 sm:grid-cols-2">
               <label className="block text-xs text-zinc-400">
-                <span className="mb-1 block">Adapter channel</span>
+                <span className="mb-1 block">{t('settings.adapterChannel')}</span>
                 <input
                   value={draft.adapterChannel}
                   onChange={(event) => updateDraft({ adapterChannel: event.target.value })}
@@ -236,7 +281,7 @@ export function SettingsModal({
                 />
               </label>
               <label className="block text-xs text-zinc-400">
-                <span className="mb-1 block">Adapter base URL</span>
+                <span className="mb-1 block">{t('settings.adapterBaseUrl')}</span>
                 <input
                   value={draft.adapterBaseUrl}
                   onChange={(event) => updateDraft({ adapterBaseUrl: event.target.value })}
@@ -254,14 +299,14 @@ export function SettingsModal({
                   className="mt-0.5 h-4 w-4 accent-sky-700"
                 />
                 <span>
-                  <span className="block font-medium text-zinc-300">Durable snapshots</span>
+                  <span className="block font-medium text-zinc-300">{t('settings.durableSnapshots')}</span>
                   <span className="mt-1 block leading-relaxed">
-                    Off by default. Stored locally under app data after redaction; never cookies or provider storage.
+                    {t('settings.durableSnapshotsDescription')}
                   </span>
                 </span>
               </label>
               <label className="block text-xs text-zinc-400">
-                <span className="mb-1 block">Snapshot redaction tier</span>
+                <span className="mb-1 block">{t('settings.snapshotRedactionTier')}</span>
                 <select
                   value={draft.snapshotRedactionTier}
                   onChange={(event) =>
@@ -280,35 +325,35 @@ export function SettingsModal({
 
             {!draft.portable ? (
               <section className="space-y-3 border-t border-zinc-800 pt-4">
-                <span className="block text-xs text-zinc-400">Updates</span>
+                <span className="block text-xs text-zinc-400">{t('settings.updates')}</span>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     className="border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={() => void checkForUpdates()}
                     disabled={updateCheck.status === 'checking'}
                   >
-                    {updateCheck.status === 'checking' ? 'Checking...' : 'Check for updates'}
+                    {updateCheck.status === 'checking' ? t('settings.checking') : t('settings.checkForUpdates')}
                   </button>
                   {updateCheck.status === 'up-to-date' ? (
-                    <span className="text-xs text-zinc-400">You're up to date ({updateCheck.version}).</span>
+                    <span className="text-xs text-zinc-400">{t('settings.upToDate').replace('{version}', updateCheck.version)}</span>
                   ) : null}
                   {updateCheck.status === 'available' ? (
                     <span className="text-xs text-sky-300">
-                      New version {updateCheck.tagName} available {'->'}{' '}
+                      {t('settings.newVersionAvailable').replace('{version}', updateCheck.tagName)} {'->'}{' '}
                       <button
                         type="button"
                         className="underline hover:text-sky-200"
                         onClick={() => void host.app.openExternal(updateCheck.htmlUrl)}
                       >
-                        download page
+                        {t('settings.downloadPage')}
                       </button>
                     </span>
                   ) : null}
                   {updateCheck.status === 'unavailable' ? (
-                    <span className="text-xs text-amber-300">Could not check releases. Try again later.</span>
+                    <span className="text-xs text-amber-300">{t('settings.releasesUnavailable')}</span>
                   ) : null}
                   {updateCheck.status === 'error' ? (
-                    <span className="text-xs text-red-300">Update check failed: {updateCheck.message}</span>
+                    <span className="text-xs text-red-300">{t('settings.updateCheckFailed')} {updateCheck.message}</span>
                   ) : null}
                 </div>
               </section>
@@ -316,24 +361,24 @@ export function SettingsModal({
 
             <DiagnosticsSection providerStates={providerStates} settings={draft} />
 
-            <section className="border-t border-zinc-800 pt-4 text-xs text-zinc-400">telemetry: none</section>
+            <section className="border-t border-zinc-800 pt-4 text-xs text-zinc-400">{t('settings.telemetryNone')}</section>
           </div>
         ) : (
-          <div className="py-8 text-sm text-zinc-500">Loading settings...</div>
+          <div className="py-8 text-sm text-zinc-500">{t('settings.loading')}</div>
         )}
 
         {error ? <div className="mt-4 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{error}</div> : null}
 
         <div className="mt-5 flex items-center justify-end gap-2 border-t border-zinc-800 pt-4">
           <button className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100" onClick={onClose}>
-            Cancel
+            {t('settings.cancel')}
           </button>
           <button
             className="min-w-16 border border-sky-700 bg-sky-950 px-3 py-1.5 text-sm text-sky-100 hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => void save()}
             disabled={!draft}
           >
-            {saved ? 'Saved' : 'Save'}
+            {saved ? t('settings.saved') : t('settings.save')}
           </button>
         </div>
       </div>
@@ -355,6 +400,7 @@ function DiagnosticsSection({
   providerStates: Record<AIProvider, ProviderState>;
   settings: AppSettings;
 }) {
+  const { t } = useI18n();
   const events = useEventLog();
   const [providerFilter, setProviderFilter] = useState<EventLogProviderFilter>('all');
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
@@ -413,7 +459,7 @@ function DiagnosticsSection({
         events,
       });
       const saved = await host.share.exportMarkdown(debugBundleFilename(generatedAt), bundle);
-      setExportState(saved ? { status: 'saved', message: `Exported: ${saved}` } : { status: 'cancelled' });
+      setExportState(saved ? { status: 'saved', message: formatI18n(t('share.exported'), { path: saved }) } : { status: 'cancelled' });
     } catch (reason) {
       setExportState({ status: 'error', message: reason instanceof Error ? reason.message : String(reason) });
     }
@@ -423,18 +469,18 @@ function DiagnosticsSection({
     <section className="space-y-3 border-t border-zinc-800 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-xs font-medium text-zinc-300">Diagnostics</h3>
-          <div className="mt-1 text-xs text-zinc-500">In-memory event log. Copy before closing the app.</div>
+          <h3 className="text-xs font-medium text-zinc-300">{t('settings.diagnostics')}</h3>
+          <div className="mt-1 text-xs text-zinc-500">{t('settings.diagnosticsDescription')}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-xs text-zinc-400">
-            Provider
+            {t('settings.provider')}
             <select
               value={providerFilter}
               onChange={(event) => setProviderFilter(event.target.value as EventLogProviderFilter)}
               className="border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-100 outline-none focus:border-sky-600"
             >
-              <option value="all">All</option>
+              <option value="all">{t('settings.all')}</option>
               {PROVIDERS.map((provider) => (
                 <option key={provider} value={provider}>
                   {providerName(provider)}
@@ -447,14 +493,14 @@ function DiagnosticsSection({
             onClick={() => void copyLog()}
             disabled={filteredEvents.length === 0}
           >
-            {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy log'}
+            {copyState === 'copied' ? t('settings.copied') : copyState === 'error' ? t('settings.copyFailed') : t('settings.copyLog')}
           </button>
           <button
             className="border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => void exportDebugBundle()}
             disabled={exportState.status === 'exporting'}
           >
-            {exportState.status === 'exporting' ? 'Exporting...' : 'Export debug bundle'}
+            {exportState.status === 'exporting' ? t('settings.exporting') : t('settings.exportDebugBundle')}
           </button>
         </div>
       </div>
@@ -463,10 +509,12 @@ function DiagnosticsSection({
         <div className="border border-emerald-900 bg-emerald-950 px-3 py-2 text-xs text-emerald-200">{exportState.message}</div>
       ) : null}
       {exportState.status === 'cancelled' ? (
-        <div className="border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-400">Export cancelled.</div>
+        <div className="border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-400">{t('settings.exportCancelled')}</div>
       ) : null}
       {exportState.status === 'error' ? (
-        <div className="border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">Export failed: {exportState.message}</div>
+        <div className="border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">
+          {t('settings.exportFailed')} {exportState.message}
+        </div>
       ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -477,15 +525,15 @@ function DiagnosticsSection({
             <div key={provider} className="border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="font-medium text-zinc-100">{providerName(provider)}</span>
-                <span className="text-zinc-500">{lastEvent ? formatRelativeTime(lastEvent, now) : 'no events'}</span>
+                <span className="text-zinc-500">{lastEvent ? formatRelativeTime(lastEvent, now) : t('settings.noEvents')}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-zinc-400">
-                <StatusPair label="Bridge" value={state.bridge ?? 'unknown'} />
-                <StatusPair label="Adapter" value={state.adapter ?? 'ok'} />
-                <StatusPair label="Login" value={state.login} />
-                <StatusPair label="DOM" value={state.dom} />
-                <StatusPair label="Thinking" value={state.thinking ? 'yes' : 'no'} />
-                <StatusPair label="Webview" value={state.webview} />
+                <StatusPair label={t('settings.bridge')} value={state.bridge ?? 'unknown'} />
+                <StatusPair label={t('settings.adapter')} value={state.adapter ?? 'ok'} />
+                <StatusPair label={t('settings.login')} value={state.login} />
+                <StatusPair label={t('settings.dom')} value={state.dom} />
+                <StatusPair label={t('settings.thinking')} value={state.thinking ? t('settings.yes') : t('settings.no')} />
+                <StatusPair label={t('settings.webview')} value={state.webview} />
               </div>
             </div>
           );
@@ -494,7 +542,7 @@ function DiagnosticsSection({
 
       <div className="max-h-72 overflow-auto border border-zinc-800">
         {recentEvents.length === 0 ? (
-          <div className="p-3 text-xs text-zinc-500">No diagnostic events yet.</div>
+          <div className="p-3 text-xs text-zinc-500">{t('settings.noDiagnosticEvents')}</div>
         ) : (
           <ol className="divide-y divide-zinc-800">
             {recentEvents.map((event, index) => (

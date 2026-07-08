@@ -13,17 +13,21 @@ import {
 } from './fileAttachments';
 import { filesFromDataTransfer, isOsFileDrag, markFileDragCopy, preventFileDragDefaults } from './fileDrop';
 import { formatInsertedFilesPrompt, TEXT_FILE_EXTENSIONS, type FileLike } from './fileInsert';
+import type { Locale } from '../i18n/resolve';
+import { t } from '../i18n/t';
 
 export function InputBar({
   onSend,
   onCancel,
   disabled,
   isProcessing,
+  locale = 'en',
 }: {
   onSend: (text: string) => void;
   onCancel: () => void;
   disabled: boolean;
   isProcessing: boolean;
+  locale?: Locale;
 }) {
   const [text, setText] = useState('');
   const [attachmentChips, setAttachmentChips] = useState<AttachmentChip[]>([]);
@@ -57,18 +61,18 @@ export function InputBar({
     const generation = (batchGeneration.current += 1);
     setAttachmentError(undefined);
 
-    const begun = beginAttachmentBatch(attachmentChipsRef.current, files);
+    const begun = beginAttachmentBatch(attachmentChipsRef.current, files, undefined, locale);
     commitAttachmentChips(begun.chips);
     if (begun.error) setAttachmentError(begun.error.message);
     if (begun.jobs.length === 0) return;
 
-    const results = await readAttachmentJobs(begun.jobs);
+    const results = await readAttachmentJobs(begun.jobs, locale);
     if (generation !== batchGeneration.current) {
       commitAttachmentChips(removeReadingAttachmentIds(attachmentChipsRef.current, begun.jobs.map((job) => job.id)));
       return;
     }
 
-    const settled = settleAttachmentReadResults(attachmentChipsRef.current, results);
+    const settled = settleAttachmentReadResults(attachmentChipsRef.current, results, locale);
     commitAttachmentChips(settled.chips);
     if (settled.error) setAttachmentError(settled.error.message);
   };
@@ -134,7 +138,11 @@ export function InputBar({
     void addAttachmentFiles(filesFromDataTransfer(event.dataTransfer));
   };
 
-  const placeholder = isProcessing ? 'Workflow running' : disabled ? 'Connect a provider to start' : 'Send to selected providers';
+  const placeholder = isProcessing
+    ? t('input.workflowRunning', locale)
+    : disabled
+      ? t('input.connectProvider', locale)
+      : t('input.sendSelectedProviders', locale);
   const sendDisabled = disabled || isProcessing || isReadingFile || (!text.trim() && !hasReadyAttachments);
   const insertDisabled = disabled || isProcessing || isReadingFile;
   const showDropActive = dropActive && canAddFiles;
@@ -179,11 +187,11 @@ export function InputBar({
           onClick={() => fileInputRef.current?.click()}
           disabled={insertDisabled}
         >
-          {isReadingFile ? 'Reading...' : 'Insert file'}
+          {isReadingFile ? t('input.reading', locale) : t('input.insertFile', locale)}
         </button>
         {isProcessing ? (
           <button className="border border-red-700 bg-red-950 px-3 text-sm text-red-100 hover:bg-red-900" onClick={onCancel}>
-            Stop
+            {t('input.stop', locale)}
           </button>
         ) : null}
         <button
@@ -191,7 +199,7 @@ export function InputBar({
           onClick={submit}
           disabled={sendDisabled}
         >
-          Send
+          {t('input.send', locale)}
         </button>
       </div>
       {attachmentChips.length > 0 ? (
@@ -210,8 +218,10 @@ export function InputBar({
               <span className="max-w-48 truncate" title={attachmentChipName(chip)}>
                 {attachmentChipName(chip)}
               </span>
-              <span className="shrink-0 text-zinc-500">{attachmentChipSize(chip)} bytes</span>
-              {chip.phase === 'reading' ? <span className="shrink-0 text-zinc-500">Reading...</span> : null}
+              <span className="shrink-0 text-zinc-500">
+                {attachmentChipSize(chip)} {t('input.bytes', locale)}
+              </span>
+              {chip.phase === 'reading' ? <span className="shrink-0 text-zinc-500">{t('input.reading', locale)}</span> : null}
               {chip.phase === 'error' ? (
                 <span className="max-w-64 truncate text-red-300" title={chip.message}>
                   {chip.message}
@@ -222,7 +232,7 @@ export function InputBar({
                 className="shrink-0 text-base leading-none text-zinc-400 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => removeAttachmentChip(chip.id)}
                 disabled={isProcessing}
-                aria-label={`Remove ${attachmentChipName(chip)}`}
+                aria-label={`${t('input.removeFile', locale)} ${attachmentChipName(chip)}`}
               >
                 ×
               </button>

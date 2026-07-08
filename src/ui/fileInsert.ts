@@ -1,9 +1,9 @@
-export const BINARY_UNSUPPORTED_MESSAGE =
-  "Binary/rich files (PDF, images, DOCX…) aren't supported yet — this milestone inserts text file content only.";
-export const FILE_TOO_LARGE_MESSAGE =
-  'Text files are limited to 262,144 UTF-8 bytes or 120,000 characters for this milestone. Choose a smaller file.';
-export const ATTACHMENT_LIMIT_MESSAGE =
-  'Text attachments are limited to 8 files and 262,144 UTF-8 bytes or 120,000 characters total for this milestone. Remove a file or choose smaller files.';
+import type { Locale } from '../i18n/resolve';
+import { t } from '../i18n/t';
+
+export const BINARY_UNSUPPORTED_MESSAGE = t('fileInsert.binaryUnsupported', 'en');
+export const FILE_TOO_LARGE_MESSAGE = t('fileInsert.fileTooLarge', 'en');
+export const ATTACHMENT_LIMIT_MESSAGE = t('fileInsert.attachmentLimit', 'en');
 
 export const MAX_TEXT_FILE_BYTES = 256 * 1024;
 export const MAX_TEXT_FILE_CHARS = 120_000;
@@ -141,16 +141,16 @@ export function isAllowedTextExtension(extension: string): boolean {
   return TEXT_EXTENSION_SET.has(extension.toLowerCase());
 }
 
-export async function readTextFileForInsert(file: FileLike): Promise<InsertedTextFile> {
+export async function readTextFileForInsert(file: FileLike, locale: Locale = 'en'): Promise<InsertedTextFile> {
   const extension = extensionFromFilename(file.name);
   if (!isAllowedTextExtension(extension)) {
-    throw new FileInsertError(BINARY_UNSUPPORTED_MESSAGE, 'unsupported');
+    throw new FileInsertError(t('fileInsert.binaryUnsupported', locale), 'unsupported');
   }
 
   // Reject oversized files by their on-disk size BEFORE buffering the whole thing into the
   // renderer — avoids loading a multi-hundred-MB pick into memory just to reject it.
   if (file.size > MAX_TEXT_FILE_BYTES) {
-    throw new FileInsertError(FILE_TOO_LARGE_MESSAGE, 'too-large');
+    throw new FileInsertError(t('fileInsert.fileTooLarge', locale), 'too-large');
   }
 
   const bytes = await file.arrayBuffer();
@@ -158,17 +158,17 @@ export async function readTextFileForInsert(file: FileLike): Promise<InsertedTex
   try {
     content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
-    throw new FileInsertError(BINARY_UNSUPPORTED_MESSAGE, 'unsupported');
+    throw new FileInsertError(t('fileInsert.binaryUnsupported', locale), 'unsupported');
   }
 
   if (content.startsWith('\uFEFF')) content = content.slice(1);
   if (content.includes('\0')) {
-    throw new FileInsertError(BINARY_UNSUPPORTED_MESSAGE, 'unsupported');
+    throw new FileInsertError(t('fileInsert.binaryUnsupported', locale), 'unsupported');
   }
 
   const utf8Length = new TextEncoder().encode(content).byteLength;
   if (utf8Length > MAX_TEXT_FILE_BYTES || content.length > MAX_TEXT_FILE_CHARS) {
-    throw new FileInsertError(FILE_TOO_LARGE_MESSAGE, 'too-large');
+    throw new FileInsertError(t('fileInsert.fileTooLarge', locale), 'too-large');
   }
 
   return {

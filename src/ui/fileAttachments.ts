@@ -1,5 +1,4 @@
 import {
-  ATTACHMENT_LIMIT_MESSAGE,
   FileInsertError,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_TOTAL_BYTES,
@@ -8,6 +7,8 @@ import {
   type FileLike,
   type InsertedTextFile,
 } from './fileInsert';
+import type { Locale } from '../i18n/resolve';
+import { t } from '../i18n/t';
 
 export type AttachmentChip =
   | { id: string; phase: 'reading'; name: string; size: number }
@@ -78,6 +79,7 @@ export function beginAttachmentBatch(
   currentChips: readonly AttachmentChip[],
   files: readonly FileLike[],
   createId: () => string = makeAttachmentId,
+  locale: Locale = 'en',
 ): BeginAttachmentBatchResult {
   if (files.length === 0) return { chips: [...currentChips], jobs: [] };
 
@@ -92,16 +94,16 @@ export function beginAttachmentBatch(
   const jobs = additions.map((chip, index) => ({ id: chip.id, file: acceptedFiles[index] }));
   const chips = additions.length > 0 ? [...currentChips, ...additions] : [...currentChips];
   const error =
-    acceptedFiles.length < files.length ? new FileInsertError(ATTACHMENT_LIMIT_MESSAGE, 'too-large') : undefined;
+    acceptedFiles.length < files.length ? new FileInsertError(t('fileInsert.attachmentLimit', locale), 'too-large') : undefined;
 
   return { chips, jobs, error };
 }
 
-export async function readAttachmentJobs(jobs: readonly AttachmentReadJob[]): Promise<AttachmentReadResult[]> {
+export async function readAttachmentJobs(jobs: readonly AttachmentReadJob[], locale: Locale = 'en'): Promise<AttachmentReadResult[]> {
   return Promise.all(
     jobs.map(async (job) => {
       try {
-        return { id: job.id, phase: 'ready', file: await readTextFileForInsert(job.file) } satisfies AttachmentReadResult;
+        return { id: job.id, phase: 'ready', file: await readTextFileForInsert(job.file, locale) } satisfies AttachmentReadResult;
       } catch (error) {
         return toAttachmentErrorResult(job.id, job.file, error);
       }
@@ -112,6 +114,7 @@ export async function readAttachmentJobs(jobs: readonly AttachmentReadJob[]): Pr
 export function settleAttachmentReadResults(
   currentChips: readonly AttachmentChip[],
   results: readonly AttachmentReadResult[],
+  locale: Locale = 'en',
 ): AttachmentBatchResult {
   const resultsById = new Map(results.map((result) => [result.id, result]));
   let aggregateBytes = 0;
@@ -136,14 +139,14 @@ export function settleAttachmentReadResults(
       aggregateBytes + contentBytes > MAX_ATTACHMENT_TOTAL_BYTES ||
       aggregateChars + contentChars > MAX_ATTACHMENT_TOTAL_CHARS
     ) {
-      aggregateError ??= new FileInsertError(ATTACHMENT_LIMIT_MESSAGE, 'too-large');
+      aggregateError ??= new FileInsertError(t('fileInsert.attachmentLimit', locale), 'too-large');
       return {
         id: chip.id,
         phase: 'error',
         name: result.file.name,
         size: result.file.size,
         code: 'too-large',
-        message: ATTACHMENT_LIMIT_MESSAGE,
+        message: t('fileInsert.attachmentLimit', locale),
       };
     }
 
@@ -159,12 +162,13 @@ export async function appendFilesToAttachments(
   currentChips: readonly AttachmentChip[],
   files: readonly FileLike[],
   createId: () => string = makeAttachmentId,
+  locale: Locale = 'en',
 ): Promise<AttachmentBatchResult> {
-  const begun = beginAttachmentBatch(currentChips, files, createId);
+  const begun = beginAttachmentBatch(currentChips, files, createId, locale);
   if (begun.jobs.length === 0) return { chips: begun.chips, error: begun.error };
 
-  const results = await readAttachmentJobs(begun.jobs);
-  const settled = settleAttachmentReadResults(begun.chips, results);
+  const results = await readAttachmentJobs(begun.jobs, locale);
+  const settled = settleAttachmentReadResults(begun.chips, results, locale);
   return { chips: settled.chips, error: settled.error ?? begun.error };
 }
 

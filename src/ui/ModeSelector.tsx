@@ -1,9 +1,20 @@
 import { CHAT_MODES } from '../../shared/constants';
 import type { ChatMode } from '../../shared/types';
+import { MODE_DESCRIPTION_KEYS, MODE_NAME_KEYS } from '../i18n/modes';
+import type { Locale } from '../i18n/resolve';
+import { t } from '../i18n/t';
 
 const MODES = Object.keys(CHAT_MODES) as ChatMode[];
 
-export function ModeSelector({ mode, onModeChange }: { mode: ChatMode; onModeChange: (mode: ChatMode) => void }) {
+export function ModeSelector({
+  mode,
+  onModeChange,
+  locale = 'en',
+}: {
+  mode: ChatMode;
+  onModeChange: (mode: ChatMode) => void;
+  locale?: Locale;
+}) {
   return (
     <div className="flex gap-1">
       {MODES.map((candidate) => {
@@ -16,10 +27,10 @@ export function ModeSelector({ mode, onModeChange }: { mode: ChatMode; onModeCha
             className={`flex-1 border px-2 py-1.5 text-xs font-medium transition ${
               active ? 'border-sky-500 bg-sky-900 text-white' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
             }`}
-            title={info.description}
+            title={t(MODE_DESCRIPTION_KEYS[candidate], locale)}
           >
             <span className="mr-1">{info.icon}</span>
-            {info.name}
+            {t(MODE_NAME_KEYS[candidate], locale)}
           </button>
         );
       })}

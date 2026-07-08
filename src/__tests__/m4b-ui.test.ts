@@ -81,6 +81,7 @@ describe('M4b UI helpers', () => {
 
   it('normalizes and merges settings defensively', () => {
     expect(defaultSettings()).toMatchObject({
+      language: 'system',
       hackmdToken: '',
       columnWidths: { left: 280, right: 280 },
       slotAssignment: DEFAULT_SLOT_ASSIGNMENT,
@@ -99,8 +100,10 @@ describe('M4b UI helpers', () => {
       portable: true,
       snapshotPersistence: true,
       snapshotRedactionTier: 'unknown',
+      language: 'fr',
       presentation: { chatgpt: 'chip', claude: 'center', gemini: 'bad', grok: 'center' },
     });
+    expect(normalized.language).toBe('system');
     expect(normalized.hackmdToken).toBe('');
     expect(normalized.columnWidths.left).toBeGreaterThanOrEqual(200);
     expect(normalized.columnWidths.right).toBeLessThanOrEqual(520);
@@ -111,8 +114,9 @@ describe('M4b UI helpers', () => {
     expect(normalized.snapshotRedactionTier).toBe('metadata-only');
     expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side', 'claude-code': 'chip' });
 
-    expect(mergeSettings(normalized, { adapterChannel: 'beta', snapshotRedactionTier: 'hashes' })).toMatchObject({
+    expect(mergeSettings(normalized, { adapterChannel: 'beta', snapshotRedactionTier: 'hashes', language: 'zh-TW' })).toMatchObject({
       adapterChannel: 'beta',
+      language: 'zh-TW',
       openProviders: ['grok', 'claude-code'],
       portable: true,
       snapshotRedactionTier: 'hashes',

@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ChatMode } from '../../shared/types';
+import { t } from '../i18n/t';
+import type { Locale } from '../i18n/resolve';
 import { PRESET_CATALOG } from './presetCatalogData';
 
 export function PresetCatalog({
@@ -7,19 +9,22 @@ export function PresetCatalog({
   onSelectPreset,
   advancedOpen,
   onAdvancedOpenChange,
+  locale = 'en',
   children,
 }: {
   mode: ChatMode;
   onSelectPreset: (mode: ChatMode) => void;
   advancedOpen: boolean;
   onAdvancedOpenChange: (open: boolean) => void;
+  locale?: Locale;
   children?: ReactNode;
 }) {
   return (
-    <section aria-label="Preset catalog" className="space-y-3">
+    <section aria-label={t('preset.catalog.aria', locale)} className="space-y-3">
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
         {PRESET_CATALOG.map((preset) => {
           const selected = mode === preset.graphId;
+          const displayName = t(preset.displayNameKey, locale);
           return (
             <button
               key={preset.id}
@@ -30,9 +35,11 @@ export function PresetCatalog({
               }`}
               aria-pressed={selected}
             >
-              <span className="text-sm font-semibold">{preset.displayName}</span>
-              <span className="mt-2 flex-1 text-xs leading-relaxed text-zinc-400">{preset.description}</span>
-              <span className="mt-3 border-t border-zinc-800 pt-2 text-[11px] font-medium text-sky-200">{preset.costLabel}</span>
+              <span className="text-sm font-semibold">{displayName}</span>
+              <span className="mt-2 flex-1 text-xs leading-relaxed text-zinc-400">{t(preset.descriptionKey, locale)}</span>
+              <span className="mt-3 border-t border-zinc-800 pt-2 text-[11px] font-medium text-sky-200">
+                {t(preset.costLabelKey, locale)}
+              </span>
             </button>
           );
         })}
@@ -46,8 +53,8 @@ export function PresetCatalog({
           aria-controls="advanced-workflow-controls"
           onClick={() => onAdvancedOpenChange(!advancedOpen)}
         >
-          <span>More…</span>
-          <span className="text-zinc-500">{advancedOpen ? 'Hide raw controls' : 'Show raw controls'}</span>
+          <span>{t('preset.more', locale)}</span>
+          <span className="text-zinc-500">{advancedOpen ? t('preset.hideRawControls', locale) : t('preset.showRawControls', locale)}</span>
         </button>
         <div id="advanced-workflow-controls" hidden={!advancedOpen} className="border-t border-zinc-800 p-3">
           {children}

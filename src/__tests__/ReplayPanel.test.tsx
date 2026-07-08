@@ -2,6 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { host } from '../host';
+import { t } from '../i18n/t';
 import { ReplayPanel } from '../ui/ReplayPanel';
 import { getLastSnapshot } from '../workflow/snapshot/recorder';
 import { replaySnapshot } from '../workflow/snapshot/replay';
@@ -92,9 +93,9 @@ describe('ReplayPanel', () => {
     const panel = new ReplayPanel({});
     const tree = panel.render();
 
-    expect(renderToStaticMarkup(tree)).toContain('Replay last run');
+    expect(renderToStaticMarkup(tree)).toContain(t('replay.lastRun', 'en'));
 
-    propsOf(buttonWithText(tree, 'Replay last run')).onClick?.();
+    propsOf(buttonWithText(tree, t('replay.lastRun', 'en'))).onClick?.();
 
     await vi.waitFor(() =>
       expect(replaySnapshot).toHaveBeenCalledWith(
@@ -118,7 +119,7 @@ describe('ReplayPanel', () => {
     expect(html.indexOf('snapshot-new')).toBe(-1);
     expect(html.indexOf('debate')).toBeLessThan(html.indexOf('free'));
 
-    propsOf(buttonWithText(tree, 'Replay')).onClick?.();
+    propsOf(buttonWithText(tree, t('replay.replay', 'en'))).onClick?.();
     await vi.waitFor(() =>
       expect(replaySnapshot).toHaveBeenCalledWith(
         { snapshotId: 'snapshot-new' },
@@ -126,7 +127,7 @@ describe('ReplayPanel', () => {
       ),
     );
 
-    propsOf(buttonWithText(panel.render(), 'Delete')).onClick?.();
+    propsOf(buttonWithText(panel.render(), t('replay.delete', 'en'))).onClick?.();
     await vi.waitFor(() => expect(host.snapshot.delete).toHaveBeenCalledWith('snapshot-new'));
   });
 
@@ -146,12 +147,12 @@ describe('ReplayPanel', () => {
       });
     const panel = new ReplayPanel({});
 
-    propsOf(buttonWithText(panel.render(), 'Replay last run')).onClick?.();
+    propsOf(buttonWithText(panel.render(), t('replay.lastRun', 'en'))).onClick?.();
     await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
 
     const blockedTree = panel.render();
-    expect(renderToStaticMarkup(blockedTree)).toContain('Original question required');
-    propsOf(firstElement(blockedTree, (element) => element.type === 'input' && propsOf(element).placeholder === 'Original question')).onChange?.({
+    expect(renderToStaticMarkup(blockedTree)).toContain(t('replay.originalQuestionRequired', 'en'));
+    propsOf(firstElement(blockedTree, (element) => element.type === 'input' && propsOf(element).placeholder === t('replay.originalQuestion', 'en'))).onChange?.({
       target: { value: 'original question' },
     });
     propsOf(firstElement(panel.render(), (element) => element.type === 'form')).onSubmit?.({ preventDefault: vi.fn() });
@@ -183,12 +184,12 @@ describe('ReplayPanel', () => {
       });
     const panel = new ReplayPanel({});
 
-    propsOf(buttonWithText(panel.render(), 'Replay last run')).onClick?.();
+    propsOf(buttonWithText(panel.render(), t('replay.lastRun', 'en'))).onClick?.();
     await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
 
     const blockedTree = panel.render();
-    expect(renderToStaticMarkup(blockedTree)).toContain('Graph version changed');
-    propsOf(buttonWithText(blockedTree, 'Replay with current graph')).onClick?.();
+    expect(renderToStaticMarkup(blockedTree)).toContain(t('replay.graphVersionChanged', 'en'));
+    propsOf(buttonWithText(blockedTree, t('replay.replayWithCurrentGraph', 'en'))).onClick?.();
 
     await vi.waitFor(() =>
       expect(replaySnapshot).toHaveBeenLastCalledWith(
@@ -208,13 +209,13 @@ describe('ReplayPanel', () => {
     });
     const panel = new ReplayPanel({});
 
-    propsOf(buttonWithText(panel.render(), 'Replay last run')).onClick?.();
+    propsOf(buttonWithText(panel.render(), t('replay.lastRun', 'en'))).onClick?.();
     await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
 
     const html = renderToStaticMarkup(panel.render());
-    expect(html).toContain('Cannot start replay');
-    expect(html).toContain('Claude unavailable');
-    expect(html).toContain('Gemini unavailable');
+    expect(html).toContain(t('replay.cannotStartReplay', 'en'));
+    expect(html).toContain(`Claude ${t('replay.unavailable', 'en')}`);
+    expect(html).toContain(`Gemini ${t('replay.unavailable', 'en')}`);
     expect(replaySnapshot).toHaveBeenCalledTimes(1);
   });
 
@@ -228,14 +229,14 @@ describe('ReplayPanel', () => {
     });
     const panel = new ReplayPanel({});
 
-    propsOf(buttonWithText(panel.render(), 'Replay last run')).onClick?.();
+    propsOf(buttonWithText(panel.render(), t('replay.lastRun', 'en'))).onClick?.();
     await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
 
     const blockedTree = panel.render();
-    expect(renderToStaticMarkup(blockedTree)).toContain('Cannot start replay');
-    expect(renderToStaticMarkup(blockedTree)).toContain('Claude Code unavailable');
-    expect(propsOf(buttonWithText(blockedTree, 'Replay last run')).disabled).toBe(false);
-    propsOf(buttonWithText(blockedTree, 'Open/Login')).onClick?.();
+    expect(renderToStaticMarkup(blockedTree)).toContain(t('replay.cannotStartReplay', 'en'));
+    expect(renderToStaticMarkup(blockedTree)).toContain(`Claude Code ${t('replay.unavailable', 'en')}`);
+    expect(propsOf(buttonWithText(blockedTree, t('replay.lastRun', 'en'))).disabled).toBe(false);
+    propsOf(buttonWithText(blockedTree, t('replay.openLogin', 'en'))).onClick?.();
     expect(host.provider.openLogin).toHaveBeenCalledWith('claude-code');
   });
 
@@ -245,10 +246,10 @@ describe('ReplayPanel', () => {
     vi.mocked(replaySnapshot).mockResolvedValueOnce({ ok: false, blocked: 'not-found' });
     const panel = new ReplayPanel({});
 
-    propsOf(buttonWithText(panel.render(), 'Replay last run')).onClick?.();
+    propsOf(buttonWithText(panel.render(), t('replay.lastRun', 'en'))).onClick?.();
     await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
 
-    expect(renderToStaticMarkup(panel.render())).toContain('Snapshot not found.');
+    expect(renderToStaticMarkup(panel.render())).toContain(t('replay.snapshotNotFound', 'en'));
   });
 });
 

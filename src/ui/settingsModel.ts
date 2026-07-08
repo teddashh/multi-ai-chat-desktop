@@ -9,8 +9,10 @@ import {
 } from './slotAssignment';
 import { isSnapshotRedactionTier, type SnapshotRedactionTier } from '../workflow/snapshot/types';
 import { defaultPresentation, normalizePresentation, type PresentationByProvider } from './presentation';
+import { normalizeLanguageSetting, type LanguageSetting } from '../i18n/resolve';
 
 export interface AppSettings {
+  language: LanguageSetting;
   hackmdToken: string;
   columnWidths: ColumnWidths;
   slotAssignment: SlotAssignment;
@@ -29,6 +31,7 @@ const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
 export function defaultSettings(): AppSettings {
   return {
+    language: 'system',
     hackmdToken: '',
     columnWidths: { ...DEFAULT_COLUMN_WIDTHS },
     slotAssignment: { ...DEFAULT_SLOT_ASSIGNMENT },
@@ -75,6 +78,7 @@ export function normalizeSettings(value: unknown): AppSettings {
   const input = value as Partial<Record<keyof AppSettings, unknown>>;
 
   return {
+    language: normalizeLanguageSetting(input.language),
     hackmdToken: stringValue(input.hackmdToken, defaults.hackmdToken),
     columnWidths: columnWidths(input.columnWidths, defaults.columnWidths),
     slotAssignment: normalizeSlotAssignment(input.slotAssignment, defaults.slotAssignment),

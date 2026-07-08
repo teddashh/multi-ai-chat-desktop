@@ -1,5 +1,7 @@
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
+import type { Locale } from '../i18n/resolve';
+import { t } from '../i18n/t';
 import { isSendable } from '../workflow';
 import { toggleTarget } from './targets';
 
@@ -8,11 +10,13 @@ export function TargetChips({
   states,
   selected,
   onChange,
+  locale = 'en',
 }: {
   providers: AIProvider[];
   states: Record<AIProvider, ProviderState>;
   selected: AIProvider[];
   onChange: (selected: AIProvider[]) => void;
+  locale?: Locale;
 }) {
   return (
     <>
@@ -30,7 +34,8 @@ export function TargetChips({
                 : 'border-zinc-700 text-zinc-400 disabled:opacity-60'
             }`}
           >
-            {AI_PROVIDERS[provider].name}: {sendable ? (active ? 'ready selected' : 'ready off') : 'not ready'}
+            {AI_PROVIDERS[provider].name}:{' '}
+            {sendable ? (active ? t('connection.readySelected', locale) : t('connection.readyOff', locale)) : t('connection.notReady', locale)}
           </button>
         );
       })}

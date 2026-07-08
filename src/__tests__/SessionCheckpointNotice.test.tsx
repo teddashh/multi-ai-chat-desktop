@@ -2,6 +2,9 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { host } from '../host';
+import { modeName } from '../i18n/modes';
+import type { Locale } from '../i18n/resolve';
+import { formatI18n, t } from '../i18n/t';
 import { SessionCheckpointNotice } from '../ui/SessionCheckpointNotice';
 import {
   clearStartupSessionCheckpointNotice,
@@ -91,19 +94,19 @@ describe('SessionCheckpointNotice', () => {
     });
   });
 
-  it('renders the startup notice and wires Dismiss and Replay actions', () => {
+  it.each(['en', 'zh-TW'] as const)('renders the %s startup notice and wires Dismiss and Replay actions', (locale: Locale) => {
     const onDismiss = vi.fn();
     const onReplay = vi.fn();
-    const tree = SessionCheckpointNotice({ notice: notice(), onDismiss, onReplay });
+    const tree = SessionCheckpointNotice({ notice: notice(), onDismiss, onReplay, locale });
     const html = renderToStaticMarkup(tree);
 
-    expect(html).toContain('上次的 四方辯證 執行未正常結束');
-    expect(html).toContain('Step 2');
+    expect(html).toContain(formatI18n(t('sessionCheckpoint.interrupted', locale), { mode: modeName('debate', locale) }));
+    expect(html).toContain(`${t('sessionCheckpoint.step', locale)} 2`);
 
-    propsOf(firstElement(tree, (element) => element.type === 'button' && textOf(element).includes('Dismiss'))).onClick?.();
+    propsOf(firstElement(tree, (element) => element.type === 'button' && textOf(element).includes(t('sessionCheckpoint.dismiss', locale)))).onClick?.();
     expect(onDismiss).toHaveBeenCalledTimes(1);
 
-    propsOf(firstElement(tree, (element) => element.type === 'button' && textOf(element).includes('Replay'))).onClick?.();
+    propsOf(firstElement(tree, (element) => element.type === 'button' && textOf(element).includes(t('sessionCheckpoint.replay', locale)))).onClick?.();
     expect(onReplay).toHaveBeenCalledTimes(1);
   });
 

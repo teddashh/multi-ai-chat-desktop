@@ -1,5 +1,7 @@
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider } from '../../shared/types';
+import type { Locale } from '../i18n/resolve';
+import { t } from '../i18n/t';
 import type { PreflightDialogModel } from './preflightModel';
 
 export function PreflightDialog({
@@ -7,11 +9,13 @@ export function PreflightDialog({
   onOpenLogin,
   onReassign,
   onSwitchMode,
+  locale = 'en',
 }: {
   model: PreflightDialogModel;
   onOpenLogin: (provider: AIProvider) => void;
   onReassign: () => void;
   onSwitchMode: () => void;
+  locale?: Locale;
 }) {
   const hasUnavailable = model.unavailable.length > 0;
   return (
@@ -26,7 +30,7 @@ export function PreflightDialog({
                 <span className="text-zinc-400"> - {item.reason}</span>
               </div>
               <button className="border border-emerald-700 px-2 py-1 text-xs hover:bg-emerald-950" onClick={() => onOpenLogin(item.provider)}>
-                Open/Login
+                {t('preflight.openLogin', locale)}
               </button>
             </div>
           ))}
@@ -44,10 +48,10 @@ export function PreflightDialog({
             }`}
             onClick={onReassign}
           >
-            Reassign role
+            {t('preflight.reassignRole', locale)}
           </button>
           <button className="border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-900" onClick={onSwitchMode}>
-            Switch mode
+            {t('preflight.switchMode', locale)}
           </button>
         </div>
       </section>

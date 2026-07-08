@@ -57,6 +57,7 @@ vi.mock('react', async (importOriginal) => {
 });
 
 import { isValidElement } from 'react';
+import { t } from '../i18n/t';
 import { InputBar } from '../ui/InputBar';
 import {
   ATTACHMENT_LIMIT_MESSAGE,
@@ -382,7 +383,7 @@ function buttonWithText(renderer: Renderer, text: string): ElementProps {
 }
 
 function sendButton(renderer: Renderer): ElementProps {
-  return buttonWithText(renderer, 'Send');
+  return buttonWithText(renderer, t('input.send', 'en'));
 }
 
 function fileInput(renderer: Renderer): ElementProps {
@@ -399,12 +400,12 @@ function chipNames(renderer: Renderer): string[] {
     (element) =>
       element.type === 'button' &&
       typeof propsOf(element)['aria-label'] === 'string' &&
-      propsOf(element)['aria-label']!.startsWith('Remove '),
-  ).map((element) => propsOf(element)['aria-label']!.replace(/^Remove /, ''));
+      propsOf(element)['aria-label']!.startsWith(`${t('input.removeFile', 'en')} `),
+  ).map((element) => propsOf(element)['aria-label']!.replace(new RegExp(`^${t('input.removeFile', 'en')} `), ''));
 }
 
 function readingChipCount(renderer: Renderer): number {
-  return findAllElements(renderer.tree, (element) => element.type === 'span' && textOf(element) === 'Reading...').length;
+  return findAllElements(renderer.tree, (element) => element.type === 'span' && textOf(element) === t('input.reading', 'en')).length;
 }
 
 function alertText(renderer: Renderer): string {
