@@ -7,6 +7,7 @@ import { publishBridgeMessage } from './bridge/bus';
 import { EchoPanel } from './dev/EchoPanel';
 import { host } from './host';
 import { useI18n } from './i18n/context';
+import { MODE_NAME_KEYS } from './i18n/modes';
 import type { Locale } from './i18n/resolve';
 import { formatI18n, t as translateKey } from './i18n/t';
 import { mergePullBridgeState, type PullBridgeState } from './appBridgeState';
@@ -14,6 +15,15 @@ import { onCheckpoint, type PendingCheckpoint } from './workflow/checkpoint';
 import { onStepTimeoutEvent, runWorkflow } from './workflow';
 import type { PreflightResult } from './workflow/preflight';
 import { bubbleAuthorLabel } from './bubbleAuthorLabel';
+import {
+  manualFocusLockForControl,
+  pointerDebounceLock,
+  providerFromRoleAssignment,
+  refreshManualLockOnRoleAssignment,
+  shouldAutoFocus,
+  type ManualFocusLock,
+  type ManualFocusPointerDown,
+} from './ui/autoFocus';
 import { CheckpointCard } from './ui/CheckpointCard';
 import { FocusPane } from './ui/FocusPane';
 import { InputBar } from './ui/InputBar';
@@ -60,7 +70,6 @@ import {
   loadStartupSessionCheckpointNotice,
   type StartupSessionCheckpointNotice,
 } from './ui/sessionCheckpointStartup';
-import { chipState } from './ui/providerChipState';
 import { nextStepTimeoutState } from './ui/stepTimeoutState';
 import {
   applyFreeTargetDefaults,
@@ -148,6 +157,7 @@ export default function App() {
   const [mode, setMode] = useState<ChatMode>('free');
   const [roles, setRoles] = useState<ModeRoles>(() => defaultRolesForMode('debate'));
   const [advancedControlsOpen, setAdvancedControlsOpen] = useState(false);
+  const [replayDrawerOpen, setReplayDrawerOpen] = useState(false);
   const [processTrace, setProcessTrace] = useState<ProcessTraceState | undefined>();
   const [targetSelection, setTargetSelection] = useState<FreeTargetSelection>(() => ({
     targets: [],
@@ -168,6 +178,8 @@ export default function App() {
   const [reportBusy, setReportBusy] = useState(false);
   const [adapterNotice, setAdapterNotice] = useState<AdapterNotice | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [autoFollowEnabled, setAutoFollowEnabledState] = useState(true);
+  const [manualFocusLockActive, setManualFocusLockActive] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>(() => defaultSettings());
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [initialRestoreComplete, setInitialRestoreComplete] = useState(false);
@@ -185,7 +197,13 @@ export default function App() {
   const userHiddenRef = useRef<Set<AIProvider>>(userHidden);
   const settingsRef = useRef<AppSettings>(appSettings);
   const localeRef = useRef(locale);
+  const autoFollowEnabledRef = useRef(autoFollowEnabled);
+  const manualFocusLockRef = useRef<ManualFocusLock | undefined>();
+  const manualFocusPointerDownRef = useRef<ManualFocusPointerDown | undefined>();
+  const manualFocusIdlePausedRef = useRef(false);
+  const manualFocusIdlePauseStartedAtRef = useRef<number | undefined>();
   const presentationRef = useRef<PresentationByProvider>(presentation);
+  const changeProviderPresentationRef = useRef<(provider: AIProvider, state: WebviewPresentationState) => Promise<void>>(async () => {});
   const centerHiddenRef = useRef<Set<AIProvider>>(centerHidden);
   const centerTransitionsInFlightRef = useRef<Set<AIProvider>>(centerTransitionsInFlight);
   const centerTransitionGenerations = useRef<Map<AIProvider, number>>(new Map());
@@ -217,6 +235,8 @@ export default function App() {
 
   const overlayGuardOpen =
     Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || Boolean(accessProvider);
+  const manualFocusIdlePaused = Boolean(checkpoint) || Boolean(stepTimeout);
+  const followRunPaused = autoFollowEnabled && manualFocusLockActive;
   overlayGuardOpenRef.current = overlayGuardOpen;
   useOverlayGuard(overlayGuardOpen, loadedModalProviders);
 
@@ -245,6 +265,28 @@ export default function App() {
     localeRef.current = locale;
   }, [locale]);
 
+  const setManualFocusLock = useCallback((lock: ManualFocusLock | undefined) => {
+    manualFocusLockRef.current = lock;
+    setManualFocusLockActive(Boolean(lock));
+  }, []);
+
+  useEffect(() => {
+    autoFollowEnabledRef.current = autoFollowEnabled;
+  }, [autoFollowEnabled]);
+
+  const setAutoFollowEnabled = useCallback((enabled: boolean) => {
+    autoFollowEnabledRef.current = enabled;
+    setAutoFollowEnabledState(enabled);
+    if (enabled) setManualFocusLock(undefined);
+  }, [setManualFocusLock]);
+
+  const markManualFocusControl = useCallback((provider: AIProvider) => {
+    const now = Date.now();
+    manualFocusPointerDownRef.current = { provider, at: now };
+    const lock = manualFocusLockForControl(provider, presentationRef.current[provider], now);
+    if (lock) setManualFocusLock(lock);
+  }, [setManualFocusLock]);
+
   useEffect(() => {
     presentationRef.current = presentation;
   }, [presentation]);
@@ -263,6 +305,19 @@ export default function App() {
       setCheckpointDraft(pending?.draft ?? '');
     });
   }, []);
+
+  useEffect(() => {
+    manualFocusIdlePausedRef.current = manualFocusIdlePaused;
+    if (manualFocusIdlePaused) {
+      manualFocusIdlePauseStartedAtRef.current ??= Date.now();
+      return;
+    }
+
+    if (manualFocusIdlePauseStartedAtRef.current !== undefined) {
+      manualFocusIdlePauseStartedAtRef.current = undefined;
+      if (manualFocusLockRef.current) setManualFocusLock({ ...manualFocusLockRef.current, at: Date.now() });
+    }
+  }, [manualFocusIdlePaused, setManualFocusLock]);
 
   useEffect(() => {
     if (!shareNotice) return;
@@ -384,19 +439,40 @@ export default function App() {
         const status = typeof message.payload === 'string' ? message.payload : '';
         setWorkflowStatus(status);
         setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message, localeRef.current) : current));
-        if (status === '') setStepTimeout((current) => nextStepTimeoutState(current, { type: 'settle' }));
+        if (status === '') {
+          setManualFocusLock(undefined);
+          setStepTimeout((current) => nextStepTimeoutState(current, { type: 'settle' }));
+        }
         setIsProcessing((current) => processingAfterWorkflowStatus(current, status));
         return;
       }
-      if (message.action === 'ROLE_ASSIGNMENT' && message.provider) {
+      if (message.action === 'ROLE_ASSIGNMENT') {
+        const provider = providerFromRoleAssignment(message);
+        if (!provider) return;
         const payload = message.payload as { turn?: unknown; label?: unknown } | undefined;
         if (typeof payload?.turn === 'number') {
-          activeTurns.current.set(message.provider, {
+          activeTurns.current.set(provider, {
             turn: payload.turn,
             label: typeof payload.label === 'string' ? payload.label : undefined,
           });
         }
         setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message, localeRef.current) : current));
+        const now = Date.now();
+        const refreshedLock = refreshManualLockOnRoleAssignment(manualFocusLockRef.current, now, {
+          idlePaused: manualFocusIdlePausedRef.current,
+        });
+        setManualFocusLock(refreshedLock);
+        const manualLock = refreshedLock ?? pointerDebounceLock(manualFocusPointerDownRef.current, now);
+        if (
+          shouldAutoFocus({
+            autoFollowEnabled: autoFollowEnabledRef.current,
+            manualLock,
+            candidate: provider,
+            centered: centerPresentationProvider(presentationRef.current),
+          })
+        ) {
+          void changeProviderPresentationRef.current(provider, 'center');
+        }
         return;
       }
       if (!isRenderableResponseMessage(message) || !message.provider) return;
@@ -478,7 +554,7 @@ export default function App() {
       cleanupBridge?.();
       cleanupTimeout();
     };
-  }, []);
+  }, [setManualFocusLock]);
 
   useEffect(() => {
     if (mode === 'free') return;
@@ -748,6 +824,38 @@ export default function App() {
   );
 
   useEffect(() => {
+    changeProviderPresentationRef.current = changeProviderPresentation;
+  }, [changeProviderPresentation]);
+
+  const changeProviderPresentationManually = useCallback(
+    async (provider: AIProvider, state: WebviewPresentationState) => {
+      markManualFocusControl(provider);
+      await changeProviderPresentation(provider, state);
+    },
+    [changeProviderPresentation, markManualFocusControl],
+  );
+
+  const autoFocusRunCandidate = useCallback((candidate: AIProvider | undefined) => {
+    if (!candidate) return;
+    const now = Date.now();
+    const refreshedLock = refreshManualLockOnRoleAssignment(manualFocusLockRef.current, now, {
+      idlePaused: manualFocusIdlePausedRef.current,
+    });
+    setManualFocusLock(refreshedLock);
+    const manualLock = refreshedLock ?? pointerDebounceLock(manualFocusPointerDownRef.current, now);
+    if (
+      shouldAutoFocus({
+        autoFollowEnabled: autoFollowEnabledRef.current,
+        manualLock,
+        candidate,
+        centered: centerPresentationProvider(presentationRef.current),
+      })
+    ) {
+      void changeProviderPresentationRef.current(candidate, 'center');
+    }
+  }, [setManualFocusLock]);
+
+  useEffect(() => {
     const next = new Set(centerHiddenProviders(presentation, states, userHidden, PROVIDERS, centerTransitionsInFlight));
     const previous = centerHiddenRef.current;
     const centered = centerPresentationProvider(presentation);
@@ -845,6 +953,7 @@ export default function App() {
     if (!trimmed) return;
     const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
     if (workflowTargets?.length === 0) return;
+    if (mode === 'free') autoFocusRunCandidate(workflowTargets?.[0]);
     const turnId = ++turnRef.current;
     setMessages((current) => [...current, { id: `user-${turnId}`, role: 'user', content: trimmed, final: true }]);
     setIsProcessing(processingAfterSend());
@@ -890,6 +999,7 @@ export default function App() {
       info: sessionCheckpointNotice.replaySnapshot,
     };
     setAdvancedControlsOpen(true);
+    setReplayDrawerOpen(true);
     setSessionCheckpointReplayBusy(true);
     const replay = replayPanelRef.current?.startReplay(source);
     if (replay) {
@@ -901,6 +1011,7 @@ export default function App() {
 
   const cancelWorkflow = () => {
     publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
+    setManualFocusLock(undefined);
     setIsProcessing(false);
     setWorkflowStatus('');
     setStepTimeout(undefined);
@@ -1044,9 +1155,10 @@ export default function App() {
   }, []);
 
   const settleReplayTrace = useCallback(() => {
+    setManualFocusLock(undefined);
     setStepTimeout(undefined);
     setIsProcessing(processingAfterSettle());
-  }, []);
+  }, [setManualFocusLock]);
 
   return (
     <main className="h-screen bg-zinc-950 text-zinc-100">
@@ -1063,7 +1175,8 @@ export default function App() {
           setCenterStageRef={setCenterStageRef}
           openProvider={openProvider}
           togglePaneVisibility={togglePaneVisibility}
-          changeProviderPresentation={changeProviderPresentation}
+          changeProviderPresentation={changeProviderPresentationManually}
+          onManualFocusControl={markManualFocusControl}
           accessProvider={accessProvider}
           toggleAdapterAccess={toggleAdapterAccess}
           syncBounds={syncBounds}
@@ -1074,65 +1187,49 @@ export default function App() {
         <Resizer label={translate('layout.resizeFocusPane')} onDrag={dragFocusPane} />
 
         <section className="flex min-w-0 flex-col border-l border-zinc-800 bg-zinc-950 p-4">
-          <div className="flex items-start gap-3 border-b border-zinc-800 pb-3">
-            <div className="min-w-0 flex-1">
-              <ConnectionBar
-                states={states}
-                presentation={presentation}
-                mode={mode}
-                targets={targets}
-                onTargetsChange={handleTargetsChange}
-                locale={locale}
-              />
+          <div className="border-b border-zinc-800 pb-3">
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="shrink-0 border border-sky-800 bg-sky-950 px-2 py-1 text-xs font-medium text-sky-100">
+                    <span className="mr-1">{CHAT_MODES[mode].icon}</span>
+                    {translate(MODE_NAME_KEYS[mode])}
+                  </span>
+                  <span className="min-w-0 truncate text-xs text-zinc-400">{workflowStatus || translate('processTrace.settled')}</span>
+                </div>
+              </div>
+              <label
+                className={`flex items-center gap-2 border px-2 py-1 text-xs ${
+                  followRunPaused ? 'border-amber-700 bg-amber-950/40 text-amber-100' : 'border-zinc-700 text-zinc-200'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className={`h-3.5 w-3.5 ${followRunPaused ? 'accent-amber-500' : 'accent-sky-500'}`}
+                  checked={autoFollowEnabled}
+                  onChange={(event) => setAutoFollowEnabled(event.currentTarget.checked)}
+                />
+                {followRunPaused ? translate('header.followRunPaused') : translate('header.followRun')}
+              </label>
+              <button
+                className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void exportConversation()}
+                disabled={messages.length === 0 || sharing}
+              >
+                {translate('header.exportMarkdown')}
+              </button>
+              <button
+                className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void publishConversation()}
+                disabled={messages.length === 0 || sharing}
+              >
+                {translate('header.publishHackmd')}
+              </button>
+              <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
+                {translate('header.settings')}
+              </button>
             </div>
-            <button
-              className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={() => void exportConversation()}
-              disabled={messages.length === 0 || sharing}
-            >
-              {translate('header.exportMarkdown')}
-            </button>
-            <button
-              className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={() => void publishConversation()}
-              disabled={messages.length === 0 || sharing}
-            >
-              {translate('header.publishHackmd')}
-            </button>
-            <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
-              {translate('header.settings')}
-            </button>
           </div>
-          <div className="mt-3">
-            <PresetCatalog
-              mode={mode}
-              onSelectPreset={selectPreset}
-              advancedOpen={advancedControlsOpen}
-              onAdvancedOpenChange={setAdvancedControlsOpen}
-              locale={locale}
-            >
-              <ModeSelector mode={mode} onModeChange={setMode} locale={locale} />
-              <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />
-              <ReplayPanel
-                ref={replayPanelRef}
-                locale={locale}
-                onReplayWillRun={prepareReplayTrace}
-                onReplaySettled={settleReplayTrace}
-                onSnapshotComplete={persistReplaySnapshot}
-              />
-            </PresetCatalog>
-          </div>
-          <label className="mt-3 flex w-fit items-center gap-2 border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-amber-500"
-              checked={confirmEachStep}
-              onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
-              disabled={isProcessing}
-            />
-            {translate('checkpoint.confirmEachStep')}
-          </label>
-          {workflowStatus ? <div className="mt-3 border border-sky-900 bg-sky-950 px-3 py-2 text-xs text-sky-200">{workflowStatus}</div> : null}
           {sessionCheckpointNotice ? (
             <SessionCheckpointNotice
               notice={sessionCheckpointNotice}
@@ -1142,16 +1239,6 @@ export default function App() {
               locale={locale}
             />
           ) : null}
-          <CheckpointCard
-            checkpoint={checkpoint}
-            draft={checkpointDraft}
-            onDraftChange={setCheckpointDraft}
-            onNativeEdit={(provider) => {
-              void changeProviderPresentation(provider, 'center');
-            }}
-            locale={locale}
-          />
-          {processTrace ? <ProcessTrace trace={processTrace} locale={locale} /> : null}
           {shareNotice ? (
             <div
               className={
@@ -1168,20 +1255,111 @@ export default function App() {
               {adapterNoticeText(adapterNotice)}
             </div>
           ) : null}
+          <div className="mt-3">
+            <PresetCatalog
+              mode={mode}
+              onSelectPreset={selectPreset}
+              advancedOpen={advancedControlsOpen}
+              onAdvancedOpenChange={setAdvancedControlsOpen}
+              locale={locale}
+              visiblePresetCount={3}
+              showFullCatalogInAdvanced
+              moreLabelKey="preset.morePresets"
+              advancedClosedLabelKey="preset.showFullCatalog"
+              advancedOpenLabelKey="preset.hideFullCatalog"
+            >
+              <ModeSelector mode={mode} onModeChange={setMode} locale={locale} />
+              <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />
+            </PresetCatalog>
+          </div>
+          {mode === 'free' ? (
+            <section className="mt-3 border border-zinc-800 bg-zinc-900 p-3">
+              <div className="mb-2 text-xs font-semibold uppercase text-zinc-400">{translate('input.sendSelectedProviders')}</div>
+              <div className="flex flex-wrap gap-2">
+                <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} locale={locale} />
+              </div>
+            </section>
+          ) : null}
+          {processTrace ? (
+            <div className="max-h-48 overflow-auto">
+              <ProcessTrace trace={processTrace} locale={locale} />
+            </div>
+          ) : null}
+          <div className="mt-3 space-y-2">
+            <details
+              className="border border-zinc-800 bg-zinc-950"
+              open={replayDrawerOpen}
+              onToggle={(event) => setReplayDrawerOpen(event.currentTarget.open)}
+            >
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-900">
+                {translate('replay.snapshotReplay')}
+              </summary>
+              <div className="border-t border-zinc-800 px-3 pb-3">
+                <ReplayPanel
+                  ref={replayPanelRef}
+                  locale={locale}
+                  onReplayWillRun={prepareReplayTrace}
+                  onReplaySettled={settleReplayTrace}
+                  onSnapshotComplete={persistReplaySnapshot}
+                />
+              </div>
+            </details>
+            {checkpoint ? (
+              <details className="border border-amber-900 bg-zinc-950" open>
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-amber-100 hover:bg-amber-950">
+                  {translate('checkpoint.confirmEachStep')}
+                </summary>
+                <div className="border-t border-amber-900 px-3 pb-3">
+                  <CheckpointCard
+                    checkpoint={checkpoint}
+                    draft={checkpointDraft}
+                    onDraftChange={setCheckpointDraft}
+                    onNativeEdit={(provider) => {
+                      void changeProviderPresentationManually(provider, 'center');
+                    }}
+                    locale={locale}
+                  />
+                </div>
+              </details>
+            ) : null}
+            <details className="border border-zinc-800 bg-zinc-950">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-900">
+                {translate('settings.diagnostics')}
+              </summary>
+              <div className="border-t border-zinc-800 p-3 text-xs text-zinc-400">
+                <p>{translate('settings.diagnosticsDescription')}</p>
+                <button className="mt-3 border border-zinc-700 px-2 py-1 text-zinc-200 hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
+                  {translate('header.settings')}
+                </button>
+              </div>
+            </details>
+          </div>
           {stepTimeout && !stepTimeout.timedOut ? (
             <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />
           ) : null}
-          <div className="mt-4 min-h-0 flex-1 overflow-auto border-y border-zinc-800 py-3">
+          <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-800 py-3">
             <ChatArea messages={messages} locale={locale} />
             {import.meta.env.DEV ? <EchoPanel /> : null}
           </div>
-          <InputBar
-            onSend={(value) => void send(value)}
-            onCancel={cancelWorkflow}
-            disabled={noSendableProviders}
-            isProcessing={isProcessing}
-            locale={locale}
-          />
+          <div className="mt-3 border-t border-zinc-800 pt-3">
+            <InputBar
+              onSend={(value) => void send(value)}
+              onCancel={cancelWorkflow}
+              disabled={noSendableProviders}
+              isProcessing={isProcessing}
+              locale={locale}
+            />
+            <label className="mt-2 flex w-fit items-center gap-2 border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-amber-500"
+                checked={confirmEachStep}
+                onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
+                disabled={isProcessing}
+              />
+              {translate('checkpoint.confirmEachStep')}
+            </label>
+          </div>
         </section>
       </div>
       {preflight ? (
@@ -1292,39 +1470,6 @@ function adapterNoticeText(notice: AdapterNotice): string {
     return `${provider} adapter ${notice.kind}${version}.`;
   }
   return `${provider}: ${notice.message || notice.kind}`;
-}
-
-function ConnectionBar({
-  states,
-  presentation,
-  mode,
-  targets,
-  onTargetsChange,
-  locale,
-}: {
-  states: Record<AIProvider, ProviderState>;
-  presentation: PresentationByProvider;
-  mode: ChatMode;
-  targets: AIProvider[];
-  onTargetsChange: (targets: AIProvider[]) => void;
-  locale: Locale;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-3">
-      {mode === 'free' ? (
-        <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={onTargetsChange} locale={locale} />
-      ) : (
-        PROVIDERS.map((provider) => {
-          const chip = chipState(states[provider], presentation[provider], (key) => translateKey(key, locale));
-          return (
-            <div key={provider} className={`border px-2 py-1 text-xs ${chip.className}`}>
-              {AI_PROVIDERS[provider].name}: {chip.label}
-            </div>
-          );
-        })
-      )}
-    </div>
-  );
 }
 
 function ChatArea({ messages, locale }: { messages: Bubble[]; locale: Locale }) {

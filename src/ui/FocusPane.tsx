@@ -22,6 +22,7 @@ export function FocusPane({
   openProvider,
   togglePaneVisibility,
   changeProviderPresentation,
+  onManualFocusControl,
   accessProvider,
   toggleAdapterAccess,
   syncBounds,
@@ -40,6 +41,7 @@ export function FocusPane({
   openProvider: (provider: AIProvider) => Promise<void>;
   togglePaneVisibility: (provider: AIProvider) => Promise<void>;
   changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
+  onManualFocusControl: (provider: AIProvider) => void;
   accessProvider: AIProvider | null;
   toggleAdapterAccess: (provider: AIProvider) => void;
   syncBounds: (provider: AIProvider) => Promise<void>;
@@ -62,6 +64,7 @@ export function FocusPane({
           openProvider={openProvider}
           togglePaneVisibility={togglePaneVisibility}
           changeProviderPresentation={changeProviderPresentation}
+          onManualFocusControl={onManualFocusControl}
           toggleAdapterAccess={toggleAdapterAccess}
           syncBounds={syncBounds}
           reportProvider={reportProvider}
@@ -87,6 +90,7 @@ export function FocusPane({
               hiddenByCenter={presentationHidden.has(provider)}
               setPaneRef={setPaneRef}
               changeProviderPresentation={changeProviderPresentation}
+              onManualFocusControl={onManualFocusControl}
             />
           ))}
         </div>
@@ -105,6 +109,7 @@ function FocusStage({
   openProvider,
   togglePaneVisibility,
   changeProviderPresentation,
+  onManualFocusControl,
   toggleAdapterAccess,
   syncBounds,
   reportProvider,
@@ -119,6 +124,7 @@ function FocusStage({
   openProvider: (provider: AIProvider) => Promise<void>;
   togglePaneVisibility: (provider: AIProvider) => Promise<void>;
   changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
+  onManualFocusControl: (provider: AIProvider) => void;
   toggleAdapterAccess: (provider: AIProvider) => void;
   syncBounds: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
@@ -129,7 +135,11 @@ function FocusStage({
   const hidden = hiddenByUser || hiddenByCenter;
 
   return (
-    <section ref={setCenterStageRef} className="flex min-h-[360px] flex-1 flex-col overflow-hidden border border-sky-900 bg-zinc-900">
+    <section
+      ref={setCenterStageRef}
+      className="flex min-h-[360px] flex-1 flex-col overflow-hidden border border-sky-900 bg-zinc-900"
+      onPointerDownCapture={() => onManualFocusControl(provider)}
+    >
       <div className="flex items-center justify-between gap-2 border-b border-sky-900 px-3 py-2 text-sm">
         <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
         <div className="flex flex-wrap justify-end gap-2 text-xs">
@@ -224,6 +234,7 @@ function ThumbnailTile({
   hiddenByCenter,
   setPaneRef,
   changeProviderPresentation,
+  onManualFocusControl,
 }: {
   provider: AIProvider;
   state: ProviderState;
@@ -232,11 +243,13 @@ function ThumbnailTile({
   hiddenByCenter: boolean;
   setPaneRef: (provider: AIProvider, el: HTMLDivElement | null) => void;
   changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
+  onManualFocusControl: (provider: AIProvider) => void;
 }) {
   const { t } = useI18n();
   const status = chipState(state, presentation, t);
   const hidden = hiddenByUser || hiddenByCenter;
   const focusProvider = () => {
+    onManualFocusControl(provider);
     void changeProviderPresentation(provider, 'center');
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -255,6 +268,7 @@ function ThumbnailTile({
       className={`min-h-24 cursor-pointer border bg-zinc-900 p-2 outline-none transition-colors hover:border-sky-700 focus:border-sky-600 ${
         hidden ? 'border-zinc-700' : 'border-zinc-800'
       }`}
+      onPointerDown={() => onManualFocusControl(provider)}
       onClick={focusProvider}
       onKeyDown={onKeyDown}
     >
