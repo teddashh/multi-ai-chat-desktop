@@ -82,6 +82,8 @@ describe('M4b UI helpers', () => {
   it('normalizes and merges settings defensively', () => {
     expect(defaultSettings()).toMatchObject({
       language: 'system',
+      layoutMode: 'focus',
+      focusPaneWidth: 620,
       hackmdToken: '',
       columnWidths: { left: 280, right: 280 },
       slotAssignment: DEFAULT_SLOT_ASSIGNMENT,
@@ -104,6 +106,8 @@ describe('M4b UI helpers', () => {
       presentation: { chatgpt: 'chip', claude: 'center', gemini: 'bad', grok: 'center' },
     });
     expect(normalized.language).toBe('system');
+    expect(normalized.layoutMode).toBe('focus');
+    expect(normalized.focusPaneWidth).toBe(420);
     expect(normalized.hackmdToken).toBe('');
     expect(normalized.columnWidths.left).toBeGreaterThanOrEqual(200);
     expect(normalized.columnWidths.right).toBeLessThanOrEqual(520);
@@ -116,10 +120,20 @@ describe('M4b UI helpers', () => {
 
     expect(mergeSettings(normalized, { adapterChannel: 'beta', snapshotRedactionTier: 'hashes', language: 'zh-TW' })).toMatchObject({
       adapterChannel: 'beta',
+      layoutMode: 'focus',
+      focusPaneWidth: 420,
       language: 'zh-TW',
       openProviders: ['grok', 'claude-code'],
       portable: true,
       snapshotRedactionTier: 'hashes',
+    });
+  });
+
+  it('migrates focus pane width from the legacy left column width', () => {
+    expect(normalizeSettings({ columnWidths: { left: 500, right: 320 } })).toMatchObject({
+      layoutMode: 'focus',
+      focusPaneWidth: 500,
+      columnWidths: { left: 500, right: 320 },
     });
   });
 

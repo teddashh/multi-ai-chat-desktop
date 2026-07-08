@@ -1,6 +1,7 @@
 import type { AIProvider } from '../../shared/types';
 import { AI_PROVIDERS } from '../../shared/constants';
 import { DEFAULT_COLUMN_WIDTHS, type ColumnWidths, clampColumnWidths } from './dockLayout';
+import { DEFAULT_FOCUS_PANE_WIDTH, clampFocusPaneWidth } from './focusLayout';
 import {
   DEFAULT_SLOT_ASSIGNMENT,
   SLOT_IDS,
@@ -13,6 +14,8 @@ import { normalizeLanguageSetting, type LanguageSetting } from '../i18n/resolve'
 
 export interface AppSettings {
   language: LanguageSetting;
+  layoutMode: 'focus';
+  focusPaneWidth: number;
   hackmdToken: string;
   columnWidths: ColumnWidths;
   slotAssignment: SlotAssignment;
@@ -32,6 +35,8 @@ const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 export function defaultSettings(): AppSettings {
   return {
     language: 'system',
+    layoutMode: 'focus',
+    focusPaneWidth: DEFAULT_FOCUS_PANE_WIDTH,
     hackmdToken: '',
     columnWidths: { ...DEFAULT_COLUMN_WIDTHS },
     slotAssignment: { ...DEFAULT_SLOT_ASSIGNMENT },
@@ -72,15 +77,29 @@ function columnWidths(value: unknown, fallback: ColumnWidths): ColumnWidths {
   );
 }
 
+function legacyFocusPaneWidth(value: unknown): number | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const input = value as Partial<Record<keyof ColumnWidths, unknown>>;
+  return typeof input.left === 'number' ? input.left : undefined;
+}
+
+function focusPaneWidth(value: unknown, legacyColumnWidths: unknown, fallback: number): number {
+  const candidate = typeof value === 'number' ? value : legacyFocusPaneWidth(legacyColumnWidths) ?? fallback;
+  return clampFocusPaneWidth(candidate, 1400);
+}
+
 export function normalizeSettings(value: unknown): AppSettings {
   const defaults = defaultSettings();
   if (!value || typeof value !== 'object') return defaults;
   const input = value as Partial<Record<keyof AppSettings, unknown>>;
+  const normalizedColumnWidths = columnWidths(input.columnWidths, defaults.columnWidths);
 
   return {
     language: normalizeLanguageSetting(input.language),
+    layoutMode: 'focus',
+    focusPaneWidth: focusPaneWidth(input.focusPaneWidth, input.columnWidths, defaults.focusPaneWidth),
     hackmdToken: stringValue(input.hackmdToken, defaults.hackmdToken),
-    columnWidths: columnWidths(input.columnWidths, defaults.columnWidths),
+    columnWidths: normalizedColumnWidths,
     slotAssignment: normalizeSlotAssignment(input.slotAssignment, defaults.slotAssignment),
     openProviders: Array.from(new Set(providerList(input.openProviders))),
     adapterChannel: stringValue(input.adapterChannel, defaults.adapterChannel),

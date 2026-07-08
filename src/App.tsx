@@ -11,10 +11,11 @@ import type { Locale } from './i18n/resolve';
 import { formatI18n, t as translateKey } from './i18n/t';
 import { mergePullBridgeState, type PullBridgeState } from './appBridgeState';
 import { onCheckpoint, type PendingCheckpoint } from './workflow/checkpoint';
-import { isSendable, onStepTimeoutEvent, runWorkflow } from './workflow';
+import { onStepTimeoutEvent, runWorkflow } from './workflow';
 import type { PreflightResult } from './workflow/preflight';
 import { bubbleAuthorLabel } from './bubbleAuthorLabel';
 import { CheckpointCard } from './ui/CheckpointCard';
+import { FocusPane } from './ui/FocusPane';
 import { InputBar } from './ui/InputBar';
 import { makeFileDragGuard } from './ui/fileDrop';
 import { ModeSelector } from './ui/ModeSelector';
@@ -27,16 +28,7 @@ import { RoleConfig } from './ui/RoleConfig';
 import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
-import { buildAdapterPermissionSummary, type AdapterPermissionSummary } from './ui/adapterPermissions';
-import {
-  DEFAULT_DOCK_CONSTRAINTS,
-  DEFAULT_COLUMN_WIDTHS,
-  clampColumnWidths,
-  dragColumnWidth,
-  gridTemplateColumns,
-  maxProviderWidth,
-  type ColumnWidths,
-} from './ui/dockLayout';
+import { DEFAULT_FOCUS_LAYOUT_CONSTRAINTS, dragFocusPaneWidth, focusGridTemplateColumns } from './ui/focusLayout';
 import { defaultRolesForMode, isSerialMode } from './ui/modeRoles';
 import {
   centerHiddenProviders,
@@ -62,13 +54,13 @@ import { preflightFromResult } from './ui/preflightFromResult';
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from './ui/processing';
 import { Resizer } from './ui/Resizer';
 import { SettingsModal } from './ui/SettingsModal';
-import { defaultSettings, mergeSettings, normalizeSettings, slotProviders, type AppSettings } from './ui/settingsModel';
+import { defaultSettings, mergeSettings, normalizeSettings, type AppSettings } from './ui/settingsModel';
 import {
   clearStartupSessionCheckpointNotice,
   loadStartupSessionCheckpointNotice,
   type StartupSessionCheckpointNotice,
 } from './ui/sessionCheckpointStartup';
-import { DEFAULT_SLOT_ASSIGNMENT, type SlotAssignment } from './ui/slotAssignment';
+import { chipState } from './ui/providerChipState';
 import { nextStepTimeoutState } from './ui/stepTimeoutState';
 import {
   applyFreeTargetDefaults,
@@ -180,8 +172,7 @@ export default function App() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [initialRestoreComplete, setInitialRestoreComplete] = useState(false);
   const [connectionSnapshotLoaded, setConnectionSnapshotLoaded] = useState(false);
-  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(() => ({ ...DEFAULT_COLUMN_WIDTHS }));
-  const [slotAssignment, setSlotAssignment] = useState<SlotAssignment>(() => ({ ...DEFAULT_SLOT_ASSIGNMENT }));
+  const [focusPaneWidth, setFocusPaneWidth] = useState(() => defaultSettings().focusPaneWidth);
   const [presentation, setPresentation] = useState<PresentationByProvider>(() => defaultPresentation());
   const [userHidden, setUserHidden] = useState<Set<AIProvider>>(() => new Set());
   const [centerHidden, setCenterHidden] = useState<Set<AIProvider>>(() => new Set());
@@ -203,7 +194,7 @@ export default function App() {
   );
   const overlayGuardOpenRef = useRef(false);
   const pendingRestore = useRef<Set<AIProvider>>(new Set());
-  const dragStartWidths = useRef<ColumnWidths>({ ...DEFAULT_COLUMN_WIDTHS });
+  const dragStartFocusPaneWidth = useRef(defaultSettings().focusPaneWidth);
   const turnRef = useRef(0);
   const activeTurns = useRef(new Map<AIProvider, { turn: number; label?: string }>());
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
@@ -217,9 +208,12 @@ export default function App() {
   const noSendableProviders = mode === 'free' ? !hasFreeModeTargets : anySendableTargets.length === 0;
   const openProviders = useMemo(() => PROVIDERS.filter((provider) => states[provider].webview === 'loaded'), [states]);
   const centeredProvider = useMemo(() => centerPresentationProvider(presentation), [presentation]);
-  const chipRailProviders = useMemo(() => chipProviders(presentation, PROVIDERS), [presentation]);
-  const leftProviders = useMemo(() => sideProviders(presentation, slotProviders(slotAssignment, 'left')), [presentation, slotAssignment]);
-  const rightProviders = useMemo(() => sideProviders(presentation, slotProviders(slotAssignment, 'right')), [presentation, slotAssignment]);
+  const thumbnailSideProviders = useMemo(() => sideProviders(presentation, PROVIDERS), [presentation]);
+  const thumbnailChipProviders = useMemo(() => chipProviders(presentation, PROVIDERS), [presentation]);
+  const thumbnailProviders = useMemo(
+    () => [...thumbnailSideProviders, ...thumbnailChipProviders],
+    [thumbnailChipProviders, thumbnailSideProviders],
+  );
 
   const overlayGuardOpen =
     Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || Boolean(accessProvider);
@@ -343,8 +337,7 @@ export default function App() {
         settingsRef.current = loaded;
         setAppSettings(loaded);
         setLanguage(loaded.language);
-        setColumnWidths(loaded.columnWidths);
-        setSlotAssignment(loaded.slotAssignment);
+        setFocusPaneWidth(loaded.focusPaneWidth);
         setPresentation(loaded.presentation);
         pendingRestore.current = new Set(restorableOpenProviders(loaded.openProviders, loaded.presentation));
         setInitialRestoreComplete(pendingRestore.current.size === 0);
@@ -644,7 +637,7 @@ export default function App() {
     }
 
     if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
-  }, [centeredProvider, initialRestoreComplete, leftProviders, openProvider, presentation, rightProviders, settingsLoaded]);
+  }, [centeredProvider, initialRestoreComplete, openProvider, presentation, settingsLoaded, thumbnailSideProviders]);
 
   const persistPresentation = useCallback(
     async (next: PresentationByProvider) => {
@@ -842,11 +835,11 @@ export default function App() {
       window.clearInterval(timer);
       for (const observer of observers) observer.disconnect();
     };
-  }, [centeredProvider, leftProviders, rightProviders, syncAllBounds, syncBounds]);
+  }, [centeredProvider, syncAllBounds, syncBounds, thumbnailProviders]);
 
   useEffect(() => {
     syncAllBounds();
-  }, [columnWidths, presentation, syncAllBounds]);
+  }, [focusPaneWidth, presentation, syncAllBounds]);
 
   const send = async (trimmed: string) => {
     if (!trimmed) return;
@@ -978,24 +971,24 @@ export default function App() {
     }
   };
 
-  const dragProviderColumn = (side: keyof ColumnWidths, deltaX: number, phase: 'start' | 'move' | 'end') => {
+  const dragFocusPane = (deltaX: number, phase: 'start' | 'move' | 'end') => {
     if (phase === 'start') {
-      dragStartWidths.current = columnWidths;
+      dragStartFocusPaneWidth.current = focusPaneWidth;
       return;
     }
     const containerWidth = gridRef.current?.getBoundingClientRect().width ?? window.innerWidth;
-    const oppositeWidth = side === 'left' ? dragStartWidths.current.right : dragStartWidths.current.left;
-    const maxWidth = maxProviderWidth(containerWidth, oppositeWidth, DEFAULT_DOCK_CONSTRAINTS);
-    const directionalDelta = side === 'left' ? deltaX : -deltaX;
-    const nextWidth = dragColumnWidth(
-      dragStartWidths.current[side],
-      directionalDelta,
-      DEFAULT_DOCK_CONSTRAINTS.minProviderWidth,
+    const maxWidth = Math.max(
+      DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minFocusPaneWidth,
+      containerWidth - DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minCenterWidth - DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.resizerWidth,
+    );
+    const nextWidth = dragFocusPaneWidth(
+      dragStartFocusPaneWidth.current,
+      deltaX,
+      DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minFocusPaneWidth,
       maxWidth,
     );
-    const next = clampColumnWidths({ ...dragStartWidths.current, [side]: nextWidth }, containerWidth, DEFAULT_DOCK_CONSTRAINTS);
-    setColumnWidths(next);
-    if (phase === 'end') void persistSettingsPatch({ columnWidths: next });
+    setFocusPaneWidth(nextWidth);
+    if (phase === 'end') void persistSettingsPatch({ focusPaneWidth: nextWidth });
   };
 
   const togglePaneVisibility = async (provider: AIProvider) => {
@@ -1023,8 +1016,7 @@ export default function App() {
     presentationRef.current = settings.presentation;
     setAppSettings(settings);
     setLanguage(settings.language);
-    setColumnWidths(settings.columnWidths);
-    setSlotAssignment(settings.slotAssignment);
+    setFocusPaneWidth(settings.focusPaneWidth);
     setPresentation(settings.presentation);
   };
 
@@ -1058,14 +1050,17 @@ export default function App() {
 
   return (
     <main className="h-screen bg-zinc-950 text-zinc-100">
-      <div ref={gridRef} className="grid h-full" style={{ gridTemplateColumns: gridTemplateColumns(columnWidths) }}>
-        <ProviderColumn
-          providers={leftProviders}
+      <div ref={gridRef} className="grid h-full" style={{ gridTemplateColumns: focusGridTemplateColumns(focusPaneWidth) }}>
+        <FocusPane
+          centeredProvider={centeredProvider}
+          sideProviders={thumbnailSideProviders}
+          chipProviders={thumbnailChipProviders}
           states={states}
           presentation={presentation}
           userHidden={userHidden}
           presentationHidden={centerHidden}
           setPaneRef={setPaneRef}
+          setCenterStageRef={setCenterStageRef}
           openProvider={openProvider}
           togglePaneVisibility={togglePaneVisibility}
           changeProviderPresentation={changeProviderPresentation}
@@ -1074,12 +1069,11 @@ export default function App() {
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
-          locale={locale}
         />
 
-        <Resizer label="Resize left provider column" onDrag={(deltaX, phase) => dragProviderColumn('left', deltaX, phase)} />
+        <Resizer label={translate('layout.resizeFocusPane')} onDrag={dragFocusPane} />
 
-        <section className="flex min-w-0 flex-col border-x border-zinc-800 bg-zinc-950 p-4">
+        <section className="flex min-w-0 flex-col border-l border-zinc-800 bg-zinc-950 p-4">
           <div className="flex items-start gap-3 border-b border-zinc-800 pb-3">
             <div className="min-w-0 flex-1">
               <ConnectionBar
@@ -1109,24 +1103,6 @@ export default function App() {
               {translate('header.settings')}
             </button>
           </div>
-          <ChipRail
-            providers={chipRailProviders}
-            states={states}
-            onPromoteSide={(provider) => changeProviderPresentation(provider, 'side')}
-            onPromoteCenter={(provider) => changeProviderPresentation(provider, 'center')}
-            locale={locale}
-          />
-          {centeredProvider ? (
-            <CenterStage
-              provider={centeredProvider}
-              state={states[centeredProvider]}
-              setCenterStageRef={setCenterStageRef}
-              openProvider={openProvider}
-              changeProviderPresentation={changeProviderPresentation}
-              syncBounds={syncBounds}
-              locale={locale}
-            />
-          ) : null}
           <div className="mt-3">
             <PresetCatalog
               mode={mode}
@@ -1207,26 +1183,6 @@ export default function App() {
             locale={locale}
           />
         </section>
-
-        <Resizer label="Resize right provider column" onDrag={(deltaX, phase) => dragProviderColumn('right', deltaX, phase)} />
-
-        <ProviderColumn
-          providers={rightProviders}
-          states={states}
-          presentation={presentation}
-          userHidden={userHidden}
-          presentationHidden={centerHidden}
-          setPaneRef={setPaneRef}
-          openProvider={openProvider}
-          togglePaneVisibility={togglePaneVisibility}
-          changeProviderPresentation={changeProviderPresentation}
-          accessProvider={accessProvider}
-          toggleAdapterAccess={toggleAdapterAccess}
-          syncBounds={syncBounds}
-          reportProvider={reportProvider}
-          reportBusy={reportBusy}
-          locale={locale}
-        />
       </div>
       {preflight ? (
         <PreflightDialog
@@ -1245,9 +1201,8 @@ export default function App() {
       {stepTimeout?.timedOut ? <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} /> : null}
       <SettingsModal
         open={settingsOpen}
-        columnWidths={columnWidths}
-        slotAssignment={slotAssignment}
         openProviders={openProviders}
+        focusPaneWidth={focusPaneWidth}
         presentation={presentation}
         providerStates={states}
         onClose={() => setSettingsOpen(false)}
@@ -1263,291 +1218,6 @@ export default function App() {
         />
       ) : null}
     </main>
-  );
-}
-
-function ProviderColumn({
-  providers,
-  states,
-  presentation,
-  userHidden,
-  presentationHidden,
-  setPaneRef,
-  openProvider,
-  togglePaneVisibility,
-  changeProviderPresentation,
-  accessProvider,
-  toggleAdapterAccess,
-  syncBounds,
-  reportProvider,
-  reportBusy,
-  locale,
-}: {
-  providers: AIProvider[];
-  states: Record<AIProvider, ProviderState>;
-  presentation: PresentationByProvider;
-  userHidden: ReadonlySet<AIProvider>;
-  presentationHidden: ReadonlySet<AIProvider>;
-  setPaneRef: (provider: AIProvider, el: HTMLDivElement | null) => void;
-  openProvider: (provider: AIProvider) => Promise<void>;
-  togglePaneVisibility: (provider: AIProvider) => Promise<void>;
-  changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
-  accessProvider: AIProvider | null;
-  toggleAdapterAccess: (provider: AIProvider) => void;
-  syncBounds: (provider: AIProvider) => Promise<void>;
-  reportProvider: (provider: AIProvider) => Promise<void>;
-  reportBusy: boolean;
-  locale: Locale;
-}) {
-  return (
-    <aside className="space-y-3 border-zinc-800 p-3">
-      {providers.map((provider) => {
-        const hiddenByUser = userHidden.has(provider);
-        const hiddenByCenter = presentationHidden.has(provider);
-        const hidden = hiddenByUser || hiddenByCenter;
-        const accessOpen = accessProvider === provider;
-        const permissionSummary = buildAdapterPermissionSummary(provider, undefined, locale);
-        return (
-          <div
-            key={provider}
-            ref={(el) => setPaneRef(provider, el)}
-            className="relative h-[calc(50vh-20px)] min-h-56 overflow-auto border border-zinc-800 bg-zinc-900"
-          >
-            <div className="flex items-center justify-between gap-2 border-b border-zinc-800 px-3 py-2 text-sm">
-              <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
-              <div className="flex flex-wrap justify-end gap-2 text-xs">
-                <button
-                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-                  aria-label={formatI18n(translateKey('provider.access.aria', locale), { provider: AI_PROVIDERS[provider].name })}
-                  aria-expanded={accessOpen}
-                  aria-controls={`adapter-access-${provider}`}
-                  onClick={() => toggleAdapterAccess(provider)}
-                >
-                  {translateKey('provider.access', locale)}
-                </button>
-                <button
-                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-                  onClick={() => {
-                    void togglePaneVisibility(provider);
-                  }}
-                  disabled={states[provider].webview !== 'loaded' || hiddenByCenter}
-                >
-                  {hiddenByCenter ? translateKey('provider.hidden', locale) : hiddenByUser ? translateKey('provider.show', locale) : translateKey('provider.hide', locale)}
-                </button>
-                <button
-                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-                  onClick={() => void changeProviderPresentation(provider, 'chip')}
-                >
-                  {translateKey('provider.chip', locale)}
-                </button>
-                <button
-                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-                  onClick={() => void changeProviderPresentation(provider, 'center')}
-                  disabled={presentation[provider] === 'center'}
-                >
-                  {translateKey('provider.center', locale)}
-                </button>
-                <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void host.provider.openLogin(provider)}>
-                  {translateKey('provider.login', locale)}
-                </button>
-                {provider === 'gemini' ? (
-                  <button
-                    className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-                    onClick={() => void host.provider.openLoginExternal(provider)}
-                  >
-                    {translateKey('provider.browser', locale)}
-                  </button>
-                ) : null}
-                <button
-                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-                  onClick={() => {
-                    resetProviderBootState(provider);
-                    void host.provider.reload(provider).then(() => syncBounds(provider));
-                  }}
-                >
-                  {translateKey('provider.reload', locale)}
-                </button>
-                <button
-                  className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => void reportProvider(provider)}
-                  disabled={reportBusy}
-                >
-                  {translateKey('provider.report', locale)}
-                </button>
-              </div>
-            </div>
-            {accessOpen ? <AdapterAccessPanel id={`adapter-access-${provider}`} summary={permissionSummary} locale={locale} /> : null}
-            {states[provider].adapter === 'broken' ? (
-              <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{translateKey('provider.adapterBroken', locale)}</div>
-            ) : null}
-            {states[provider].bridge === 'degraded' ? (
-              <div className="border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">
-                {translateKey('provider.bridgeDegradedReload', locale)}
-              </div>
-            ) : null}
-            {provider === 'gemini' && states[provider].login === 'blocked' ? (
-              <div className="flex items-center justify-between gap-2 border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">
-                <span>{translateKey('provider.embeddedLoginBlocked', locale)}</span>
-                <button className="border border-amber-700 px-2 py-1 hover:bg-amber-900" onClick={() => void host.provider.openLoginExternal(provider)}>
-                  {translateKey('provider.openInBrowser', locale)}
-                </button>
-              </div>
-            ) : null}
-            {states[provider].webview === 'loaded' ? (
-              <div className="p-3 text-xs text-zinc-500">
-                {hidden ? translateKey('provider.nativeWebviewHidden', locale) : translateKey('provider.nativeWebviewMounted', locale)}
-              </div>
-            ) : (
-              <div className="grid h-[calc(100%-38px)] place-items-center">
-                <button className="border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800" onClick={() => void openProvider(provider)}>
-                  {translateKey('provider.open', locale)} {AI_PROVIDERS[provider].name}
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </aside>
-  );
-}
-
-function ChipRail({
-  providers,
-  states,
-  onPromoteSide,
-  onPromoteCenter,
-  locale,
-}: {
-  providers: AIProvider[];
-  states: Record<AIProvider, ProviderState>;
-  onPromoteSide: (provider: AIProvider) => Promise<void>;
-  onPromoteCenter: (provider: AIProvider) => Promise<void>;
-  locale: Locale;
-}) {
-  if (providers.length === 0) return null;
-
-  return (
-    <section className="mt-3 flex flex-wrap gap-2 border-b border-zinc-800 pb-3">
-      {providers.map((provider) => (
-        <div key={provider} className="flex items-center gap-1 border border-zinc-700 bg-zinc-900 text-xs">
-          <button className="px-2 py-1.5 text-left hover:bg-zinc-800" onClick={() => void onPromoteSide(provider)}>
-            <span className="font-medium text-zinc-100">{AI_PROVIDERS[provider].name}</span>
-            <span className="ml-2 text-zinc-400">{chipState(states[provider], 'chip', locale).label}</span>
-          </button>
-          <button className="border-l border-zinc-700 px-2 py-1.5 text-zinc-300 hover:bg-zinc-800" onClick={() => void onPromoteCenter(provider)}>
-            {translateKey('provider.center', locale)}
-          </button>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function CenterStage({
-  provider,
-  state,
-  setCenterStageRef,
-  openProvider,
-  changeProviderPresentation,
-  syncBounds,
-  locale,
-}: {
-  provider: AIProvider;
-  state: ProviderState;
-  setCenterStageRef: (el: HTMLDivElement | null) => void;
-  openProvider: (provider: AIProvider) => Promise<void>;
-  changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
-  syncBounds: (provider: AIProvider) => Promise<void>;
-  locale: Locale;
-}) {
-  return (
-    <section
-      ref={setCenterStageRef}
-      className="mt-3 flex min-h-[340px] flex-col border border-sky-900 bg-zinc-900"
-    >
-      <div className="flex items-center justify-between gap-2 border-b border-sky-900 px-3 py-2 text-sm">
-        <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
-        <div className="flex flex-wrap justify-end gap-2 text-xs">
-          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'side')}>
-            {translateKey('provider.side', locale)}
-          </button>
-          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'chip')}>
-            {translateKey('provider.chip', locale)}
-          </button>
-          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void host.provider.openLogin(provider)}>
-            {translateKey('provider.login', locale)}
-          </button>
-          <button
-            className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-            onClick={() => {
-              resetProviderBootState(provider);
-              void host.provider.reload(provider).then(() => syncBounds(provider));
-            }}
-            disabled={state.webview !== 'loaded'}
-          >
-            {translateKey('provider.reload', locale)}
-          </button>
-        </div>
-      </div>
-      {state.adapter === 'broken' ? (
-        <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{translateKey('provider.adapterBroken', locale)}</div>
-      ) : null}
-      {state.bridge === 'degraded' ? (
-        <div className="border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">
-          {translateKey('provider.bridgeDegradedReload', locale)}
-        </div>
-      ) : null}
-      {state.webview === 'loaded' ? (
-        <div className="grid flex-1 place-items-center p-3 text-xs text-zinc-500">{translateKey('provider.nativeWebviewCentered', locale)}</div>
-      ) : (
-        <div className="grid flex-1 place-items-center">
-          <button className="border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800" onClick={() => void openProvider(provider)}>
-            {translateKey('provider.open', locale)} {AI_PROVIDERS[provider].name}
-          </button>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function AdapterAccessPanel({ id, summary, locale }: { id: string; summary: AdapterPermissionSummary; locale: Locale }) {
-  return (
-    <section id={id} className="border-b border-sky-900 bg-sky-950/30 px-3 py-3 text-xs text-zinc-300">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-zinc-100">{translateKey('provider.access.heading', locale)}</h3>
-        <span className="shrink-0 text-[11px] text-sky-200">{summary.providerName}</span>
-      </div>
-      <div className="grid gap-3">
-        <PermissionGroup title={translateKey('provider.access.readTitle', locale)} lines={summary.reads} />
-        <PermissionGroup title={translateKey('provider.access.writeTitle', locale)} lines={summary.writes} />
-        <PermissionGroup title={translateKey('provider.access.cannotTitle', locale)} lines={summary.cannot} />
-      </div>
-      {summary.note ? <p className="mt-3 border-t border-sky-900 pt-2 text-[11px] leading-relaxed text-zinc-500">{summary.note}</p> : null}
-    </section>
-  );
-}
-
-function PermissionGroup({ title, lines }: { title: string; lines: AdapterPermissionSummary['reads'] }) {
-  return (
-    <section>
-      <div className="mb-1 font-semibold uppercase text-zinc-100">{title}</div>
-      <ul className="space-y-2">
-        {lines.map((line) => (
-          <li key={line.title}>
-            <span className="font-medium text-zinc-200">{line.title}:</span> <span className="leading-relaxed text-zinc-400">{line.detail}</span>
-            {line.selectors ? (
-              <ul className="mt-1 space-y-1 border-l border-zinc-700 pl-2">
-                {line.selectors.map((selector) => (
-                  <li key={selector}>
-                    <code className="break-all text-[11px] text-sky-200">{selector}</code>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 
@@ -1645,7 +1315,7 @@ function ConnectionBar({
         <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={onTargetsChange} locale={locale} />
       ) : (
         PROVIDERS.map((provider) => {
-          const chip = chipState(states[provider], presentation[provider], locale);
+          const chip = chipState(states[provider], presentation[provider], (key) => translateKey(key, locale));
           return (
             <div key={provider} className={`border px-2 py-1 text-xs ${chip.className}`}>
               {AI_PROVIDERS[provider].name}: {chip.label}
@@ -1683,22 +1353,6 @@ function ChatArea({ messages, locale }: { messages: Bubble[]; locale: Locale }) 
       <div ref={bottomRef} />
     </div>
   );
-}
-
-function chipState(
-  state: ProviderState,
-  presentation: WebviewPresentationState = 'side',
-  locale: Locale = 'en',
-): { label: string; className: string } {
-  if (presentation === 'chip') return { label: translateKey('connection.sessionReady', locale), className: 'border-zinc-700 text-zinc-300' };
-  if (state.webview !== 'loaded') return { label: translateKey('connection.noWebview', locale), className: 'border-zinc-700 text-zinc-400' };
-  if (state.adapter === 'broken') return { label: translateKey('connection.adapterBroken', locale), className: 'border-red-700 text-red-300' };
-  if (state.bridge === 'degraded') return { label: translateKey('connection.degraded', locale), className: 'border-amber-700 text-amber-300' };
-  if (state.login === 'logged_out' || state.login === 'blocked') {
-    return { label: translateKey('connection.needsLogin', locale), className: 'border-amber-700 text-amber-300' };
-  }
-  if (!isSendable(state)) return { label: translateKey('connection.stale', locale), className: 'border-sky-700 text-sky-300' };
-  return { label: translateKey('connection.ready', locale), className: 'border-emerald-700 text-emerald-300' };
 }
 
 function modeFromReplayPlan(plan: ReplayPlan): ChatMode | undefined {

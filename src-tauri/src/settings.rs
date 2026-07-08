@@ -8,6 +8,12 @@ use tauri_plugin_opener::OpenerExt;
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 const DEFAULT_LANGUAGE: &str = "system";
 const LANGUAGES: &[&str] = &["system", "en", "zh-TW"];
+const DEFAULT_LAYOUT_MODE: &str = "focus";
+const DEFAULT_FOCUS_PANE_WIDTH: f64 = 620.0;
+const MIN_FOCUS_PANE_WIDTH: f64 = 420.0;
+const MIN_CONTROL_PANE_WIDTH: f64 = 360.0;
+const RESIZER_WIDTH: f64 = 6.0;
+const SETTINGS_NORMALIZATION_CONTAINER_WIDTH: f64 = 1400.0;
 const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
 const SNAPSHOT_REDACTION_TIERS: &[&str] = &["metadata-only", "hashes", "prompt-text", "full-local"];
 const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok", "claude-code"];
@@ -63,6 +69,28 @@ pub fn normalize_settings_value(settings: Value) -> Value {
             Value::String(language.to_string()),
         );
 
+        map.insert(
+            "layoutMode".to_string(),
+            Value::String(DEFAULT_LAYOUT_MODE.to_string()),
+        );
+        let focus_pane_width = map
+            .get("focusPaneWidth")
+            .and_then(|value| value.as_f64())
+            .or_else(|| {
+                map.get("columnWidths")
+                    .and_then(|value| value.as_object())
+                    .and_then(|object| object.get("left"))
+                    .and_then(|value| value.as_f64())
+            })
+            .unwrap_or(DEFAULT_FOCUS_PANE_WIDTH);
+        map.insert(
+            "focusPaneWidth".to_string(),
+            number_value(clamp_focus_pane_width(
+                focus_pane_width,
+                SETTINGS_NORMALIZATION_CONTAINER_WIDTH,
+            )),
+        );
+
         let snapshot_persistence = map
             .get("snapshotPersistence")
             .and_then(|value| value.as_bool())
@@ -86,6 +114,16 @@ pub fn normalize_settings_value(settings: Value) -> Value {
         map.insert("presentation".to_string(), presentation);
     }
     settings
+}
+
+fn clamp_focus_pane_width(width: f64, container_width: f64) -> f64 {
+    let max_width = (container_width - MIN_CONTROL_PANE_WIDTH - RESIZER_WIDTH)
+        .max(MIN_FOCUS_PANE_WIDTH);
+    width.round().clamp(MIN_FOCUS_PANE_WIDTH, max_width)
+}
+
+fn number_value(value: f64) -> Value {
+    Value::Number(serde_json::Number::from(value as i64))
 }
 
 fn normalize_presentation_value(value: Option<&Value>) -> Value {
@@ -431,6 +469,8 @@ mod tests {
             normalize_settings_value(json!({})),
             json!({
                 "language": "system",
+                "layoutMode": "focus",
+                "focusPaneWidth": 620,
                 "snapshotPersistence": false,
                 "snapshotRedactionTier": "metadata-only",
                 "presentation": {
@@ -456,6 +496,8 @@ mod tests {
             })),
             json!({
                 "language": "system",
+                "layoutMode": "focus",
+                "focusPaneWidth": 620,
                 "snapshotPersistence": true,
                 "snapshotRedactionTier": "full-local",
                 "presentation": {
@@ -481,6 +523,8 @@ mod tests {
             })),
             json!({
                 "language": "system",
+                "layoutMode": "focus",
+                "focusPaneWidth": 620,
                 "snapshotPersistence": false,
                 "snapshotRedactionTier": "metadata-only",
                 "presentation": {
@@ -511,6 +555,29 @@ mod tests {
         assert_eq!(
             normalize_settings_value(json!({ "language": 123 })).get("language"),
             Some(&json!("system"))
+        );
+    }
+
+    #[test]
+    fn normalizes_focus_layout_settings_and_migrates_legacy_width() {
+        let normalized = normalize_settings_value(json!({
+            "layoutMode": "quadrant",
+            "focusPaneWidth": 700
+        }));
+        assert_eq!(normalized.get("layoutMode"), Some(&json!("focus")));
+        assert_eq!(normalized.get("focusPaneWidth"), Some(&json!(700)));
+
+        assert_eq!(
+            normalize_settings_value(json!({ "focusPaneWidth": 250 })).get("focusPaneWidth"),
+            Some(&json!(420))
+        );
+        assert_eq!(
+            normalize_settings_value(json!({ "columnWidths": { "left": 500, "right": 320 } })).get("focusPaneWidth"),
+            Some(&json!(500))
+        );
+        assert_eq!(
+            normalize_settings_value(json!({ "focusPaneWidth": "wide", "columnWidths": { "left": 1200 } })).get("focusPaneWidth"),
+            Some(&json!(1034))
         );
     }
 }

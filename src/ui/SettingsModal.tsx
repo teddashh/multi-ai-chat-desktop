@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AI_PROVIDERS, DOCK_SLOT_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
-import type { I18nKey } from '../i18n/keys';
 import { useI18n } from '../i18n/context';
 import { formatI18n } from '../i18n/t';
-import { DEFAULT_COLUMN_WIDTHS, type ColumnWidths } from './dockLayout';
 import type { PresentationByProvider } from './presentation';
-import { assignSlotProvider, SLOT_IDS, type SlotAssignment, type SlotId } from './slotAssignment';
 import { type AppSettings, mergeSettings, normalizeSettings } from './settingsModel';
 import { compareVersions, fetchLatestRelease } from './updateCheck';
 import { host } from '../host';
@@ -21,15 +18,7 @@ import {
 import { buildDebugBundle, debugBundleFilename } from '../diagnostics/debugBundle';
 import { useEventLog } from './useEventLog';
 
-const SLOT_LABEL_KEYS: Record<SlotId, I18nKey> = {
-  leftTop: 'settings.slot.leftTop',
-  leftBottom: 'settings.slot.leftBottom',
-  rightTop: 'settings.slot.rightTop',
-  rightBottom: 'settings.slot.rightBottom',
-};
-
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
-const DOCK_PROVIDERS = [...DOCK_SLOT_PROVIDERS] as AIProvider[];
 
 type UpdateCheckState =
   | { status: 'idle' }
@@ -41,18 +30,16 @@ type UpdateCheckState =
 
 export function SettingsModal({
   open,
-  columnWidths,
-  slotAssignment,
   openProviders,
+  focusPaneWidth,
   presentation,
   providerStates,
   onClose,
   onSaved,
 }: {
   open: boolean;
-  columnWidths: ColumnWidths;
-  slotAssignment: SlotAssignment;
   openProviders: AIProvider[];
+  focusPaneWidth: number;
   presentation: PresentationByProvider;
   providerStates: Record<AIProvider, ProviderState>;
   onClose: () => void;
@@ -64,8 +51,8 @@ export function SettingsModal({
   const [error, setError] = useState('');
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({ status: 'idle' });
   const loadedRef = useRef<AppSettings | undefined>();
-  const liveRef = useRef({ columnWidths, slotAssignment, openProviders, presentation });
-  liveRef.current = { columnWidths, slotAssignment, openProviders, presentation };
+  const liveRef = useRef({ openProviders, focusPaneWidth, presentation });
+  liveRef.current = { openProviders, focusPaneWidth, presentation };
 
   useEffect(() => {
     if (!open) return;
@@ -83,9 +70,8 @@ export function SettingsModal({
         loadedRef.current = loaded;
         setDraft({
           ...loaded,
-          columnWidths: live.columnWidths,
-          slotAssignment: live.slotAssignment,
           openProviders: live.openProviders,
+          focusPaneWidth: live.focusPaneWidth,
           presentation: live.presentation,
         });
       })
@@ -97,9 +83,8 @@ export function SettingsModal({
         loadedRef.current = fallback;
         setDraft({
           ...fallback,
-          columnWidths: live.columnWidths,
-          slotAssignment: live.slotAssignment,
           openProviders: live.openProviders,
+          focusPaneWidth: live.focusPaneWidth,
           presentation: live.presentation,
         });
       });
@@ -114,17 +99,6 @@ export function SettingsModal({
     setDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
-  const updateSlot = (slot: SlotId, provider: AIProvider) => {
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            slotAssignment: assignSlotProvider(current.slotAssignment, slot, provider),
-          }
-        : current,
-    );
-  };
-
   const updateLanguage = async (language: AppSettings['language']) => {
     const previousLanguage = loadedRef.current?.language ?? 'system';
     setError('');
@@ -133,9 +107,8 @@ export function SettingsModal({
     const live = liveRef.current;
     const next = mergeSettings(loadedRef.current, {
       language,
-      columnWidths: live.columnWidths,
-      slotAssignment: live.slotAssignment,
       openProviders: live.openProviders,
+      focusPaneWidth: live.focusPaneWidth,
       presentation: live.presentation,
     });
     try {
@@ -155,6 +128,7 @@ export function SettingsModal({
     const next = mergeSettings(loadedRef.current, {
       ...draft,
       openProviders,
+      focusPaneWidth,
       presentation,
     });
     try {
@@ -232,43 +206,6 @@ export function SettingsModal({
                   <option value="zh-TW">{t('settings.language.zhTW')}</option>
                 </select>
               </label>
-            </section>
-
-            <section>
-              <div className="mb-2 text-xs font-medium text-zinc-300">{t('settings.paneSlots')}</div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {SLOT_IDS.map((slot) => (
-                  <label key={slot} className="block text-xs text-zinc-400">
-                    <span className="mb-1 block">{t(SLOT_LABEL_KEYS[slot])}</span>
-                    <select
-                      value={draft.slotAssignment[slot]}
-                      onChange={(event) => updateSlot(slot, event.target.value as AIProvider)}
-                      className="w-full border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 outline-none focus:border-sky-600"
-                    >
-                      {DOCK_PROVIDERS.map((provider) => (
-                        <option key={provider} value={provider}>
-                          {AI_PROVIDERS[provider].name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section className="flex items-center justify-between gap-3 border-t border-zinc-800 pt-4">
-              <div>
-                <div className="text-xs font-medium text-zinc-300">{t('settings.columnWidths')}</div>
-                <div className="mt-1 text-xs text-zinc-500">
-                  {t('settings.left')} {draft.columnWidths.left}px / {t('settings.right')} {draft.columnWidths.right}px
-                </div>
-              </div>
-              <button
-                className="border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800"
-                onClick={() => updateDraft({ columnWidths: { ...DEFAULT_COLUMN_WIDTHS } })}
-              >
-                {t('settings.resetLayout')}
-              </button>
             </section>
 
             <section className="grid gap-3 border-t border-zinc-800 pt-4 sm:grid-cols-2">
