@@ -52,7 +52,7 @@ export function FocusPane({
   const thumbnailProviders = [...sideProviders, ...chipProviders];
 
   return (
-    <aside className="flex min-h-0 flex-col border-r border-zinc-800 bg-zinc-950 p-3">
+    <aside className="flex min-h-0 flex-1 flex-col bg-zinc-950 p-3">
       {centeredProvider ? (
         <FocusStage
           provider={centeredProvider}
@@ -78,8 +78,8 @@ export function FocusPane({
         />
       )}
 
-      <section className="mt-3 max-h-60 shrink-0 overflow-auto border border-zinc-800 bg-zinc-950 p-2">
-        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
+      <section className="mt-3 shrink-0 overflow-x-auto overflow-y-hidden border border-zinc-800 bg-zinc-950 p-2">
+        <div className="grid grid-flow-col gap-2" style={{ gridAutoColumns: 'minmax(0, 1fr)' }}>
           {thumbnailProviders.map((provider) => (
             <ThumbnailTile
               key={provider}
@@ -265,38 +265,16 @@ function ThumbnailTile({
       role="button"
       tabIndex={0}
       aria-label={`${AI_PROVIDERS[provider].name}: ${status.label}`}
-      className={`min-h-24 cursor-pointer border bg-zinc-900 p-2 outline-none transition-colors hover:border-sky-700 focus:border-sky-600 ${
+      className={`min-h-20 min-w-0 cursor-pointer border bg-zinc-900 p-2 outline-none transition-colors hover:border-sky-700 focus:border-sky-600 ${
         hidden ? 'border-zinc-700' : 'border-zinc-800'
       }`}
       onPointerDown={() => onManualFocusControl(provider)}
       onClick={focusProvider}
       onKeyDown={onKeyDown}
     >
-      <div className="flex min-w-0 items-start justify-between gap-2">
+      <div className="flex min-w-0 flex-col gap-1">
         <span className="min-w-0 truncate text-sm font-medium text-zinc-100">{AI_PROVIDERS[provider].name}</span>
-        <span className={`shrink-0 border px-1.5 py-0.5 text-[11px] ${status.className}`}>{status.label}</span>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <button
-          className="border border-zinc-700 px-2 py-1 text-zinc-200 hover:bg-zinc-800"
-          onClick={(event) => {
-            event.stopPropagation();
-            focusProvider();
-          }}
-        >
-          {t('provider.center')}
-        </button>
-        {presentation !== 'chip' ? (
-          <button
-            className="border border-zinc-700 px-2 py-1 text-zinc-200 hover:bg-zinc-800"
-            onClick={(event) => {
-              event.stopPropagation();
-              void changeProviderPresentation(provider, 'chip');
-            }}
-          >
-            {t('provider.chip')}
-          </button>
-        ) : null}
+        <span className={`w-fit max-w-full truncate border px-1.5 py-0.5 text-[11px] ${status.className}`}>{status.label}</span>
       </div>
     </div>
   );

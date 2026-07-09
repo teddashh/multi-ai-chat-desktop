@@ -1182,26 +1182,37 @@ export default function App() {
   return (
     <main className="h-screen bg-zinc-950 text-zinc-100">
       <div ref={gridRef} className="grid h-full" style={{ gridTemplateColumns: focusGridTemplateColumns(focusPaneWidth) }}>
-        <FocusPane
-          centeredProvider={centeredProvider}
-          sideProviders={thumbnailSideProviders}
-          chipProviders={thumbnailChipProviders}
-          states={states}
-          presentation={presentation}
-          userHidden={userHidden}
-          presentationHidden={centerHidden}
-          setPaneRef={setPaneRef}
-          setCenterStageRef={setCenterStageRef}
-          openProvider={openProvider}
-          togglePaneVisibility={togglePaneVisibility}
-          changeProviderPresentation={changeProviderPresentationManually}
-          onManualFocusControl={markManualFocusControl}
-          accessProvider={accessProvider}
-          toggleAdapterAccess={toggleAdapterAccess}
-          syncBounds={syncBounds}
-          reportProvider={reportProvider}
-          reportBusy={reportBusy}
-        />
+        <div className="flex min-h-0 min-w-0 flex-col border-r border-zinc-800 bg-zinc-950">
+          <FocusPane
+            centeredProvider={centeredProvider}
+            sideProviders={thumbnailSideProviders}
+            chipProviders={thumbnailChipProviders}
+            states={states}
+            presentation={presentation}
+            userHidden={userHidden}
+            presentationHidden={centerHidden}
+            setPaneRef={setPaneRef}
+            setCenterStageRef={setCenterStageRef}
+            openProvider={openProvider}
+            togglePaneVisibility={togglePaneVisibility}
+            changeProviderPresentation={changeProviderPresentationManually}
+            onManualFocusControl={markManualFocusControl}
+            accessProvider={accessProvider}
+            toggleAdapterAccess={toggleAdapterAccess}
+            syncBounds={syncBounds}
+            reportProvider={reportProvider}
+            reportBusy={reportBusy}
+          />
+          <div className="shrink-0 border-t border-zinc-800 px-3 pb-3">
+            <InputBar
+              onSend={(value) => void send(value)}
+              onCancel={cancelWorkflow}
+              disabled={noSendableProviders}
+              isProcessing={isProcessing}
+              locale={locale}
+            />
+          </div>
+        </div>
 
         <Resizer label={translate('layout.resizeFocusPane')} onDrag={dragFocusPane} />
 
@@ -1346,28 +1357,19 @@ export default function App() {
           {stepTimeout && !stepTimeout.timedOut ? (
             <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />
           ) : null}
+          <label className="mt-3 flex w-fit items-center gap-2 border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-amber-500"
+              checked={confirmEachStep}
+              onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
+              disabled={isProcessing}
+            />
+            {translate('checkpoint.confirmEachStep')}
+          </label>
           <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-800 py-3">
             <ChatArea messages={messages} locale={locale} states={states} />
             {import.meta.env.DEV ? <EchoPanel /> : null}
-          </div>
-          <div className="mt-3 border-t border-zinc-800 pt-3">
-            <InputBar
-              onSend={(value) => void send(value)}
-              onCancel={cancelWorkflow}
-              disabled={noSendableProviders}
-              isProcessing={isProcessing}
-              locale={locale}
-            />
-            <label className="mt-2 flex w-fit items-center gap-2 border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-amber-500"
-                checked={confirmEachStep}
-                onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
-                disabled={isProcessing}
-              />
-              {translate('checkpoint.confirmEachStep')}
-            </label>
           </div>
         </section>
       </div>
