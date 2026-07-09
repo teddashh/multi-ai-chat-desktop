@@ -17,7 +17,9 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 import { bubbleAuthorLabel } from '../bubbleAuthorLabel';
-import { ChatArea } from '../App';
+import { ChatArea, presentationHiddenProvidersForCenterSurface } from '../App';
+import { applyCenterHiddenCommands } from '../ui/presentationCommands';
+import { defaultPresentation, setProviderPresentation } from '../ui/presentation';
 
 function state(provider: AIProvider, thinking = false): ProviderState {
   return {
@@ -86,5 +88,53 @@ describe('ChatArea thinking indicator', () => {
     expect(html).toContain('system content');
     expect(html).toContain('streaming');
     expect(html).not.toContain('Thinking…');
+  });
+});
+
+describe('text center presentation hidden set', () => {
+  it('restores a provider demoted from text center to side when another provider takes text center', async () => {
+    const providers = Object.keys(AI_PROVIDERS) as AIProvider[];
+    const snapshot = states();
+    const userHidden = new Set<AIProvider>();
+    const host = {
+      hide: vi.fn().mockResolvedValue(undefined),
+      show: vi.fn().mockResolvedValue(undefined),
+    };
+    const previousPresentation = setProviderPresentation(defaultPresentation(), 'chatgpt', 'center');
+    const nextPresentation = setProviderPresentation(previousPresentation, 'claude', 'center');
+
+    const previousHidden = presentationHiddenProvidersForCenterSurface({
+      centerSurface: 'text',
+      presentation: previousPresentation,
+      states: snapshot,
+      userHidden,
+      providers,
+    });
+    const nextHidden = presentationHiddenProvidersForCenterSurface({
+      centerSurface: 'text',
+      presentation: nextPresentation,
+      states: snapshot,
+      userHidden,
+      providers,
+    });
+
+    expect(previousHidden.has('chatgpt')).toBe(true);
+    expect(nextHidden.has('chatgpt')).toBe(false);
+    expect(nextHidden.has('claude')).toBe(true);
+
+    await applyCenterHiddenCommands({
+      host,
+      previousHidden,
+      nextHidden,
+      snapshot: () => ({
+        states: snapshot,
+        presentation: nextPresentation,
+        userHidden,
+        overlayGuardOpen: false,
+      }),
+    });
+
+    expect(host.show).toHaveBeenCalledWith('chatgpt');
+    expect(host.hide).toHaveBeenCalledWith('claude');
   });
 });

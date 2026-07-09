@@ -25,7 +25,7 @@ import {
   type ManualFocusPointerDown,
 } from './ui/autoFocus';
 import { CheckpointCard } from './ui/CheckpointCard';
-import { FocusPane } from './ui/FocusPane';
+import { FocusPane, type CenterSurface } from './ui/FocusPane';
 import { InputBar } from './ui/InputBar';
 import { makeFileDragGuard } from './ui/fileDrop';
 import { ModeSelector } from './ui/ModeSelector';
@@ -136,6 +136,36 @@ function providerSetEquals(left: ReadonlySet<AIProvider>, right: ReadonlySet<AIP
   return true;
 }
 
+function hiddenProviderLoadBounds(): DOMRectReadOnly {
+  return { x: 24, y: 24, width: 420, height: 320, top: 24, left: 24, right: 444, bottom: 344, toJSON: () => ({}) };
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function presentationHiddenProvidersForCenterSurface({
+  centerSurface,
+  presentation,
+  states,
+  userHidden,
+  providers,
+  centerTransitionsInFlight = new Set(),
+}: {
+  centerSurface: CenterSurface;
+  presentation: PresentationByProvider;
+  states: Record<AIProvider, ProviderState>;
+  userHidden: ReadonlySet<AIProvider>;
+  providers: readonly AIProvider[];
+  centerTransitionsInFlight?: ReadonlySet<AIProvider>;
+}): Set<AIProvider> {
+  if (centerSurface === 'native') {
+    return new Set(centerHiddenProviders(presentation, states, userHidden, providers, centerTransitionsInFlight));
+  }
+
+  const centered = centerPresentationProvider(presentation);
+  if (!centered) return new Set();
+  if (states[centered]?.webview !== 'loaded' && !centerTransitionsInFlight.has(centered)) return new Set();
+  return new Set([centered]);
+}
+
 function renderablePayload(payload: unknown): { content: string; truncated: boolean } {
   if (typeof payload === 'string') return { content: payload, truncated: false };
   if (payload && typeof payload === 'object' && 'text' in payload) {
@@ -192,6 +222,7 @@ export default function App() {
   const [connectionSnapshotLoaded, setConnectionSnapshotLoaded] = useState(false);
   const [focusPaneWidth, setFocusPaneWidth] = useState(() => defaultSettings().focusPaneWidth);
   const [presentation, setPresentation] = useState<PresentationByProvider>(() => defaultPresentation());
+  const [centerSurface, setCenterSurface] = useState<CenterSurface>('text');
   const [userHidden, setUserHidden] = useState<Set<AIProvider>>(() => new Set());
   const [centerHidden, setCenterHidden] = useState<Set<AIProvider>>(() => new Set());
   const [centerTransitionsInFlight, setCenterTransitionsInFlight] = useState<Set<AIProvider>>(() => new Set());
@@ -209,6 +240,8 @@ export default function App() {
   const manualFocusIdlePausedRef = useRef(false);
   const manualFocusIdlePauseStartedAtRef = useRef<number | undefined>();
   const presentationRef = useRef<PresentationByProvider>(presentation);
+  const centerSurfaceRef = useRef<CenterSurface>(centerSurface);
+  const forcedNativeCenterProviderRef = useRef<AIProvider | undefined>();
   const changeProviderPresentationRef = useRef<(provider: AIProvider, state: WebviewPresentationState) => Promise<void>>(async () => {});
   const centerHiddenRef = useRef<Set<AIProvider>>(centerHidden);
   const centerTransitionsInFlightRef = useRef<Set<AIProvider>>(centerTransitionsInFlight);
@@ -224,26 +257,60 @@ export default function App() {
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
   const targets = targetSelection.targets;
-  const effectiveHidden = useMemo(() => new Set<AIProvider>([...userHidden, ...centerHidden]), [centerHidden, userHidden]);
-  const loadedModalProviders = useMemo(() => visibleLoadedProviders(states, effectiveHidden, PROVIDERS), [effectiveHidden, states]);
+  const centeredProvider = useMemo(() => centerPresentationProvider(presentation), [presentation]);
+  const presentationHidden = useMemo(() => {
+    const next = new Set(centerHidden);
+    if (centerSurface === 'text' && centeredProvider) next.add(centeredProvider);
+    return next;
+  }, [centerHidden, centeredProvider, centerSurface]);
+  const modalHiddenProviders = useMemo(() => {
+    const next = new Set<AIProvider>([...userHidden, ...presentationHidden]);
+    return next;
+  }, [presentationHidden, userHidden]);
+  const loadedModalProviders = useMemo(() => visibleLoadedProviders(states, modalHiddenProviders, PROVIDERS), [modalHiddenProviders, states]);
   const defaultSendableTargets = useMemo(() => defaultTargets(states, [...DEFAULT_FREE_TARGET_PROVIDERS]), [states]);
   const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
   const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
   const noSendableProviders = mode === 'free' ? !hasFreeModeTargets : anySendableTargets.length === 0;
   const openProviders = useMemo(() => PROVIDERS.filter((provider) => states[provider].webview === 'loaded'), [states]);
-  const centeredProvider = useMemo(() => centerPresentationProvider(presentation), [presentation]);
   const thumbnailSideProviders = useMemo(() => sideProviders(presentation, PROVIDERS), [presentation]);
   const thumbnailChipProviders = useMemo(() => chipProviders(presentation, PROVIDERS), [presentation]);
   const thumbnailProviders = useMemo(
     () => [...thumbnailSideProviders, ...thumbnailChipProviders],
     [thumbnailChipProviders, thumbnailSideProviders],
   );
+  const latestCenterBubble = useMemo(() => {
+    if (!centeredProvider) return undefined;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message.role === 'ai' && message.provider === centeredProvider) return message;
+    }
+    return undefined;
+  }, [centeredProvider, messages]);
+  const centerText = latestCenterBubble?.content;
+  const centerTextFinal = latestCenterBubble?.final === true;
 
   const overlayGuardOpen =
     Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || Boolean(accessProvider);
   const manualFocusIdlePaused = Boolean(checkpoint) || Boolean(stepTimeout);
   const followRunPaused = autoFollowEnabled && manualFocusLockActive;
   overlayGuardOpenRef.current = overlayGuardOpen;
+
+  const setCenterSurfaceMode = useCallback((surface: CenterSurface) => {
+    centerSurfaceRef.current = surface;
+    setCenterSurface(surface);
+  }, []);
+
+  useEffect(() => {
+    if (centeredProvider && forcedNativeCenterProviderRef.current === centeredProvider) {
+      forcedNativeCenterProviderRef.current = undefined;
+      setCenterSurfaceMode('native');
+      return;
+    }
+    forcedNativeCenterProviderRef.current = undefined;
+    setCenterSurfaceMode('text');
+  }, [centeredProvider, setCenterSurfaceMode]);
+
   useOverlayGuard(overlayGuardOpen, loadedModalProviders);
 
   useEffect(() => {
@@ -647,7 +714,7 @@ export default function App() {
       waitForPresentationTargetBounds({
         getBounds: () => boundsForPresentationTarget(provider, state),
         waitFrame: nextAnimationFrame,
-        shouldContinue: () => presentationTransitionCurrent(provider, state, generation),
+        shouldContinue: () => presentationTransitionCurrent(provider, state, generation) && (state !== 'center' || centerSurfaceRef.current === 'native'),
       }),
     [boundsForPresentationTarget, presentationTransitionCurrent],
   );
@@ -658,18 +725,55 @@ export default function App() {
     await host.provider.open(provider, rect);
   }, [fallbackBoundsForProvider]);
 
+  const ensureProviderLoadedHidden = useCallback(
+    async (provider: AIProvider, bounds: DOMRectReadOnly, shouldContinue: () => boolean = () => true) => {
+      if (!shouldContinue()) return;
+      let opened = false;
+      if (statesRef.current[provider].webview !== 'loaded') {
+        resetProviderBootState(provider);
+        await host.provider.open(provider, bounds);
+        opened = true;
+      }
+      if (!shouldContinue() && !opened) return;
+      await host.provider.hide(provider);
+    },
+    [],
+  );
+
+  const restoreProvider = useCallback(
+    async (provider: AIProvider) => {
+      const textCentered = presentationRef.current[provider] === 'center' && centerSurfaceRef.current === 'text';
+      if (textCentered) {
+        await ensureProviderLoadedHidden(
+          provider,
+          hiddenProviderLoadBounds(),
+          () => presentationRef.current[provider] === 'center' && centerSurfaceRef.current === 'text',
+        );
+        return;
+      }
+      await openProvider(provider);
+    },
+    [ensureProviderLoadedHidden, openProvider],
+  );
+
   const syncBounds = useCallback(async (provider: AIProvider) => {
     if (presentationRef.current[provider] === 'chip') return;
+    if (presentationRef.current[provider] === 'center' && centerSurfaceRef.current === 'text') return;
     const rect = boundsForProvider(provider);
     if (!rect || statesRef.current[provider].webview !== 'loaded') return;
     await host.layout.setBounds(provider, rect);
   }, [boundsForProvider]);
 
   const syncAllBounds = useCallback(() => {
-    for (const provider of PROVIDERS) void syncBounds(provider);
+    const textCentered = centerSurfaceRef.current === 'text' ? centerPresentationProvider(presentationRef.current) : undefined;
+    for (const provider of PROVIDERS) {
+      if (provider === textCentered) continue;
+      void syncBounds(provider);
+    }
   }, [syncBounds]);
 
   const driveCenteredProviderToStage = useCallback(async (provider: AIProvider) => {
+    if (centerSurfaceRef.current !== 'native') return;
     await driveCenteredProviderToStageCommand({
       provider,
       presentation: presentationRef.current[provider],
@@ -686,12 +790,12 @@ export default function App() {
       void syncBounds(provider);
       if (pendingRestore.current.has(provider)) {
         pendingRestore.current.delete(provider);
-        void openProvider(provider).finally(() => {
+        void restoreProvider(provider).finally(() => {
           if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
         });
       }
     },
-    [openProvider, syncBounds],
+    [restoreProvider, syncBounds],
   );
 
   const setCenterStageRef = useCallback(
@@ -700,15 +804,15 @@ export default function App() {
       if (!el) return;
       const provider = centerPresentationProvider(presentationRef.current);
       if (!provider) return;
-      void syncBounds(provider);
+      if (centerSurfaceRef.current === 'native') void syncBounds(provider);
       if (pendingRestore.current.has(provider)) {
         pendingRestore.current.delete(provider);
-        void openProvider(provider).finally(() => {
+        void restoreProvider(provider).finally(() => {
           if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
         });
       }
     },
-    [openProvider, syncBounds],
+    [restoreProvider, syncBounds],
   );
 
   useEffect(() => {
@@ -723,13 +827,13 @@ export default function App() {
       const hasPlaceholder = state === 'center' ? Boolean(centerStageRef.current) : Boolean(paneRefs.current[provider]);
       if (!hasPlaceholder) continue;
       pendingRestore.current.delete(provider);
-      void openProvider(provider).finally(() => {
+      void restoreProvider(provider).finally(() => {
         if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
       });
     }
 
     if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
-  }, [centeredProvider, initialRestoreComplete, openProvider, presentation, settingsLoaded, thumbnailSideProviders]);
+  }, [centeredProvider, initialRestoreComplete, presentation, restoreProvider, settingsLoaded, thumbnailSideProviders]);
 
   const persistPresentation = useCallback(
     async (next: PresentationByProvider) => {
@@ -745,6 +849,7 @@ export default function App() {
 
   const hideCenterSiblingsForTransition = useCallback(
     async (provider: AIProvider, generation: number) => {
+      if (centerSurfaceRef.current !== 'native') return;
       const previous = centerHiddenRef.current;
       const next = new Set(
         centerHiddenProviders(
@@ -755,24 +860,34 @@ export default function App() {
           centerTransitionsInFlightRef.current,
         ),
       );
+      const snapshot = () => ({
+        states: statesRef.current,
+        presentation: presentationRef.current,
+        userHidden: userHiddenRef.current,
+        overlayGuardOpen: overlayGuardOpenRef.current,
+      });
+      const shouldContinueNative = () => presentationTransitionCurrent(provider, 'center', generation) && centerSurfaceRef.current === 'native';
 
       await applyCenterHiddenCommands({
         host: presentationHost,
         previousHidden: previous,
         nextHidden: next,
-        snapshot: () => ({
-          states: statesRef.current,
-          presentation: presentationRef.current,
-          userHidden: userHiddenRef.current,
-          overlayGuardOpen: overlayGuardOpenRef.current,
-        }),
-        shouldContinue: () => presentationTransitionCurrent(provider, 'center', generation),
+        snapshot,
+        shouldContinue: shouldContinueNative,
         restoreRemoved: false,
       });
 
-      if (presentationTransitionCurrent(provider, 'center', generation) && !providerSetEquals(previous, next)) {
+      if (shouldContinueNative() && !providerSetEquals(previous, next)) {
         centerHiddenRef.current = next;
         setCenterHidden(next);
+      } else if (centerSurfaceRef.current !== 'native') {
+        await applyCenterHiddenCommands({
+          host: presentationHost,
+          previousHidden: next,
+          nextHidden: new Set(),
+          snapshot,
+          shouldContinue: () => centerSurfaceRef.current !== 'native',
+        });
       }
     },
     [presentationTransitionCurrent],
@@ -802,9 +917,36 @@ export default function App() {
         return;
       }
 
+      const ensureTextCenterLoadedHidden = async () => {
+        try {
+          await ensureProviderLoadedHidden(
+            provider,
+            hiddenProviderLoadBounds(),
+            () => presentationTransitionCurrent(provider, 'center', generation) && centerSurfaceRef.current === 'text',
+          );
+        } catch (error) {
+          clearCenterTransitionInFlight(provider, generation);
+          throw error;
+        }
+      };
+
+      if (state === 'center' && centerSurfaceRef.current !== 'native') {
+        await ensureTextCenterLoadedHidden();
+        return;
+      }
+
       const bounds = await waitForProviderPresentationBounds(provider, state, generation);
       if (!bounds) {
-        if (state === 'center') clearCenterTransitionInFlight(provider, generation);
+        if (state === 'center' && centerSurfaceRef.current === 'text') {
+          await ensureTextCenterLoadedHidden();
+        } else if (state === 'center') {
+          clearCenterTransitionInFlight(provider, generation);
+        }
+        return;
+      }
+
+      if (state === 'center' && centerSurfaceRef.current !== 'native') {
+        await ensureTextCenterLoadedHidden();
         return;
       }
 
@@ -812,6 +954,8 @@ export default function App() {
       if (!presentationTransitionCurrent(provider, state, generation)) return;
 
       try {
+        const shouldContinue = () =>
+          presentationTransitionCurrent(provider, state, generation) && (state !== 'center' || centerSurfaceRef.current === 'native');
         if (statesRef.current[provider].webview !== 'loaded') resetProviderBootState(provider);
         await applyPresentationTransitionCommand({
           host: presentationHost,
@@ -820,8 +964,11 @@ export default function App() {
           bounds,
           webview: statesRef.current[provider].webview,
           currentWebview: () => statesRef.current[provider].webview,
-          shouldContinue: () => presentationTransitionCurrent(provider, state, generation),
+          shouldContinue,
         });
+        if (state === 'center' && !shouldContinue() && statesRef.current[provider].webview === 'loaded') {
+          await host.provider.hide(provider);
+        }
       } catch (error) {
         if (state === 'center') clearCenterTransitionInFlight(provider, generation);
         throw error;
@@ -831,6 +978,7 @@ export default function App() {
       beginPresentationTransition,
       clearCenterTransitionInFlight,
       clearUserHiddenProvider,
+      ensureProviderLoadedHidden,
       hideCenterSiblingsForTransition,
       persistPresentation,
       presentationTransitionCurrent,
@@ -842,6 +990,24 @@ export default function App() {
   useEffect(() => {
     changeProviderPresentationRef.current = changeProviderPresentation;
   }, [changeProviderPresentation]);
+
+  const forceProviderNativeCenter = useCallback(
+    async (provider: AIProvider) => {
+      forcedNativeCenterProviderRef.current = provider;
+      setCenterSurfaceMode('native');
+      markManualFocusControl(provider);
+      try {
+        await changeProviderPresentationRef.current(provider, 'center');
+      } finally {
+        if (centerPresentationProvider(presentationRef.current) === provider) {
+          setCenterSurfaceMode('native');
+        } else if (forcedNativeCenterProviderRef.current === provider) {
+          forcedNativeCenterProviderRef.current = undefined;
+        }
+      }
+    },
+    [markManualFocusControl, setCenterSurfaceMode],
+  );
 
   const changeProviderPresentationManually = useCallback(
     async (provider: AIProvider, state: WebviewPresentationState) => {
@@ -872,21 +1038,71 @@ export default function App() {
   }, [setManualFocusLock]);
 
   useEffect(() => {
-    const next = new Set(centerHiddenProviders(presentation, states, userHidden, PROVIDERS, centerTransitionsInFlight));
+    const nativeCenterSurface = centerSurfaceRef.current === 'native';
+    const next = presentationHiddenProvidersForCenterSurface({
+      centerSurface: nativeCenterSurface ? 'native' : 'text',
+      presentation,
+      states,
+      userHidden,
+      providers: PROVIDERS,
+      centerTransitionsInFlight,
+    });
     const previous = centerHiddenRef.current;
     const centered = centerPresentationProvider(presentation);
+    const snapshot = () => ({
+      states: statesRef.current,
+      presentation: presentationRef.current,
+      userHidden: userHiddenRef.current,
+      overlayGuardOpen: overlayGuardOpenRef.current,
+    });
 
     if (centered && states[centered].webview === 'loaded') {
-      const bounds = nonEmptyRect(centerStageRef.current?.getBoundingClientRect());
-      if (bounds) {
-        void applyCenterStageCommand({
-          host: presentationHost,
-          provider: centered,
-          bounds,
-          overlappingProviders: Array.from(next),
-          currentWebview: (candidate) => statesRef.current[candidate].webview,
-          shouldContinue: () => presentationRef.current[centered] === 'center',
-        });
+      if (nativeCenterSurface) {
+        const bounds = nonEmptyRect(centerStageRef.current?.getBoundingClientRect());
+        if (bounds) {
+          const shouldPaintCenter = () =>
+            presentationRef.current[centered] === 'center' &&
+            centerSurfaceRef.current === 'native' &&
+            !userHiddenRef.current.has(centered) &&
+            !overlayGuardOpenRef.current;
+          void (async () => {
+            await applyPresentationTransitionCommand({
+              host: presentationHost,
+              provider: centered,
+              state: 'center',
+              bounds,
+              webview: statesRef.current[centered].webview,
+              currentWebview: () => statesRef.current[centered].webview,
+              shouldContinue: shouldPaintCenter,
+            });
+            if (!shouldPaintCenter()) {
+              if (presentationRef.current[centered] === 'center' && statesRef.current[centered].webview === 'loaded') {
+                await host.provider.hide(centered);
+              }
+              return;
+            }
+            await applyCenterStageCommand({
+              host: presentationHost,
+              provider: centered,
+              bounds,
+              overlappingProviders: Array.from(next),
+              currentWebview: (candidate) => statesRef.current[candidate].webview,
+              shouldContinue: () => presentationRef.current[centered] === 'center' && centerSurfaceRef.current === 'native',
+            });
+            if (centerSurfaceRef.current !== 'native') {
+              if (presentationRef.current[centered] === 'center' && statesRef.current[centered].webview === 'loaded') {
+                await host.provider.hide(centered);
+              }
+              await applyCenterHiddenCommands({
+                host: presentationHost,
+                previousHidden: next,
+                nextHidden: new Set(),
+                snapshot,
+                shouldContinue: () => centerSurfaceRef.current !== 'native',
+              });
+            }
+          })();
+        }
       }
     }
 
@@ -894,19 +1110,14 @@ export default function App() {
       host: presentationHost,
       previousHidden: previous,
       nextHidden: next,
-      snapshot: () => ({
-        states: statesRef.current,
-        presentation: presentationRef.current,
-        userHidden: userHiddenRef.current,
-        overlayGuardOpen: overlayGuardOpenRef.current,
-      }),
+      snapshot,
     });
 
     if (!providerSetEquals(previous, next)) {
       centerHiddenRef.current = next;
       setCenterHidden(next);
     }
-  }, [centerTransitionsInFlight, presentation, states, userHidden]);
+  }, [centerSurface, centerTransitionsInFlight, presentation, states, userHidden]);
 
   useEffect(() => {
     for (const provider of Array.from(centerTransitionsInFlight)) {
@@ -931,7 +1142,7 @@ export default function App() {
   useEffect(() => {
     const onResize = () => {
       syncAllBounds();
-      if (centeredProvider) void driveCenteredProviderToStage(centeredProvider);
+      if (centeredProvider && centerSurfaceRef.current === 'native') void driveCenteredProviderToStage(centeredProvider);
     };
     window.addEventListener('resize', onResize);
 
@@ -946,7 +1157,7 @@ export default function App() {
         observer.observe(el);
         observers.push(observer);
       }
-      if (centeredProvider && centerStageRef.current) {
+      if (centeredProvider && centerSurface === 'native' && centerStageRef.current) {
         const observer = new ResizeObserver(() => {
           void driveCenteredProviderToStage(centeredProvider);
         });
@@ -962,7 +1173,7 @@ export default function App() {
       window.clearInterval(timer);
       for (const observer of observers) observer.disconnect();
     };
-  }, [centeredProvider, driveCenteredProviderToStage, syncAllBounds, syncBounds, thumbnailProviders]);
+  }, [centerSurface, centeredProvider, driveCenteredProviderToStage, syncAllBounds, syncBounds, thumbnailProviders]);
 
   useEffect(() => {
     syncAllBounds();
@@ -1122,14 +1333,15 @@ export default function App() {
   };
 
   const togglePaneVisibility = async (provider: AIProvider) => {
+    const textCentered = presentationRef.current[provider] === 'center' && centerSurfaceRef.current === 'text';
     if (userHidden.has(provider)) {
-      await host.provider.show(provider);
+      if (!textCentered) await host.provider.show(provider);
       setUserHidden((current) => {
         const next = new Set(current);
         next.delete(provider);
         return next;
       });
-      window.requestAnimationFrame(() => void syncBounds(provider));
+      if (!textCentered) window.requestAnimationFrame(() => void syncBounds(provider));
       return;
     }
 
@@ -1140,6 +1352,34 @@ export default function App() {
   const toggleAdapterAccess = useCallback((provider: AIProvider) => {
     setAccessProvider((current) => (current === provider ? null : provider));
   }, []);
+
+  const enlargeCenter = useCallback(() => {
+    const provider = centerPresentationProvider(presentationRef.current);
+    setCenterSurfaceMode('native');
+    if (provider) void changeProviderPresentationRef.current(provider, 'center');
+  }, [setCenterSurfaceMode]);
+
+  const collapseCenter = useCallback(() => {
+    const provider = centerPresentationProvider(presentationRef.current);
+    forcedNativeCenterProviderRef.current = undefined;
+    if (provider) {
+      beginPresentationTransition(provider);
+      clearCenterTransitionInFlight(provider);
+    }
+    setCenterSurfaceMode('text');
+    if (provider && statesRef.current[provider].webview === 'loaded') void host.provider.hide(provider);
+  }, [beginPresentationTransition, clearCenterTransitionInFlight, setCenterSurfaceMode]);
+
+  const openProviderLogin = useCallback(
+    async (provider: AIProvider) => {
+      if (centerPresentationProvider(presentationRef.current) === provider && centerSurfaceRef.current === 'text') {
+        setCenterSurfaceMode('native');
+        clearUserHiddenProvider(provider);
+      }
+      await host.provider.openLogin(provider);
+    },
+    [clearUserHiddenProvider, setCenterSurfaceMode],
+  );
 
   const applySavedSettings = (settings: AppSettings) => {
     settingsRef.current = settings;
@@ -1189,8 +1429,11 @@ export default function App() {
             chipProviders={thumbnailChipProviders}
             states={states}
             presentation={presentation}
+            centerSurface={centerSurface}
+            centerText={centerText}
+            centerTextFinal={centerTextFinal}
             userHidden={userHidden}
-            presentationHidden={centerHidden}
+            presentationHidden={presentationHidden}
             setPaneRef={setPaneRef}
             setCenterStageRef={setCenterStageRef}
             openProvider={openProvider}
@@ -1199,6 +1442,9 @@ export default function App() {
             onManualFocusControl={markManualFocusControl}
             accessProvider={accessProvider}
             toggleAdapterAccess={toggleAdapterAccess}
+            onEnlargeCenter={enlargeCenter}
+            onCollapseCenter={collapseCenter}
+            onOpenLogin={openProviderLogin}
             syncBounds={syncBounds}
             reportProvider={reportProvider}
             reportBusy={reportBusy}
@@ -1335,7 +1581,7 @@ export default function App() {
                     draft={checkpointDraft}
                     onDraftChange={setCheckpointDraft}
                     onNativeEdit={(provider) => {
-                      void changeProviderPresentationManually(provider, 'center');
+                      void forceProviderNativeCenter(provider);
                     }}
                     locale={locale}
                   />

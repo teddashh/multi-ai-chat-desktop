@@ -9,12 +9,17 @@ import { buildAdapterPermissionSummary, type AdapterPermissionSummary } from './
 import type { PresentationByProvider, WebviewPresentationState } from './presentation';
 import { chipState } from './providerChipState';
 
+export type CenterSurface = 'text' | 'native';
+
 export function FocusPane({
   centeredProvider,
   sideProviders,
   chipProviders,
   states,
   presentation,
+  centerSurface,
+  centerText,
+  centerTextFinal,
   userHidden,
   presentationHidden,
   setPaneRef,
@@ -25,6 +30,9 @@ export function FocusPane({
   onManualFocusControl,
   accessProvider,
   toggleAdapterAccess,
+  onEnlargeCenter,
+  onCollapseCenter,
+  onOpenLogin,
   syncBounds,
   reportProvider,
   reportBusy,
@@ -34,6 +42,9 @@ export function FocusPane({
   chipProviders: AIProvider[];
   states: Record<AIProvider, ProviderState>;
   presentation: PresentationByProvider;
+  centerSurface: CenterSurface;
+  centerText?: string;
+  centerTextFinal: boolean;
   userHidden: ReadonlySet<AIProvider>;
   presentationHidden: ReadonlySet<AIProvider>;
   setPaneRef: (provider: AIProvider, el: HTMLDivElement | null) => void;
@@ -44,6 +55,9 @@ export function FocusPane({
   onManualFocusControl: (provider: AIProvider) => void;
   accessProvider: AIProvider | null;
   toggleAdapterAccess: (provider: AIProvider) => void;
+  onEnlargeCenter: () => void;
+  onCollapseCenter: () => void;
+  onOpenLogin: (provider: AIProvider) => Promise<void>;
   syncBounds: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
@@ -57,6 +71,9 @@ export function FocusPane({
         <FocusStage
           provider={centeredProvider}
           state={states[centeredProvider]}
+          centerSurface={centerSurface}
+          centerText={centerText}
+          centerTextFinal={centerTextFinal}
           hiddenByUser={userHidden.has(centeredProvider)}
           hiddenByCenter={presentationHidden.has(centeredProvider)}
           accessOpen={accessProvider === centeredProvider}
@@ -66,6 +83,9 @@ export function FocusPane({
           changeProviderPresentation={changeProviderPresentation}
           onManualFocusControl={onManualFocusControl}
           toggleAdapterAccess={toggleAdapterAccess}
+          onEnlargeCenter={onEnlargeCenter}
+          onCollapseCenter={onCollapseCenter}
+          onOpenLogin={onOpenLogin}
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
@@ -102,6 +122,9 @@ export function FocusPane({
 function FocusStage({
   provider,
   state,
+  centerSurface,
+  centerText,
+  centerTextFinal,
   hiddenByUser,
   hiddenByCenter,
   accessOpen,
@@ -111,12 +134,18 @@ function FocusStage({
   changeProviderPresentation,
   onManualFocusControl,
   toggleAdapterAccess,
+  onEnlargeCenter,
+  onCollapseCenter,
+  onOpenLogin,
   syncBounds,
   reportProvider,
   reportBusy,
 }: {
   provider: AIProvider;
   state: ProviderState;
+  centerSurface: CenterSurface;
+  centerText?: string;
+  centerTextFinal: boolean;
   hiddenByUser: boolean;
   hiddenByCenter: boolean;
   accessOpen: boolean;
@@ -126,6 +155,9 @@ function FocusStage({
   changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
   onManualFocusControl: (provider: AIProvider) => void;
   toggleAdapterAccess: (provider: AIProvider) => void;
+  onEnlargeCenter: () => void;
+  onCollapseCenter: () => void;
+  onOpenLogin: (provider: AIProvider) => Promise<void>;
   syncBounds: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
@@ -161,13 +193,22 @@ function FocusStage({
           >
             {hiddenByCenter ? t('provider.hidden') : hiddenByUser ? t('provider.show') : t('provider.hide')}
           </button>
+          {centerSurface === 'text' ? (
+            <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={onEnlargeCenter}>
+              {t('provider.realPage')}
+            </button>
+          ) : (
+            <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={onCollapseCenter}>
+              {t('provider.textView')}
+            </button>
+          )}
           <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'chip')}>
             {t('provider.chip')}
           </button>
           <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'side')}>
             {t('provider.side')}
           </button>
-          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void host.provider.openLogin(provider)}>
+          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void onOpenLogin(provider)}>
             {t('provider.login')}
           </button>
           {provider === 'gemini' ? (
@@ -211,7 +252,9 @@ function FocusStage({
           </button>
         </div>
       ) : null}
-      {state.webview === 'loaded' ? (
+      {centerSurface === 'text' ? (
+        <TextCenterView thinking={state.thinking} centerText={centerText} centerTextFinal={centerTextFinal} />
+      ) : state.webview === 'loaded' ? (
         <div className="grid flex-1 place-items-center p-3 text-xs text-zinc-500">
           {hidden ? t('provider.nativeWebviewHidden') : t('provider.nativeWebviewCentered')}
         </div>
@@ -224,6 +267,35 @@ function FocusStage({
       )}
     </section>
   );
+}
+
+export function TextCenterView({
+  thinking,
+  centerText,
+  centerTextFinal,
+}: {
+  thinking: boolean;
+  centerText?: string;
+  centerTextFinal: boolean;
+}) {
+  const { t } = useI18n();
+  if (thinking && !centerTextFinal) {
+    return (
+      <div className="grid flex-1 place-items-center p-3">
+        <div className="whitespace-pre-wrap text-sm italic text-zinc-500">{t('chat.thinking')}</div>
+      </div>
+    );
+  }
+
+  if (centerText) {
+    return (
+      <div className="flex-1 overflow-auto p-3 text-zinc-100">
+        <div className="whitespace-pre-wrap text-sm">{centerText}</div>
+      </div>
+    );
+  }
+
+  return <div className="grid flex-1 place-items-center p-3 text-sm text-zinc-500">{t('provider.centerIdle')}</div>;
 }
 
 function ThumbnailTile({
