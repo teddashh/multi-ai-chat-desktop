@@ -30,3 +30,29 @@ export function focusGridTemplateColumns(
 export function dragFocusPaneWidth(startWidth: number, pointerDelta: number, minWidth: number, maxWidth: number): number {
   return clamp(Math.round(startWidth + pointerDelta), minWidth, maxWidth);
 }
+
+export function nonEmptyRect(rect: DOMRectReadOnly | null | undefined): DOMRectReadOnly | undefined {
+  if (!rect || rect.width <= 0 || rect.height <= 0) return undefined;
+  return rect;
+}
+
+export type CenterStagePresentationState = 'chip' | 'side' | 'center';
+export type CenterStageWebviewState = 'none' | 'creating' | 'loaded';
+
+export async function driveCenteredProviderToStage<TProvider extends string>({
+  provider,
+  presentation,
+  webview,
+  bounds,
+  setBounds,
+}: {
+  provider: TProvider;
+  presentation: CenterStagePresentationState;
+  webview: CenterStageWebviewState;
+  bounds: DOMRectReadOnly | null | undefined;
+  setBounds: (provider: TProvider, bounds: DOMRectReadOnly) => Promise<unknown>;
+}): Promise<void> {
+  const rect = nonEmptyRect(bounds);
+  if (presentation !== 'center' || webview !== 'loaded' || !rect) return;
+  await setBounds(provider, rect);
+}

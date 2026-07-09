@@ -38,7 +38,13 @@ import { RoleConfig } from './ui/RoleConfig';
 import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
-import { DEFAULT_FOCUS_LAYOUT_CONSTRAINTS, dragFocusPaneWidth, focusGridTemplateColumns } from './ui/focusLayout';
+import {
+  DEFAULT_FOCUS_LAYOUT_CONSTRAINTS,
+  dragFocusPaneWidth,
+  driveCenteredProviderToStage as driveCenteredProviderToStageCommand,
+  focusGridTemplateColumns,
+  nonEmptyRect,
+} from './ui/focusLayout';
 import { defaultRolesForMode, isSerialMode } from './ui/modeRoles';
 import {
   centerHiddenProviders,
@@ -572,9 +578,9 @@ export default function App() {
 
   const boundsForProvider = useCallback((provider: AIProvider): DOMRectReadOnly | undefined => {
     if (presentationRef.current[provider] === 'center') {
-      return centerStageRef.current?.getBoundingClientRect() ?? paneRefs.current[provider]?.getBoundingClientRect();
+      return nonEmptyRect(centerStageRef.current?.getBoundingClientRect()) ?? nonEmptyRect(paneRefs.current[provider]?.getBoundingClientRect());
     }
-    return paneRefs.current[provider]?.getBoundingClientRect();
+    return nonEmptyRect(paneRefs.current[provider]?.getBoundingClientRect());
   }, []);
 
   const fallbackBoundsForProvider = useCallback(
@@ -583,8 +589,8 @@ export default function App() {
   );
 
   const boundsForPresentationTarget = useCallback((provider: AIProvider, state: WebviewPresentationState): DOMRectReadOnly | undefined => {
-    if (state === 'center') return centerStageRef.current?.getBoundingClientRect();
-    if (state === 'side') return paneRefs.current[provider]?.getBoundingClientRect();
+    if (state === 'center') return nonEmptyRect(centerStageRef.current?.getBoundingClientRect());
+    if (state === 'side') return nonEmptyRect(paneRefs.current[provider]?.getBoundingClientRect());
     return undefined;
   }, []);
 
@@ -662,6 +668,16 @@ export default function App() {
   const syncAllBounds = useCallback(() => {
     for (const provider of PROVIDERS) void syncBounds(provider);
   }, [syncBounds]);
+
+  const driveCenteredProviderToStage = useCallback(async (provider: AIProvider) => {
+    await driveCenteredProviderToStageCommand({
+      provider,
+      presentation: presentationRef.current[provider],
+      webview: statesRef.current[provider].webview,
+      bounds: centerStageRef.current?.getBoundingClientRect(),
+      setBounds: host.layout.setBounds,
+    });
+  }, []);
 
   const setPaneRef = useCallback(
     (provider: AIProvider, el: HTMLDivElement | null) => {
@@ -861,7 +877,7 @@ export default function App() {
     const centered = centerPresentationProvider(presentation);
 
     if (centered && states[centered].webview === 'loaded') {
-      const bounds = centerStageRef.current?.getBoundingClientRect();
+      const bounds = nonEmptyRect(centerStageRef.current?.getBoundingClientRect());
       if (bounds) {
         void applyCenterStageCommand({
           host: presentationHost,
@@ -913,7 +929,10 @@ export default function App() {
   }, [connectionSnapshotLoaded, initialRestoreComplete, openProviders, persistSettingsPatch, settingsLoaded]);
 
   useEffect(() => {
-    const onResize = () => syncAllBounds();
+    const onResize = () => {
+      syncAllBounds();
+      if (centeredProvider) void driveCenteredProviderToStage(centeredProvider);
+    };
     window.addEventListener('resize', onResize);
 
     const observers: ResizeObserver[] = [];
@@ -929,7 +948,7 @@ export default function App() {
       }
       if (centeredProvider && centerStageRef.current) {
         const observer = new ResizeObserver(() => {
-          void syncBounds(centeredProvider);
+          void driveCenteredProviderToStage(centeredProvider);
         });
         observer.observe(centerStageRef.current);
         observers.push(observer);
@@ -943,7 +962,7 @@ export default function App() {
       window.clearInterval(timer);
       for (const observer of observers) observer.disconnect();
     };
-  }, [centeredProvider, syncAllBounds, syncBounds, thumbnailProviders]);
+  }, [centeredProvider, driveCenteredProviderToStage, syncAllBounds, syncBounds, thumbnailProviders]);
 
   useEffect(() => {
     syncAllBounds();
