@@ -255,5 +255,6 @@ export const zhTW: Record<I18nKey, string> = {
   'fileInsert.attachmentLimit': '文字附件限制為 8 個檔案，總量 262,144 UTF-8 bytes 或 120,000 字元。請移除檔案或選擇較小的檔案。',
   'chat.noMessages': '尚無訊息。',
   'chat.streaming': '串流中',
+  'chat.thinking': '思考中…',
   'chat.truncated': '（已截斷）',
 };

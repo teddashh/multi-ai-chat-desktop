@@ -268,5 +268,6 @@ export const en: Record<I18nKey, string> = {
     'Text attachments are limited to 8 files and 262,144 UTF-8 bytes or 120,000 characters total for this milestone. Remove a file or choose smaller files.',
   'chat.noMessages': 'No messages yet.',
   'chat.streaming': 'streaming',
+  'chat.thinking': 'Thinking…',
   'chat.truncated': '(truncated)',
 };

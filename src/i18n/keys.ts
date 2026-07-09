@@ -248,6 +248,7 @@ export const I18N_KEYS = [
   'fileInsert.attachmentLimit',
   'chat.noMessages',
   'chat.streaming',
+  'chat.thinking',
   'chat.truncated',
 ] as const;
 

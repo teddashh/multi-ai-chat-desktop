@@ -1347,7 +1347,7 @@ export default function App() {
             <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />
           ) : null}
           <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-800 py-3">
-            <ChatArea messages={messages} locale={locale} />
+            <ChatArea messages={messages} locale={locale} states={states} />
             {import.meta.env.DEV ? <EchoPanel /> : null}
           </div>
           <div className="mt-3 border-t border-zinc-800 pt-3">
@@ -1481,7 +1481,15 @@ function adapterNoticeText(notice: AdapterNotice): string {
   return `${provider}: ${notice.message || notice.kind}`;
 }
 
-function ChatArea({ messages, locale }: { messages: Bubble[]; locale: Locale }) {
+export function ChatArea({
+  messages,
+  locale,
+  states,
+}: {
+  messages: Bubble[];
+  locale: Locale;
+  states: Record<AIProvider, ProviderState>;
+}) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -1493,17 +1501,29 @@ function ChatArea({ messages, locale }: { messages: Bubble[]; locale: Locale }) 
   }
   return (
     <div className="space-y-3 p-2">
-      {messages.map((message) => (
-        <article key={message.id} className="border border-zinc-800 bg-zinc-900 p-3">
-          <div className="mb-1 text-xs uppercase text-zinc-500">
-            {bubbleAuthorLabel(message)}
-            {message.modeRole ? ` · ${message.modeRole}` : ''}
-            {message.role === 'ai' && !message.final ? ` ${translateKey('chat.streaming', locale)}` : ''}
-          </div>
-          <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-          {message.truncated ? <div className="mt-2 text-xs text-amber-300">{translateKey('chat.truncated', locale)}</div> : null}
-        </article>
-      ))}
+      {messages.map((message) => {
+        const p = message.provider;
+        const isProvider = typeof p === 'string' && p in AI_PROVIDERS;
+        const thinking = isProvider && !message.final && states[p as AIProvider]?.thinking === true;
+        const statusLabel =
+          message.role === 'ai' && !message.final ? translateKey(thinking ? 'chat.thinking' : 'chat.streaming', locale) : '';
+
+        return (
+          <article key={message.id} className="border border-zinc-800 bg-zinc-900 p-3">
+            <div className="mb-1 text-xs uppercase text-zinc-500">
+              {bubbleAuthorLabel(message)}
+              {message.modeRole ? ` · ${message.modeRole}` : ''}
+              {statusLabel ? ` ${statusLabel}` : ''}
+            </div>
+            {thinking ? (
+              <div className="whitespace-pre-wrap text-sm italic text-zinc-500">{translateKey('chat.thinking', locale)}</div>
+            ) : (
+              <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+            )}
+            {message.truncated ? <div className="mt-2 text-xs text-amber-300">{translateKey('chat.truncated', locale)}</div> : null}
+          </article>
+        );
+      })}
       <div ref={bottomRef} />
     </div>
   );
