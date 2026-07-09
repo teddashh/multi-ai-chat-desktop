@@ -96,16 +96,13 @@ function renderPresetGrid({
             key={`${keyPrefix}-${preset.id}`}
             type="button"
             onClick={() => onSelectPreset(preset.graphId)}
-            className={`flex min-h-36 flex-col border p-3 text-left transition ${
+            className={`flex min-h-20 flex-col border p-3 text-left transition ${
               selected ? 'border-sky-500 bg-sky-950 text-zinc-50' : 'border-zinc-800 bg-zinc-900 text-zinc-200 hover:border-zinc-600'
             }`}
             aria-pressed={selected}
           >
             <span className="text-sm font-semibold">{displayName}</span>
-            <span className="mt-2 flex-1 text-xs leading-relaxed text-zinc-400">{t(preset.descriptionKey, locale)}</span>
-            <span className="mt-3 border-t border-zinc-800 pt-2 text-[11px] font-medium text-sky-200">
-              {t(preset.costLabelKey, locale)}
-            </span>
+            {preset.metaKey ? <span className="mt-2 text-xs leading-relaxed text-zinc-400">{t(preset.metaKey, locale)}</span> : null}
           </button>
         );
       })}

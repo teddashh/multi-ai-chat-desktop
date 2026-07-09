@@ -1055,7 +1055,7 @@ export default function App() {
     }
   };
 
-  const publishConversation = async () => {
+  const _publishConversation = async () => {
     if (messages.length === 0 || sharing) return;
     setSharing(true);
     try {
@@ -1237,13 +1237,6 @@ export default function App() {
               >
                 {translate('header.exportMarkdown')}
               </button>
-              <button
-                className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => void publishConversation()}
-                disabled={messages.length === 0 || sharing}
-              >
-                {translate('header.publishHackmd')}
-              </button>
               <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
                 {translate('header.settings')}
               </button>
@@ -1281,11 +1274,8 @@ export default function App() {
               advancedOpen={advancedControlsOpen}
               onAdvancedOpenChange={setAdvancedControlsOpen}
               locale={locale}
-              visiblePresetCount={3}
-              showFullCatalogInAdvanced
-              moreLabelKey="preset.morePresets"
-              advancedClosedLabelKey="preset.showFullCatalog"
-              advancedOpenLabelKey="preset.hideFullCatalog"
+              visiblePresetCount={5}
+              showFullCatalogInAdvanced={false}
             >
               <ModeSelector mode={mode} onModeChange={setMode} locale={locale} />
               <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />

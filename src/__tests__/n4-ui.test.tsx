@@ -61,7 +61,7 @@ function response(provider: AIProvider, action: 'RESPONSE_CHUNK' | 'RESPONSE_DON
 }
 
 describe('N4 preset catalog', () => {
-  it.each(['en', 'zh-TW'] as const)('renders the five built-in cards with %s cost labels', (locale) => {
+  it.each(['en', 'zh-TW'] as const)('renders the five built-in cards with %s time meta only', (locale) => {
     const tree = PresetCatalog({
       mode: 'free',
       onSelectPreset: vi.fn(),
@@ -79,7 +79,11 @@ describe('N4 preset catalog', () => {
     for (const preset of PRESET_CATALOG) {
       const card = cardButtons.find((button) => textOf(button).includes(t(preset.displayNameKey, locale)));
       expect(card).toBeTruthy();
-      expect(textOf(card)).toContain(t(preset.costLabelKey, locale));
+      if (!preset.metaKey) throw new Error(`Missing meta key for ${preset.id}`);
+      expect(textOf(card)).toContain(t(preset.metaKey, locale));
+      expect(textOf(card)).not.toContain(t(preset.descriptionKey, locale));
+      expect(textOf(card)).not.toContain(t(preset.costLabelKey, locale));
+      expect(textOf(card)).not.toContain('RAM');
     }
     expect(PRESET_CATALOG.filter((preset) => preset.id !== 'free').map((preset) => preset.requiredProviders)).toEqual(
       Array.from({ length: 4 }, () => [...DEFAULT_FREE_TARGET_PROVIDERS]),

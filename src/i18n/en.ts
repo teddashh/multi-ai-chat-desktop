@@ -13,22 +13,27 @@ export const en: Record<I18nKey, string> = {
   'mode.roundtable.description': 'Five rounds across four AIs to converge on takeaways.',
   'preset.catalog.aria': 'Preset catalog',
   'preset.free.displayName': 'Free fan-out',
+  'preset.free.meta': '< 1 min',
   'preset.free.description':
     'Use this when you want quick independent answers from the AI you pick. Good for comparison, brainstorming, or a fast second opinion.',
   'preset.free.costLabel': 'Selected AIs · <1 min · Low RAM',
   'preset.debate.displayName': 'Debate',
+  'preset.debate.meta': '~ 4 min',
   'preset.debate.description':
     'Use this when a question needs opposing arguments and a neutral synthesis. You get pro, con, judge, and summary passes.',
   'preset.debate.costLabel': '4 AIs · 4 logins · 3-5 min · Medium RAM',
   'preset.consult.displayName': 'Consult',
+  'preset.consult.meta': '~ 2 min',
   'preset.consult.description':
     'Use this for research-style questions. Two AIs answer first, another checks them, and one produces a concise combined answer.',
   'preset.consult.costLabel': '4 AIs · ~2 min · Low RAM',
   'preset.coding.displayName': 'Coding',
+  'preset.coding.meta': '~ 10 min',
   'preset.coding.description':
     'Use this for implementation work. The run plans, reviews, writes, tests, revises, and finishes a concrete answer.',
   'preset.coding.costLabel': '4 AIs · 4 logins · 8-12 min · High RAM',
   'preset.roundtable.displayName': 'Roundtable',
+  'preset.roundtable.meta': '~ 12 min',
   'preset.roundtable.description':
     'Use this when you want a slower multi-round discussion. Four AIs revisit the question across five rounds and converge on takeaways.',
   'preset.roundtable.costLabel': '4 AIs · 4 logins · 10-15 min · High RAM',

@@ -12,6 +12,7 @@ export interface PresetCatalogEntry {
   id: ChatMode;
   graphId: ChatMode;
   displayNameKey: I18nKey;
+  metaKey?: I18nKey;
   descriptionKey: I18nKey;
   costLabelKey: I18nKey;
   requiredProviders: AIProvider[];
@@ -27,6 +28,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     id: 'free',
     graphId: 'free',
     displayNameKey: 'preset.free.displayName',
+    metaKey: 'preset.free.meta',
     descriptionKey: 'preset.free.description',
     costLabelKey: 'preset.free.costLabel',
     requiredProviders: [],
@@ -38,6 +40,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     id: 'debate',
     graphId: 'debate',
     displayNameKey: 'preset.debate.displayName',
+    metaKey: 'preset.debate.meta',
     descriptionKey: 'preset.debate.description',
     costLabelKey: 'preset.debate.costLabel',
     requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
@@ -49,6 +52,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     id: 'consult',
     graphId: 'consult',
     displayNameKey: 'preset.consult.displayName',
+    metaKey: 'preset.consult.meta',
     descriptionKey: 'preset.consult.description',
     costLabelKey: 'preset.consult.costLabel',
     requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
@@ -60,6 +64,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     id: 'coding',
     graphId: 'coding',
     displayNameKey: 'preset.coding.displayName',
+    metaKey: 'preset.coding.meta',
     descriptionKey: 'preset.coding.description',
     costLabelKey: 'preset.coding.costLabel',
     requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
@@ -71,6 +76,7 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     id: 'roundtable',
     graphId: 'roundtable',
     displayNameKey: 'preset.roundtable.displayName',
+    metaKey: 'preset.roundtable.meta',
     descriptionKey: 'preset.roundtable.description',
     costLabelKey: 'preset.roundtable.costLabel',
     requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
