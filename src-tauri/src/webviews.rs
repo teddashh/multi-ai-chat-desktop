@@ -60,6 +60,29 @@ fn runtime() -> &'static Mutex<ProviderRuntime> {
     RUNTIME.get_or_init(|| Mutex::new(ProviderRuntime::default()))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NewWindowAction {
+    /// Platform-native popup (OAuth / allowlisted window.open) — return NewWindowResponse::Allow.
+    AllowPopup,
+    /// Emit nav://blocked + open system browser, then Deny.
+    DenyExternal,
+    /// Silent Deny (sentinel / non-http).
+    DenySilent,
+}
+
+fn decide_new_window_action(url: &tauri::Url, allowlisted: bool) -> NewWindowAction {
+    if url.host_str() == Some("mac-bridge.invalid") {
+        return NewWindowAction::DenySilent;
+    }
+    if allowlisted {
+        return NewWindowAction::AllowPopup;
+    }
+    if url.scheme() == "https" || url.scheme() == "http" {
+        return NewWindowAction::DenyExternal;
+    }
+    NewWindowAction::DenySilent
+}
+
 #[tauri::command]
 pub async fn provider_open(
     app: AppHandle,
@@ -107,7 +130,6 @@ pub async fn provider_open(
     let nav_provider = provider.clone();
     let popup_app = app.clone();
     let popup_provider = provider.clone();
-    let popup_label = label.clone();
     // Inbound-hint transport: the document.title codec (SPEC §7). Cross-platform via Tauri's
     // WebviewBuilder hook — wry implements the underlying observer natively on WebView2 (Windows),
     // WKWebView KVO (macOS), and WebKitGTK (Linux), and it fires for child webviews. This replaces
@@ -142,28 +164,24 @@ pub async fn provider_open(
             false
         })
         .on_new_window(move |url, _features| {
-            if url.host_str() == Some("mac-bridge.invalid") {
-                return NewWindowResponse::Deny;
-            }
-            if adapters::url_allowed_for_provider(&popup_provider, &url).unwrap_or(false)
-                || adapters::url_allowed_for_sso(&popup_provider, &url).unwrap_or(false)
-            {
-                if let Some(webview) = popup_app.get_webview(&popup_label) {
-                    let _ = webview.navigate(url);
+            let allowlisted = adapters::url_allowed_for_provider(&popup_provider, &url)
+                .unwrap_or(false)
+                || adapters::url_allowed_for_sso(&popup_provider, &url).unwrap_or(false);
+            match decide_new_window_action(&url, allowlisted) {
+                NewWindowAction::AllowPopup => NewWindowResponse::Allow,
+                NewWindowAction::DenySilent => NewWindowResponse::Deny,
+                NewWindowAction::DenyExternal => {
+                    if let Some(host) = url.host_str() {
+                        let _ = popup_app.emit_to(
+                            "main",
+                            "nav://blocked",
+                            serde_json::json!({ "provider": &popup_provider, "host": host }),
+                        );
+                    }
+                    let _ = popup_app.opener().open_url(url.as_str(), None::<&str>);
+                    NewWindowResponse::Deny
                 }
-                return NewWindowResponse::Deny;
             }
-            if url.scheme() == "https" || url.scheme() == "http" {
-                if let Some(host) = url.host_str() {
-                    let _ = popup_app.emit_to(
-                        "main",
-                        "nav://blocked",
-                        serde_json::json!({ "provider": &popup_provider, "host": host }),
-                    );
-                }
-                let _ = popup_app.opener().open_url(url.as_str(), None::<&str>);
-            }
-            NewWindowResponse::Deny
         });
 
     let webview = window
@@ -708,9 +726,85 @@ fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        bridge_resets_on_boot_rotation, runtime, should_reset_bridge_on_boot_rotation,
-        staleness_action, state_with, StalenessAction,
+        bridge_resets_on_boot_rotation, decide_new_window_action, runtime,
+        should_reset_bridge_on_boot_rotation, staleness_action, state_with, NewWindowAction,
+        StalenessAction,
     };
+
+    fn url(input: &str) -> tauri::Url {
+        tauri::Url::parse(input).expect("test URL should parse")
+    }
+
+    #[test]
+    fn new_window_allowlisted_google_oauth_allows_popup() {
+        assert_eq!(
+            decide_new_window_action(
+                &url("https://accounts.google.com/o/oauth2/v2/auth?client_id=test"),
+                true
+            ),
+            NewWindowAction::AllowPopup
+        );
+    }
+
+    #[test]
+    fn new_window_allowlisted_provider_app_allows_popup() {
+        assert_eq!(
+            decide_new_window_action(&url("https://grok.com/chat"), true),
+            NewWindowAction::AllowPopup
+        );
+    }
+
+    #[test]
+    fn new_window_non_allowlisted_https_goes_external() {
+        assert_eq!(
+            decide_new_window_action(&url("https://evil.example/phish"), false),
+            NewWindowAction::DenyExternal
+        );
+    }
+
+    #[test]
+    fn new_window_non_allowlisted_http_goes_external() {
+        assert_eq!(
+            decide_new_window_action(&url("http://evil.example/"), false),
+            NewWindowAction::DenyExternal
+        );
+    }
+
+    #[test]
+    fn new_window_sentinel_silently_denied_even_if_allowlisted() {
+        assert_eq!(
+            decide_new_window_action(&url("https://mac-bridge.invalid/bridge"), false),
+            NewWindowAction::DenySilent
+        );
+        assert_eq!(
+            decide_new_window_action(&url("https://mac-bridge.invalid/bridge"), true),
+            NewWindowAction::DenySilent
+        );
+    }
+
+    #[test]
+    fn new_window_non_http_non_allowlisted_silently_denied() {
+        assert_eq!(
+            decide_new_window_action(&url("about:blank"), false),
+            NewWindowAction::DenySilent
+        );
+        assert_eq!(
+            decide_new_window_action(&url("data:text/plain,hello"), false),
+            NewWindowAction::DenySilent
+        );
+    }
+
+    #[test]
+    fn new_window_allowlisted_true_never_goes_external() {
+        assert_eq!(
+            decide_new_window_action(&url("http://evil.example/"), true),
+            NewWindowAction::AllowPopup
+        );
+        assert_eq!(
+            decide_new_window_action(&url("data:text/plain,hello"), true),
+            NewWindowAction::AllowPopup
+        );
+    }
 
     #[test]
     fn staleness_before_30s_does_nothing() {
