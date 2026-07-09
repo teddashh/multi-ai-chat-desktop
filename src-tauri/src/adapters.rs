@@ -568,6 +568,9 @@ mod tests {
             ("claude", "https://accounts.google.com.tw/accounts/SetSID"),
             ("claude-code", "https://accounts.google.com.tw/accounts/SetSID"),
             ("grok", "https://accounts.google.com.tw/accounts/SetSID"),
+            ("grok", "https://auth.grokipedia.com/login"),
+            ("grok", "https://gsi.google.com/client"),
+            ("grok", "https://www.google.com/accounts/ServiceLogin"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(url_allowed_for_sso(provider, &url).unwrap(), "{provider} {value}");
@@ -583,6 +586,7 @@ mod tests {
             ("claude", "https://auth.openai.com/authorize"),
             ("grok", "https://accounts.google.com.tw.evil.net/"),
             ("grok", "http://accounts.google.com.tw/"),
+            ("grok", "https://auth.grokipedia.com.evil.net/"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(!url_allowed_for_sso(provider, &url).unwrap(), "{provider} {value}");
