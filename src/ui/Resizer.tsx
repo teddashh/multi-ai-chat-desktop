@@ -37,7 +37,7 @@ export function Resizer({
       aria-label={label}
       role="separator"
       aria-orientation="vertical"
-      className="h-full cursor-col-resize bg-zinc-900 transition-colors hover:bg-sky-700"
+      className="h-full cursor-col-resize bg-zinc-50 dark:bg-zinc-900 transition-colors hover:bg-sky-200 dark:hover:bg-sky-700"
       onPointerDown={onPointerDown}
     />
   );

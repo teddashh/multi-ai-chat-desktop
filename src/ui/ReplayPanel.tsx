@@ -161,27 +161,27 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
     const { storedSnapshots, loadingStored, listError, busyKey, block, question, notice } = this.state;
 
     return (
-      <section aria-label={this.t('replay.snapshotReplay')} className="mt-4 border-t border-zinc-800 pt-4">
+      <section aria-label={this.t('replay.snapshotReplay')} className="mt-4 border-t border-zinc-200 dark:border-zinc-800 pt-4">
         <div className="mb-3">
-          <h3 className="text-sm font-semibold text-zinc-100">{this.t('replay.snapshotReplay')}</h3>
-          <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{this.t('replay.snapshotReplay')}</h3>
+          <p className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
             {this.t('replay.description')}
           </p>
         </div>
 
         <div className="grid gap-3">
-          <section className="border border-zinc-800 bg-zinc-900 p-3">
+          <section className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-xs font-semibold uppercase text-zinc-300">{this.t('replay.lastRun')}</h4>
-                <p className="mt-1 text-xs text-zinc-500">
+                <h4 className="text-xs font-semibold uppercase text-zinc-700 dark:text-zinc-300">{this.t('replay.lastRun')}</h4>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
                   {lastSnapshot ? `${lastSnapshot.graphId} - ${lastSnapshot.createdAt}` : this.t('replay.noInMemorySnapshot')}
                 </p>
               </div>
               {lastSnapshot ? (
                 <button
                   type="button"
-                  className="border border-emerald-700 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="border border-emerald-300 dark:border-emerald-700 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={Boolean(busyKey)}
                   onClick={() => void this.startReplay({ kind: 'last', snapshot: lastSnapshot })}
                 >
@@ -191,15 +191,15 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
             </div>
           </section>
 
-          <section className="border border-zinc-800 bg-zinc-900 p-3">
+          <section className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-xs font-semibold uppercase text-zinc-300">{this.t('replay.storedSnapshots')}</h4>
-                <p className="mt-1 text-xs text-zinc-500">{this.t('replay.durableSnapshotsOptIn')}</p>
+                <h4 className="text-xs font-semibold uppercase text-zinc-700 dark:text-zinc-300">{this.t('replay.storedSnapshots')}</h4>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">{this.t('replay.durableSnapshotsOptIn')}</p>
               </div>
               <button
                 type="button"
-                className="border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={loadingStored || Boolean(busyKey)}
                 onClick={() => void this.refreshStoredSnapshots()}
               >
@@ -207,28 +207,28 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
               </button>
             </div>
 
-            {listError ? <div className="mb-2 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{listError}</div> : null}
+            {listError ? <div className="mb-2 border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200">{listError}</div> : null}
 
-            {loadingStored ? <div className="text-xs text-zinc-500">{this.t('replay.loadingStoredSnapshots')}</div> : null}
+            {loadingStored ? <div className="text-xs text-zinc-500 dark:text-zinc-500">{this.t('replay.loadingStoredSnapshots')}</div> : null}
             {!loadingStored && storedSnapshots.length === 0 ? (
-              <div className="border border-dashed border-zinc-700 px-3 py-2 text-xs text-zinc-500">
+              <div className="border border-dashed border-zinc-300 dark:border-zinc-700 px-3 py-2 text-xs text-zinc-500 dark:text-zinc-500">
                 {this.t('replay.noStoredSnapshots')}
               </div>
             ) : null}
             {!loadingStored && storedSnapshots.length > 0 ? (
-              <div className="divide-y divide-zinc-800 border border-zinc-800">
+              <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800">
                 {storedSnapshots.map((snapshot) => {
                   const replaySource: ReplaySource = { kind: 'stored', snapshotId: snapshot.id, info: snapshot };
                   return (
                     <div key={snapshot.id} className="grid gap-2 p-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                       <div className="min-w-0">
-                        <div className="truncate font-medium text-zinc-100">{snapshot.graphId ?? this.t('replay.unknownGraph')}</div>
-                        <div className="truncate text-zinc-500">{snapshot.createdAt ?? this.t('replay.createdTimeUnknown')}</div>
+                        <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">{snapshot.graphId ?? this.t('replay.unknownGraph')}</div>
+                        <div className="truncate text-zinc-500 dark:text-zinc-500">{snapshot.createdAt ?? this.t('replay.createdTimeUnknown')}</div>
                       </div>
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          className="border border-emerald-700 px-2 py-1 text-emerald-100 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={Boolean(busyKey)}
                           onClick={() => void this.startReplay(replaySource)}
                         >
@@ -236,7 +236,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                         </button>
                         <button
                           type="button"
-                          className="border border-red-800 px-2 py-1 text-red-200 hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="border border-red-300 dark:border-red-800 px-2 py-1 text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={Boolean(busyKey)}
                           onClick={() => void this.deleteStoredSnapshot(snapshot.id)}
                         >
@@ -260,21 +260,21 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
   private renderBlock(block: ReplayBlockState, question: string, busyKey: string | undefined) {
     if (block.reason === 'question-required') {
       return (
-        <section className="mt-3 border border-amber-900 bg-amber-950 p-3 text-xs text-amber-100">
+        <section className="mt-3 border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 p-3 text-xs text-amber-800 dark:text-amber-100">
           <h4 className="font-semibold">{this.t('replay.originalQuestionRequired')}</h4>
-          <p className="mt-1 text-amber-200">
+          <p className="mt-1 text-amber-800 dark:text-amber-200">
             {formatI18n(this.t('replay.originalQuestionDescription'), { source: sourceLabel(block.source, this.locale()) })}
           </p>
           <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(event) => this.submitQuestion(event, block)}>
             <input
-              className="min-w-0 flex-1 border border-amber-800 bg-zinc-950 px-2 py-1.5 text-zinc-100"
+              className="min-w-0 flex-1 border border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-950 px-2 py-1.5 text-zinc-900 dark:text-zinc-100"
               value={question}
               onChange={(event) => this.updateQuestion(event)}
               placeholder={this.t('replay.originalQuestion')}
             />
             <button
               type="submit"
-              className="border border-emerald-700 px-3 py-1.5 text-emerald-100 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
+              className="border border-emerald-300 dark:border-emerald-700 px-3 py-1.5 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={Boolean(busyKey) || question.trim().length === 0}
             >
               {this.t('replay.replay')}
@@ -287,9 +287,9 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
     if (block.reason === 'graph-version-mismatch') {
       const detail = versionMismatchDetail(block.detail);
       return (
-        <section className="mt-3 border border-amber-900 bg-amber-950 p-3 text-xs text-amber-100">
+        <section className="mt-3 border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 p-3 text-xs text-amber-800 dark:text-amber-100">
           <h4 className="font-semibold">{this.t('replay.graphVersionChanged')}</h4>
-          <p className="mt-1 text-amber-200">
+          <p className="mt-1 text-amber-800 dark:text-amber-200">
             {formatI18n(this.t('replay.graphVersionMismatch'), {
               snapshotVersion: detail.snapshotVersion,
               currentVersion: detail.currentVersion,
@@ -297,7 +297,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
           </p>
           <button
             type="button"
-            className="mt-3 border border-emerald-700 px-3 py-1.5 text-emerald-100 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-3 border border-emerald-300 dark:border-emerald-700 px-3 py-1.5 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={Boolean(busyKey)}
             onClick={() => void this.startReplay(block.source, { replayWithCurrentGraph: true })}
           >
@@ -311,17 +311,17 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
       const unavailable = block.preflight?.unavailable ?? [];
       const aliased = block.preflight?.aliased ?? [];
       return (
-        <section className="mt-3 border border-amber-900 bg-amber-950 p-3 text-xs text-amber-100">
+        <section className="mt-3 border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 p-3 text-xs text-amber-800 dark:text-amber-100">
           <h4 className="font-semibold">{this.t('replay.cannotStartReplay')}</h4>
-          <p className="mt-1 text-amber-200">{this.t('replay.preflightHelp')}</p>
+          <p className="mt-1 text-amber-800 dark:text-amber-200">{this.t('replay.preflightHelp')}</p>
           {unavailable.length > 0 ? (
             <div className="mt-3 grid gap-2">
               {unavailable.map((provider) => (
-                <div key={provider} className="flex items-center justify-between gap-3 border border-amber-800 bg-zinc-950 px-2 py-1.5">
+                <div key={provider} className="flex items-center justify-between gap-3 border border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-950 px-2 py-1.5">
                   <span>{providerName(provider)} {this.t('replay.unavailable')}</span>
                   <button
                     type="button"
-                    className="border border-emerald-700 px-2 py-1 text-emerald-100 hover:bg-emerald-950"
+                    className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950"
                     onClick={() => void host.provider.openLogin(provider)}
                   >
                     {this.t('replay.openLogin')}
@@ -330,26 +330,26 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
               ))}
             </div>
           ) : null}
-          {aliased.length > 0 ? <div className="mt-2 text-amber-200">{this.t('replay.aliasedRoles')} {aliased.map(providerName).join(', ')}</div> : null}
+          {aliased.length > 0 ? <div className="mt-2 text-amber-800 dark:text-amber-200">{this.t('replay.aliasedRoles')} {aliased.map(providerName).join(', ')}</div> : null}
         </section>
       );
     }
 
     if (block.reason === 'not-found') {
-      return <div className="mt-3 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{this.t('replay.snapshotNotFound')}</div>;
+      return <div className="mt-3 border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200">{this.t('replay.snapshotNotFound')}</div>;
     }
 
     if (block.reason === 'unknown-graph') {
       const detail = unknownGraphDetail(block.detail);
       return (
-        <div className="mt-3 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">
+        <div className="mt-3 border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200">
           {this.t('replay.snapshotGraphUnavailable')}{detail.graphId ? `: ${detail.graphId}` : ''}.
         </div>
       );
     }
 
     return (
-      <div className="mt-3 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">
+      <div className="mt-3 border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200">
         {this.t('replay.blocked')} {block.reason}.
       </div>
     );
@@ -429,7 +429,7 @@ function providerName(provider: AIProvider): string {
 }
 
 function noticeClass(kind: ReplayNotice['kind']): string {
-  return kind === 'error' ? 'border-red-900 bg-red-950 text-red-200' : 'border-emerald-900 bg-emerald-950 text-emerald-200';
+  return kind === 'error' ? 'border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200' : 'border-emerald-300 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200';
 }
 
 function errorMessage(error: unknown): string {

@@ -334,6 +334,11 @@ export default function App() {
   useEffect(() => {
     settingsRef.current = appSettings;
   }, [appSettings]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', appSettings.theme === 'dark');
+  }, [appSettings.theme]);
+
   useEffect(() => {
     localeRef.current = locale;
   }, [locale]);
@@ -1420,9 +1425,9 @@ export default function App() {
   }, [setManualFocusLock]);
 
   return (
-    <main className="h-screen bg-zinc-950 text-zinc-100">
+    <main className="h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
       <div ref={gridRef} className="grid h-full" style={{ gridTemplateColumns: focusGridTemplateColumns(focusPaneWidth) }}>
-        <div className="flex min-h-0 min-w-0 flex-col border-r border-zinc-800 bg-zinc-950">
+        <div className="flex min-h-0 min-w-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
           <FocusPane
             centeredProvider={centeredProvider}
             sideProviders={thumbnailSideProviders}
@@ -1449,7 +1454,7 @@ export default function App() {
             reportProvider={reportProvider}
             reportBusy={reportBusy}
           />
-          <div className="shrink-0 border-t border-zinc-800 px-3 pb-3">
+          <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800 px-3 pb-3">
             <InputBar
               onSend={(value) => void send(value)}
               onCancel={cancelWorkflow}
@@ -1462,21 +1467,21 @@ export default function App() {
 
         <Resizer label={translate('layout.resizeFocusPane')} onDrag={dragFocusPane} />
 
-        <section className="flex min-w-0 flex-col border-l border-zinc-800 bg-zinc-950 p-4">
-          <div className="border-b border-zinc-800 pb-3">
+        <section className="flex min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+          <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3">
             <div className="flex flex-wrap items-start gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="shrink-0 border border-sky-800 bg-sky-950 px-2 py-1 text-xs font-medium text-sky-100">
+                  <span className="shrink-0 border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-100">
                     <span className="mr-1">{CHAT_MODES[mode].icon}</span>
                     {translate(MODE_NAME_KEYS[mode])}
                   </span>
-                  <span className="min-w-0 truncate text-xs text-zinc-400">{workflowStatus || translate('processTrace.settled')}</span>
+                  <span className="min-w-0 truncate text-xs text-zinc-600 dark:text-zinc-400">{workflowStatus || translate('processTrace.settled')}</span>
                 </div>
               </div>
               <label
                 className={`flex items-center gap-2 border px-2 py-1 text-xs ${
-                  followRunPaused ? 'border-amber-700 bg-amber-950/40 text-amber-100' : 'border-zinc-700 text-zinc-200'
+                  followRunPaused ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-100' : 'border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200'
                 }`}
               >
                 <input
@@ -1488,13 +1493,13 @@ export default function App() {
                 {followRunPaused ? translate('header.followRunPaused') : translate('header.followRun')}
               </label>
               <button
-                className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => void exportConversation()}
                 disabled={messages.length === 0 || sharing}
               >
                 {translate('header.exportMarkdown')}
               </button>
-              <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
+              <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
                 {translate('header.settings')}
               </button>
             </div>
@@ -1512,8 +1517,8 @@ export default function App() {
             <div
               className={
                 shareNotice.kind === 'error'
-                  ? 'mt-3 border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200'
-                  : 'mt-3 border border-emerald-900 bg-emerald-950 px-3 py-2 text-xs text-emerald-200'
+                  ? 'mt-3 border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200'
+                  : 'mt-3 border border-emerald-300 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200'
               }
             >
               {shareNotice.text}
@@ -1539,8 +1544,8 @@ export default function App() {
             </PresetCatalog>
           </div>
           {mode === 'free' ? (
-            <section className="mt-3 border border-zinc-800 bg-zinc-900 p-3">
-              <div className="mb-2 text-xs font-semibold uppercase text-zinc-400">{translate('input.sendSelectedProviders')}</div>
+            <section className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
+              <div className="mb-2 text-xs font-semibold uppercase text-zinc-600 dark:text-zinc-400">{translate('input.sendSelectedProviders')}</div>
               <div className="flex flex-wrap gap-2">
                 <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} locale={locale} />
               </div>
@@ -1553,14 +1558,14 @@ export default function App() {
           ) : null}
           <div className="mt-3 space-y-2">
             <details
-              className="border border-zinc-800 bg-zinc-950"
+              className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950"
               open={replayDrawerOpen}
               onToggle={(event) => setReplayDrawerOpen(event.currentTarget.open)}
             >
-              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-900">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900">
                 {translate('replay.snapshotReplay')}
               </summary>
-              <div className="border-t border-zinc-800 px-3 pb-3">
+              <div className="border-t border-zinc-200 dark:border-zinc-800 px-3 pb-3">
                 <ReplayPanel
                   ref={replayPanelRef}
                   locale={locale}
@@ -1571,11 +1576,11 @@ export default function App() {
               </div>
             </details>
             {checkpoint ? (
-              <details className="border border-amber-900 bg-zinc-950" open>
-                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-amber-100 hover:bg-amber-950">
+              <details className="border border-amber-300 dark:border-amber-900 bg-white dark:bg-zinc-950" open>
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-950">
                   {translate('checkpoint.confirmEachStep')}
                 </summary>
-                <div className="border-t border-amber-900 px-3 pb-3">
+                <div className="border-t border-amber-300 dark:border-amber-900 px-3 pb-3">
                   <CheckpointCard
                     checkpoint={checkpoint}
                     draft={checkpointDraft}
@@ -1588,13 +1593,13 @@ export default function App() {
                 </div>
               </details>
             ) : null}
-            <details className="border border-zinc-800 bg-zinc-950">
-              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-900">
+            <details className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900">
                 {translate('settings.diagnostics')}
               </summary>
-              <div className="border-t border-zinc-800 p-3 text-xs text-zinc-400">
+              <div className="border-t border-zinc-200 dark:border-zinc-800 p-3 text-xs text-zinc-600 dark:text-zinc-400">
                 <p>{translate('settings.diagnosticsDescription')}</p>
-                <button className="mt-3 border border-zinc-700 px-2 py-1 text-zinc-200 hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
+                <button className="mt-3 border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
                   {translate('header.settings')}
                 </button>
               </div>
@@ -1603,7 +1608,7 @@ export default function App() {
           {stepTimeout && !stepTimeout.timedOut ? (
             <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />
           ) : null}
-          <label className="mt-3 flex w-fit items-center gap-2 border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200">
+          <label className="mt-3 flex w-fit items-center gap-2 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200">
             <input
               type="checkbox"
               className="h-4 w-4 accent-amber-500"
@@ -1613,7 +1618,7 @@ export default function App() {
             />
             {translate('checkpoint.confirmEachStep')}
           </label>
-          <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-800 py-3">
+          <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3">
             <ChatArea messages={messages} locale={locale} states={states} />
             {import.meta.env.DEV ? <EchoPanel /> : null}
           </div>
@@ -1672,11 +1677,11 @@ function ReportPreviewDialog({
   const digest = preview.digest;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <section className="max-h-[92vh] w-full max-w-2xl overflow-auto border border-zinc-700 bg-zinc-950 p-5 shadow-2xl">
-        <div className="mb-4 border-b border-zinc-800 pb-3">
-          <h2 className="text-base font-semibold text-zinc-100">{translateKey('reportPreview.title', locale)}</h2>
+      <section className="max-h-[92vh] w-full max-w-2xl overflow-auto border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-5 shadow-2xl">
+        <div className="mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-3">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{translateKey('reportPreview.title', locale)}</h2>
         </div>
-        <div className="grid gap-2 text-xs text-zinc-300 sm:grid-cols-2">
+        <div className="grid gap-2 text-xs text-zinc-700 dark:text-zinc-300 sm:grid-cols-2">
           <div>
             {translateKey('reportPreview.provider', locale)}: {digest.displayName} ({digest.provider})
           </div>
@@ -1693,15 +1698,15 @@ function ReportPreviewDialog({
             {translateKey('reportPreview.firstMissingField', locale)}: {digest.firstMissingField ?? translateKey('reportPreview.none', locale)}
           </div>
         </div>
-        <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap border border-zinc-800 bg-zinc-900 p-3 text-xs leading-relaxed text-zinc-200">
+        <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 text-xs leading-relaxed text-zinc-800 dark:text-zinc-200">
           {preview.body}
         </pre>
-        <div className="mt-5 flex items-center justify-end gap-2 border-t border-zinc-800 pt-4">
-          <button className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100" onClick={onCancel}>
+        <div className="mt-5 flex items-center justify-end gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-4">
+          <button className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onCancel}>
             {translateKey('reportPreview.cancel', locale)}
           </button>
           <button
-            className="border border-emerald-700 bg-emerald-950 px-3 py-1.5 text-sm text-emerald-100 hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
+            className="border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950 px-3 py-1.5 text-sm text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onOpenIssue}
             disabled={busy}
           >
@@ -1714,10 +1719,10 @@ function ReportPreviewDialog({
 }
 
 function adapterNoticeClass(kind: string): string {
-  if (kind === 'updated' || kind === 'downgraded') return 'border-emerald-900 bg-emerald-950 text-emerald-200';
-  if (kind === 'report-failed') return 'border-red-900 bg-red-950 text-red-200';
-  if (kind.endsWith('-failed')) return 'border-amber-900 bg-amber-950 text-amber-200';
-  return 'border-zinc-800 bg-zinc-900 text-zinc-200';
+  if (kind === 'updated' || kind === 'downgraded') return 'border-emerald-300 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200';
+  if (kind === 'report-failed') return 'border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200';
+  if (kind.endsWith('-failed')) return 'border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-200';
+  return 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200';
 }
 
 function adapterNoticeText(notice: AdapterNotice): string {
@@ -1745,7 +1750,7 @@ export function ChatArea({
   }, [messages]);
 
   if (messages.length === 0) {
-    return <div className="p-4 text-sm text-zinc-500">{translateKey('chat.noMessages', locale)}</div>;
+    return <div className="p-4 text-sm text-zinc-500 dark:text-zinc-500">{translateKey('chat.noMessages', locale)}</div>;
   }
   return (
     <div className="space-y-3 p-2">
@@ -1757,18 +1762,18 @@ export function ChatArea({
           message.role === 'ai' && !message.final ? translateKey(thinking ? 'chat.thinking' : 'chat.streaming', locale) : '';
 
         return (
-          <article key={message.id} className="border border-zinc-800 bg-zinc-900 p-3">
-            <div className="mb-1 text-xs uppercase text-zinc-500">
+          <article key={message.id} className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
+            <div className="mb-1 text-xs uppercase text-zinc-500 dark:text-zinc-500">
               {bubbleAuthorLabel(message)}
               {message.modeRole ? ` · ${message.modeRole}` : ''}
               {statusLabel ? ` ${statusLabel}` : ''}
             </div>
             {thinking ? (
-              <div className="whitespace-pre-wrap text-sm italic text-zinc-500">{translateKey('chat.thinking', locale)}</div>
+              <div className="whitespace-pre-wrap text-sm italic text-zinc-500 dark:text-zinc-500">{translateKey('chat.thinking', locale)}</div>
             ) : (
               <div className="whitespace-pre-wrap text-sm">{message.content}</div>
             )}
-            {message.truncated ? <div className="mt-2 text-xs text-amber-300">{translateKey('chat.truncated', locale)}</div> : null}
+            {message.truncated ? <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">{translateKey('chat.truncated', locale)}</div> : null}
           </article>
         );
       })}

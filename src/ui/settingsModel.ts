@@ -14,6 +14,7 @@ import { normalizeLanguageSetting, type LanguageSetting } from '../i18n/resolve'
 
 export interface AppSettings {
   language: LanguageSetting;
+  theme: 'light' | 'dark';
   layoutMode: 'focus';
   focusPaneWidth: number;
   hackmdToken: string;
@@ -35,6 +36,7 @@ const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 export function defaultSettings(): AppSettings {
   return {
     language: 'system',
+    theme: 'light',
     layoutMode: 'focus',
     focusPaneWidth: DEFAULT_FOCUS_PANE_WIDTH,
     hackmdToken: '',
@@ -96,6 +98,7 @@ export function normalizeSettings(value: unknown): AppSettings {
 
   return {
     language: normalizeLanguageSetting(input.language),
+    theme: input.theme === 'dark' ? 'dark' : 'light',
     layoutMode: 'focus',
     focusPaneWidth: focusPaneWidth(input.focusPaneWidth, input.columnWidths, defaults.focusPaneWidth),
     hackmdToken: stringValue(input.hackmdToken, defaults.hackmdToken),

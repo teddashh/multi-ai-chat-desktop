@@ -42,18 +42,18 @@ export function PresetCatalog({
         className: quickMode ? 'grid gap-2 lg:grid-cols-3' : 'grid gap-2 md:grid-cols-2 xl:grid-cols-5',
       })}
 
-      <div className="border border-zinc-800 bg-zinc-950">
+      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
         <button
           type="button"
-          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-900"
+          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900"
           aria-expanded={advancedOpen}
           aria-controls="advanced-workflow-controls"
           onClick={() => onAdvancedOpenChange(!advancedOpen)}
         >
           <span>{t(moreLabelKey, locale)}</span>
-          <span className="text-zinc-500">{advancedOpen ? t(advancedOpenLabelKey, locale) : t(advancedClosedLabelKey, locale)}</span>
+          <span className="text-zinc-500 dark:text-zinc-500">{advancedOpen ? t(advancedOpenLabelKey, locale) : t(advancedClosedLabelKey, locale)}</span>
         </button>
-        <div id="advanced-workflow-controls" hidden={!advancedOpen} className="border-t border-zinc-800 p-3">
+        <div id="advanced-workflow-controls" hidden={!advancedOpen} className="border-t border-zinc-200 dark:border-zinc-800 p-3">
           {showFullCatalogInAdvanced ? (
             renderPresetGrid({
               presets: PRESET_CATALOG,
@@ -97,12 +97,12 @@ function renderPresetGrid({
             type="button"
             onClick={() => onSelectPreset(preset.graphId)}
             className={`flex min-h-20 flex-col border p-3 text-left transition ${
-              selected ? 'border-sky-500 bg-sky-950 text-zinc-50' : 'border-zinc-800 bg-zinc-900 text-zinc-200 hover:border-zinc-600'
+              selected ? 'border-sky-500 bg-sky-50 dark:bg-sky-950 text-sky-900 dark:text-zinc-50' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-600'
             }`}
             aria-pressed={selected}
           >
             <span className="text-sm font-semibold">{displayName}</span>
-            {preset.metaKey ? <span className="mt-2 text-xs leading-relaxed text-zinc-400">{t(preset.metaKey, locale)}</span> : null}
+            {preset.metaKey ? <span className="mt-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{t(preset.metaKey, locale)}</span> : null}
           </button>
         );
       })}

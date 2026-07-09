@@ -25,7 +25,7 @@ export function ModeSelector({
             key={candidate}
             onClick={() => onModeChange(candidate)}
             className={`flex-1 border px-2 py-1.5 text-xs font-medium transition ${
-              active ? 'border-sky-500 bg-sky-900 text-white' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
+              active ? 'border-sky-500 bg-sky-100 dark:bg-sky-900 text-sky-900 dark:text-white' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
             title={t(MODE_DESCRIPTION_KEYS[candidate], locale)}
           >

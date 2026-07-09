@@ -82,6 +82,7 @@ describe('M4b UI helpers', () => {
   it('normalizes and merges settings defensively', () => {
     expect(defaultSettings()).toMatchObject({
       language: 'system',
+      theme: 'light',
       layoutMode: 'focus',
       focusPaneWidth: 620,
       hackmdToken: '',
@@ -103,9 +104,11 @@ describe('M4b UI helpers', () => {
       snapshotPersistence: true,
       snapshotRedactionTier: 'unknown',
       language: 'fr',
+      theme: 'dark',
       presentation: { chatgpt: 'chip', claude: 'center', gemini: 'bad', grok: 'center' },
     });
     expect(normalized.language).toBe('system');
+    expect(normalized.theme).toBe('dark');
     expect(normalized.layoutMode).toBe('focus');
     expect(normalized.focusPaneWidth).toBe(420);
     expect(normalized.hackmdToken).toBe('');
@@ -127,6 +130,10 @@ describe('M4b UI helpers', () => {
       portable: true,
       snapshotRedactionTier: 'hashes',
     });
+
+    expect(normalizeSettings({}).theme).toBe('light');
+    expect(normalizeSettings({ theme: 'system' }).theme).toBe('light');
+    expect(normalizeSettings({ theme: 'dark' }).theme).toBe('dark');
   });
 
   it('migrates focus pane width from the legacy left column width', () => {

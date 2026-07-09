@@ -150,7 +150,7 @@ export function InputBar({
   return (
     <div
       className={`mt-3 space-y-2 rounded border p-2 transition-colors ${
-        showDropActive ? 'border-emerald-500 bg-emerald-950/20' : 'border-transparent'
+        showDropActive ? 'border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20' : 'border-transparent'
       }`}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -160,7 +160,7 @@ export function InputBar({
       <div className="flex gap-2">
         <textarea
           ref={textareaRef}
-          className="min-h-12 flex-1 resize-none border border-zinc-700 bg-zinc-900 p-2 text-sm outline-none focus:border-emerald-500 disabled:opacity-50"
+          className="min-h-12 flex-1 resize-none border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 p-2 text-sm outline-none focus:border-emerald-500 disabled:opacity-50"
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
@@ -183,19 +183,19 @@ export function InputBar({
         />
         <button
           type="button"
-          className="border border-zinc-700 px-3 text-sm hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="border border-zinc-300 dark:border-zinc-700 px-3 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => fileInputRef.current?.click()}
           disabled={insertDisabled}
         >
           {isReadingFile ? t('input.reading', locale) : t('input.insertFile', locale)}
         </button>
         {isProcessing ? (
-          <button className="border border-red-700 bg-red-950 px-3 text-sm text-red-100 hover:bg-red-900" onClick={onCancel}>
+          <button className="border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 px-3 text-sm text-red-800 dark:text-red-100 hover:bg-red-100 dark:hover:bg-red-900" onClick={onCancel}>
             {t('input.stop', locale)}
           </button>
         ) : null}
         <button
-          className="border border-emerald-700 bg-emerald-900 px-4 text-sm hover:bg-emerald-800 disabled:border-zinc-700 disabled:bg-zinc-900 disabled:text-zinc-600"
+          className="border border-emerald-300 dark:border-emerald-700 bg-emerald-600 text-white dark:bg-emerald-900 dark:text-zinc-100 px-4 text-sm hover:bg-emerald-700 dark:hover:bg-emerald-800 disabled:border-zinc-300 dark:disabled:border-zinc-700 disabled:bg-zinc-100 dark:disabled:bg-zinc-900 disabled:text-zinc-400 dark:disabled:text-zinc-600"
           onClick={submit}
           disabled={sendDisabled}
         >
@@ -209,27 +209,27 @@ export function InputBar({
               key={chip.id}
               className={`flex max-w-full items-center gap-2 border px-2 py-1 text-xs ${
                 chip.phase === 'error'
-                  ? 'border-red-800 bg-red-950 text-red-200'
+                  ? 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200'
                   : chip.phase === 'reading'
-                    ? 'border-zinc-800 bg-zinc-950 text-zinc-500'
-                    : 'border-zinc-800 bg-zinc-900 text-zinc-300'
+                    ? 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-500 dark:text-zinc-500'
+                    : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300'
               }`}
             >
               <span className="max-w-48 truncate" title={attachmentChipName(chip)}>
                 {attachmentChipName(chip)}
               </span>
-              <span className="shrink-0 text-zinc-500">
+              <span className="shrink-0 text-zinc-500 dark:text-zinc-500">
                 {attachmentChipSize(chip)} {t('input.bytes', locale)}
               </span>
-              {chip.phase === 'reading' ? <span className="shrink-0 text-zinc-500">{t('input.reading', locale)}</span> : null}
+              {chip.phase === 'reading' ? <span className="shrink-0 text-zinc-500 dark:text-zinc-500">{t('input.reading', locale)}</span> : null}
               {chip.phase === 'error' ? (
-                <span className="max-w-64 truncate text-red-300" title={chip.message}>
+                <span className="max-w-64 truncate text-red-700 dark:text-red-300" title={chip.message}>
                   {chip.message}
                 </span>
               ) : null}
               <button
                 type="button"
-                className="shrink-0 text-base leading-none text-zinc-400 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0 text-base leading-none text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => removeAttachmentChip(chip.id)}
                 disabled={isProcessing}
                 aria-label={`${t('input.removeFile', locale)} ${attachmentChipName(chip)}`}
@@ -241,7 +241,7 @@ export function InputBar({
         </div>
       ) : null}
       {attachmentError ? (
-        <div className="border border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200" role="alert">
+        <div className="border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200" role="alert">
           {attachmentError}
         </div>
       ) : null}

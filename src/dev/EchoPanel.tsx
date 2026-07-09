@@ -96,30 +96,30 @@ export function EchoPanel() {
   };
 
   return (
-    <div ref={panelRef} className="w-full max-w-md border border-zinc-800 bg-zinc-900 p-3">
+    <div ref={panelRef} className="w-full max-w-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
       <div className="flex flex-wrap gap-2">
-        <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={openWebview}>
+        <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={openWebview}>
           Open chatgpt webview
         </button>
-        <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={pingTitle}>
+        <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={pingTitle}>
           Ping (title)
         </button>
-        <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => void bulkEcho(16 * 1024)}>
+        <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void bulkEcho(16 * 1024)}>
           Bulk echo 16KB
         </button>
-        <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => void bulkEcho(192 * 1024)}>
+        <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void bulkEcho(192 * 1024)}>
           Bulk echo 192KB
         </button>
-        <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => void callbackEcho(16 * 1024)}>
+        <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void callbackEcho(16 * 1024)}>
           Callback 16KB
         </button>
-        <button className="border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => void callbackEcho(192 * 1024)}>
+        <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void callbackEcho(192 * 1024)}>
           Callback 192KB
         </button>
       </div>
-      <ol className="mt-3 max-h-52 space-y-1 overflow-auto text-left text-xs text-zinc-300">
+      <ol className="mt-3 max-h-52 space-y-1 overflow-auto text-left text-xs text-zinc-700 dark:text-zinc-300">
         {logs.map((log) => (
-          <li key={log.id} className="border-t border-zinc-800 pt-1">
+          <li key={log.id} className="border-t border-zinc-200 dark:border-zinc-800 pt-1">
             {log.text}
           </li>
         ))}

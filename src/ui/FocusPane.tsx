@@ -66,7 +66,7 @@ export function FocusPane({
   const thumbnailProviders = [...sideProviders, ...chipProviders];
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col bg-zinc-950 p-3">
+    <aside className="flex min-h-0 flex-1 flex-col bg-white dark:bg-zinc-950 p-3">
       {centeredProvider ? (
         <FocusStage
           provider={centeredProvider}
@@ -94,11 +94,11 @@ export function FocusPane({
         <section
           ref={setCenterStageRef}
           aria-label={t('provider.center')}
-          className="min-h-[360px] flex-1 border border-zinc-800 bg-zinc-900"
+          className="min-h-[360px] flex-1 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
         />
       )}
 
-      <section className="mt-3 shrink-0 overflow-x-auto overflow-y-hidden border border-zinc-800 bg-zinc-950 p-2">
+      <section className="mt-3 shrink-0 overflow-x-auto overflow-y-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-2">
         <div className="grid grid-flow-col gap-2" style={{ gridAutoColumns: 'minmax(0, 1fr)' }}>
           {thumbnailProviders.map((provider) => (
             <ThumbnailTile
@@ -169,14 +169,14 @@ function FocusStage({
   return (
     <section
       ref={setCenterStageRef}
-      className="flex min-h-[360px] flex-1 flex-col overflow-hidden border border-sky-900 bg-zinc-900"
+      className="flex min-h-[360px] flex-1 flex-col overflow-hidden border border-sky-300 dark:border-sky-900 bg-zinc-50 dark:bg-zinc-900"
       onPointerDownCapture={() => onManualFocusControl(provider)}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-sky-900 px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-2 border-b border-sky-300 dark:border-sky-900 px-3 py-2 text-sm">
         <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
         <div className="flex flex-wrap justify-end gap-2 text-xs">
           <button
-            className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
+            className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             aria-label={formatI18n(t('provider.access.aria'), { provider: AI_PROVIDERS[provider].name })}
             aria-expanded={accessOpen}
             aria-controls={`adapter-access-${provider}`}
@@ -185,7 +185,7 @@ function FocusStage({
             {t('provider.access')}
           </button>
           <button
-            className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               void togglePaneVisibility(provider);
             }}
@@ -194,30 +194,30 @@ function FocusStage({
             {hiddenByCenter ? t('provider.hidden') : hiddenByUser ? t('provider.show') : t('provider.hide')}
           </button>
           {centerSurface === 'text' ? (
-            <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={onEnlargeCenter}>
+            <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={onEnlargeCenter}>
               {t('provider.realPage')}
             </button>
           ) : (
-            <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={onCollapseCenter}>
+            <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={onCollapseCenter}>
               {t('provider.textView')}
             </button>
           )}
-          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'chip')}>
+          <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'chip')}>
             {t('provider.chip')}
           </button>
-          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'side')}>
+          <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'side')}>
             {t('provider.side')}
           </button>
-          <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void onOpenLogin(provider)}>
+          <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void onOpenLogin(provider)}>
             {t('provider.login')}
           </button>
           {provider === 'gemini' ? (
-            <button className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800" onClick={() => void host.provider.openLoginExternal(provider)}>
+            <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void host.provider.openLoginExternal(provider)}>
               {t('provider.browser')}
             </button>
           ) : null}
           <button
-            className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               resetProviderBootState(provider);
               void host.provider.reload(provider).then(() => syncBounds(provider));
@@ -227,7 +227,7 @@ function FocusStage({
             {t('provider.reload')}
           </button>
           <button
-            className="border border-zinc-700 px-2 py-1 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => void reportProvider(provider)}
             disabled={reportBusy}
           >
@@ -237,17 +237,17 @@ function FocusStage({
       </div>
       {accessOpen ? <AdapterAccessPanel id={`adapter-access-${provider}`} summary={permissionSummary} /> : null}
       {state.adapter === 'broken' ? (
-        <div className="border-b border-red-900 bg-red-950 px-3 py-2 text-xs text-red-200">{t('provider.adapterBroken')}</div>
+        <div className="border-b border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200">{t('provider.adapterBroken')}</div>
       ) : null}
       {state.bridge === 'degraded' ? (
-        <div className="border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">
+        <div className="border-b border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
           {t('provider.bridgeDegradedReload')}
         </div>
       ) : null}
       {provider === 'gemini' && state.login === 'blocked' ? (
-        <div className="flex items-center justify-between gap-2 border-b border-amber-900 bg-amber-950 px-3 py-2 text-xs text-amber-200">
+        <div className="flex items-center justify-between gap-2 border-b border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
           <span>{t('provider.embeddedLoginBlocked')}</span>
-          <button className="border border-amber-700 px-2 py-1 hover:bg-amber-900" onClick={() => void host.provider.openLoginExternal(provider)}>
+          <button className="border border-amber-300 dark:border-amber-700 px-2 py-1 hover:bg-amber-100 dark:hover:bg-amber-900" onClick={() => void host.provider.openLoginExternal(provider)}>
             {t('provider.openInBrowser')}
           </button>
         </div>
@@ -255,12 +255,12 @@ function FocusStage({
       {centerSurface === 'text' ? (
         <TextCenterView thinking={state.thinking} centerText={centerText} centerTextFinal={centerTextFinal} />
       ) : state.webview === 'loaded' ? (
-        <div className="grid flex-1 place-items-center p-3 text-xs text-zinc-500">
+        <div className="grid flex-1 place-items-center p-3 text-xs text-zinc-500 dark:text-zinc-500">
           {hidden ? t('provider.nativeWebviewHidden') : t('provider.nativeWebviewCentered')}
         </div>
       ) : (
         <div className="grid flex-1 place-items-center">
-          <button className="border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800" onClick={() => void openProvider(provider)}>
+          <button className="border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void openProvider(provider)}>
             {t('provider.open')} {AI_PROVIDERS[provider].name}
           </button>
         </div>
@@ -282,20 +282,20 @@ export function TextCenterView({
   if (thinking && !centerTextFinal) {
     return (
       <div className="grid flex-1 place-items-center p-3">
-        <div className="whitespace-pre-wrap text-sm italic text-zinc-500">{t('chat.thinking')}</div>
+        <div className="whitespace-pre-wrap text-sm italic text-zinc-500 dark:text-zinc-500">{t('chat.thinking')}</div>
       </div>
     );
   }
 
   if (centerText) {
     return (
-      <div className="flex-1 overflow-auto p-3 text-zinc-100">
+      <div className="flex-1 overflow-auto p-3 text-zinc-900 dark:text-zinc-100">
         <div className="whitespace-pre-wrap text-sm">{centerText}</div>
       </div>
     );
   }
 
-  return <div className="grid flex-1 place-items-center p-3 text-sm text-zinc-500">{t('provider.centerIdle')}</div>;
+  return <div className="grid flex-1 place-items-center p-3 text-sm text-zinc-500 dark:text-zinc-500">{t('provider.centerIdle')}</div>;
 }
 
 function ThumbnailTile({
@@ -337,15 +337,15 @@ function ThumbnailTile({
       role="button"
       tabIndex={0}
       aria-label={`${AI_PROVIDERS[provider].name}: ${status.label}`}
-      className={`min-h-20 min-w-0 cursor-pointer border bg-zinc-900 p-2 outline-none transition-colors hover:border-sky-700 focus:border-sky-600 ${
-        hidden ? 'border-zinc-700' : 'border-zinc-800'
+      className={`min-h-20 min-w-0 cursor-pointer border bg-zinc-50 dark:bg-zinc-900 p-2 outline-none transition-colors hover:border-sky-400 dark:hover:border-sky-700 focus:border-sky-500 dark:focus:border-sky-600 ${
+        hidden ? 'border-zinc-300 dark:border-zinc-700' : 'border-zinc-200 dark:border-zinc-800'
       }`}
       onPointerDown={() => onManualFocusControl(provider)}
       onClick={focusProvider}
       onKeyDown={onKeyDown}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="min-w-0 truncate text-sm font-medium text-zinc-100">{AI_PROVIDERS[provider].name}</span>
+        <span className="min-w-0 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{AI_PROVIDERS[provider].name}</span>
         <span className={`w-fit max-w-full truncate border px-1.5 py-0.5 text-[11px] ${status.className}`}>{status.label}</span>
       </div>
     </div>
@@ -356,17 +356,17 @@ function AdapterAccessPanel({ id, summary }: { id: string; summary: AdapterPermi
   const { t } = useI18n();
 
   return (
-    <section id={id} className="border-b border-sky-900 bg-sky-950/30 px-3 py-3 text-xs text-zinc-300">
+    <section id={id} className="border-b border-sky-300 dark:border-sky-900 bg-sky-50 dark:bg-sky-950/30 px-3 py-3 text-xs text-zinc-700 dark:text-zinc-300">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-zinc-100">{t('provider.access.heading')}</h3>
-        <span className="shrink-0 text-[11px] text-sky-200">{summary.providerName}</span>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('provider.access.heading')}</h3>
+        <span className="shrink-0 text-[11px] text-sky-700 dark:text-sky-200">{summary.providerName}</span>
       </div>
       <div className="grid gap-3">
         <PermissionGroup title={t('provider.access.readTitle')} lines={summary.reads} />
         <PermissionGroup title={t('provider.access.writeTitle')} lines={summary.writes} />
         <PermissionGroup title={t('provider.access.cannotTitle')} lines={summary.cannot} />
       </div>
-      {summary.note ? <p className="mt-3 border-t border-sky-900 pt-2 text-[11px] leading-relaxed text-zinc-500">{summary.note}</p> : null}
+      {summary.note ? <p className="mt-3 border-t border-sky-300 dark:border-sky-900 pt-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-500">{summary.note}</p> : null}
     </section>
   );
 }
@@ -374,16 +374,16 @@ function AdapterAccessPanel({ id, summary }: { id: string; summary: AdapterPermi
 function PermissionGroup({ title, lines }: { title: string; lines: AdapterPermissionSummary['reads'] }) {
   return (
     <section>
-      <div className="mb-1 font-semibold uppercase text-zinc-100">{title}</div>
+      <div className="mb-1 font-semibold uppercase text-zinc-900 dark:text-zinc-100">{title}</div>
       <ul className="space-y-2">
         {lines.map((line) => (
           <li key={line.title}>
-            <span className="font-medium text-zinc-200">{line.title}:</span> <span className="leading-relaxed text-zinc-400">{line.detail}</span>
+            <span className="font-medium text-zinc-800 dark:text-zinc-200">{line.title}:</span> <span className="leading-relaxed text-zinc-600 dark:text-zinc-400">{line.detail}</span>
             {line.selectors ? (
-              <ul className="mt-1 space-y-1 border-l border-zinc-700 pl-2">
+              <ul className="mt-1 space-y-1 border-l border-zinc-300 dark:border-zinc-700 pl-2">
                 {line.selectors.map((selector) => (
                   <li key={selector}>
-                    <code className="break-all text-[11px] text-sky-200">{selector}</code>
+                    <code className="break-all text-[11px] text-sky-700 dark:text-sky-200">{selector}</code>
                   </li>
                 ))}
               </ul>
