@@ -289,9 +289,12 @@ pub(crate) fn url_allowed_for_sso(provider: &str, url: &tauri::Url) -> Result<bo
         "login.live.com",
         "github.com",
     ];
-    let host = url.host_str().unwrap_or_default();
-    if SHARED.contains(&host) {
-        return Ok(true);
+    // SHARED IdP hosts + generic Google regional ccTLD: https ONLY.
+    if url.scheme() == "https" {
+        let host = url.host_str().unwrap_or_default();
+        if SHARED.contains(&host) || is_accounts_google_cctld(host) {
+            return Ok(true);
+        }
     }
     let adapter = get_adapter(provider)?;
     Ok(adapter
@@ -299,6 +302,26 @@ pub(crate) fn url_allowed_for_sso(provider: &str, url: &tauri::Url) -> Result<bo
         .sso_match
         .iter()
         .any(|pattern| url_matches(pattern, url)))
+}
+
+/// Bounded Google regional login hosts:
+///   accounts.google.com.<ccTLD>  (e.g. accounts.google.com.tw)
+///   accounts.google.<ccTLD>      (e.g. accounts.google.de)
+/// A ccTLD is a SINGLE 2-char lowercase-ascii label (ISO 3166-1 alpha-2). Restricting to exactly 2
+/// chars covers every real ccTLD while rejecting 3-char gTLDs (accounts.google.net/.org). Rejects
+/// spoofs like accounts.google.evil.com, accounts.google.com.tw.evil.net, accounts.google.co.uk.evil.
+fn is_accounts_google_cctld(host: &str) -> bool {
+    if let Some(rest) = host.strip_prefix("accounts.google.com.") {
+        return is_single_cctld_label(rest);
+    }
+    if let Some(rest) = host.strip_prefix("accounts.google.") {
+        return is_single_cctld_label(rest);
+    }
+    false
+}
+
+fn is_single_cctld_label(s: &str) -> bool {
+    s.len() == 2 && s.chars().all(|c| c.is_ascii_lowercase())
 }
 
 pub(crate) fn url_matches_provider_app(provider: &str, url: &tauri::Url) -> Result<bool, String> {
@@ -564,6 +587,8 @@ mod tests {
             ("grok", "https://twitter.com/i/oauth2/authorize"),
             ("grok", "https://accounts.x.ai/session"),
             ("grok", "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b"),
+            ("grok", "https://accounts.google.com/o/oauth2/v2/auth"),
+            ("grok", "https://accounts.google.de/ServiceLogin"),
             ("chatgpt", "https://accounts.google.com.tw/accounts/SetSID"),
             ("claude", "https://accounts.google.com.tw/accounts/SetSID"),
             ("claude-code", "https://accounts.google.com.tw/accounts/SetSID"),
@@ -586,6 +611,10 @@ mod tests {
             ("chatgpt", "http://auth.openai.com/"),
             ("grok", "https://grok.community/"),
             ("claude", "https://auth.openai.com/authorize"),
+            ("grok", "http://accounts.google.com/"),
+            ("grok", "https://accounts.google.evil.com/"),
+            ("grok", "https://accounts.google.net/"),
+            ("grok", "https://accounts.google.com.net/"),
             ("grok", "https://accounts.google.com.tw.evil.net/"),
             ("grok", "http://accounts.google.com.tw/"),
             ("grok", "https://auth.grokipedia.com.evil.net/"),

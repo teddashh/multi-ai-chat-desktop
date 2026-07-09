@@ -20,6 +20,33 @@ const ENGINE_JS: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/gen/injected/engine.js"
 ));
+/// Auto-deny site permission prompts that otherwise pop a blocking native dialog.
+/// SCOPE: Notifications + Geolocation ONLY. We intentionally leave microphone/camera alone so the
+/// providers' voice-input buttons keep working. Runs at document-start, before site scripts.
+const PERMISSION_SHIM_JS: &str = r#"(function () {
+  try {
+    if (typeof Notification !== 'undefined') {
+      try { Object.defineProperty(Notification, 'permission', { get: function () { return 'denied'; }, configurable: true }); } catch (e) {}
+      try { Notification.requestPermission = function (cb) { if (typeof cb === 'function') { try { cb('denied'); } catch (e) {} } return Promise.resolve('denied'); }; } catch (e) {}
+    }
+    if (navigator.geolocation) {
+      var denyGeo = function (_s, err) { if (typeof err === 'function') { try { err({ code: 1, message: 'User denied Geolocation', PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 }); } catch (e) {} } };
+      try { navigator.geolocation.getCurrentPosition = function (s, err) { denyGeo(s, err); }; } catch (e) {}
+      try { navigator.geolocation.watchPosition = function (s, err) { denyGeo(s, err); return 0; }; } catch (e) {}
+    }
+    if (navigator.permissions && navigator.permissions.query) {
+      var origQuery = navigator.permissions.query.bind(navigator.permissions);
+      navigator.permissions.query = function (desc) {
+        try {
+          if (desc && (desc.name === 'notifications' || desc.name === 'geolocation')) {
+            return Promise.resolve({ state: 'denied', status: 'denied', onchange: null, addEventListener: function () {}, removeEventListener: function () {}, dispatchEvent: function () { return false; } });
+          }
+        } catch (e) {}
+        return origQuery(desc);
+      };
+    }
+  } catch (e) {}
+})();"#;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Bounds {
@@ -138,6 +165,7 @@ pub async fn provider_open(
     let title_provider = provider.clone();
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
         .initialization_script(&init_script)
+        .initialization_script_for_all_frames(PERMISSION_SHIM_JS)
         .data_directory(profile_dir)
         .on_document_title_changed(move |_webview, title| {
             let _ = crate::bridge::ingest_title(&title_app, &title_provider, &title);
