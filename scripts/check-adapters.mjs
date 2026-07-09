@@ -65,12 +65,12 @@ const expected = {
     stopButtonSelectors: ['button[aria-label="Stop response"]', 'button[aria-label="Stop"]', 'button[aria-label="停止回應"]'],
   },
   grok: {
-    adapterVersion: 5,
+    adapterVersion: 6,
     urls: {
       app: 'https://grok.com',
       login: 'https://grok.com',
       match: ['grok.com/*'],
-      ssoMatch: ['x.com/*', 'twitter.com/*', 'accounts.x.ai/*', 'auth.grokusercontent.com/*', 'challenges.cloudflare.com/*', 'accounts.google.com.tw/*', 'auth.grokipedia.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts'],
+      ssoMatch: ['x.com/*', 'twitter.com/*', 'accounts.x.ai/*', 'auth.grokusercontent.com/*', 'auth.grok.com/*', 'challenges.cloudflare.com/*', 'accounts.google.com.tw/*', 'auth.grokipedia.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts'],
     },
     inputStrategy: 'prosemirror-paste',
     doneDelayMs: 8000,

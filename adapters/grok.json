@@ -1,14 +1,14 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 5,
+  "adapterVersion": 6,
   "provider": "grok",
   "displayName": "Grok",
   "urls": {
     "app": "https://grok.com",
     "login": "https://grok.com",
     "match": ["grok.com/*"],
-    "ssoMatch": ["x.com/*", "twitter.com/*", "accounts.x.ai/*", "auth.grokusercontent.com/*", "challenges.cloudflare.com/*", "accounts.google.com.tw/*", "auth.grokipedia.com/*", "gsi.google.com/*", "https://www.google.com/accounts"]
+    "ssoMatch": ["x.com/*", "twitter.com/*", "accounts.x.ai/*", "auth.grokusercontent.com/*", "auth.grok.com/*", "challenges.cloudflare.com/*", "accounts.google.com.tw/*", "auth.grokipedia.com/*", "gsi.google.com/*", "https://www.google.com/accounts"]
   },
   "inputSelectors": ["[data-testid=\"chat-input\"] .ProseMirror[contenteditable=\"true\"]", "[data-testid=\"chat-input\"] [contenteditable=\"true\"]", ".ProseMirror[contenteditable=\"true\"]", "[contenteditable=\"true\"].ProseMirror", "div.ProseMirror[contenteditable=\"true\"]"],
   "sendButtonSelectors": ["button[data-testid=\"chat-submit\"]", "button[aria-label=\"Submit\"]", "form button[type=\"submit\"]", "button[type=\"submit\"]"],
