@@ -1,6 +1,6 @@
 import { DEFAULT_DOCK_CONSTRAINTS, clamp } from './dockLayout';
 
-export const DEFAULT_FOCUS_PANE_WIDTH = 620;
+export const DEFAULT_FOCUS_PANE_WIDTH = 560;
 
 export const DEFAULT_FOCUS_LAYOUT_CONSTRAINTS = {
   minFocusPaneWidth: 420,

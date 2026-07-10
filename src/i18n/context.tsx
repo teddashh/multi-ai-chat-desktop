@@ -34,6 +34,10 @@ export function I18nProvider({
     [currentLanguage, locale, setLanguage, translate],
   );
 
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 

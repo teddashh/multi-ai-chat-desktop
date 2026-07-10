@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { dragColumnWidth, gridTemplateColumns } from '../ui/dockLayout';
+import { DEFAULT_FOCUS_PANE_WIDTH } from '../ui/focusLayout';
 import { OverlayGuardCounter } from '../ui/overlayGuard';
 import { defaultPresentation } from '../ui/presentation';
 import { defaultSettings, mergeSettings, normalizeSettings } from '../ui/settingsModel';
@@ -86,7 +87,7 @@ describe('M4b UI helpers', () => {
       language: 'system',
       theme: 'light',
       layoutMode: 'focus',
-      focusPaneWidth: 620,
+      focusPaneWidth: DEFAULT_FOCUS_PANE_WIDTH,
       columnWidths: { left: 280, right: 280 },
       slotAssignment: DEFAULT_SLOT_ASSIGNMENT,
       openProviders: [],

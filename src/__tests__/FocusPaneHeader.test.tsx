@@ -28,14 +28,16 @@ function states(overrides: Partial<Record<AIProvider, Partial<ProviderState>>> =
 function renderFocusPane({
   stateOverrides,
   presentation = defaultPresentation(),
+  centeredProvider = 'chatgpt',
 }: {
   stateOverrides?: Partial<Record<AIProvider, Partial<ProviderState>>>;
   presentation?: PresentationByProvider;
+  centeredProvider?: AIProvider | null;
 }): string {
   return renderToStaticMarkup(
     <I18nProvider language="en">
       <FocusPane
-        centeredProvider="chatgpt"
+        centeredProvider={centeredProvider ?? undefined}
         states={states(stateOverrides)}
         presentation={presentation}
         centerSurface="text"
@@ -44,7 +46,6 @@ function renderFocusPane({
         presentationHidden={new Set()}
         setPaneRef={vi.fn()}
         setCenterStageRef={vi.fn()}
-        openProvider={vi.fn().mockResolvedValue(undefined)}
         changeProviderPresentation={vi.fn().mockResolvedValue(undefined)}
         onManualFocusControl={vi.fn()}
         onEnlargeCenter={vi.fn()}
@@ -77,9 +78,23 @@ describe('FocusPane provider header', () => {
       },
     });
 
-    expect(html.match(/role="button"/g) ?? []).toHaveLength(providers.length);
-    expect(html).toContain('Claude: needs-login');
+    for (const provider of providers) expect(html).toContain(`aria-label="${AI_PROVIDERS[provider].name}:`);
+    expect(html).toContain('Claude: Sign in');
     expect(html).toContain('Gemini: Thinking');
-    expect(html).toContain('aria-current="true"');
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).not.toContain('role="button"');
+  });
+
+  it('renders a clear first-run provider picker instead of an empty stage', () => {
+    const html = renderFocusPane({
+      centeredProvider: null,
+      stateOverrides: Object.fromEntries(providers.map((provider) => [provider, { webview: 'none' }])) as Partial<
+        Record<AIProvider, Partial<ProviderState>>
+      >,
+    });
+
+    expect(html).toContain('Choose an AI to get started');
+    expect(html).toContain('Open ChatGPT');
+    expect(html).toContain('Open Claude Code');
   });
 });

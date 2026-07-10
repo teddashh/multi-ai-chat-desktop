@@ -69,9 +69,11 @@ import {
 } from '../ui/fileInsert';
 
 interface InputBarProps {
-  onSend: (text: string) => void;
+  onSend: (text: string) => boolean | void | Promise<boolean | void>;
   onCancel: () => void;
   disabled: boolean;
+  sendBlocked?: boolean;
+  blockedMessage?: string;
   isProcessing: boolean;
 }
 
@@ -85,9 +87,17 @@ interface ElementProps {
   onDragEnter?: (event: unknown) => void;
   onDragLeave?: (event: unknown) => void;
   onDrop?: (event: unknown) => void;
+  onKeyDown?: (event: {
+    key: string;
+    shiftKey: boolean;
+    nativeEvent: { isComposing: boolean };
+    preventDefault: () => void;
+  }) => void;
+  placeholder?: string;
   role?: string;
   title?: string;
   type?: string;
+  value?: string;
 }
 
 interface Renderer {
@@ -152,6 +162,40 @@ describe('InputBar file acquisition', () => {
       formatInsertedFilesPrompt([insertedFile('a.txt', 'alpha'), insertedFile('b.txt', 'beta')], 'Summarize both.'),
     );
     expect(chipNames(renderer)).toEqual([]);
+  });
+
+  it('keeps the draft when send-time preflight rejects the message', async () => {
+    const renderer = renderInputBar({ onSend: vi.fn().mockResolvedValue(false) });
+    changeText(renderer, 'Keep this draft');
+
+    sendButton(renderer).onClick?.();
+
+    await vi.waitFor(() => expect(textarea(renderer).value).toBe('Keep this draft'));
+  });
+
+  it('does not send when Enter confirms an IME composition', () => {
+    const onSend = vi.fn();
+    const renderer = renderInputBar({ onSend });
+    const preventDefault = vi.fn();
+    changeText(renderer, '中文輸入');
+
+    textarea(renderer).onKeyDown?.({
+      key: 'Enter',
+      shiftKey: false,
+      nativeEvent: { isComposing: true },
+      preventDefault,
+    });
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('explains why the selected mode cannot send yet', () => {
+    const renderer = renderInputBar({ sendBlocked: true, blockedMessage: 'Connect 2 more AIs' });
+    changeText(renderer, 'Draft while connecting');
+
+    expect(textarea(renderer).placeholder).toBe('Connect 2 more AIs');
+    expect(sendButton(renderer).disabled).toBe(true);
   });
 
   it('accepts multiple files from the picker path', async () => {

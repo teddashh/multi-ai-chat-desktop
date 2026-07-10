@@ -12,7 +12,7 @@ import type { Locale } from './i18n/resolve';
 import { formatI18n, t as translateKey } from './i18n/t';
 import { mergePullBridgeState, type PullBridgeState } from './appBridgeState';
 import { onCheckpoint, type PendingCheckpoint } from './workflow/checkpoint';
-import { onStepTimeoutEvent, runWorkflow } from './workflow';
+import { isSendable, onStepTimeoutEvent, runWorkflow } from './workflow';
 import type { PreflightResult } from './workflow/preflight';
 import { bubbleAuthorLabel } from './bubbleAuthorLabel';
 import {
@@ -38,6 +38,7 @@ import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeout
 import { TargetChips } from './ui/TargetChips';
 import {
   DEFAULT_FOCUS_LAYOUT_CONSTRAINTS,
+  clampFocusPaneWidth,
   dragFocusPaneWidth,
   driveCenteredProviderToStage as driveCenteredProviderToStageCommand,
   focusGridTemplateColumns,
@@ -60,8 +61,8 @@ import {
   type PresentationCommandHost,
   waitForPresentationTargetBounds,
 } from './ui/presentationCommands';
-import { workflowGraphs, type WorkflowGraph } from './workflow/graph';
-import { defaultRolesForPreset } from './ui/presetCatalogData';
+import { preflightGraph, workflowGraphs, type WorkflowGraph } from './workflow/graph';
+import { defaultRolesForPreset, PRESET_CATALOG } from './ui/presetCatalogData';
 import { buildPreflightDialogModel } from './ui/preflightModel';
 import { preflightFromResult } from './ui/preflightFromResult';
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from './ui/processing';
@@ -99,6 +100,7 @@ import {
   eventFromWorkflowStart,
 } from './diagnostics/eventLog';
 import { recordEventLog } from './diagnostics/eventLogStore';
+import { ModalDialog } from './ui/ModalDialog';
 
 interface Bubble {
   id: string;
@@ -228,7 +230,7 @@ export default function App() {
   const [userHidden, setUserHidden] = useState<Set<AIProvider>>(() => new Set());
   const [centerHidden, setCenterHidden] = useState<Set<AIProvider>>(() => new Set());
   const [centerTransitionsInFlight, setCenterTransitionsInFlight] = useState<Set<AIProvider>>(() => new Set());
-  const paneRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const paneRefs = useRef<Record<string, HTMLElement | null>>({});
   const centerStageRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const statesRef = useRef(states);
@@ -278,7 +280,17 @@ export default function App() {
   const defaultSendableTargets = useMemo(() => defaultTargets(states, [...DEFAULT_FREE_TARGET_PROVIDERS]), [states]);
   const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
   const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
+  const requiredModeProviders = useMemo(
+    () => PRESET_CATALOG.find((preset) => preset.graphId === mode)?.requiredProviders ?? [],
+    [mode],
+  );
+  const readyModeProviders = useMemo(
+    () => requiredModeProviders.filter((provider) => isSendable(states[provider])),
+    [requiredModeProviders, states],
+  );
+  const missingModeProviderCount = Math.max(0, requiredModeProviders.length - readyModeProviders.length);
   const noSendableProviders = mode === 'free' ? !hasFreeModeTargets : anySendableTargets.length === 0;
+  const modeSendBlocked = mode !== 'free' && missingModeProviderCount > 0;
   const openProviders = useMemo(() => PROVIDERS.filter((provider) => states[provider].webview === 'loaded'), [states]);
   const latestCenterBubble = useMemo(() => {
     if (!centeredProvider) return undefined;
@@ -805,7 +817,7 @@ export default function App() {
   }, []);
 
   const setPaneRef = useCallback(
-    (provider: AIProvider, el: HTMLDivElement | null) => {
+    (provider: AIProvider, el: HTMLElement | null) => {
       paneRefs.current[provider] = el;
       if (!el) return;
       void syncBounds(provider);
@@ -1163,6 +1175,8 @@ export default function App() {
 
   useEffect(() => {
     const onResize = () => {
+      const containerWidth = gridRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+      setFocusPaneWidth((current) => clampFocusPaneWidth(current, containerWidth));
       syncAllBounds();
       if (centeredProvider && centerSurfaceRef.current === 'native') void driveCenteredProviderToStage(centeredProvider);
     };
@@ -1201,7 +1215,7 @@ export default function App() {
     syncAllBounds();
   }, [focusPaneWidth, presentation, syncAllBounds]);
 
-  const send = async (trimmed: string) => {
+  const executeSend = async (trimmed: string) => {
     if (!trimmed) return;
     const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
     if (workflowTargets?.length === 0) return;
@@ -1237,6 +1251,28 @@ export default function App() {
     setCheckpointDraft('');
     activeTurns.current.clear();
     setIsProcessing(processingAfterSettle());
+  };
+
+  const send = async (trimmed: string): Promise<boolean> => {
+    if (!trimmed) return false;
+    if (isSerialMode(mode)) {
+      const serialMode = mode as Exclude<ChatMode, 'free'>;
+      const roles = defaultRolesForPreset(serialMode);
+      try {
+        const result = await preflightGraph(workflowGraphs[serialMode], roles);
+        if (!result.ok) {
+          recordEventLog(eventFromWorkflowPreflightBlocked(serialMode, result.unavailable.length + result.aliased.length));
+          setPreflight({ mode: serialMode, result });
+          return false;
+        }
+      } catch {
+        setWorkflowStatus(translate('input.sendFailed'));
+        return false;
+      }
+    }
+
+    void executeSend(trimmed);
+    return true;
   };
 
   const dismissStartupSessionCheckpoint = useCallback(() => {
@@ -1282,7 +1318,13 @@ export default function App() {
       const saved = await host.share.exportMarkdown(exportFilename(mode, now), content);
       if (saved) setShareNotice({ kind: 'ok', text: formatI18n(translateKey('share.exported', localeRef.current), { path: saved }) });
     } catch (reason) {
-      setShareNotice({ kind: 'error', text: reason instanceof Error ? reason.message : String(reason) });
+      recordEventLog({
+        ts: Date.now(),
+        kind: 'workflow-error',
+        summary: translateKey('share.exportFailed', localeRef.current),
+        detail: { operation: 'export', error: reason instanceof Error ? reason.message : String(reason) },
+      });
+      setShareNotice({ kind: 'error', text: translateKey('share.exportFailed', localeRef.current) });
     } finally {
       setSharing(false);
     }
@@ -1366,6 +1408,19 @@ export default function App() {
     [clearUserHiddenProvider, setCenterSurfaceMode],
   );
 
+  const openPreflightLogin = useCallback(
+    async (provider: AIProvider) => {
+      setPreflight(undefined);
+      try {
+        await forceProviderNativeCenter(provider);
+        await openProviderLogin(provider);
+      } catch {
+        setWorkflowStatus(translate('input.sendFailed'));
+      }
+    },
+    [forceProviderNativeCenter, openProviderLogin, translate],
+  );
+
   const applySavedSettings = (settings: AppSettings) => {
     settingsRef.current = settings;
     presentationRef.current = settings.presentation;
@@ -1375,9 +1430,12 @@ export default function App() {
     setPresentation(settings.presentation);
   };
 
-  const selectPreset = useCallback((nextMode: ChatMode) => {
-    setMode(nextMode);
-  }, []);
+  const selectPreset = useCallback(
+    (nextMode: ChatMode) => {
+      if (!isProcessing) setMode(nextMode);
+    },
+    [isProcessing],
+  );
 
   const persistReplaySnapshot = useCallback((snapshot: ExecutionSnapshot) => {
     const snapshotSettings = settingsRef.current;
@@ -1402,9 +1460,18 @@ export default function App() {
     setIsProcessing(processingAfterSettle());
   }, [setManualFocusLock]);
 
+  const layoutWidth = gridRef.current?.getBoundingClientRect().width ?? (typeof window === 'undefined' ? 1280 : window.innerWidth);
+  const focusPaneMaxWidth = Math.max(
+    DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minFocusPaneWidth,
+    layoutWidth - DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minCenterWidth - DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.resizerWidth,
+  );
+  const modeBlockedMessage = modeSendBlocked
+    ? formatI18n(translate('input.modeNotReady'), { remaining: missingModeProviderCount })
+    : undefined;
+
   return (
-    <main className="h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
-      <div ref={gridRef} className="grid h-full" style={{ gridTemplateColumns: focusGridTemplateColumns(focusPaneWidth) }}>
+    <main className="h-screen overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <div ref={gridRef} className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)]" style={{ gridTemplateColumns: focusGridTemplateColumns(focusPaneWidth) }}>
         <div className="flex min-h-0 min-w-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
           <FocusPane
             centeredProvider={centeredProvider}
@@ -1417,7 +1484,6 @@ export default function App() {
             presentationHidden={presentationHidden}
             setPaneRef={setPaneRef}
             setCenterStageRef={setCenterStageRef}
-            openProvider={openProvider}
             changeProviderPresentation={changeProviderPresentationManually}
             onManualFocusControl={markManualFocusControl}
             onEnlargeCenter={enlargeCenter}
@@ -1441,18 +1507,26 @@ export default function App() {
               </label>
             ) : null}
             <InputBar
-              onSend={(value) => void send(value)}
+              onSend={send}
               onCancel={cancelWorkflow}
               disabled={noSendableProviders}
+              sendBlocked={modeSendBlocked}
+              blockedMessage={modeBlockedMessage}
               isProcessing={isProcessing}
               locale={locale}
             />
           </div>
         </div>
 
-        <Resizer label={translate('layout.resizeFocusPane')} onDrag={dragFocusPane} />
+        <Resizer
+          label={translate('layout.resizeFocusPane')}
+          onDrag={dragFocusPane}
+          value={focusPaneWidth}
+          min={DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minFocusPaneWidth}
+          max={focusPaneMaxWidth}
+        />
 
-        <section className="flex min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+        <section className="flex min-h-0 min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
           <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3">
             <div className="flex flex-wrap items-start gap-3">
               <div className="min-w-0 flex-1">
@@ -1464,22 +1538,25 @@ export default function App() {
                   <span className="min-w-0 truncate text-xs text-zinc-600 dark:text-zinc-400">{workflowStatus || translate('processTrace.settled')}</span>
                 </div>
               </div>
-              <label
-                className={`flex items-center gap-2 border px-2 py-1 text-xs ${
-                  followRunPaused ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-100' : 'border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  className={`h-3.5 w-3.5 ${followRunPaused ? 'accent-amber-500' : 'accent-sky-500'}`}
-                  checked={autoFollowEnabled}
-                  onChange={(event) => setAutoFollowEnabled(event.currentTarget.checked)}
-                />
-                {followRunPaused ? translate('header.followRunPaused') : translate('header.followRun')}
-              </label>
+              {messages.length > 0 || isProcessing ? (
+                <label
+                  title={translate('header.followRunHelp')}
+                  className={`flex items-center gap-2 border px-2 py-1 text-xs ${
+                    followRunPaused ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-100' : 'border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className={`h-3.5 w-3.5 ${followRunPaused ? 'accent-amber-500' : 'accent-sky-500'}`}
+                    checked={autoFollowEnabled}
+                    onChange={(event) => setAutoFollowEnabled(event.currentTarget.checked)}
+                  />
+                  {followRunPaused ? translate('header.followRunPaused') : translate('header.followRun')}
+                </label>
+              ) : null}
               <button
                 type="button"
-                className={`flex h-7 w-7 items-center justify-center border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                className={`flex h-7 items-center justify-center gap-1.5 border px-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
                   replayDrawerOpen ? 'border-sky-400 bg-sky-50 dark:border-sky-800 dark:bg-sky-950' : 'border-zinc-300 dark:border-zinc-700'
                 }`}
                 aria-label={translate('replay.historyToggle')}
@@ -1493,15 +1570,17 @@ export default function App() {
                   <path d="M3 4v5h5" />
                   <path d="M12 7v5l3 2" />
                 </svg>
+                <span>{translate('replay.historyToggle')}</span>
               </button>
               <button
+                type="button"
                 className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => void exportConversation()}
                 disabled={messages.length === 0 || sharing}
               >
                 {translate('header.exportMarkdown')}
               </button>
-              <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
+              <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
                 {translate('header.settings')}
               </button>
             </div>
@@ -1530,6 +1609,7 @@ export default function App() {
           ) : null}
           {shareNotice ? (
             <div
+              role={shareNotice.kind === 'error' ? 'alert' : 'status'}
               className={
                 shareNotice.kind === 'error'
                   ? 'mt-3 border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200'
@@ -1540,7 +1620,7 @@ export default function App() {
             </div>
           ) : null}
           {adapterNotice ? (
-            <div className={`mt-3 border px-3 py-2 text-xs ${adapterNoticeClass(adapterNotice.kind)}`}>
+            <div role={adapterNotice.kind.endsWith('failed') ? 'alert' : 'status'} className={`mt-3 border px-3 py-2 text-xs ${adapterNoticeClass(adapterNotice.kind)}`}>
               {adapterNoticeText(adapterNotice)}
             </div>
           ) : null}
@@ -1549,13 +1629,15 @@ export default function App() {
               mode={mode}
               onSelectPreset={selectPreset}
               locale={locale}
+              states={states}
+              disabled={isProcessing}
             />
           </div>
           {mode === 'free' ? (
             <section className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
               <div className="mb-2 text-xs font-semibold uppercase text-zinc-600 dark:text-zinc-400">{translate('input.sendSelectedProviders')}</div>
               <div className="flex flex-wrap gap-2">
-                <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} locale={locale} />
+                <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} disabled={isProcessing} locale={locale} />
               </div>
             </section>
           ) : null}
@@ -1596,10 +1678,8 @@ export default function App() {
       {preflight ? (
         <PreflightDialog
           model={buildPreflightDialogModel(preflight.mode, preflight.result, states, locale)}
-          onOpenLogin={(provider) => {
-            void host.provider.openLogin(provider);
-          }}
-          onReassign={() => setPreflight(undefined)}
+          onOpenLogin={(provider) => void openPreflightLogin(provider)}
+          onClose={() => setPreflight(undefined)}
           onSwitchMode={() => {
             setMode('free');
             setPreflight(undefined);
@@ -1645,10 +1725,14 @@ function ReportPreviewDialog({
 }) {
   const digest = preview.digest;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <section className="max-h-[92vh] w-full max-w-2xl overflow-auto border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-5 shadow-2xl">
+    <ModalDialog
+      titleId="report-preview-title"
+      onEscape={onCancel}
+      onBackdrop={onCancel}
+      panelClassName="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-lg border border-zinc-300 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-950"
+    >
         <div className="mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{translateKey('reportPreview.title', locale)}</h2>
+          <h2 id="report-preview-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{translateKey('reportPreview.title', locale)}</h2>
         </div>
         <div className="grid gap-2 text-xs text-zinc-700 dark:text-zinc-300 sm:grid-cols-2">
           <div>
@@ -1671,10 +1755,11 @@ function ReportPreviewDialog({
           {preview.body}
         </pre>
         <div className="mt-5 flex items-center justify-end gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-4">
-          <button className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onCancel}>
+          <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onCancel}>
             {translateKey('reportPreview.cancel', locale)}
           </button>
           <button
+            type="button"
             className="border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950 px-3 py-1.5 text-sm text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onOpenIssue}
             disabled={busy}
@@ -1682,8 +1767,7 @@ function ReportPreviewDialog({
             {translateKey('reportPreview.openGithubIssue', locale)}
           </button>
         </div>
-      </section>
-    </div>
+    </ModalDialog>
   );
 }
 
@@ -1719,7 +1803,17 @@ export function ChatArea({
   }, [messages]);
 
   if (messages.length === 0) {
-    return <div className="p-4 text-sm text-zinc-500 dark:text-zinc-500">{translateKey('chat.noMessages', locale)}</div>;
+    const anyReady = (Object.keys(states) as AIProvider[]).some((provider) => isSendable(states[provider]));
+    return (
+      <div className="grid min-h-32 place-items-center p-6 text-center" role="status">
+        <div>
+          <div className="text-sm font-medium text-zinc-700 dark:text-zinc-200">{translateKey('chat.noMessages', locale)}</div>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            {translateKey(anyReady ? 'chat.readyPrompt' : 'chat.noProviders', locale)}
+          </p>
+        </div>
+      </div>
+    );
   }
   return (
     <div className="space-y-3 p-2">

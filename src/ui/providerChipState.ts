@@ -10,11 +10,11 @@ export function chipState(
   presentation: WebviewPresentationState = 'side',
   t: Translate,
 ): { label: string; className: string; dotClassName: string } {
-  if (presentation === 'chip') {
+  if (state.webview === 'creating') {
     return {
-      label: t('connection.sessionReady'),
-      className: 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300',
-      dotClassName: 'bg-zinc-400 dark:bg-zinc-500',
+      label: t('connection.connecting'),
+      className: 'border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300',
+      dotClassName: 'animate-pulse bg-sky-500 dark:bg-sky-400',
     };
   }
   if (state.webview !== 'loaded') {
@@ -57,6 +57,13 @@ export function chipState(
       label: t('connection.stale'),
       className: 'border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300',
       dotClassName: 'bg-sky-500 dark:bg-sky-400',
+    };
+  }
+  if (presentation === 'chip') {
+    return {
+      label: t('connection.sessionReady'),
+      className: 'border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300',
+      dotClassName: 'bg-zinc-400 dark:bg-zinc-500',
     };
   }
   return {

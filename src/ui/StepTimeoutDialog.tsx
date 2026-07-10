@@ -3,6 +3,7 @@ import type { Locale } from '../i18n/resolve';
 import { formatI18n, t } from '../i18n/t';
 import type { StepTimeoutAction } from '../workflow/stepTimeout';
 import { chooseTimeoutDialogAction } from './timeoutActions';
+import { ModalDialog } from './ModalDialog';
 
 export interface StepTimeoutDialogState {
   provider: string;
@@ -44,24 +45,27 @@ export function StepTimeoutDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4">
-      <section className="w-full max-w-sm border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-950 p-4 shadow-xl">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stepTimeout.title', locale)}</h2>
-        <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+    <ModalDialog
+      titleId="step-timeout-title"
+      descriptionId="step-timeout-description"
+      onEscape={() => choose('cancel')}
+      panelClassName="w-full max-w-sm rounded-lg border border-amber-300 bg-white p-4 shadow-xl dark:border-amber-700 dark:bg-zinc-950"
+    >
+        <h2 id="step-timeout-title" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stepTimeout.title', locale)}</h2>
+        <p id="step-timeout-description" className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
           {formatI18n(t('stepTimeout.description', locale), { provider: event.provider })}
         </p>
         <div className="mt-4 flex gap-2">
-          <button className="border border-emerald-300 dark:border-emerald-700 px-3 py-2 text-xs hover:bg-emerald-100 dark:hover:bg-emerald-950" onClick={() => choose('retry')}>
+          <button type="button" className="border border-emerald-300 dark:border-emerald-700 px-3 py-2 text-xs hover:bg-emerald-100 dark:hover:bg-emerald-950" onClick={() => choose('retry')}>
             {t('stepTimeout.retry', locale)}
           </button>
-          <button className="border border-sky-300 dark:border-sky-700 px-3 py-2 text-xs hover:bg-sky-100 dark:hover:bg-sky-950" onClick={() => choose('skip')}>
+          <button type="button" className="border border-sky-300 dark:border-sky-700 px-3 py-2 text-xs hover:bg-sky-100 dark:hover:bg-sky-950" onClick={() => choose('skip')}>
             {t('stepTimeout.skip', locale)}
           </button>
-          <button className="border border-red-300 dark:border-red-700 px-3 py-2 text-xs hover:bg-red-100 dark:hover:bg-red-950" onClick={() => choose('cancel')}>
+          <button type="button" className="border border-red-300 dark:border-red-700 px-3 py-2 text-xs hover:bg-red-100 dark:hover:bg-red-950" onClick={() => choose('cancel')}>
             {t('stepTimeout.cancel', locale)}
           </button>
         </div>
-      </section>
-    </div>
+    </ModalDialog>
   );
 }

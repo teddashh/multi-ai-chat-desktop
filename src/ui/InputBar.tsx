@@ -20,12 +20,16 @@ export function InputBar({
   onSend,
   onCancel,
   disabled,
+  sendBlocked = false,
+  blockedMessage,
   isProcessing,
   locale = 'en',
 }: {
-  onSend: (text: string) => void;
+  onSend: (text: string) => boolean | void | Promise<boolean | void>;
   onCancel: () => void;
   disabled: boolean;
+  sendBlocked?: boolean;
+  blockedMessage?: string;
   isProcessing: boolean;
   locale?: Locale;
 }) {
@@ -33,10 +37,12 @@ export function InputBar({
   const [attachmentChips, setAttachmentChips] = useState<AttachmentChip[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | undefined>();
   const [dropActive, setDropActive] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const attachmentChipsRef = useRef<AttachmentChip[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchGeneration = useRef(0);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -50,7 +56,7 @@ export function InputBar({
     setAttachmentChips(chips);
   };
 
-  const canAddFilesFromRef = () => !disabled && !isProcessing && !hasReadingAttachment(attachmentChipsRef.current);
+  const canAddFilesFromRef = () => !disabled && !isProcessing && !submittingRef.current && !hasReadingAttachment(attachmentChipsRef.current);
 
   const addAttachmentFiles = async (files: readonly FileLike[]) => {
     if (files.length === 0) return;
@@ -98,14 +104,27 @@ export function InputBar({
   const isReadingFile = hasReadingAttachment(attachmentChips);
   const readyFiles = readyAttachmentFiles(attachmentChips);
   const hasReadyAttachments = readyFiles.length > 0;
-  const canAddFiles = !disabled && !isProcessing && !isReadingFile;
+  const canAddFiles = !disabled && !isProcessing && !isSubmitting && !isReadingFile;
 
-  const submit = () => {
+  const submit = async () => {
     const trimmed = text.trim();
-    if ((!trimmed && !hasReadyAttachments) || disabled || isProcessing || isReadingFile) return;
-    onSend(hasReadyAttachments ? formatInsertedFilesPrompt(readyFiles, trimmed) : trimmed);
-    setText('');
-    clearAttachments();
+    if ((!trimmed && !hasReadyAttachments) || disabled || sendBlocked || isProcessing || isReadingFile || submittingRef.current) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    setAttachmentError(undefined);
+    try {
+      const decision = onSend(hasReadyAttachments ? formatInsertedFilesPrompt(readyFiles, trimmed) : trimmed);
+      const accepted = decision instanceof Promise ? await decision : decision;
+      if (accepted !== false) {
+        setText('');
+        clearAttachments();
+      }
+    } catch {
+      setAttachmentError(t('input.sendFailed', locale));
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
@@ -142,9 +161,11 @@ export function InputBar({
     ? t('input.workflowRunning', locale)
     : disabled
       ? t('input.connectProvider', locale)
-      : t('input.sendSelectedProviders', locale);
-  const sendDisabled = disabled || isProcessing || isReadingFile || (!text.trim() && !hasReadyAttachments);
-  const insertDisabled = disabled || isProcessing || isReadingFile;
+      : sendBlocked
+        ? blockedMessage ?? t('input.connectProvider', locale)
+        : t('input.messagePlaceholder', locale);
+  const sendDisabled = disabled || sendBlocked || isProcessing || isSubmitting || isReadingFile || (!text.trim() && !hasReadyAttachments);
+  const insertDisabled = disabled || isProcessing || isSubmitting || isReadingFile;
   const showDropActive = dropActive && canAddFiles;
 
   return (
@@ -164,13 +185,14 @@ export function InputBar({
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
-              submit();
+              void submit();
             }
           }}
           placeholder={placeholder}
-          disabled={disabled}
+          aria-label={t('input.messagePlaceholder', locale)}
+          disabled={disabled || isSubmitting}
           rows={2}
         />
         <input
@@ -190,16 +212,17 @@ export function InputBar({
           {isReadingFile ? t('input.reading', locale) : t('input.insertFile', locale)}
         </button>
         {isProcessing ? (
-          <button className="border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 px-3 text-sm text-red-800 dark:text-red-100 hover:bg-red-100 dark:hover:bg-red-900" onClick={onCancel}>
+          <button type="button" className="border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 px-3 text-sm text-red-800 dark:text-red-100 hover:bg-red-100 dark:hover:bg-red-900" onClick={onCancel}>
             {t('input.stop', locale)}
           </button>
         ) : null}
         <button
+          type="button"
           className="border border-emerald-300 dark:border-emerald-700 bg-emerald-600 text-white dark:bg-emerald-900 dark:text-zinc-100 px-4 text-sm hover:bg-emerald-700 dark:hover:bg-emerald-800 disabled:border-zinc-300 dark:disabled:border-zinc-700 disabled:bg-zinc-100 dark:disabled:bg-zinc-900 disabled:text-zinc-400 dark:disabled:text-zinc-600"
-          onClick={submit}
+          onClick={() => void submit()}
           disabled={sendDisabled}
         >
-          {t('input.send', locale)}
+          {isSubmitting ? t('input.preparing', locale) : t('input.send', locale)}
         </button>
       </div>
       {attachmentChips.length > 0 ? (
@@ -219,7 +242,7 @@ export function InputBar({
                 {attachmentChipName(chip)}
               </span>
               <span className="shrink-0 text-zinc-500 dark:text-zinc-500">
-                {attachmentChipSize(chip)} {t('input.bytes', locale)}
+                {formatAttachmentSize(attachmentChipSize(chip), locale)}
               </span>
               {chip.phase === 'reading' ? <span className="shrink-0 text-zinc-500 dark:text-zinc-500">{t('input.reading', locale)}</span> : null}
               {chip.phase === 'error' ? (
@@ -252,4 +275,10 @@ export function InputBar({
 function dragLeaveStayedInside(currentTarget: HTMLDivElement, relatedTarget: EventTarget | null): boolean {
   if (!relatedTarget || typeof Node === 'undefined' || !(relatedTarget instanceof Node)) return false;
   return currentTarget.contains(relatedTarget);
+}
+
+function formatAttachmentSize(bytes: number, locale: Locale): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const value = bytes / 1024;
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: value < 10 ? 1 : 0 }).format(value)} KB`;
 }

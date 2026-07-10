@@ -19,6 +19,7 @@ import {
 } from '../diagnostics/eventLog';
 import { buildDebugBundle, debugBundleFilename } from '../diagnostics/debugBundle';
 import { useEventLog } from './useEventLog';
+import { ModalDialog } from './ModalDialog';
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
@@ -29,6 +30,11 @@ type UpdateCheckState =
   | { status: 'available'; tagName: string; htmlUrl: string }
   | { status: 'unavailable' }
   | { status: 'error'; message: string };
+
+interface SettingsError {
+  messageKey: 'settings.loadFailed' | 'settings.saveFailed';
+  detail?: string;
+}
 
 export function SettingsModal({
   open,
@@ -50,18 +56,23 @@ export function SettingsModal({
   const { t, setLanguage } = useI18n();
   const [draft, setDraft] = useState<AppSettings | undefined>();
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<SettingsError | undefined>();
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({ status: 'idle' });
   const loadedRef = useRef<AppSettings | undefined>();
+  const closeTimerRef = useRef<number | undefined>();
   const liveRef = useRef({ openProviders, focusPaneWidth, presentation });
   liveRef.current = { openProviders, focusPaneWidth, presentation };
 
   useEffect(() => {
     if (!open) return;
+    if (closeTimerRef.current !== undefined) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
     let disposed = false;
     setDraft(undefined);
     setSaved(false);
-    setError('');
+    setError(undefined);
     setUpdateCheck({ status: 'idle' });
     void host.settings
       .get()
@@ -79,7 +90,7 @@ export function SettingsModal({
       })
       .catch((reason: unknown) => {
         if (disposed) return;
-        setError(reason instanceof Error ? reason.message : String(reason));
+        setError({ messageKey: 'settings.loadFailed', detail: errorDetail(reason) });
         const fallback = normalizeSettings({});
         const live = liveRef.current;
         loadedRef.current = fallback;
@@ -95,6 +106,13 @@ export function SettingsModal({
     };
   }, [open]);
 
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current !== undefined) window.clearTimeout(closeTimerRef.current);
+    },
+    [],
+  );
+
   if (!open) return null;
 
   const updateDraft = (patch: Partial<AppSettings>) => {
@@ -103,7 +121,7 @@ export function SettingsModal({
 
   const updateLanguage = async (language: AppSettings['language']) => {
     const previousLanguage = loadedRef.current?.language ?? 'system';
-    setError('');
+    setError(undefined);
     updateDraft({ language });
     setLanguage(language);
     const live = liveRef.current;
@@ -120,13 +138,13 @@ export function SettingsModal({
     } catch (reason) {
       updateDraft({ language: previousLanguage });
       setLanguage(previousLanguage);
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
     }
   };
 
   const save = async () => {
     if (!draft) return;
-    setError('');
+    setError(undefined);
     const next = mergeSettings(loadedRef.current, {
       ...draft,
       openProviders,
@@ -138,9 +156,9 @@ export function SettingsModal({
       loadedRef.current = next;
       onSaved(next);
       setSaved(true);
-      window.setTimeout(onClose, 400);
+      closeTimerRef.current = window.setTimeout(onClose, 400);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
     }
   };
 
@@ -164,20 +182,22 @@ export function SettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
-      <div
-        className="max-h-[92vh] w-full max-w-2xl overflow-auto rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-5 shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <ModalDialog
+      titleId="settings-title"
+      onEscape={onClose}
+      onBackdrop={onClose}
+      panelClassName="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-lg border border-zinc-300 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-950"
+    >
         <div className="mb-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h2>
-          <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={onClose}>
+          <h2 id="settings-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h2>
+          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={onClose}>
             {t('settings.close')}
           </button>
         </div>
 
         {draft ? (
           <div className="space-y-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('settings.general')}</h3>
             <section>
               <label className="block text-xs text-zinc-600 dark:text-zinc-400">
                 <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">{t('settings.language')}</span>
@@ -209,18 +229,8 @@ export function SettingsModal({
               </label>
             </section>
 
-            <section className="border-t border-zinc-200 dark:border-zinc-800 pt-4">
-              <label className="block text-xs text-zinc-600 dark:text-zinc-400">
-                <span className="mb-1 block">{t('settings.adapterBaseUrl')}</span>
-                <input
-                  value={draft.adapterBaseUrl}
-                  onChange={(event) => updateDraft({ adapterBaseUrl: event.target.value })}
-                  className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
-                />
-              </label>
-            </section>
-
             <section className="space-y-3 border-t border-zinc-200 dark:border-zinc-800 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('settings.privacyHistory')}</h3>
               <label className="flex items-start gap-3 text-xs text-zinc-600 dark:text-zinc-400">
                 <input
                   type="checkbox"
@@ -258,6 +268,7 @@ export function SettingsModal({
                 <span className="block text-xs text-zinc-600 dark:text-zinc-400">{t('settings.updates')}</span>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
+                    type="button"
                     className="border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-xs text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={() => void checkForUpdates()}
                     disabled={updateCheck.status === 'checking'}
@@ -289,9 +300,31 @@ export function SettingsModal({
               </section>
             ) : null}
 
-            <AccessTransparencySection />
-
-            <DiagnosticsSection providerStates={providerStates} settings={draft} />
+            <details className="group border-t border-zinc-200 pt-4 dark:border-zinc-800">
+              <summary className="cursor-pointer list-none rounded px-1 py-2 focus-visible:outline-offset-2">
+                <span className="flex items-start justify-between gap-3">
+                  <span>
+                    <span className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">{t('settings.advanced')}</span>
+                    <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{t('settings.advancedDescription')}</span>
+                  </span>
+                  <span className="text-zinc-500 transition group-open:rotate-180" aria-hidden="true">⌄</span>
+                </span>
+              </summary>
+              <div className="mt-3 space-y-4 border-l-2 border-zinc-200 pl-4 dark:border-zinc-800">
+                <section>
+                  <label className="block text-xs text-zinc-600 dark:text-zinc-400">
+                    <span className="mb-1 block">{t('settings.adapterBaseUrl')}</span>
+                    <input
+                      value={draft.adapterBaseUrl}
+                      onChange={(event) => updateDraft({ adapterBaseUrl: event.target.value })}
+                      className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
+                    />
+                  </label>
+                </section>
+                <AccessTransparencySection />
+                <DiagnosticsSection providerStates={providerStates} settings={draft} />
+              </div>
+            </details>
 
             <section className="border-t border-zinc-200 dark:border-zinc-800 pt-4 text-xs text-zinc-600 dark:text-zinc-400">{t('settings.telemetryNone')}</section>
           </div>
@@ -299,13 +332,24 @@ export function SettingsModal({
           <div className="py-8 text-sm text-zinc-500 dark:text-zinc-500">{t('settings.loading')}</div>
         )}
 
-        {error ? <div className="mt-4 border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200">{error}</div> : null}
+        {error ? (
+          <div className="mt-4 border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200" role="alert">
+            <div>{t(error.messageKey)}</div>
+            {error.detail ? (
+              <details className="mt-2">
+                <summary className="cursor-pointer font-medium">{t('settings.technicalDetails')}</summary>
+                <code className="mt-1 block break-words text-[11px] opacity-80">{error.detail}</code>
+              </details>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mt-5 flex items-center justify-end gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-4">
-          <button className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onClose}>
+          <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onClose}>
             {t('settings.cancel')}
           </button>
           <button
+            type="button"
             className="min-w-16 border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950 px-3 py-1.5 text-sm text-sky-700 dark:text-sky-100 hover:bg-sky-100 dark:hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => void save()}
             disabled={!draft}
@@ -313,8 +357,7 @@ export function SettingsModal({
             {saved ? t('settings.saved') : t('settings.save')}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 }
 
@@ -542,4 +585,8 @@ function EventLogRow({ event, now }: { event: EventLogEvent; now: number }) {
       {event.detail ? <code className="mt-1 block break-words text-[11px] text-zinc-500 dark:text-zinc-500">{JSON.stringify(event.detail)}</code> : null}
     </li>
   );
+}
+
+function errorDetail(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason);
 }

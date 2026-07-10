@@ -39,6 +39,6 @@ describe('TextCenterView', () => {
       centerTextFinal: false,
     });
 
-    expect(html).toContain('Waiting for response...');
+    expect(html).toContain('Ready for your next message.');
   });
 });

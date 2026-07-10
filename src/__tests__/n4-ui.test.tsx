@@ -8,7 +8,7 @@ import {
   DEFAULT_FREE_TARGET_PROVIDERS,
   DEFAULT_ROUNDTABLE_ROLES,
 } from '../../shared/constants';
-import type { AIProvider, BridgeMessage } from '../../shared/types';
+import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
 import { t } from '../i18n/t';
 import { PresetCatalog } from '../ui/PresetCatalog';
 import { ProcessTrace } from '../ui/ProcessTrace';
@@ -117,6 +117,30 @@ describe('N4 preset catalog', () => {
     expect(findAllElements(tree, (element) => element.type === 'button')).toHaveLength(PRESET_CATALOG.length);
     expect(renderToStaticMarkup(tree)).not.toContain('More');
     expect(renderToStaticMarkup(tree)).not.toContain('raw controls');
+  });
+
+  it('shows live readiness before the user selects a workflow', () => {
+    const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok', 'claude-code'];
+    const states = Object.fromEntries(
+      providers.map((provider, index) => [
+        provider,
+        {
+          provider,
+          webview: index < 2 ? 'loaded' : 'none',
+          dom: index < 2 ? 'ready' : 'unknown',
+          login: index < 2 ? 'logged_in' : 'unknown',
+          thinking: false,
+          lastStatusAt: 1,
+        } satisfies ProviderState,
+      ]),
+    ) as Record<AIProvider, ProviderState>;
+
+    const html = renderToStaticMarkup(
+      <PresetCatalog mode="free" onSelectPreset={vi.fn()} locale="en" states={states} />,
+    );
+
+    expect(html).toContain('2 connected');
+    expect(html).toContain('2/4 ready');
   });
 });
 

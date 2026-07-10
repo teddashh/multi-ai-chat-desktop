@@ -10,12 +10,14 @@ export function TargetChips({
   states,
   selected,
   onChange,
+  disabled = false,
   locale = 'en',
 }: {
   providers: AIProvider[];
   states: Record<AIProvider, ProviderState>;
   selected: AIProvider[];
   onChange: (selected: AIProvider[]) => void;
+  disabled?: boolean;
   locale?: Locale;
 }) {
   return (
@@ -26,7 +28,8 @@ export function TargetChips({
         return (
           <button
             key={provider}
-            disabled={!sendable}
+            type="button"
+            disabled={!sendable || disabled}
             onClick={() => onChange(toggleTarget(selected, provider))}
             className={`border px-2 py-1 text-xs ${
               active && sendable

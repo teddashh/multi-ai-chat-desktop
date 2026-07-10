@@ -4,14 +4,22 @@
 
 A Tauri 2 desktop control pane that orchestrates your **logged-in** ChatGPT, Claude, Gemini, Grok, and Claude Code web sessions — **no API keys, no telemetry**. Instead of just placing chats side by side, a central control pane drives them through multi-model **workflows** (debate, roundtable, consulting, coding, free-mode) and routes every provider's reply back to the hub.
 
-Status: **v0.5.0** — the control pane, five workflow modes, five web-session providers, reproducible runs (snapshots + replay), human relay checkpoints, per-provider adapters with remote hot-update, and three-platform packaging (Windows / macOS / Linux) are built and shipping. v0.5.0 is a UI declutter pass: one focused provider view with a live status strip, a minimal header, and a cleaned-up Settings. Portable-first, MIT, with community-maintained selector adapters. See [`docs/SPEC.md`](./docs/SPEC.md) for the behavior contract and [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the design.
+Status: **v0.5.1** — the control pane, five workflow modes, five web-session providers, reproducible runs (snapshots + replay), human relay checkpoints, per-provider adapters with remote hot-update, and three-platform packaging (Windows / macOS / Linux) are built and shipping. v0.5.1 focuses on a clearer first run, safer workflow starts, accessibility, and small-window reliability. Portable-first, MIT, with community-maintained selector adapters. See [`docs/SPEC.md`](./docs/SPEC.md) for the behavior contract and [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the design.
+
+## What's new in v0.5.1
+
+- **Start without guesswork.** The first-run provider picker explains what to open, shows live progress, and offers retry or sign-in actions when needed.
+- **Keep your work.** Workflow readiness is checked before a run starts, so a blocked provider no longer clears the prompt draft.
+- **Keyboard- and screen-reader-friendly.** Dialog focus trapping, Escape-to-close, visible focus states, keyboard resizing, reduced-motion support, and clearer labels make the control pane easier to navigate.
+- **Reliable at the minimum window size.** The focused provider, workflow cards, and composer remain visible without page-level overflow at `960×640`.
 
 ## Highlights
 
 - **Zero API keys.** Everything runs on the web sessions you're already logged into. No keys are stored, requested, or transmitted.
+- **Guided first run.** Start from a clear provider picker, see live connection and workflow-readiness states, and keep your draft when a workflow cannot start yet.
 - **Five providers, one hub.** ChatGPT, Claude, Gemini, Grok, and Claude Code (`claude.ai/code`, the agentic tier). Each keeps its own login profile.
 - **Multi-model workflows.** Debate, roundtable, consulting, coding, and free-mode route prompts between providers and collect their replies — driven by a declarative graph engine, picked from a catalog of preset cards.
-- **Focused view + status strip (v0.5.0).** One provider takes the stage at a time; a compact strip lists all five with live status dots — green ready, blue pulsing while thinking, amber needs login, red adapter broken. Click to switch focus, or let focus follow whichever provider is responding. Only the focused provider's page is ever rendered; the rest stay warm and hidden.
+- **Focused view + status strip.** One provider takes the stage at a time; a compact strip lists all five with live status and next actions. Click to switch focus, or let focus follow whichever provider is responding. Only the focused provider's page is ever rendered; the rest stay warm and hidden.
 - **Text-first center.** The focused provider shows a clean DOM-extracted text view by default; switch to the live page (真實頁面) only when you want to interact directly. A Login button appears in the header only when a provider actually needs it; reload and "report broken" sit behind a ⋯ menu.
 - **Reproducible runs.** Opt-in execution snapshots with privacy tiers (metadata-only / hashes / prompt-text / full-local); a history icon opens the replay panel to rerun any past run on your current logged-in sessions.
 - **Human relay checkpoints.** Tick "Ask me before each step" next to the composer (shown for multi-step presets) to pause between serial steps and review or edit each draft before it's sent — nothing is ever auto-sent on your behalf.

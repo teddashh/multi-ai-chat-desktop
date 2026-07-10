@@ -1,6 +1,7 @@
-import type { ChatMode } from '../../shared/types';
-import { t } from '../i18n/t';
+import type { AIProvider, ChatMode, ProviderState } from '../../shared/types';
+import { formatI18n, t } from '../i18n/t';
 import type { Locale } from '../i18n/resolve';
+import { isSendable } from '../workflow/sendability';
 import { PRESET_CATALOG, type PresetCatalogEntry } from './presetCatalogData';
 
 export function PresetCatalog({
@@ -8,11 +9,15 @@ export function PresetCatalog({
   onSelectPreset,
   locale = 'en',
   visiblePresetCount = PRESET_CATALOG.length,
+  states,
+  disabled = false,
 }: {
   mode: ChatMode;
   onSelectPreset: (mode: ChatMode) => void;
   locale?: Locale;
   visiblePresetCount?: number;
+  states?: Record<AIProvider, ProviderState>;
+  disabled?: boolean;
 }) {
   const visiblePresets = PRESET_CATALOG.slice(0, visiblePresetCount);
   const quickMode = visiblePresetCount < PRESET_CATALOG.length;
@@ -23,6 +28,8 @@ export function PresetCatalog({
         mode,
         onSelectPreset,
         locale,
+        states,
+        disabled,
         className: quickMode ? 'grid gap-2 lg:grid-cols-3' : 'grid gap-2 md:grid-cols-2 xl:grid-cols-5',
       })}
     </section>
@@ -34,6 +41,8 @@ function renderPresetGrid({
   mode,
   onSelectPreset,
   locale,
+  states,
+  disabled,
   className,
   keyPrefix = 'preset',
 }: {
@@ -41,6 +50,8 @@ function renderPresetGrid({
   mode: ChatMode;
   onSelectPreset: (mode: ChatMode) => void;
   locale: Locale;
+  states?: Record<AIProvider, ProviderState>;
+  disabled: boolean;
   className: string;
   keyPrefix?: string;
 }) {
@@ -49,21 +60,57 @@ function renderPresetGrid({
       {presets.map((preset) => {
         const selected = mode === preset.graphId;
         const displayName = t(preset.displayNameKey, locale);
+        const readiness = states ? presetReadiness(preset, states, locale) : undefined;
         return (
           <button
             key={`${keyPrefix}-${preset.id}`}
             type="button"
             onClick={() => onSelectPreset(preset.graphId)}
+            disabled={disabled}
             className={`flex min-h-20 flex-col border p-3 text-left transition ${
               selected ? 'border-sky-500 bg-sky-50 dark:bg-sky-950 text-sky-900 dark:text-zinc-50' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-600'
-            }`}
+            } disabled:cursor-not-allowed disabled:opacity-60`}
             aria-pressed={selected}
           >
             <span className="text-sm font-semibold">{displayName}</span>
-            {preset.metaKey ? <span className="mt-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{t(preset.metaKey, locale)}</span> : null}
+            <span className="mt-2 flex w-full items-center justify-between gap-2">
+              {preset.metaKey ? <span className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{t(preset.metaKey, locale)}</span> : <span />}
+              {readiness ? (
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    readiness.ready
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
+                      : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+                  }`}
+                >
+                  {readiness.label}
+                </span>
+              ) : null}
+            </span>
           </button>
         );
       })}
     </div>
   );
+}
+
+function presetReadiness(
+  preset: PresetCatalogEntry,
+  states: Record<AIProvider, ProviderState>,
+  locale: Locale,
+): { label: string; ready: boolean } {
+  const required = preset.requiredProviders;
+  if (required.length === 0) {
+    const readyCount = (Object.keys(states) as AIProvider[]).filter((provider) => isSendable(states[provider])).length;
+    return {
+      label: formatI18n(t('preset.readinessAny', locale), { ready: readyCount }),
+      ready: readyCount > 0,
+    };
+  }
+
+  const readyCount = required.filter((provider) => isSendable(states[provider])).length;
+  return {
+    label: formatI18n(t('preset.readinessRequired', locale), { ready: readyCount, total: required.length }),
+    ready: readyCount === required.length,
+  };
 }
