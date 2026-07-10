@@ -30,6 +30,7 @@ export const I18N_KEYS = [
   'connection.adapterBroken',
   'connection.degraded',
   'connection.needsLogin',
+  'connection.thinking',
   'connection.stale',
   'connection.ready',
   'connection.readySelected',

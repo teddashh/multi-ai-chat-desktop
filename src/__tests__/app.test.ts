@@ -92,7 +92,7 @@ describe('ChatArea thinking indicator', () => {
 });
 
 describe('text center presentation hidden set', () => {
-  it('restores a provider demoted from text center to side when another provider takes text center', async () => {
+  it('keeps a provider hidden after demoting it from text center to side', async () => {
     const providers = Object.keys(AI_PROVIDERS) as AIProvider[];
     const snapshot = states();
     const userHidden = new Set<AIProvider>();
@@ -134,7 +134,7 @@ describe('text center presentation hidden set', () => {
       }),
     });
 
-    expect(host.show).toHaveBeenCalledWith('chatgpt');
+    expect(host.show).not.toHaveBeenCalled();
     expect(host.hide).toHaveBeenCalledWith('claude');
   });
 });

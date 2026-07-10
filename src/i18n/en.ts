@@ -37,6 +37,7 @@ export const en: Record<I18nKey, string> = {
   'connection.adapterBroken': 'adapter-broken',
   'connection.degraded': 'degraded',
   'connection.needsLogin': 'needs-login',
+  'connection.thinking': 'Thinking',
   'connection.stale': 'stale',
   'connection.ready': 'ready',
   'connection.readySelected': 'ready selected',

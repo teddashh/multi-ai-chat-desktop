@@ -32,6 +32,7 @@ export const zhTW: Record<I18nKey, string> = {
   'connection.adapterBroken': 'adapter 異常',
   'connection.degraded': '橋接降級',
   'connection.needsLogin': '需要登入',
+  'connection.thinking': '思考中',
   'connection.stale': '狀態過期',
   'connection.ready': '就緒',
   'connection.readySelected': '就緒 已選',

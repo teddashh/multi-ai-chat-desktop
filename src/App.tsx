@@ -47,11 +47,9 @@ import { isSerialMode } from './ui/modeRoles';
 import {
   centerHiddenProviders,
   centerPresentationProvider,
-  chipProviders,
   defaultPresentation,
   restorableOpenProviders,
   setProviderPresentation,
-  sideProviders,
   type PresentationByProvider,
   type WebviewPresentationState,
 } from './ui/presentation';
@@ -85,7 +83,6 @@ import {
   type FreeTargetSelection,
 } from './ui/targets';
 import { useOverlayGuard } from './ui/useOverlayGuard';
-import { visibleLoadedProviders } from './ui/visibility';
 import { buildMarkdown, exportFilename } from './ui/exportMarkdown';
 import { formatReportBody, type AdapterNotice, type ReportDigest } from './ui/reportBroken';
 import { persistSnapshotIfEnabled } from './workflow/snapshot/persistence';
@@ -271,18 +268,18 @@ export default function App() {
     const next = new Set<AIProvider>([...userHidden, ...presentationHidden]);
     return next;
   }, [presentationHidden, userHidden]);
-  const loadedModalProviders = useMemo(() => visibleLoadedProviders(states, modalHiddenProviders, PROVIDERS), [modalHiddenProviders, states]);
+  const loadedModalProviders = useMemo(() => {
+    const centered = centerPresentationProvider(presentation);
+    if (centerSurface !== 'native' || !centered) return [];
+    if (states[centered].webview !== 'loaded') return [];
+    if (modalHiddenProviders.has(centered)) return [];
+    return [centered];
+  }, [centerSurface, modalHiddenProviders, presentation, states]);
   const defaultSendableTargets = useMemo(() => defaultTargets(states, [...DEFAULT_FREE_TARGET_PROVIDERS]), [states]);
   const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
   const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
   const noSendableProviders = mode === 'free' ? !hasFreeModeTargets : anySendableTargets.length === 0;
   const openProviders = useMemo(() => PROVIDERS.filter((provider) => states[provider].webview === 'loaded'), [states]);
-  const thumbnailSideProviders = useMemo(() => sideProviders(presentation, PROVIDERS), [presentation]);
-  const thumbnailChipProviders = useMemo(() => chipProviders(presentation, PROVIDERS), [presentation]);
-  const thumbnailProviders = useMemo(
-    () => [...thumbnailSideProviders, ...thumbnailChipProviders],
-    [thumbnailChipProviders, thumbnailSideProviders],
-  );
   const latestCenterBubble = useMemo(() => {
     if (!centeredProvider) return undefined;
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -654,7 +651,7 @@ export default function App() {
 
   const boundsForProvider = useCallback((provider: AIProvider): DOMRectReadOnly | undefined => {
     if (presentationRef.current[provider] === 'center') {
-      return nonEmptyRect(centerStageRef.current?.getBoundingClientRect()) ?? nonEmptyRect(paneRefs.current[provider]?.getBoundingClientRect());
+      return nonEmptyRect(centerStageRef.current?.getBoundingClientRect());
     }
     return nonEmptyRect(paneRefs.current[provider]?.getBoundingClientRect());
   }, []);
@@ -664,9 +661,9 @@ export default function App() {
     [boundsForProvider],
   );
 
-  const boundsForPresentationTarget = useCallback((provider: AIProvider, state: WebviewPresentationState): DOMRectReadOnly | undefined => {
+  const boundsForPresentationTarget = useCallback((_provider: AIProvider, state: WebviewPresentationState): DOMRectReadOnly | undefined => {
     if (state === 'center') return nonEmptyRect(centerStageRef.current?.getBoundingClientRect());
-    if (state === 'side') return nonEmptyRect(paneRefs.current[provider]?.getBoundingClientRect());
+    if (state === 'side') return hiddenProviderLoadBounds();
     return undefined;
   }, []);
 
@@ -723,7 +720,9 @@ export default function App() {
       waitForPresentationTargetBounds({
         getBounds: () => boundsForPresentationTarget(provider, state),
         waitFrame: nextAnimationFrame,
-        shouldContinue: () => presentationTransitionCurrent(provider, state, generation) && (state !== 'center' || centerSurfaceRef.current === 'native'),
+        shouldContinue: () =>
+          presentationTransitionCurrent(provider, state, generation) &&
+          (state !== 'center' || (centerSurfaceRef.current === 'native' && !overlayGuardOpenRef.current)),
       }),
     [boundsForPresentationTarget, presentationTransitionCurrent],
   );
@@ -737,13 +736,11 @@ export default function App() {
   const ensureProviderLoadedHidden = useCallback(
     async (provider: AIProvider, bounds: DOMRectReadOnly, shouldContinue: () => boolean = () => true) => {
       if (!shouldContinue()) return;
-      let opened = false;
       if (statesRef.current[provider].webview !== 'loaded') {
         resetProviderBootState(provider);
         await host.provider.open(provider, bounds);
-        opened = true;
       }
-      if (!shouldContinue() && !opened) return;
+      if (!shouldContinue()) return;
       await host.provider.hide(provider);
     },
     [],
@@ -751,8 +748,17 @@ export default function App() {
 
   const restoreProvider = useCallback(
     async (provider: AIProvider) => {
-      const textCentered = presentationRef.current[provider] === 'center' && centerSurfaceRef.current === 'text';
-      if (textCentered) {
+      const target = presentationRef.current[provider];
+      if (target === 'chip') return;
+      if (target === 'side') {
+        await ensureProviderLoadedHidden(
+          provider,
+          hiddenProviderLoadBounds(),
+          () => presentationRef.current[provider] === 'side',
+        );
+        return;
+      }
+      if (target === 'center' && centerSurfaceRef.current === 'text') {
         await ensureProviderLoadedHidden(
           provider,
           hiddenProviderLoadBounds(),
@@ -766,17 +772,23 @@ export default function App() {
   );
 
   const syncBounds = useCallback(async (provider: AIProvider) => {
-    if (presentationRef.current[provider] === 'chip') return;
-    if (presentationRef.current[provider] === 'center' && centerSurfaceRef.current === 'text') return;
+    if (statesRef.current[provider].webview !== 'loaded') return;
+    const shouldPaintCenter =
+      presentationRef.current[provider] === 'center' &&
+      centerSurfaceRef.current === 'native' &&
+      !userHiddenRef.current.has(provider) &&
+      !overlayGuardOpenRef.current;
+    if (!shouldPaintCenter) {
+      await host.provider.hide(provider);
+      return;
+    }
     const rect = boundsForProvider(provider);
-    if (!rect || statesRef.current[provider].webview !== 'loaded') return;
+    if (!rect) return;
     await host.layout.setBounds(provider, rect);
   }, [boundsForProvider]);
 
   const syncAllBounds = useCallback(() => {
-    const textCentered = centerSurfaceRef.current === 'text' ? centerPresentationProvider(presentationRef.current) : undefined;
     for (const provider of PROVIDERS) {
-      if (provider === textCentered) continue;
       void syncBounds(provider);
     }
   }, [syncBounds]);
@@ -842,7 +854,7 @@ export default function App() {
     }
 
     if (pendingRestore.current.size === 0) setInitialRestoreComplete(true);
-  }, [centeredProvider, initialRestoreComplete, presentation, restoreProvider, settingsLoaded, thumbnailSideProviders]);
+  }, [centeredProvider, initialRestoreComplete, presentation, restoreProvider, settingsLoaded]);
 
   const persistPresentation = useCallback(
     async (next: PresentationByProvider) => {
@@ -964,7 +976,8 @@ export default function App() {
 
       try {
         const shouldContinue = () =>
-          presentationTransitionCurrent(provider, state, generation) && (state !== 'center' || centerSurfaceRef.current === 'native');
+          presentationTransitionCurrent(provider, state, generation) &&
+          (state !== 'center' || (centerSurfaceRef.current === 'native' && !overlayGuardOpenRef.current && !userHiddenRef.current.has(provider)));
         if (statesRef.current[provider].webview !== 'loaded') resetProviderBootState(provider);
         await applyPresentationTransitionCommand({
           host: presentationHost,
@@ -1182,7 +1195,7 @@ export default function App() {
       window.clearInterval(timer);
       for (const observer of observers) observer.disconnect();
     };
-  }, [centerSurface, centeredProvider, driveCenteredProviderToStage, syncAllBounds, syncBounds, thumbnailProviders]);
+  }, [centerSurface, centeredProvider, driveCenteredProviderToStage, syncAllBounds, syncBounds]);
 
   useEffect(() => {
     syncAllBounds();
@@ -1395,8 +1408,6 @@ export default function App() {
         <div className="flex min-h-0 min-w-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
           <FocusPane
             centeredProvider={centeredProvider}
-            sideProviders={thumbnailSideProviders}
-            chipProviders={thumbnailChipProviders}
             states={states}
             presentation={presentation}
             centerSurface={centerSurface}

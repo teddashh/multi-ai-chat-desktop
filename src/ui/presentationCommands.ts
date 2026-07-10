@@ -39,6 +39,19 @@ export async function applyPresentationTransitionCommand({
   const firstWebview = currentWebview();
   if (!shouldContinue()) return;
 
+  if (state === 'side') {
+    if (firstWebview === 'loaded') {
+      if (!shouldContinue()) return;
+      await host.hide(provider);
+      return;
+    }
+    if (!shouldContinue()) return;
+    await host.open(provider, bounds);
+    if (!shouldContinue()) return;
+    await host.hide(provider);
+    return;
+  }
+
   if (firstWebview === 'loaded') {
     await host.show(provider);
 
@@ -100,7 +113,7 @@ export async function applyCenterHiddenCommands({
       const current = snapshot();
       if (!shouldContinue()) return;
       if (current.overlayGuardOpen) continue;
-      if (current.states[provider]?.webview === 'loaded' && !current.userHidden.has(provider) && current.presentation[provider] !== 'chip') {
+      if (current.states[provider]?.webview === 'loaded' && !current.userHidden.has(provider) && current.presentation[provider] === 'center') {
         await host.show(provider);
       }
     }

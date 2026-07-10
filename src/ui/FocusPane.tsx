@@ -9,11 +9,10 @@ import type { PresentationByProvider, WebviewPresentationState } from './present
 import { chipState } from './providerChipState';
 
 export type CenterSurface = 'text' | 'native';
+const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
 export function FocusPane({
   centeredProvider,
-  sideProviders,
-  chipProviders,
   states,
   presentation,
   centerSurface,
@@ -34,8 +33,6 @@ export function FocusPane({
   reportBusy,
 }: {
   centeredProvider?: AIProvider;
-  sideProviders: AIProvider[];
-  chipProviders: AIProvider[];
   states: Record<AIProvider, ProviderState>;
   presentation: PresentationByProvider;
   centerSurface: CenterSurface;
@@ -56,7 +53,6 @@ export function FocusPane({
   reportBusy: boolean;
 }) {
   const { t } = useI18n();
-  const thumbnailProviders = [...sideProviders, ...chipProviders];
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col bg-white dark:bg-zinc-950 p-3">
@@ -87,23 +83,14 @@ export function FocusPane({
         />
       )}
 
-      <section className="mt-3 shrink-0 overflow-x-auto overflow-y-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-2">
-        <div className="grid grid-flow-col gap-2" style={{ gridAutoColumns: 'minmax(0, 1fr)' }}>
-          {thumbnailProviders.map((provider) => (
-            <ThumbnailTile
-              key={provider}
-              provider={provider}
-              state={states[provider]}
-              presentation={presentation[provider]}
-              hiddenByUser={userHidden.has(provider)}
-              hiddenByCenter={presentationHidden.has(provider)}
-              setPaneRef={setPaneRef}
-              changeProviderPresentation={changeProviderPresentation}
-              onManualFocusControl={onManualFocusControl}
-            />
-          ))}
-        </div>
-      </section>
+      <StatusStrip
+        centeredProvider={centeredProvider}
+        states={states}
+        presentation={presentation}
+        setPaneRef={setPaneRef}
+        changeProviderPresentation={changeProviderPresentation}
+        onManualFocusControl={onManualFocusControl}
+      />
     </aside>
   );
 }
@@ -301,12 +288,46 @@ export function TextCenterView({
   return <div className="grid flex-1 place-items-center p-3 text-sm text-zinc-500 dark:text-zinc-500">{t('provider.centerIdle')}</div>;
 }
 
-function ThumbnailTile({
+function StatusStrip({
+  centeredProvider,
+  states,
+  presentation,
+  setPaneRef,
+  changeProviderPresentation,
+  onManualFocusControl,
+}: {
+  centeredProvider?: AIProvider;
+  states: Record<AIProvider, ProviderState>;
+  presentation: PresentationByProvider;
+  setPaneRef: (provider: AIProvider, el: HTMLDivElement | null) => void;
+  changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
+  onManualFocusControl: (provider: AIProvider) => void;
+}) {
+  return (
+    <section className="mt-3 shrink-0 overflow-x-auto overflow-y-hidden border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2 py-1.5">
+      <div className="grid grid-cols-5 gap-1.5">
+        {PROVIDERS.map((provider) => (
+          <StatusStripItem
+            key={provider}
+            provider={provider}
+            state={states[provider]}
+            presentation={presentation[provider]}
+            centered={provider === centeredProvider}
+            setPaneRef={setPaneRef}
+            changeProviderPresentation={changeProviderPresentation}
+            onManualFocusControl={onManualFocusControl}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StatusStripItem({
   provider,
   state,
   presentation,
-  hiddenByUser,
-  hiddenByCenter,
+  centered,
   setPaneRef,
   changeProviderPresentation,
   onManualFocusControl,
@@ -314,16 +335,15 @@ function ThumbnailTile({
   provider: AIProvider;
   state: ProviderState;
   presentation: WebviewPresentationState;
-  hiddenByUser: boolean;
-  hiddenByCenter: boolean;
+  centered: boolean;
   setPaneRef: (provider: AIProvider, el: HTMLDivElement | null) => void;
   changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
   onManualFocusControl: (provider: AIProvider) => void;
 }) {
   const { t } = useI18n();
   const status = chipState(state, presentation, t);
-  const hidden = hiddenByUser || hiddenByCenter;
   const focusProvider = () => {
+    if (centered) return;
     onManualFocusControl(provider);
     void changeProviderPresentation(provider, 'center');
   };
@@ -340,16 +360,24 @@ function ThumbnailTile({
       role="button"
       tabIndex={0}
       aria-label={`${AI_PROVIDERS[provider].name}: ${status.label}`}
-      className={`min-h-20 min-w-0 cursor-pointer border bg-zinc-50 dark:bg-zinc-900 p-2 outline-none transition-colors hover:border-sky-400 dark:hover:border-sky-700 focus:border-sky-500 dark:focus:border-sky-600 ${
-        hidden ? 'border-zinc-300 dark:border-zinc-700' : 'border-zinc-200 dark:border-zinc-800'
+      aria-current={centered ? 'true' : undefined}
+      className={`min-w-0 border px-2 py-1 text-left outline-none transition-colors focus:border-sky-500 dark:focus:border-sky-600 ${
+        centered
+          ? 'cursor-default border-sky-400 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40'
+          : 'cursor-pointer border-zinc-200 bg-zinc-50 hover:border-sky-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-sky-700'
       }`}
-      onPointerDown={() => onManualFocusControl(provider)}
+      onPointerDown={() => {
+        if (!centered) onManualFocusControl(provider);
+      }}
       onClick={focusProvider}
       onKeyDown={onKeyDown}
     >
-      <div className="flex min-w-0 flex-col gap-1">
-        <span className="min-w-0 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{AI_PROVIDERS[provider].name}</span>
-        <span className={`w-fit max-w-full truncate border px-1.5 py-0.5 text-[11px] ${status.className}`}>{status.label}</span>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">{AI_PROVIDERS[provider].name}</span>
+        <span className="flex min-w-0 shrink items-center gap-1">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${status.dotClassName}`} aria-hidden="true" />
+          <span className={`min-w-0 truncate text-[11px] ${status.className}`}>{status.label}</span>
+        </span>
       </div>
     </div>
   );

@@ -19,7 +19,6 @@ import {
   type PresentationCommandHost,
 } from '../ui/presentationCommands';
 import { mergeSettings, normalizeSettings } from '../ui/settingsModel';
-import { visibleLoadedProviders } from '../ui/visibility';
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
 const allProviders: AIProvider[] = [...providers, 'claude-code'];
@@ -168,9 +167,9 @@ describe('N5 webview presentation host commands', () => {
     expect(host.open).not.toHaveBeenCalled();
   });
 
-  it('promotes a hibernated chip by opening the provider at measured bounds', async () => {
+  it('promotes a hibernated chip to hidden side by opening then hiding the provider', async () => {
     const host = commandHost();
-    const bounds = rect(30, 40, 300, 200);
+    const bounds = rect(24, 24, 420, 320);
 
     await applyPresentationTransitionCommand({
       host,
@@ -181,7 +180,67 @@ describe('N5 webview presentation host commands', () => {
     });
 
     expect(host.open).toHaveBeenCalledWith('claude', bounds);
+    expect(host.hide).toHaveBeenCalledWith('claude');
     expect(host.close).not.toHaveBeenCalled();
+    expect(host.show).not.toHaveBeenCalled();
+    expect(host.setBounds).not.toHaveBeenCalled();
+  });
+
+  it('keeps a loaded side provider hidden without setting strip bounds', async () => {
+    const host = commandHost();
+    const bounds = rect(30, 40, 300, 200);
+
+    await applyPresentationTransitionCommand({
+      host,
+      provider: 'gemini',
+      state: 'side',
+      bounds,
+      webview: 'loaded',
+    });
+
+    expect(host.hide).toHaveBeenCalledWith('gemini');
+    expect(host.show).not.toHaveBeenCalled();
+    expect(host.setBounds).not.toHaveBeenCalled();
+    expect(host.open).not.toHaveBeenCalled();
+  });
+
+  it('skips loaded side hide when the transition is stale at command time', async () => {
+    const host = commandHost();
+    const shouldContinue = vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(false);
+
+    await applyPresentationTransitionCommand({
+      host,
+      provider: 'gemini',
+      state: 'side',
+      bounds: rect(30, 40, 300, 200),
+      webview: 'loaded',
+      shouldContinue,
+    });
+
+    expect(host.hide).not.toHaveBeenCalled();
+    expect(host.open).not.toHaveBeenCalled();
+  });
+
+  it('skips cold side hide when the transition becomes stale after open resolves', async () => {
+    const host = commandHost();
+    const bounds = rect(24, 24, 420, 320);
+    let stillWanted = true;
+    const shouldContinue = vi.fn(() => stillWanted);
+    host.open = vi.fn(async () => {
+      stillWanted = false;
+    });
+
+    await applyPresentationTransitionCommand({
+      host,
+      provider: 'claude',
+      state: 'side',
+      bounds,
+      webview: 'none',
+      shouldContinue,
+    });
+
+    expect(host.open).toHaveBeenCalledWith('claude', bounds);
+    expect(host.hide).not.toHaveBeenCalled();
   });
 
   it('centers a loaded provider with center bounds and hides overlapping siblings', async () => {
@@ -326,16 +385,17 @@ describe('N5 webview presentation host commands', () => {
     };
     const guard = new OverlayGuardCounter();
     const snapshot = states();
+    const presentation = setProviderPresentation(defaultPresentation(), 'claude', 'center');
     const centerHidden = new Set<AIProvider>(['claude']);
 
-    guard.open(visibleLoadedProviders(snapshot, centerHidden, providers), overlayHost);
+    guard.open(['claude'], overlayHost);
     await applyCenterHiddenCommands({
       host,
       previousHidden: centerHidden,
       nextHidden: new Set(),
       snapshot: () => ({
         states: snapshot,
-        presentation: defaultPresentation(),
+        presentation,
         userHidden: new Set(),
         overlayGuardOpen: true,
       }),
@@ -343,11 +403,12 @@ describe('N5 webview presentation host commands', () => {
 
     expect(host.show).not.toHaveBeenCalled();
 
-    guard.reconcile(visibleLoadedProviders(snapshot, new Set(), providers), overlayHost);
+    guard.reconcile(['claude'], overlayHost);
     expect(host.hide).toHaveBeenCalledWith('claude');
 
     guard.close(overlayHost);
     expect(host.show).toHaveBeenCalledWith('claude');
+    expect(host.show).toHaveBeenCalledTimes(1);
   });
 
   it('waits for mounted presentation bounds and opens with the real rect instead of fallback bounds', async () => {
