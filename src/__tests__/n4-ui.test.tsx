@@ -10,7 +10,6 @@ import {
 } from '../../shared/constants';
 import type { AIProvider, BridgeMessage } from '../../shared/types';
 import { t } from '../i18n/t';
-import { ModeSelector } from '../ui/ModeSelector';
 import { PresetCatalog } from '../ui/PresetCatalog';
 import { ProcessTrace } from '../ui/ProcessTrace';
 import { createProcessTrace, reduceProcessTraceEvent } from '../ui/processTraceModel';
@@ -65,8 +64,6 @@ describe('N4 preset catalog', () => {
     const tree = PresetCatalog({
       mode: 'free',
       onSelectPreset: vi.fn(),
-      advancedOpen: false,
-      onAdvancedOpenChange: vi.fn(),
       locale,
     });
     const cardButtons = findAllElements(
@@ -95,8 +92,6 @@ describe('N4 preset catalog', () => {
     const tree = PresetCatalog({
       mode: 'free',
       onSelectPreset,
-      advancedOpen: false,
-      onAdvancedOpenChange: vi.fn(),
       locale: 'en',
     });
     const debateCard = firstElement(tree, (element) => element.type === 'button' && textOf(element).includes(t('preset.debate.displayName', 'en')));
@@ -111,45 +106,17 @@ describe('N4 preset catalog', () => {
     expect(defaultRolesForPreset('free')).toBeUndefined();
   });
 
-  it('uses More to reveal the raw ModeSelector drawer', () => {
-    const onAdvancedOpenChange = vi.fn();
-    const closedTree = PresetCatalog({
+  it('renders the catalog as cards only without an advanced raw-controls drawer', () => {
+    const tree = PresetCatalog({
       mode: 'free',
       onSelectPreset: vi.fn(),
-      advancedOpen: false,
-      onAdvancedOpenChange,
       locale: 'en',
-      children: <ModeSelector mode="free" onModeChange={vi.fn()} locale="en" />,
     });
-    const more = firstElement(closedTree, (element) => element.type === 'button' && textOf(element).includes(t('preset.more', 'en')));
-    const closedDrawer = firstElement(closedTree, (element) => propsOf(element).id === 'advanced-workflow-controls');
 
-    propsOf(more).onClick?.();
-
-    expect(onAdvancedOpenChange).toHaveBeenCalledWith(true);
-    expect(propsOf(closedDrawer).hidden).toBe(true);
-
-    const openTree = PresetCatalog({
-      mode: 'free',
-      onSelectPreset: vi.fn(),
-      advancedOpen: true,
-      onAdvancedOpenChange: vi.fn(),
-      locale: 'zh-TW',
-      children: <ModeSelector mode="free" onModeChange={vi.fn()} locale="zh-TW" />,
-    });
-    const openDrawer = firstElement(openTree, (element) => propsOf(element).id === 'advanced-workflow-controls');
-    expect(propsOf(openDrawer).hidden).toBe(false);
-    expect(renderToStaticMarkup(openTree)).toContain(t('mode.free.name', 'zh-TW'));
-
-    const englishTree = PresetCatalog({
-      mode: 'free',
-      onSelectPreset: vi.fn(),
-      advancedOpen: true,
-      onAdvancedOpenChange: vi.fn(),
-      locale: 'en',
-      children: <ModeSelector mode="free" onModeChange={vi.fn()} locale="en" />,
-    });
-    expect(renderToStaticMarkup(englishTree)).toContain(t('mode.free.name', 'en'));
+    expect(findAllElements(tree, (element) => propsOf(element).id === 'advanced-workflow-controls')).toEqual([]);
+    expect(findAllElements(tree, (element) => element.type === 'button')).toHaveLength(PRESET_CATALOG.length);
+    expect(renderToStaticMarkup(tree)).not.toContain('More');
+    expect(renderToStaticMarkup(tree)).not.toContain('raw controls');
   });
 });
 

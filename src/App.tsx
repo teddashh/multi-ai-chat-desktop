@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AI_PROVIDERS, CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../shared/constants';
-import type { AIProvider, BridgeMessage, ChatMode, ModeRoles, ProviderState } from '../shared/types';
+import type { AIProvider, BridgeMessage, ChatMode, ProviderState } from '../shared/types';
 import { startBridgePull, resetProviderBootState } from './bridge/pull';
 import { isRenderableResponseMessage } from './bridge/render';
 import { publishBridgeMessage } from './bridge/bus';
@@ -28,13 +28,11 @@ import { CheckpointCard } from './ui/CheckpointCard';
 import { FocusPane, type CenterSurface } from './ui/FocusPane';
 import { InputBar } from './ui/InputBar';
 import { makeFileDragGuard } from './ui/fileDrop';
-import { ModeSelector } from './ui/ModeSelector';
 import { PreflightDialog } from './ui/PreflightDialog';
 import { PresetCatalog } from './ui/PresetCatalog';
 import { ProcessTrace } from './ui/ProcessTrace';
 import { createProcessTrace, reduceProcessTraceEvent, settleProcessTrace, type ProcessTraceState } from './ui/processTraceModel';
 import { ReplayPanel, type ReplaySource } from './ui/ReplayPanel';
-import { RoleConfig } from './ui/RoleConfig';
 import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
@@ -45,7 +43,7 @@ import {
   focusGridTemplateColumns,
   nonEmptyRect,
 } from './ui/focusLayout';
-import { defaultRolesForMode, isSerialMode } from './ui/modeRoles';
+import { isSerialMode } from './ui/modeRoles';
 import {
   centerHiddenProviders,
   centerPresentationProvider,
@@ -64,6 +62,7 @@ import {
   type PresentationCommandHost,
   waitForPresentationTargetBounds,
 } from './ui/presentationCommands';
+import { workflowGraphs, type WorkflowGraph } from './workflow/graph';
 import { defaultRolesForPreset } from './ui/presetCatalogData';
 import { buildPreflightDialogModel } from './ui/preflightModel';
 import { preflightFromResult } from './ui/preflightFromResult';
@@ -178,6 +177,14 @@ function renderablePayload(payload: unknown): { content: string; truncated: bool
   return { content: JSON.stringify(payload ?? ''), truncated: false };
 }
 
+function serialStepCount(graph: WorkflowGraph): number {
+  return Object.values(graph.nodes).filter((node) => node.kind === 'step' && node.policy === 'serialRunStep').length;
+}
+
+function isMultiStepMode(mode: ChatMode): boolean {
+  return serialStepCount(workflowGraphs[mode]) > 1;
+}
+
 export default function App() {
   const { locale, t: translate, setLanguage } = useI18n();
   const [states, setStates] = useState<Record<AIProvider, ProviderState>>(() =>
@@ -191,8 +198,6 @@ export default function App() {
   const [messages, setMessages] = useState<Bubble[]>([]);
   const [workflowStatus, setWorkflowStatus] = useState('');
   const [mode, setMode] = useState<ChatMode>('free');
-  const [roles, setRoles] = useState<ModeRoles>(() => defaultRolesForMode('debate'));
-  const [advancedControlsOpen, setAdvancedControlsOpen] = useState(false);
   const [replayDrawerOpen, setReplayDrawerOpen] = useState(false);
   const [processTrace, setProcessTrace] = useState<ProcessTraceState | undefined>();
   const [targetSelection, setTargetSelection] = useState<FreeTargetSelection>(() => ({
@@ -294,6 +299,7 @@ export default function App() {
     Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || Boolean(accessProvider);
   const manualFocusIdlePaused = Boolean(checkpoint) || Boolean(stepTimeout);
   const followRunPaused = autoFollowEnabled && manualFocusLockActive;
+  const showConfirmEachStepControl = isMultiStepMode(mode);
   overlayGuardOpenRef.current = overlayGuardOpen;
 
   const setCenterSurfaceMode = useCallback((surface: CenterSurface) => {
@@ -635,14 +641,14 @@ export default function App() {
   }, [setManualFocusLock]);
 
   useEffect(() => {
-    if (mode === 'free') return;
-    setRoles(defaultRolesForMode(mode));
-  }, [mode]);
-
-  useEffect(() => {
     if (mode !== 'free') return;
     setTargetSelection((current) => applyFreeTargetDefaults(current, defaultSendableTargets));
   }, [defaultSendableTargets, mode]);
+
+  useEffect(() => {
+    if (showConfirmEachStepControl) return;
+    setConfirmEachStep(false);
+  }, [showConfirmEachStepControl]);
 
   const handleTargetsChange = useCallback((nextTargets: AIProvider[]) => {
     setTargetSelection((current) => markFreeTargetsTouched(current, nextTargets));
@@ -1195,13 +1201,14 @@ export default function App() {
     setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current));
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
+    const workflowRoles = defaultRolesForPreset(mode);
     recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
     const result = await runWorkflow({
       text: trimmed,
       mode,
-      roles: mode === 'free' ? undefined : roles,
+      roles: workflowRoles,
       targets: workflowTargets,
-      checkpoints: confirmEachStep,
+      checkpoints: showConfirmEachStepControl && confirmEachStep,
       snapshotPersistence: snapshotSettings.snapshotPersistence,
       snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
     });
@@ -1233,7 +1240,6 @@ export default function App() {
       snapshotId: sessionCheckpointNotice.replaySnapshot.id,
       info: sessionCheckpointNotice.replaySnapshot,
     };
-    setAdvancedControlsOpen(true);
     setReplayDrawerOpen(true);
     setSessionCheckpointReplayBusy(true);
     const replay = replayPanelRef.current?.startReplay(source);
@@ -1381,8 +1387,6 @@ export default function App() {
 
   const selectPreset = useCallback((nextMode: ChatMode) => {
     setMode(nextMode);
-    const nextRoles = defaultRolesForPreset(nextMode);
-    if (nextRoles) setRoles(nextRoles);
   }, []);
 
   const persistReplaySnapshot = useCallback((snapshot: ExecutionSnapshot) => {
@@ -1439,6 +1443,18 @@ export default function App() {
             reportBusy={reportBusy}
           />
           <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800 px-3 pb-3">
+            {showConfirmEachStepControl ? (
+              <label className="mt-3 flex w-fit items-center gap-2 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-amber-500"
+                  checked={confirmEachStep}
+                  onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
+                  disabled={isProcessing}
+                />
+                {translate('checkpoint.confirmEachStep')}
+              </label>
+            ) : null}
             <InputBar
               onSend={(value) => void send(value)}
               onCancel={cancelWorkflow}
@@ -1477,6 +1493,23 @@ export default function App() {
                 {followRunPaused ? translate('header.followRunPaused') : translate('header.followRun')}
               </label>
               <button
+                type="button"
+                className={`flex h-7 w-7 items-center justify-center border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                  replayDrawerOpen ? 'border-sky-400 bg-sky-50 dark:border-sky-800 dark:bg-sky-950' : 'border-zinc-300 dark:border-zinc-700'
+                }`}
+                aria-label={translate('replay.historyToggle')}
+                title={translate('replay.historyToggle')}
+                aria-expanded={replayDrawerOpen}
+                aria-controls="replay-history-panel"
+                onClick={() => setReplayDrawerOpen((open) => !open)}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 1 0 3-6.7" />
+                  <path d="M3 4v5h5" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              </button>
+              <button
                 className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => void exportConversation()}
                 disabled={messages.length === 0 || sharing}
@@ -1487,6 +1520,19 @@ export default function App() {
                 {translate('header.settings')}
               </button>
             </div>
+          </div>
+          <div
+            id="replay-history-panel"
+            hidden={!replayDrawerOpen}
+            className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 pb-3"
+          >
+            <ReplayPanel
+              ref={replayPanelRef}
+              locale={locale}
+              onReplayWillRun={prepareReplayTrace}
+              onReplaySettled={settleReplayTrace}
+              onSnapshotComplete={persistReplaySnapshot}
+            />
           </div>
           {sessionCheckpointNotice ? (
             <SessionCheckpointNotice
@@ -1517,15 +1563,8 @@ export default function App() {
             <PresetCatalog
               mode={mode}
               onSelectPreset={selectPreset}
-              advancedOpen={advancedControlsOpen}
-              onAdvancedOpenChange={setAdvancedControlsOpen}
               locale={locale}
-              visiblePresetCount={5}
-              showFullCatalogInAdvanced={false}
-            >
-              <ModeSelector mode={mode} onModeChange={setMode} locale={locale} />
-              <RoleConfig mode={mode} roles={roles} onRolesChange={setRoles} />
-            </PresetCatalog>
+            />
           </div>
           {mode === 'free' ? (
             <section className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
@@ -1541,24 +1580,6 @@ export default function App() {
             </div>
           ) : null}
           <div className="mt-3 space-y-2">
-            <details
-              className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950"
-              open={replayDrawerOpen}
-              onToggle={(event) => setReplayDrawerOpen(event.currentTarget.open)}
-            >
-              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900">
-                {translate('replay.snapshotReplay')}
-              </summary>
-              <div className="border-t border-zinc-200 dark:border-zinc-800 px-3 pb-3">
-                <ReplayPanel
-                  ref={replayPanelRef}
-                  locale={locale}
-                  onReplayWillRun={prepareReplayTrace}
-                  onReplaySettled={settleReplayTrace}
-                  onSnapshotComplete={persistReplaySnapshot}
-                />
-              </div>
-            </details>
             {checkpoint ? (
               <details className="border border-amber-300 dark:border-amber-900 bg-white dark:bg-zinc-950" open>
                 <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-950">
@@ -1581,16 +1602,6 @@ export default function App() {
           {stepTimeout && !stepTimeout.timedOut ? (
             <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />
           ) : null}
-          <label className="mt-3 flex w-fit items-center gap-2 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-amber-500"
-              checked={confirmEachStep}
-              onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
-              disabled={isProcessing}
-            />
-            {translate('checkpoint.confirmEachStep')}
-          </label>
           <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3">
             <ChatArea messages={messages} locale={locale} states={states} />
             {import.meta.env.DEV ? <EchoPanel /> : null}

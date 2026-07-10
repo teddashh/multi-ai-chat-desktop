@@ -9,7 +9,7 @@ import {
 } from '../../shared/constants';
 import { modeName } from '../i18n/modes';
 import { formatI18n, t } from '../i18n/t';
-import { defaultRolesForMode, updateModeRole } from '../ui/modeRoles';
+import { defaultRolesForMode } from '../ui/modeRoles';
 import { OverlayGuardCounter } from '../ui/overlayGuard';
 import { buildPreflightDialogModel } from '../ui/preflightModel';
 import { preflightFromResult } from '../ui/preflightFromResult';
@@ -52,14 +52,16 @@ describe('M4a UI helpers', () => {
     resetStepTimeoutForTests();
   });
 
-  it('seeds each serial mode from its default roles and single-role updates only mutate that slot', () => {
+  it('seeds each serial mode from copied static default roles', () => {
     expect(defaultRolesForMode('debate')).toEqual(DEFAULT_DEBATE_ROLES);
     expect(defaultRolesForMode('consult')).toEqual(DEFAULT_CONSULT_ROLES);
     expect(defaultRolesForMode('coding')).toEqual(DEFAULT_CODING_ROLES);
     expect(defaultRolesForMode('roundtable')).toEqual(DEFAULT_ROUNDTABLE_ROLES);
 
-    const updated = updateModeRole(DEFAULT_DEBATE_ROLES, 'con', 'gemini');
-    expect(updated).toEqual({ ...DEFAULT_DEBATE_ROLES, con: 'gemini' });
+    const debateRoles = defaultRolesForMode('debate') as typeof DEFAULT_DEBATE_ROLES;
+    debateRoles.con = 'gemini';
+
+    expect(defaultRolesForMode('debate')).toEqual(DEFAULT_DEBATE_ROLES);
     expect(DEFAULT_DEBATE_ROLES.con).toBe('claude');
   });
 
