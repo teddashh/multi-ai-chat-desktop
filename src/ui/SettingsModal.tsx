@@ -177,21 +177,6 @@ export function SettingsModal({
         {draft ? (
           <div className="space-y-5">
             <section>
-              <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">{t('settings.hackmdToken')}</label>
-              <input
-                type="password"
-                value={draft.hackmdToken}
-                onChange={(event) => updateDraft({ hackmdToken: event.target.value })}
-                placeholder="hmd_xxxxxxxxxxxxxxxx"
-                className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 outline-none focus:border-sky-500 dark:focus:border-sky-600"
-                autoFocus
-              />
-              <p className="mt-1.5 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
-                {t('settings.hackmdTokenHint')}
-              </p>
-            </section>
-
-            <section>
               <label className="block text-xs text-zinc-600 dark:text-zinc-400">
                 <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">{t('settings.language')}</span>
                 <select
@@ -222,15 +207,7 @@ export function SettingsModal({
               </label>
             </section>
 
-            <section className="grid gap-3 border-t border-zinc-200 dark:border-zinc-800 pt-4 sm:grid-cols-2">
-              <label className="block text-xs text-zinc-600 dark:text-zinc-400">
-                <span className="mb-1 block">{t('settings.adapterChannel')}</span>
-                <input
-                  value={draft.adapterChannel}
-                  onChange={(event) => updateDraft({ adapterChannel: event.target.value })}
-                  className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
-                />
-              </label>
+            <section className="border-t border-zinc-200 dark:border-zinc-800 pt-4">
               <label className="block text-xs text-zinc-600 dark:text-zinc-400">
                 <span className="mb-1 block">{t('settings.adapterBaseUrl')}</span>
                 <input

@@ -17,11 +17,9 @@ export interface AppSettings {
   theme: 'light' | 'dark';
   layoutMode: 'focus';
   focusPaneWidth: number;
-  hackmdToken: string;
   columnWidths: ColumnWidths;
   slotAssignment: SlotAssignment;
   openProviders: AIProvider[];
-  adapterChannel: string;
   adapterBaseUrl: string;
   updaterChannel: string;
   portable: boolean;
@@ -39,11 +37,9 @@ export function defaultSettings(): AppSettings {
     theme: 'light',
     layoutMode: 'focus',
     focusPaneWidth: DEFAULT_FOCUS_PANE_WIDTH,
-    hackmdToken: '',
     columnWidths: { ...DEFAULT_COLUMN_WIDTHS },
     slotAssignment: { ...DEFAULT_SLOT_ASSIGNMENT },
     openProviders: [],
-    adapterChannel: 'stable',
     adapterBaseUrl: '',
     updaterChannel: 'stable',
     portable: false,
@@ -101,11 +97,9 @@ export function normalizeSettings(value: unknown): AppSettings {
     theme: input.theme === 'dark' ? 'dark' : 'light',
     layoutMode: 'focus',
     focusPaneWidth: focusPaneWidth(input.focusPaneWidth, input.columnWidths, defaults.focusPaneWidth),
-    hackmdToken: stringValue(input.hackmdToken, defaults.hackmdToken),
     columnWidths: normalizedColumnWidths,
     slotAssignment: normalizeSlotAssignment(input.slotAssignment, defaults.slotAssignment),
     openProviders: Array.from(new Set(providerList(input.openProviders))),
-    adapterChannel: stringValue(input.adapterChannel, defaults.adapterChannel),
     adapterBaseUrl: stringValue(input.adapterBaseUrl, defaults.adapterBaseUrl),
     updaterChannel: stringValue(input.updaterChannel, defaults.updaterChannel),
     portable: input.portable === true,

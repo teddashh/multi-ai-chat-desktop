@@ -18,7 +18,6 @@ fn main() {
             "open_adapter_issue",
             "settings_get",
             "settings_set",
-            "publish_hackmd",
             "export_markdown",
             "open_external_url",
             "snapshot_save",

@@ -32,7 +32,6 @@ function baseBundle(overrides: Partial<Parameters<typeof buildDebugBundle>[0]> =
     >,
     settings: {
       adapterBaseUrl: 'https://example.test/adapters',
-      adapterChannel: 'stable',
       updaterChannel: 'stable',
       portable: true,
     },
@@ -42,17 +41,17 @@ function baseBundle(overrides: Partial<Parameters<typeof buildDebugBundle>[0]> =
 }
 
 describe('debug bundle builder', () => {
-  it('allowlists settings and does not include HackMD tokens or session-like secrets', () => {
+  it('allowlists settings and does not include removed tokens or session-like secrets', () => {
+    const legacyPublishTokenKey = ['hack', 'mdToken'].join('');
     const token = 'hmd_private_token_123';
     const cookie = 'sid=private-cookie';
     const session = 'private-session-data';
     const bundle = baseBundle({
       settings: {
         adapterBaseUrl: 'https://example.test/adapters',
-        adapterChannel: 'beta',
         updaterChannel: 'stable',
         portable: false,
-        hackmdToken: token,
+        [legacyPublishTokenKey]: token,
         cookies: cookie,
         session,
       },
@@ -71,11 +70,10 @@ describe('debug bundle builder', () => {
       ],
     });
 
-    expect(bundle).toContain('"adapterChannel": "beta"');
     expect(bundle).not.toContain(token);
     expect(bundle).not.toContain(cookie);
     expect(bundle).not.toContain(session);
-    expect(bundle).not.toContain('hackmdToken');
+    expect(bundle).not.toContain(legacyPublishTokenKey);
   });
 
   it('redacts credentials, query strings, and fragments from adapter base URLs', () => {
@@ -84,7 +82,6 @@ describe('debug bundle builder', () => {
     const bundle = baseBundle({
       settings: {
         adapterBaseUrl: `https://user:${password}@example.test/adapters/v1?token=${token}#debug`,
-        adapterChannel: 'stable',
         updaterChannel: 'stable',
         portable: true,
       },
@@ -103,7 +100,6 @@ describe('debug bundle builder', () => {
     const bundle = baseBundle({
       settings: {
         adapterBaseUrl: 'not a url with private words',
-        adapterChannel: 'stable',
         updaterChannel: 'stable',
         portable: true,
       },
@@ -239,7 +235,6 @@ describe('debug bundle builder', () => {
     expect(parsed.environment).toEqual({ userAgent: 'Vitest UA', platform: 'Win32' });
     expect(parsed.settings).toEqual({
       adapterBaseUrl: 'https://example.test/adapters',
-      adapterChannel: 'stable',
       updaterChannel: 'stable',
       portable: true,
     });

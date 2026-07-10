@@ -11,7 +11,6 @@ import {
 
 export const DEBUG_BUNDLE_SETTINGS_ALLOWLIST = [
   'adapterBaseUrl',
-  'adapterChannel',
   'updaterChannel',
   'portable',
 ] as const;
@@ -88,7 +87,6 @@ export function pickDebugSettings(settings: unknown): DebugBundleSettings {
   const input = settings && typeof settings === 'object' ? (settings as Record<string, unknown>) : {};
   return {
     adapterBaseUrl: redactAdapterBaseUrl(input.adapterBaseUrl),
-    adapterChannel: stringOrNull(input.adapterChannel),
     updaterChannel: stringOrNull(input.updaterChannel),
     portable: typeof input.portable === 'boolean' ? input.portable : null,
   };

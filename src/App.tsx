@@ -1271,22 +1271,6 @@ export default function App() {
     }
   };
 
-  const _publishConversation = async () => {
-    if (messages.length === 0 || sharing) return;
-    setSharing(true);
-    try {
-      const now = new Date();
-      const { title, content } = buildMarkdown(messages, mode, now);
-      const dated = `${title} — ${now.toLocaleString()}`;
-      const url = await host.publish.hackmd(dated, content);
-      setShareNotice({ kind: 'ok', text: formatI18n(translateKey('share.published', localeRef.current), { url }) });
-    } catch (reason) {
-      setShareNotice({ kind: 'error', text: reason instanceof Error ? reason.message : String(reason) });
-    } finally {
-      setSharing(false);
-    }
-  };
-
   const reportProvider = useCallback(
     async (provider: AIProvider) => {
       if (reportBusy) return;
@@ -1593,17 +1577,6 @@ export default function App() {
                 </div>
               </details>
             ) : null}
-            <details className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900">
-                {translate('settings.diagnostics')}
-              </summary>
-              <div className="border-t border-zinc-200 dark:border-zinc-800 p-3 text-xs text-zinc-600 dark:text-zinc-400">
-                <p>{translate('settings.diagnosticsDescription')}</p>
-                <button className="mt-3 border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
-                  {translate('header.settings')}
-                </button>
-              </div>
-            </details>
           </div>
           {stepTimeout && !stepTimeout.timedOut ? (
             <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />

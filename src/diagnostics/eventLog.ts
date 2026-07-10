@@ -54,7 +54,6 @@ const SENSITIVE_DETAIL_KEYS = new Set([
   'body',
   'content',
   'payload',
-  'hackmdtoken',
   'token',
   'secret',
   'cookie',

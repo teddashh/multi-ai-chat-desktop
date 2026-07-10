@@ -80,12 +80,13 @@ describe('M4b UI helpers', () => {
   });
 
   it('normalizes and merges settings defensively', () => {
+    const legacyPublishTokenKey = ['hack', 'mdToken'].join('');
+
     expect(defaultSettings()).toMatchObject({
       language: 'system',
       theme: 'light',
       layoutMode: 'focus',
       focusPaneWidth: 620,
-      hackmdToken: '',
       columnWidths: { left: 280, right: 280 },
       slotAssignment: DEFAULT_SLOT_ASSIGNMENT,
       openProviders: [],
@@ -96,7 +97,7 @@ describe('M4b UI helpers', () => {
     });
 
     const normalized = normalizeSettings({
-      hackmdToken: 123,
+      [legacyPublishTokenKey]: 123,
       columnWidths: { left: 10, right: 900 },
       slotAssignment: { leftTop: 'chatgpt', leftBottom: 'chatgpt' },
       openProviders: ['grok', 'nope', 'grok', 'claude-code'],
@@ -111,7 +112,7 @@ describe('M4b UI helpers', () => {
     expect(normalized.theme).toBe('dark');
     expect(normalized.layoutMode).toBe('focus');
     expect(normalized.focusPaneWidth).toBe(420);
-    expect(normalized.hackmdToken).toBe('');
+    expect(Object.prototype.hasOwnProperty.call(normalized, legacyPublishTokenKey)).toBe(false);
     expect(normalized.columnWidths.left).toBeGreaterThanOrEqual(200);
     expect(normalized.columnWidths.right).toBeLessThanOrEqual(520);
     expect(isProviderPermutation(SLOT_IDS.map((slot) => normalized.slotAssignment[slot]))).toBe(true);
@@ -121,8 +122,7 @@ describe('M4b UI helpers', () => {
     expect(normalized.snapshotRedactionTier).toBe('metadata-only');
     expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side', 'claude-code': 'chip' });
 
-    expect(mergeSettings(normalized, { adapterChannel: 'beta', snapshotRedactionTier: 'hashes', language: 'zh-TW' })).toMatchObject({
-      adapterChannel: 'beta',
+    expect(mergeSettings(normalized, { snapshotRedactionTier: 'hashes', language: 'zh-TW' })).toMatchObject({
       layoutMode: 'focus',
       focusPaneWidth: 420,
       language: 'zh-TW',

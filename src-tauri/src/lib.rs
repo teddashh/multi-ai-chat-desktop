@@ -43,7 +43,6 @@ pub fn run() {
             adapters::open_adapter_issue,
             settings::settings_get,
             settings::settings_set,
-            settings::publish_hackmd,
             settings::export_markdown,
             settings::open_external_url,
             snapshots::snapshot_save,

@@ -24,7 +24,6 @@
     "allow-open-adapter-issue",
     "allow-settings-get",
     "allow-settings-set",
-    "allow-publish-hackmd",
     "allow-export-markdown",
     "allow-open-external-url",
     "allow-snapshot-save",

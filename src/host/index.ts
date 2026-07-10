@@ -128,9 +128,6 @@ export const host = {
     load: (): Promise<string | null> => invoke('session_checkpoint_load'),
     clear: (): Promise<void> => invoke('session_checkpoint_clear'),
   },
-  publish: {
-    hackmd: (title: string, markdown: string): Promise<string> => invoke('publish_hackmd', { title, markdown }),
-  },
   share: {
     exportMarkdown: (suggestedName: string, content: string): Promise<string | null> =>
       invoke('export_markdown', { suggestedName, content }),

@@ -264,73 +264,6 @@ pub(crate) fn adapter_base_url(app: &AppHandle) -> Result<Option<String>, String
 }
 
 #[tauri::command]
-pub async fn publish_hackmd(
-    app: AppHandle,
-    webview: tauri::Webview,
-    title: String,
-    markdown: String,
-) -> Result<String, String> {
-    crate::webviews::ensure_control_webview(&webview)?;
-
-    let path = settings_path(&app)?;
-    let settings = read_settings(&path)?;
-    let token = settings
-        .get("hackmdToken")
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "No HackMD token — add one in Settings.".to_string())?
-        .to_string();
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|error| error.to_string())?;
-    let response = client
-        .post("https://api.hackmd.io/v1/notes")
-        .bearer_auth(&token)
-        .json(&serde_json::json!({
-            "title": title,
-            "content": markdown,
-            "readPermission": "guest",
-            "writePermission": "owner",
-            "commentPermission": "disabled",
-        }))
-        .send()
-        .await
-        .map_err(|error| error.to_string())?;
-
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        let detail = if body.trim().is_empty() {
-            status.canonical_reason().unwrap_or("error").to_string()
-        } else {
-            body
-        };
-        return Err(format!("HackMD {}: {}", status.as_u16(), detail));
-    }
-
-    let data: Value = response.json().await.map_err(|error| error.to_string())?;
-    let id = data.get("id").and_then(|value| value.as_str());
-    let url = data
-        .get("publishLink")
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|value| value.to_string())
-        .or_else(|| id.map(|id| format!("https://hackmd.io/@/{id}/publish")))
-        .ok_or_else(|| "HackMD response missing publish link.".to_string())?;
-
-    // Best-effort: only auto-open https URLs (parity with webviews.rs navigation policy).
-    // Never fail the publish on this; the URL is returned to the UI regardless.
-    if url.starts_with("https://") {
-        let _ = app.opener().open_url(url.as_str(), None::<&str>);
-    }
-    Ok(url)
-}
-
-#[tauri::command]
 pub async fn export_markdown(
     app: AppHandle,
     webview: tauri::Webview,
@@ -399,7 +332,7 @@ mod tests {
     fn write_then_read_round_trips_non_trivial_blob() {
         let path = unique_path("roundtrip");
         let blob = json!({
-            "hackmdToken": "hmd_secret",
+            "adapterBaseUrl": "https://example.test/adapters",
             "columnWidths": { "left": 280, "right": 340 },
             "slotAssignment": ["chatgpt", "claude", "gemini", "grok"],
             "portable": true
@@ -411,7 +344,7 @@ mod tests {
         assert_eq!(
             read,
             json!({
-                "hackmdToken": "hmd_secret",
+                "adapterBaseUrl": "https://example.test/adapters",
                 "columnWidths": { "left": 280, "right": 340 },
                 "slotAssignment": ["chatgpt", "claude", "gemini", "grok"]
             })
