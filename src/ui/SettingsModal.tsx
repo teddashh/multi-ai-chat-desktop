@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
+import { buildAdapterPermissionSummary } from './adapterPermissions';
+import { AdapterAccessPanel } from './FocusPane';
 import { useI18n } from '../i18n/context';
 import { formatI18n } from '../i18n/t';
 import type { PresentationByProvider } from './presentation';
@@ -287,6 +289,8 @@ export function SettingsModal({
               </section>
             ) : null}
 
+            <AccessTransparencySection />
+
             <DiagnosticsSection providerStates={providerStates} settings={draft} />
 
             <section className="border-t border-zinc-200 dark:border-zinc-800 pt-4 text-xs text-zinc-600 dark:text-zinc-400">{t('settings.telemetryNone')}</section>
@@ -320,6 +324,40 @@ type DebugBundleExportState =
   | { status: 'saved'; message: string }
   | { status: 'cancelled' }
   | { status: 'error'; message: string };
+
+function AccessTransparencySection() {
+  const { locale, t } = useI18n();
+  const [provider, setProvider] = useState<AIProvider>(PROVIDERS[0]);
+  const summary = useMemo(() => buildAdapterPermissionSummary(provider, undefined, locale), [locale, provider]);
+
+  return (
+    <section className="space-y-3 border-t border-zinc-200 dark:border-zinc-800 pt-4">
+      <div>
+        <h3 className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{t('provider.access')}</h3>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {PROVIDERS.map((candidate) => {
+          const selected = candidate === provider;
+          return (
+            <button
+              key={candidate}
+              className={`border px-3 py-1.5 text-xs ${
+                selected
+                  ? 'border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950 text-sky-800 dark:text-sky-100'
+                  : 'border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              }`}
+              aria-pressed={selected}
+              onClick={() => setProvider(candidate)}
+            >
+              {AI_PROVIDERS[candidate].name}
+            </button>
+          );
+        })}
+      </div>
+      <AdapterAccessPanel id={`settings-adapter-access-${provider}`} summary={summary} />
+    </section>
+  );
+}
 
 function DiagnosticsSection({
   providerStates,

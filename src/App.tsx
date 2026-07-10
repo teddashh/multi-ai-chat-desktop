@@ -231,7 +231,6 @@ export default function App() {
   const [userHidden, setUserHidden] = useState<Set<AIProvider>>(() => new Set());
   const [centerHidden, setCenterHidden] = useState<Set<AIProvider>>(() => new Set());
   const [centerTransitionsInFlight, setCenterTransitionsInFlight] = useState<Set<AIProvider>>(() => new Set());
-  const [accessProvider, setAccessProvider] = useState<AIProvider | null>(null);
   const paneRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const centerStageRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -295,8 +294,7 @@ export default function App() {
   const centerText = latestCenterBubble?.content;
   const centerTextFinal = latestCenterBubble?.final === true;
 
-  const overlayGuardOpen =
-    Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || Boolean(accessProvider);
+  const overlayGuardOpen = Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview);
   const manualFocusIdlePaused = Boolean(checkpoint) || Boolean(stepTimeout);
   const followRunPaused = autoFollowEnabled && manualFocusLockActive;
   const showConfirmEachStepControl = isMultiStepMode(mode);
@@ -1327,27 +1325,6 @@ export default function App() {
     if (phase === 'end') void persistSettingsPatch({ focusPaneWidth: nextWidth });
   };
 
-  const togglePaneVisibility = async (provider: AIProvider) => {
-    const textCentered = presentationRef.current[provider] === 'center' && centerSurfaceRef.current === 'text';
-    if (userHidden.has(provider)) {
-      if (!textCentered) await host.provider.show(provider);
-      setUserHidden((current) => {
-        const next = new Set(current);
-        next.delete(provider);
-        return next;
-      });
-      if (!textCentered) window.requestAnimationFrame(() => void syncBounds(provider));
-      return;
-    }
-
-    await host.provider.hide(provider);
-    setUserHidden((current) => new Set(current).add(provider));
-  };
-
-  const toggleAdapterAccess = useCallback((provider: AIProvider) => {
-    setAccessProvider((current) => (current === provider ? null : provider));
-  }, []);
-
   const enlargeCenter = useCallback(() => {
     const provider = centerPresentationProvider(presentationRef.current);
     setCenterSurfaceMode('native');
@@ -1430,11 +1407,8 @@ export default function App() {
             setPaneRef={setPaneRef}
             setCenterStageRef={setCenterStageRef}
             openProvider={openProvider}
-            togglePaneVisibility={togglePaneVisibility}
             changeProviderPresentation={changeProviderPresentationManually}
             onManualFocusControl={markManualFocusControl}
-            accessProvider={accessProvider}
-            toggleAdapterAccess={toggleAdapterAccess}
             onEnlargeCenter={enlargeCenter}
             onCollapseCenter={collapseCenter}
             onOpenLogin={openProviderLogin}

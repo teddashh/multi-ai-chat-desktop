@@ -1,11 +1,10 @@
-import type { KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { resetProviderBootState } from '../bridge/pull';
 import { host } from '../host';
 import { useI18n } from '../i18n/context';
-import { formatI18n } from '../i18n/t';
-import { buildAdapterPermissionSummary, type AdapterPermissionSummary } from './adapterPermissions';
+import type { AdapterPermissionSummary } from './adapterPermissions';
 import type { PresentationByProvider, WebviewPresentationState } from './presentation';
 import { chipState } from './providerChipState';
 
@@ -25,11 +24,8 @@ export function FocusPane({
   setPaneRef,
   setCenterStageRef,
   openProvider,
-  togglePaneVisibility,
   changeProviderPresentation,
   onManualFocusControl,
-  accessProvider,
-  toggleAdapterAccess,
   onEnlargeCenter,
   onCollapseCenter,
   onOpenLogin,
@@ -50,11 +46,8 @@ export function FocusPane({
   setPaneRef: (provider: AIProvider, el: HTMLDivElement | null) => void;
   setCenterStageRef: (el: HTMLDivElement | null) => void;
   openProvider: (provider: AIProvider) => Promise<void>;
-  togglePaneVisibility: (provider: AIProvider) => Promise<void>;
   changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
   onManualFocusControl: (provider: AIProvider) => void;
-  accessProvider: AIProvider | null;
-  toggleAdapterAccess: (provider: AIProvider) => void;
   onEnlargeCenter: () => void;
   onCollapseCenter: () => void;
   onOpenLogin: (provider: AIProvider) => Promise<void>;
@@ -76,13 +69,9 @@ export function FocusPane({
           centerTextFinal={centerTextFinal}
           hiddenByUser={userHidden.has(centeredProvider)}
           hiddenByCenter={presentationHidden.has(centeredProvider)}
-          accessOpen={accessProvider === centeredProvider}
           setCenterStageRef={setCenterStageRef}
           openProvider={openProvider}
-          togglePaneVisibility={togglePaneVisibility}
-          changeProviderPresentation={changeProviderPresentation}
           onManualFocusControl={onManualFocusControl}
-          toggleAdapterAccess={toggleAdapterAccess}
           onEnlargeCenter={onEnlargeCenter}
           onCollapseCenter={onCollapseCenter}
           onOpenLogin={onOpenLogin}
@@ -127,13 +116,9 @@ function FocusStage({
   centerTextFinal,
   hiddenByUser,
   hiddenByCenter,
-  accessOpen,
   setCenterStageRef,
   openProvider,
-  togglePaneVisibility,
-  changeProviderPresentation,
   onManualFocusControl,
-  toggleAdapterAccess,
   onEnlargeCenter,
   onCollapseCenter,
   onOpenLogin,
@@ -148,13 +133,9 @@ function FocusStage({
   centerTextFinal: boolean;
   hiddenByUser: boolean;
   hiddenByCenter: boolean;
-  accessOpen: boolean;
   setCenterStageRef: (el: HTMLDivElement | null) => void;
   openProvider: (provider: AIProvider) => Promise<void>;
-  togglePaneVisibility: (provider: AIProvider) => Promise<void>;
-  changeProviderPresentation: (provider: AIProvider, state: WebviewPresentationState) => Promise<void>;
   onManualFocusControl: (provider: AIProvider) => void;
-  toggleAdapterAccess: (provider: AIProvider) => void;
   onEnlargeCenter: () => void;
   onCollapseCenter: () => void;
   onOpenLogin: (provider: AIProvider) => Promise<void>;
@@ -162,9 +143,30 @@ function FocusStage({
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
 }) {
-  const { locale, t } = useI18n();
-  const permissionSummary = buildAdapterPermissionSummary(provider, undefined, locale);
+  const { t } = useI18n();
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
   const hidden = hiddenByUser || hiddenByCenter;
+  const showLoginCta = state.login === 'logged_out' || state.login === 'blocked';
+  const moreMenuId = `provider-actions-${provider}`;
+
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMoreMenuOpen(false);
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && moreMenuRef.current?.contains(target)) return;
+      setMoreMenuOpen(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+    };
+  }, [moreMenuOpen]);
 
   return (
     <section
@@ -175,24 +177,6 @@ function FocusStage({
       <div className="flex items-center justify-between gap-2 border-b border-sky-300 dark:border-sky-900 px-3 py-2 text-sm">
         <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
         <div className="flex flex-wrap justify-end gap-2 text-xs">
-          <button
-            className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            aria-label={formatI18n(t('provider.access.aria'), { provider: AI_PROVIDERS[provider].name })}
-            aria-expanded={accessOpen}
-            aria-controls={`adapter-access-${provider}`}
-            onClick={() => toggleAdapterAccess(provider)}
-          >
-            {t('provider.access')}
-          </button>
-          <button
-            className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => {
-              void togglePaneVisibility(provider);
-            }}
-            disabled={state.webview !== 'loaded' || hiddenByCenter}
-          >
-            {hiddenByCenter ? t('provider.hidden') : hiddenByUser ? t('provider.show') : t('provider.hide')}
-          </button>
           {centerSurface === 'text' ? (
             <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={onEnlargeCenter}>
               {t('provider.realPage')}
@@ -202,40 +186,59 @@ function FocusStage({
               {t('provider.textView')}
             </button>
           )}
-          <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'chip')}>
-            {t('provider.chip')}
-          </button>
-          <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void changeProviderPresentation(provider, 'side')}>
-            {t('provider.side')}
-          </button>
-          <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void onOpenLogin(provider)}>
-            {t('provider.login')}
-          </button>
-          {provider === 'gemini' ? (
-            <button className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void host.provider.openLoginExternal(provider)}>
-              {t('provider.browser')}
+          {showLoginCta ? (
+            <button
+              className="border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 px-2 py-1 text-amber-800 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900"
+              onClick={() => void onOpenLogin(provider)}
+            >
+              {t('provider.login')}
             </button>
           ) : null}
-          <button
-            className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => {
-              resetProviderBootState(provider);
-              void host.provider.reload(provider).then(() => syncBounds(provider));
-            }}
-            disabled={state.webview !== 'loaded'}
-          >
-            {t('provider.reload')}
-          </button>
-          <button
-            className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => void reportProvider(provider)}
-            disabled={reportBusy}
-          >
-            {t('provider.report')}
-          </button>
+          <div ref={moreMenuRef} className="relative">
+            <button
+              className="min-w-8 border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              aria-label={t('provider.moreActions')}
+              aria-haspopup="menu"
+              aria-expanded={moreMenuOpen}
+              aria-controls={moreMenuId}
+              onClick={() => setMoreMenuOpen((current) => !current)}
+            >
+              <span aria-hidden="true">&#8943;</span>
+            </button>
+            {moreMenuOpen ? (
+              <div
+                id={moreMenuId}
+                role="menu"
+                className="absolute right-0 z-20 mt-1 min-w-32 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-1 shadow-lg"
+              >
+                <button
+                  role="menuitem"
+                  className="block w-full px-2 py-1.5 text-left text-xs text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => {
+                    setMoreMenuOpen(false);
+                    resetProviderBootState(provider);
+                    void host.provider.reload(provider).then(() => syncBounds(provider));
+                  }}
+                  disabled={state.webview !== 'loaded'}
+                >
+                  {t('provider.reload')}
+                </button>
+                <button
+                  role="menuitem"
+                  className="block w-full px-2 py-1.5 text-left text-xs text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => {
+                    setMoreMenuOpen(false);
+                    void reportProvider(provider);
+                  }}
+                  disabled={reportBusy}
+                >
+                  {t('provider.report')}
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
-      {accessOpen ? <AdapterAccessPanel id={`adapter-access-${provider}`} summary={permissionSummary} /> : null}
       {state.adapter === 'broken' ? (
         <div className="border-b border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-800 dark:text-red-200">{t('provider.adapterBroken')}</div>
       ) : null}
@@ -324,7 +327,7 @@ function ThumbnailTile({
     onManualFocusControl(provider);
     void changeProviderPresentation(provider, 'center');
   };
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -352,7 +355,7 @@ function ThumbnailTile({
   );
 }
 
-function AdapterAccessPanel({ id, summary }: { id: string; summary: AdapterPermissionSummary }) {
+export function AdapterAccessPanel({ id, summary }: { id: string; summary: AdapterPermissionSummary }) {
   const { t } = useI18n();
 
   return (
