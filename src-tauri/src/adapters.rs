@@ -475,10 +475,10 @@ async fn refresh_one(app: &tauri::AppHandle, provider: &str, allow_downgrade: bo
 
     let text = match fetch_adapter_text(&url).await {
         Ok(text) => text,
-        Err(err) => {
+        Err(_err) => {
             if allow_downgrade {
                 #[cfg(debug_assertions)]
-                eprintln!("adapter fetch failed for {provider}: {err}");
+                eprintln!("adapter fetch failed for {provider}: {_err}");
                 emit_notice(app, provider, "fetch-failed", "network or HTTP error", None);
             }
             return;
