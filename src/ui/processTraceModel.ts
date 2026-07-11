@@ -10,6 +10,7 @@ export interface ProcessTraceStep {
   kind: 'fanout' | 'response' | 'role';
   label: string;
   detail?: string;
+  content?: string;
   provider?: AIProvider;
   role?: string;
   turn?: number;
@@ -53,7 +54,7 @@ export function reduceProcessTraceEvent(trace: ProcessTraceState, message: Bridg
   }
 
   if (isTraceResponse(message) && isKnownProvider(message.provider)) {
-    return applyProviderResponse(trace, message.provider, message.action === 'RESPONSE_DONE', locale);
+    return applyProviderResponse(trace, message.provider, message.action === 'RESPONSE_DONE', responsePayloadText(message.payload), locale);
   }
 
   return trace;
@@ -101,18 +102,34 @@ function addRoleStep(
   return { ...trace, steps: [...trace.steps, step] };
 }
 
-function applyProviderResponse(trace: ProcessTraceState, provider: AIProvider, final: boolean, locale: Locale): ProcessTraceState {
-  let matched = false;
+function applyProviderResponse(
+  trace: ProcessTraceState,
+  provider: AIProvider,
+  final: boolean,
+  content: string,
+  locale: Locale,
+): ProcessTraceState {
   const nextStatus: ProcessTraceStepStatus = final ? 'done' : 'active';
-  const steps = trace.steps.map((step) => {
-    if (step.provider !== provider) return step;
-    if (step.kind !== 'role' && step.kind !== 'response') return step;
-    matched = true;
-    if (step.status === 'done') return step;
-    return { ...step, status: nextStatus };
-  });
+  let matchIndex = -1;
+  for (let index = trace.steps.length - 1; index >= 0; index -= 1) {
+    const step = trace.steps[index];
+    if (step.provider === provider && (step.kind === 'role' || step.kind === 'response') && step.status !== 'done') {
+      matchIndex = index;
+      break;
+    }
+  }
+  const steps = trace.steps.map((step, index) =>
+    index === matchIndex
+      ? {
+          ...step,
+          status: nextStatus,
+          content: content || step.content,
+          detail: content ? oneLinePreview(content) : step.detail,
+        }
+      : step,
+  );
 
-  const nextSteps = matched || trace.mode !== 'free' ? steps : [...steps, responseStep(provider, nextStatus, locale)];
+  const nextSteps = matchIndex >= 0 || trace.mode !== 'free' ? steps : [...steps, responseStep(provider, nextStatus, locale, content)];
   return { ...trace, steps: refreshFreeAggregate(nextSteps) };
 }
 
@@ -123,15 +140,28 @@ function refreshFreeAggregate(steps: ProcessTraceStep[]): ProcessTraceStep[] {
   return steps.map((step) => (step.kind === 'fanout' ? { ...step, status: aggregateStatus } : step));
 }
 
-function responseStep(provider: AIProvider, status: ProcessTraceStepStatus, locale: Locale): ProcessTraceStep {
+function responseStep(provider: AIProvider, status: ProcessTraceStepStatus, locale: Locale, content = ''): ProcessTraceStep {
   return {
     id: `free-response-${provider}`,
     kind: 'response',
     provider,
     label: `${AI_PROVIDERS[provider].name} ${t('processTrace.response', locale)}`,
-    detail: t('processTrace.waitingForResponse', locale),
+    detail: content ? oneLinePreview(content) : t('processTrace.waitingForResponse', locale),
+    content: content || undefined,
     status,
   };
+}
+
+function responsePayloadText(payload: unknown): string {
+  if (typeof payload === 'string') return payload;
+  if (!payload || typeof payload !== 'object') return '';
+  const text = (payload as { text?: unknown }).text;
+  return typeof text === 'string' ? text : '';
+}
+
+function oneLinePreview(content: string): string {
+  const compact = content.replace(/\s+/g, ' ').trim();
+  return compact.length > 180 ? `${compact.slice(0, 179)}…` : compact;
 }
 
 function rolePayload(payload: unknown): { role?: string; label?: string; turn?: number } {

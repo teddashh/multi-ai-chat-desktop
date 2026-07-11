@@ -52,10 +52,10 @@ describe('M4b UI helpers', () => {
       rightBottom: 'chatgpt',
     });
     expect(isProviderPermutation(SLOT_IDS.map((slot) => assigned[slot]))).toBe(true);
-    expect(isProviderPermutation(['chatgpt', 'claude', 'gemini', 'claude-code'])).toBe(false);
+    expect(isProviderPermutation(['chatgpt', 'claude', 'gemini', 'gemini'])).toBe(false);
     expect(
       normalizeSlotAssignment({
-        leftTop: 'claude-code',
+        leftTop: 'removed-provider',
         leftBottom: 'chatgpt',
         rightTop: 'claude',
         rightBottom: 'gemini',
@@ -101,7 +101,7 @@ describe('M4b UI helpers', () => {
       [legacyPublishTokenKey]: 123,
       columnWidths: { left: 10, right: 900 },
       slotAssignment: { leftTop: 'chatgpt', leftBottom: 'chatgpt' },
-      openProviders: ['grok', 'nope', 'grok', 'claude-code'],
+      openProviders: ['grok', 'nope', 'grok', 'removed-provider'],
       portable: true,
       snapshotPersistence: true,
       snapshotRedactionTier: 'unknown',
@@ -117,17 +117,17 @@ describe('M4b UI helpers', () => {
     expect(normalized.columnWidths.left).toBeGreaterThanOrEqual(200);
     expect(normalized.columnWidths.right).toBeLessThanOrEqual(520);
     expect(isProviderPermutation(SLOT_IDS.map((slot) => normalized.slotAssignment[slot]))).toBe(true);
-    expect(normalized.openProviders).toEqual(['grok', 'claude-code']);
+    expect(normalized.openProviders).toEqual(['grok']);
     expect(normalized.portable).toBe(true);
     expect(normalized.snapshotPersistence).toBe(true);
     expect(normalized.snapshotRedactionTier).toBe('metadata-only');
-    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side', 'claude-code': 'chip' });
+    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side' });
 
     expect(mergeSettings(normalized, { snapshotRedactionTier: 'hashes', language: 'zh-TW' })).toMatchObject({
       layoutMode: 'focus',
       focusPaneWidth: 420,
       language: 'zh-TW',
-      openProviders: ['grok', 'claude-code'],
+      openProviders: ['grok'],
       portable: true,
       snapshotRedactionTier: 'hashes',
     });

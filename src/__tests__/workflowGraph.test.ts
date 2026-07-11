@@ -1,17 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
 import {
-  DEFAULT_CODING_ROLES,
-  DEFAULT_CONSULT_ROLES,
   DEFAULT_DEBATE_ROLES,
-  DEFAULT_ROUNDTABLE_ROLES,
   PROMPTS,
 } from '../../shared/constants';
 import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../bridge/bus';
 import { resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
-import { debateGraph, executeGraph, freeGraph, preflightGraph, validateGraph, workflowGraphs, type StepNode, type WorkflowGraph } from '../workflow/graph';
+import { debateGraph, executeGraph, freeGraph, preflightGraph, validateGraph, type StepNode, type WorkflowGraph } from '../workflow/graph';
 import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { resetWorkflowStateForTests } from '../workflow/state';
 import { resetStepTimeoutForTests } from '../workflow/stepTimeout';
@@ -39,7 +36,6 @@ vi.mock('../host', () => ({
 }));
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
-const allProviders: AIProvider[] = [...providers, 'claude-code'];
 
 function state(provider: AIProvider, sendable = true): ProviderState {
   return {
@@ -132,50 +128,6 @@ describe('workflow graph foundation', () => {
     await expect(preflightGraph(debateGraph, DEFAULT_DEBATE_ROLES)).resolves.toMatchObject({
       ok: false,
       unavailable: ['claude'],
-      aliased: [],
-    });
-  });
-
-  it('executes freeGraph with an explicit claude-code target', async () => {
-    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
-    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
-      publishBridgeMessage(done(provider, `${provider}-answer`));
-    });
-
-    await expect(executeGraph(freeGraph, { text: 'free graph question', targets: ['claude-code'] })).resolves.toBeUndefined();
-
-    expect(host.provider.send).toHaveBeenCalledTimes(1);
-    expect(host.provider.send).toHaveBeenCalledWith('claude-code', 'free graph question');
-  });
-
-  it('executes serial built-in graphs with explicit claude-code role assignments', async () => {
-    vi.mocked(host.connections.get).mockResolvedValue(allProviders.map((provider) => state(provider)));
-    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
-      publishBridgeMessage(done(provider, `${provider}-answer-${vi.mocked(host.provider.send).mock.calls.length}`));
-    });
-
-    const cases = [
-      { graph: workflowGraphs.debate, roles: { ...DEFAULT_DEBATE_ROLES, pro: 'claude-code' as const }, expected: 4 },
-      { graph: workflowGraphs.consult, roles: { ...DEFAULT_CONSULT_ROLES, second: 'claude-code' as const }, expected: 4 },
-      { graph: workflowGraphs.coding, roles: { ...DEFAULT_CODING_ROLES, coder: 'claude-code' as const }, expected: 8 },
-      { graph: workflowGraphs.roundtable, roles: { ...DEFAULT_ROUNDTABLE_ROLES, fourth: 'claude-code' as const }, expected: 20 },
-    ];
-
-    for (const item of cases) {
-      vi.mocked(host.provider.send).mockClear();
-      await expect(executeGraph(item.graph, { text: `${item.graph.id} claude-code`, roles: item.roles })).resolves.toBeUndefined();
-      const sentProviders = vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider);
-      expect(sentProviders).toContain('claude-code');
-      expect(sentProviders).toHaveLength(item.expected);
-    }
-  });
-
-  it('preflights claude-code through the normal sendability path', async () => {
-    vi.mocked(host.connections.get).mockResolvedValue([...providers.map((provider) => state(provider)), state('claude-code', false)]);
-
-    await expect(preflightGraph(debateGraph, { ...DEFAULT_DEBATE_ROLES, pro: 'claude-code' })).resolves.toMatchObject({
-      ok: false,
-      unavailable: ['claude-code'],
       aliased: [],
     });
   });

@@ -1,16 +1,16 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.0** (additive product contract; v1.2.1 frozen clauses preserved; §16 changelog)
-> Date: 2026-07-06
-> Upstream decisions: `docs/ARCHITECTURE.md` v1.0 (D1–D7), `docs/PLAN.md`, and `.orchestration/analysis/roadmap-synthesis.md` (N0–N9). Evidence: `docs/study/*.md`, `.orchestration/analysis/roadmap-grok.md`, `.orchestration/analysis/refs-survey.md`.
-> Review history: v1.0 DRAFT reviewed adversarially by codex + grok (both REQUEST-CHANGES); all blocking/major findings integrated. v1.2.1 live-gated the callback-pull bridge. v2.0 evolves that contract additively from the rethought roadmap and keeps §5.1, §6.1, §7, §8.2, and the zero-key identity byte-intact/behavior-intact.
-> Audience: implementing agents (codex) and community contributors.
+> Status: **v2.1** (four-provider web edition; v1.2.1 frozen clauses preserved; §16 changelog)
+> Date: 2026-07-10
+> Upstream decisions: `docs/ARCHITECTURE.md` v1.0 (D1–D7), `docs/PLAN.md`, and `.orchestration/analysis/roadmap-synthesis.md` (active N0–N5, N7–N9). Evidence: `docs/study/*.md`, `.orchestration/analysis/roadmap-grok.md`, `.orchestration/analysis/refs-survey.md`.
+> Review history: v1.0 DRAFT reviewed adversarially by codex + grok (both REQUEST-CHANGES); all blocking/major findings integrated. v1.2.1 live-gated the callback-pull bridge. v2.0 evolved that contract additively; v2.1 retires the fifth-provider experiment while keeping §5.1, §6.1, §7, §8.2, and the zero-key identity behavior-intact.
+> Audience: implementing agents and community contributors.
 
 ## 0. One-paragraph summary
 
-A Tauri 2 desktop app (Windows-first) with one main window: a central **control pane** (our React UI) flanked by **child webviews** loading the real AI chat websites (SHIPPED: ChatGPT, Claude, Gemini, Grok; NEXT-PHASE N6a: code-defined additions such as Claude Code). The user types once in the control pane; the message is injected into every provider page via DOM automation (ported from the MIT-licensed `multi-ai-chat` Chrome extension); streaming responses are scraped back and aggregated in the control pane. Five workflow modes (free/debate/consult/coding/roundtable) remain the shipped parity floor, and the v2 roadmap turns that floor into graph-driven presets with execution snapshots, replay, human relay checkpoints, and one-click workflow-pack sharing. Zero API keys: everything rides on the user's logged-in web sessions. Provider DOM selectors live in community-maintained `adapters/*.json` with remote hot-update. The product pivot is 底線硬、入口軟: hard adapter/transport/security floor, soft preset entry; the killer feature is reproducibility, not a day-one graph editor. NEXT-PHASE (N0/N4/N6) owner rule: "每個 adapter 進入預設五 workflow;選了 workflow 自動補齊 adapter."
+A Tauri 2 desktop app (Windows-first) with one main window: a central **control pane** (our React UI) flanked by **child webviews** loading the real AI chat websites (ChatGPT, Claude, Gemini, and Grok). The user types once in the control pane; the message is injected into every provider page via DOM automation (ported from the MIT-licensed `multi-ai-chat` Chrome extension); streaming responses are scraped back and aggregated in the control pane. Five workflow modes (free/debate/consult/coding/roundtable) remain the shipped parity floor, and the v2 roadmap turns that floor into graph-driven presets with execution snapshots, replay, human relay checkpoints, and one-click workflow-pack sharing. Zero API keys: everything rides on the user's logged-in web sessions. Provider DOM selectors live in community-maintained `adapters/*.json` with remote hot-update. The product pivot is 底線硬、入口軟: hard adapter/transport/security floor, soft preset entry; the killer feature is reproducibility, not a day-one graph editor. NEXT-PHASE (N0/N4) owner rule: "每個 adapter 進入預設五 workflow;選了 workflow 自動補齊 adapter."
 
-## 1. Goals / Non-goals (v2.0)
+## 1. Goals / Non-goals (v2.1)
 
 ### Goals
 - G1. **SHIPPED floor:** single window: control pane + provider webviews, resizable, show/hide per provider.
@@ -25,7 +25,6 @@ A Tauri 2 desktop app (Windows-first) with one main window: a central **control 
 - G10. **NEXT-PHASE (N3):** workflow pack export/import (`.macflow.json`) for one-click sharing: graph + role defaults + prompt templates + metadata.
 - G11. **NEXT-PHASE (N4):** preset catalog UX becomes the primary entry: cards with cost labels, required providers, estimated time, RAM hints, login prerequisites, and a read-only process trace.
 - G12. **NEXT-PHASE (N5):** RAM-aware webview presentation states: session-ready chip → side rail → center stage, with lazy recreate/hibernate while preserving WebView2 profile directories.
-- G13. **NEXT-PHASE (N6a):** Claude Code is added web-first as `claude.ai/code` via a web-DOM adapter provider (`claude-code`), using the existing frozen bridge. A lightweight terminal-agent adapter class is only a later separate adapter class, not an embedded SDK and not a change to §7.
 - G14. **NEXT-PHASE (N7):** local file inject v2: drag/drop or picker can extract supported local text contexts (text now; PDF/DOCX later), chunk them, and optionally fan out to sendable providers or workflow steps.
 - G15. **NEXT-PHASE (N8):** contributor graph view first, constrained editor last: read-only graph/process visualization before any limited editor; no arbitrary n8n-grade node wall as a launch surface.
 - G16. **NEXT-PHASE (N9):** open-source flywheel: workflow packs can be PR'd back with metadata, maintenance state, cost label, local `downloadCount`/`lastDownloadedAt`, and completion signals that avoid telemetry by default.
@@ -48,22 +47,21 @@ The following capabilities are intentional extensions beyond the extension parit
 4. **NEXT-PHASE (N3) Workflow packs** — `.macflow.json` files carry graph, role defaults, prompt templates, and metadata (`displayName`, `description`, `costLabel`, `requiredProviders`, `estMinutes`, `author`, `minAdapterVersion`).
 5. **NEXT-PHASE (N4) Preset catalog + process trace** — cards are the soft entry; read-only trace is the transparency layer; graph editing is deferred.
 6. **NEXT-PHASE (N5) RAM three-state webviews** — providers can sit as a session-ready chip, side rail, or center stage; hibernate destroys the webview but preserves its profile.
-7. **NEXT-PHASE (N6a) Claude Code web adapter** — `claude-code` is a code-defined web-DOM provider for `claude.ai/code`; it reuses the frozen web bridge.
-8. **NEXT-PHASE (N7) Local-file inject v2** — local files become controlled workflow inputs, not hidden uploads; text extraction/chunking is local.
-9. **NEXT-PHASE (N8) Contributor graph view → constrained editor** — read-only view first; a limited editor may later reorder serial steps, swap role providers, or edit prompt templates.
-10. **NEXT-PHASE (N9) OSS feedback loop** — pack metadata and local counters can surface temperature/maintenance state without adding a telemetry server.
+7. **NEXT-PHASE (N7) Local-file inject v2** — local files become controlled workflow inputs, not hidden uploads; text extraction/chunking is local.
+8. **NEXT-PHASE (N8) Contributor graph view → constrained editor** — read-only view first; a limited editor may later reorder serial steps, swap role providers, or edit prompt templates.
+9. **NEXT-PHASE (N9) OSS feedback loop** — pack metadata and local counters can surface temperature/maintenance state without adding a telemetry server.
 
-### Non-goals (v2.0)
+### Non-goals (v2.1)
 - No API-key mode. This is not a deferred option: zero-key web-session identity is the product core.
 - No automatic full conversation persistence. Snapshots and replay are opt-in and redaction-tiered; in-memory chat plus explicit export remains valid.
 - No macOS/Linux release builds as a v2.0 launch gate (code stays portable; CI matrix can come later).
 - No split-tree drag-and-drop layout. The v2 RAM model is chip/side/center, not a tempo-term pane tree.
 - No remote Tauri IPC to provider origins. No local WebSocket server for provider pages.
 - No code signing certificate as a spec requirement; release/updater hardening continues without making signing a behavior dependency.
-- No new provider IDs via adapters alone: **the provider set is fixed and code-defined**; adding `claude-code` or any future provider requires code changes (types, UI labels, seed adapter/profile dir).
+- No new provider IDs via adapters alone: **the provider set is fixed and code-defined**; adding any future provider requires code changes (types, UI labels, seed adapter/profile dir).
 - No adapter signing in v2.0 (schema validation + repo-pinned HTTPS only; signing remains v2+).
 - No arbitrary n8n-grade workflow editor. The end-state editor is constrained and contributor-oriented.
-- No embedded Claude/Codex SDK path. The immediate Claude Code adapter is web-DOM; any later terminal-agent adapter spawns a local CLI/PTY as a separate adapter class and does not alter §7.
+- No embedded agent SDK/CLI runtime in this web-session edition. Future terminal-agent work belongs to a separate product track and does not alter §7.
 - Capability Tags are deferred; preset metadata remains explicit fields until usage proves the taxonomy.
 
 ## 2. Tech stack (pinned)
@@ -175,7 +173,7 @@ interface WorkflowGraph {                    // src/workflow/graph/types.ts curr
 The following target additions do not exist as a complete `shared/types.ts` surface today. They are **NEXT-PHASE** additions and must be added schema-validly in the named milestone.
 
 ```ts
-type AIProviderV2 = AIProvider | 'claude-code'; // NEXT-PHASE N6a.
+type AIProviderV2 = AIProvider; // Snapshot schema compatibility alias.
 // Fixed, code-defined set. Adapters update known providers only. Adding any
 // provider requires code changes (types, UI labels, seed adapter, profile dir).
 
@@ -315,7 +313,7 @@ All selector fields are **ordered arrays — first match wins** (original `query
   },
   "inputSelectors":  ["#prompt-textarea"],
   "sendButtonSelectors": ["[data-testid=\"send-button\"]"],
-  "responseSelectors": ["[data-message-author-role=\"assistant\"] .markdown"],
+  "responseSelectors": ["[data-message-author-role=\"assistant\"] .markdown", "[data-message-author-role=\"assistant\"]"],
   "loginDetectors":  ["#prompt-textarea"],           // any match ⇒ logged in
   "loggedOutDetectors": [],                          // optional; a match here WINS over loginDetectors
   "thinkingDetectors": [                             // READ-ONLY indicators; string or object form
@@ -334,9 +332,9 @@ All selector fields are **ordered arrays — first match wins** (original `query
 
 **Hot update flow**: on startup + every 6h, Rust `reqwest` GETs `https://raw.githubusercontent.com/<org>/<repo>/main/adapters/<provider>.json` (base URL configurable; HTTPS required) → validate → persist to `<app-data>/adapters-cache/` → push to live webviews via `ADAPTER_UPDATE` eval. Bundled adapters ship in the binary as final fallback. Downgrade (lower `adapterVersion`) only applies on explicit channel/base-URL change in Settings, with toast.
 
-**NEXT-PHASE (N6/N9) contributor gate:** a new provider seed + adapter PR MUST pass the §14 golden tests for all five shipped modes (`free`, `debate`, `consult`, `coding`, `roundtable`) before promotion, OR declare an explicit mercy tier (§18.2) at merge. The CI gate (§12/§14) enforces this for promoted providers and keeps the five-mode floor as the adapter quality bar.
+**NEXT-PHASE (N9) contributor gate:** a new provider seed + adapter PR MUST pass the §14 golden tests for all five shipped modes (`free`, `debate`, `consult`, `coding`, `roundtable`) before promotion, OR declare an explicit mercy tier (§18.2) at merge. The CI gate (§12/§14) enforces this for promoted providers and keeps the five-mode floor as the adapter quality bar.
 
-The §5.1 table below is the frozen v1 seed contract for the four shipped chat providers. N6a `claude-code` is a separate code-defined web provider addition; it must add its own seed adapter/profile-dir code path without rewriting or weakening the frozen table.
+The §5.1 table below is the frozen seed contract for the four shipped chat providers.
 
 ### 5.1 Normative seed adapters (bundled v1 content)
 
@@ -348,7 +346,7 @@ Source of truth: `docs/study/multi-ai-chat.md` §2 + §7 (line-referenced to the
 | urls.match | `chatgpt.com/*`, `chat.openai.com/*` | `claude.ai/*` | `gemini.google.com/*` | `grok.com/*` |
 | inputSelectors | `#prompt-textarea` · `[id="prompt-textarea"]` · `div[contenteditable="true"][data-placeholder]` | `.ProseMirror[contenteditable="true"]` · `[contenteditable="true"].ProseMirror` · `div.ProseMirror` · `fieldset div[contenteditable="true"]` | `.ql-editor[contenteditable="true"]` · `rich-textarea .ql-editor` · `div[contenteditable="true"][aria-label="Enter a prompt here"]` · `div[contenteditable="true"][aria-label]` · `.input-area [contenteditable="true"]` · `rich-textarea [contenteditable="true"]` | `[data-testid="chat-input"] .ProseMirror[contenteditable="true"]` · `[data-testid="chat-input"] [contenteditable="true"]` · `.ProseMirror[contenteditable="true"]` · `[contenteditable="true"].ProseMirror` · `div.ProseMirror[contenteditable="true"]` |
 | sendButtonSelectors | `[data-testid="send-button"]` · `button[aria-label="Send prompt"]` · `button[aria-label="Send"]` | `button[aria-label="Send Message"]` · `button[aria-label="Send message"]` · `button[aria-label="Send"]` · `fieldset button[type="button"]:last-of-type` | `button.send-button` · `button[aria-label="Send message"]` · `button[aria-label="Send"]` · `button[aria-label="傳送訊息"]` · `button[aria-label="送出"]` · `button[data-mat-icon-name="send"]` · `.send-button-container button` · `button mat-icon[data-mat-icon-name="send"]` · `.action-wrapper button[aria-label]` · `.input-area-container button.send` · `button.send-message-button` | `button[data-testid="chat-submit"]` · `button[aria-label="Submit"]` · `form button[type="submit"]` · `button[type="submit"]` |
-| responseSelectors | `[data-message-author-role="assistant"] .markdown` | `.font-claude-response` · `[data-is-streaming] .font-claude-response` · `.font-claude-message` | `.model-response-text .markdown` · `.model-response-text` · `model-response .markdown` · `model-response message-content` · `.response-content .markdown` · `.message-content[data-message-id]` | `[data-testid="assistant-message"] .response-content-markdown` · `[data-testid="assistant-message"]` · `.response-content-markdown` · `.message-bubble.assistant` |
+| responseSelectors | `[data-message-author-role="assistant"] .markdown` · `[data-message-author-role="assistant"]` (image-only fallback) | `.font-claude-response` · `[data-is-streaming] .font-claude-response` · `.font-claude-message` | `.model-response-text .markdown` · `.model-response-text` · `model-response .markdown` · `model-response message-content` · `.response-content .markdown` · `.message-content[data-message-id]` | `[data-testid="assistant-message"] .response-content-markdown` · `[data-testid="assistant-message"]` · `.response-content-markdown` · `.message-bubble.assistant` |
 | loginDetectors | `#prompt-textarea` · `[data-testid="send-button"]` | `.ProseMirror[contenteditable="true"]` · `[contenteditable="true"].ProseMirror` | `.ql-editor[contenteditable="true"]` · `rich-textarea [contenteditable="true"]` · `div[contenteditable="true"][aria-label="Enter a prompt here"]` | `[data-testid="chat-input"] .ProseMirror[contenteditable="true"]` · `.ProseMirror[contenteditable="true"]` · `[data-testid="chat-submit"]` |
 | thinkingDetectors | `[data-testid="stop-button"]` · `button[aria-label="Stop generating"]` · `button[aria-label="Stop streaming"]` · `button[aria-label="Stop"]` | `[data-is-streaming="true"]` · `button[aria-label="Stop Response"]` · `button[aria-label="Stop response"]` · `button[aria-label="Stop"]` | `.loading-indicator` · `.thinking-indicator` · `mat-progress-bar` · stop buttons (en + zh-TW per original gemini.ts:53-65) · `.response-streaming` · `[data-test-id="response-loading"]` | stop buttons (grok.ts:38-43) · `[data-streaming="true"]` · `{selector: ".thinking-container", textIncludes: "Thinking", textExcludes: "Thought for"}` |
 | stopButtonSelectors | the 4 stop-button selectors above | the 3 `button[aria-label*=Stop]` selectors | stop buttons subset (en + zh-TW) | stop buttons subset |
@@ -399,8 +397,6 @@ Order of checks:
 2. URL matches adapter `urls.match` or `urls.login` ⇒ allow.
 3. Host in shared SSO allowlist (`shared/constants.ts`: `accounts.google.com`, `accounts.youtube.com`, `appleid.apple.com`, `login.microsoftonline.com`, `login.live.com`, `github.com`) or adapter `urls.ssoMatch` ⇒ allow (SSO flows stay in-webview).
 4. Anything else ⇒ **return false** + open in system browser via opener plugin.
-
-**NEXT-PHASE (N6a):** `claude-code` follows the same policy class as the other web-DOM providers: `claude.ai/code` and its login/SSO hosts are adapter-owned URL data, and any new allowed host must arrive through the code-defined provider addition plus adapter validation. A later terminal-agent adapter class has no provider webview navigation policy and does not alter this section.
 
 ## 7. Bridge protocol (`bridge.rs` + `injected/bootstrap.ts`)
 
@@ -459,8 +455,6 @@ Port of `refs/multi-ai-chat/src/content/base.ts` (MIT) with transport shim:
 - `chrome.runtime.sendMessage` → `__MAC_BRIDGE__.emit()` (title hint vs bulk outbox by size/authority per §7)
 - `chrome.runtime.onMessage` → `__MAC_BRIDGE__.onDispatch()`
 - Keep: `queryFirst` first-match-wins evaluated **at time of use** (not cached — this is what makes SPA route changes survivable); React-compatible native value setter for textarea; select-all + `execCommand('insertText')` for contenteditable; 800 ms pre-send wait; send-button click → Enter fallback → 1.5 s retry-once; MutationObserver on body + `backupPollMs` polling; `isThinking` poll; `doneDelayMs` stability window; `chunkDebounceMs`.
-
-**NEXT-PHASE (N6a):** `claude-code` is another web-DOM adapter that uses this same engine and §7 bridge. The later terminal-agent class, if built, is a separate adapter class outside `injected/engine.ts` and MUST NOT add provider-page Tauri permissions or modify §7.
 
 ### 8.1 Boot & re-injection lifecycle (normative sequence)
 
@@ -545,7 +539,7 @@ Non-free modes and imported serial packs refuse to start unless **every role-ass
 
 ### 9.6 Adapter⇄Preset coupling
 
-**NEXT-PHASE (N0/N4/N6):** adapters and presets are mutually discoverable modules per the owner rule in §0.
+**NEXT-PHASE (N0/N4):** adapters and presets are mutually discoverable modules per the owner rule in §0.
 
 - When a provider seed/adapter is added or updated, that provider becomes selectable in the built-in five graphs' role assignments and eligible in the preset catalog, subject to the fixed code-defined provider set and the §5 contributor gate.
 - On preset/pack start, if `requiredProviders` is not a subset of the current sendable set, the UI MUST show an auto-complete panel before the §9.5 hard-block. The panel offers: open the provider, login, promote a session-ready chip, reassign the role, or choose an allowed partial-run path.
@@ -593,7 +587,6 @@ Desktop deviation from the original "open new tab" (equivalent outcome, document
 | Provider | Default action | Blocked path |
 |---|---|---|
 | chatgpt / claude / grok | navigate `ai-<provider>` webview to `adapter.urls.login`, show + focus pane | — |
-| claude-code (NEXT-PHASE N6a) | after N6a, navigate `ai-claude-code` webview to `adapter.urls.login`, show + focus pane | — |
 | gemini | same attempt, but if Google embedded-login block is detected (login `blocked`) | banner + button → system browser via opener; user logs in in Chrome/Edge, then retries embedded (session cookie sometimes carries); **no cookie import, no UA spoofing** (ARCH D6/D6b) |
 
 SSO redirects during login stay in-webview per §6.3.
@@ -641,7 +634,7 @@ No telemetry server is introduced. Temperature/usage counters for packs are loca
 - **NEXT-PHASE (M6):** set `createUpdaterArtifacts: true`, upload updater `latest.json` to the fixed **`manifests`** GitHub release (BAT pattern, ARCH D7), register the updater plugin with the minisign public key, and surface in-app update checks in Settings.
 - Portable zip job: after NSIS build, zip the raw `target/release` app dir + `README-portable.txt` (WebView2 preflight note). **`PORTABLE` marker file present ⇒ updater disabled at runtime AND the updater section is hidden in Settings.**
 - `release.yml` adapted from BAT (MIT attribution preserved): tag `v*` → verify (tsc, vitest, cargo check, adapter schema validation + §5.1 diff) → windows build → GitHub Release upload. **NEXT-PHASE (M6):** also upload `latest.json` to `manifests`. Version injected from tag.
-- `ci.yml`: PR gate = tsc + eslint + vitest + `cargo clippy` + adapter schema validation + §5.1 seed diff (adapter-only PRs get fast feedback without full build). **NEXT-PHASE (N6/N9):** new provider seed + adapter PRs must pass §14 golden tests for all five modes before promotion, or carry a declared §18.2 mercy tier at merge.
+- `ci.yml`: PR gate = tsc + eslint + vitest + `cargo clippy` + adapter schema validation + §5.1 seed diff (adapter-only PRs get fast feedback without full build). **NEXT-PHASE (N9):** new provider seed + adapter PRs must pass §14 golden tests for all five modes before promotion, or carry a declared §18.2 mercy tier at merge.
 - Release/updater hardening and verification should adapt Better Agent Terminal MIT patterns with notice: resource boundary checks, updater manifest validation, release-readiness scripts, and capabilities tests.
 - Capability tests are v2 gates: provider labels (`ai-<provider>`) MUST be absent from capabilities; no Tauri imports outside `src/host/`; provider webviews receive no `remote.urls`.
 - Tempo release/webview lifecycle examples are pattern-reference only until licensing is confirmed; do not copy local Tempo code verbatim.
@@ -682,7 +675,7 @@ No telemetry server is introduced. Temperature/usage counters for packs are loca
 - Unit (vitest): workflow engine mode sequencing with mocked `host` through `executeGraph` (golden tests replicate original ordering incl. coding 8-step, roundtable history accumulation, `ROLE_ASSIGNMENT` consumption order, error-as-DONE unblocking, free-mode default-targets parity, serial preflight block); adapter schema validator; title codec round-trip; outbox pull batch parsing + `(bootId, mid)` dedup.
 - **NEXT-PHASE (N0/N1/N2/N3/N4):** graph tests cover built-in graph validation, pack import validation, relay checkpoint pauses/confirm/skip, `FILL_DRAFT` inserts without send activation, "auto-fill but never auto-send" assertion, replay version mismatch, snapshot redaction tiers, minimum session checkpoint resume, partial-run consent, and catalog degraded badges.
 - Rust (`cargo test`): title codec (prefix/seq dedup/bootId switch), navigation policy table, adapter validation + version comparison, settings IO, provider profile path validation. **NEXT-PHASE (N1):** snapshot/log retention IO and session-checkpoint persistence. *(Sentinel reassembly tests retire with the transport in M2.)*
-- CI: §5.1 seed-adapter diff script. **NEXT-PHASE (N6/N9):** new provider seed + adapter promotion gate runs §14 golden tests for all five modes, unless the PR declares a §18.2 mercy tier.
+- CI: §5.1 seed-adapter diff script. **NEXT-PHASE (N9):** new provider seed + adapter promotion gate runs §14 golden tests for all five modes, unless the PR declares a §18.2 mercy tier.
 - Capability/security tests: provider labels absent from capabilities, `withGlobalTauri:false`, no Tauri imports outside `src/host/`, provider webviews have no `remote.urls`.
 - Manual smoke checklist per milestone (docs/PLAN.md): create webviews, login persist across restart, send/receive on shipped providers, DPI 100/125/150%, mode runs, cancel/stop, hot-update, portable zip run, graph parity, snapshot replay, pack import/export, chip/side/center promotion, local-file insert.
 - Playwright-driven adapter smoke against live sites can run on CI cron; it must not require API keys.
@@ -694,19 +687,20 @@ No telemetry server is introduced. Temperature/usage counters for packs are loca
 3. App identifier / product name final ("Multi-AI Chat Desktop" placeholder).
 4. Adapter signing — v2+ (threat model documented in §1 non-goals).
 5. Snapshot default UX: durable snapshots are opt-in; product copy must make replay limitations visible when the user chooses metadata-only/no persistence.
-6. Terminal-agent adapter class — future-only. If accepted later, it is a separate PTY/CLI adapter class and not BAT's embedded SDK/server machinery.
+6. Terminal-agent work — future-only and tracked as a separate product, not as another webview provider in this edition.
 
 ## 16. Changelog
 
-- **v2.0 (2026-07-06)** — additive roadmap pivot: preserves the v1 Chrome-extension port as the hard floor and specifies graph-driven presets, execution snapshots + replay, human relay checkpoints, `.macflow.json` workflow packs, preset catalog + read-only process trace, RAM-aware chip/side/center webviews, Claude Code web adapter (`claude.ai/code`) as `claude-code`, local-file inject v2, staged contributor graph view/constrained editor, and OSS temperature/governance loop. Explicitly preserved byte-intact/unchanged: §5.1 normative seed adapter table, §6.1 capabilities/security scoping, §7 bridge protocol, §8.2 named input strategies, and zero-API-key web-session identity.
+- **v2.1 (2026-07-10)** — fixes the web edition at four providers and retires the unfinished fifth-provider/N6 experiment. Source launch from local Codex and Claude Code desktop sessions is documented in the README and implemented as repo-scoped Skills; it does not add another provider or alter the web bridge.
+- **v2.0 (2026-07-06)** — additive roadmap pivot: preserves the v1 Chrome-extension port as the hard floor and specifies graph-driven presets, execution snapshots + replay, human relay checkpoints, `.macflow.json` workflow packs, preset catalog + read-only process trace, RAM-aware chip/side/center webviews, local-file inject v2, staged contributor graph view/constrained editor, and OSS temperature/governance loop. A fifth web-provider experiment was later retired to keep this edition focused on its four stable web sessions. Explicitly preserved byte-intact/unchanged: §5.1 normative seed adapter table, §6.1 capabilities/security scoping, §7 bridge protocol, §8.2 named input strategies, and zero-API-key web-session identity.
 - **v1.2.1 (2026-07-04)** — M2 review corrections to §7.3: pull expression returns the **bare** `peekOutbox()` array (the transport's `ExecuteScript` already JSON-serializes once; the v1.2 `JSON.stringify(...)` wrapper double-encodes — live-gate-proven transport kill) with a mandatory `__MAC_BRIDGE__ ?` guard; degraded state gains an explicit recovery rule (new bootId / reload clears it — never permanent); 1 MB pull cap enforced at enqueue with a truncation policy (oversized `RESPONSE_DONE` truncated with a `truncated: true` flag — no silent final-answer loss, no wedged entry). Added `doneReady: true` marker on the immediate DONE hint (§7.3 Ready hint) so the §7.5-rule-2 5 s watchdog arms **only** on a real DONE hint, never at send time or on chunk hints (fix-pass re-review found the send-time arming corrupts grok's 8 s `doneDelayMs` window). Source: M2 multi-agent review + fix-pass re-review + live gate `plans/m2-log.md`.
 - **v1.2 (2026-07-03)** — M1 gate amendment: §7.3 rewritten from sentinel navigation to **`eval_with_callback` pull** (outbox + ready hint + peek/ack pull; sentinel retired to a defensive navigation block, ingest removed in M2). Corollaries: §7.2 fallback = hint-less outbox polling; §7.4 bulk bypasses Rust bus; §7.5 wording; §6.0/§6.3 on_navigation; §13 bridge-error row; §14 test list; open question 1 resolved. Live gate data: `plans/m1-bridge-findings.md`.
 - **v1.1 FINAL (2026-07-03)** — integrated adversarial reviews (grok B1–B5/M1–M10, codex 6 blocking/12 major, minors from both). Headlines: named input strategies replace customScript; sentinel framing (bootId/mid/segIdx/segTotal/len, 8 KB, ack); title channel hardening (U+200B, lastSeq, coalesce); DONE authority = sentinel only; boot/re-injection lifecycle; Rust bus made dumb (TS owns waiters); `targets` declared improvement #4; serial preflight; normative seed table §5.1; capabilities zero-permission rule; geometry contract; privacy contract for reports; expanded §13/§14. Dispositions: `.orchestration/reviews/spec-author-responses.md`.
 - v1.0 DRAFT (2026-07-03) — initial contract.
 
-## 17. Roadmap (N0–N9)
+## 17. Roadmap (N0–N5, N7–N9)
 
-Sequence: N0 → N1 → N2+N4 → N3 → N5 → N6 → N7 → N8 → N9. N5 may parallelize with N1 if a second track owns `webviews.rs` + layout. None of these milestones reopens the zero-key identity. N0/N4/N6 implement the owner rule from §0: every promoted adapter enters the built-in five workflows, and choosing a workflow auto-completes missing adapters/providers before hard-blocking.
+Sequence: N0 → N1 → N2+N4 → N3 → N5 → N7 → N8 → N9. N5 may parallelize with N1 if a second track owns `webviews.rs` + layout. None of these milestones reopens the zero-key identity. N0/N4 implement the owner rule from §0: every promoted adapter enters the built-in five workflows, and choosing a workflow auto-completes missing adapters/providers before hard-blocking.
 
 | # | Milestone | What / why | Frozen transport impact |
 |---|---|---|---|
@@ -716,7 +710,6 @@ Sequence: N0 → N1 → N2+N4 → N3 → N5 → N6 → N7 → N8 → N9. N5 may 
 | N3 | Workflow pack export/import | `.macflow.json` graph + role defaults + prompt templates + metadata, including required providers, adapter minimums, and partial-run policy; makes workflows safe to forward and PR back. | No. |
 | N4 | Preset catalog UX + process trace | Cards with plain-language scenario/provider/time/RAM/login labels, auto-complete panel, degraded badges, thinking pulse rows, and read-only step trace; soft entry for non-technical users without hiding the process. | No. |
 | N5 | RAM-aware webview lifecycle | Session-ready chip → side rail → center stage; lazy recreate/hibernate preserves profile dirs for typical office-PC RAM limits and surfaces chip activity. | No — hibernate is close/reopen and replays §8.1 boot. |
-| N6 | Adapter completeness: Claude Code + hardening | N6a adds `claude-code` as `claude.ai/code` web-DOM provider with seed adapter/profile dir; DOM ops stay adapter-driven; promoted provider seeds pass all five-mode golden tests or declare mercy tier. N6b, later, may add lightweight terminal-agent PTY/CLI adapter class. | N6a: no — same web bridge. N6b: separate adapter transport class; must not alter §7. |
 | N7 | Local context injection v2 | PDF/DOCX/text extraction, chunking, optional fan-out to all sendable providers or workflow steps; desktop-local data advantage. | No — fan-out uses existing SEND path. |
 | N8 | Contributor graph view → constrained editor | 8a read-only graph/process view; 8b constrained editor for reorder/swap/templates only. Editable canvas requires a new dep such as `@xyflow/react`; refs do not provide it. | No. |
 | N9 | Dynamic preset promotion | Local privacy-preserving counters and metadata surface community temperature without telemetry by default; promotion weighs maintenance quality and completion rate, not raw downloads. Thresholds remain governed by §18.2–§18.4. | No. |

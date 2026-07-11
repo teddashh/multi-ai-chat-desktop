@@ -6,8 +6,11 @@ import { host } from '../host';
 import { useI18n } from '../i18n/context';
 import { formatI18n } from '../i18n/t';
 import type { AdapterPermissionSummary } from './adapterPermissions';
+import { MarkdownText } from './MarkdownText';
 import type { PresentationByProvider, WebviewPresentationState } from './presentation';
 import { chipState } from './providerChipState';
+import { ProcessTrace } from './ProcessTrace';
+import type { ProcessTraceState } from './processTraceModel';
 
 export type CenterSurface = 'text' | 'native';
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
@@ -35,6 +38,8 @@ export function FocusPane({
   syncBounds,
   reportProvider,
   reportBusy,
+  processTrace,
+  onTraceDetailOpenChange,
 }: {
   centeredProvider?: AIProvider;
   states: Record<AIProvider, ProviderState>;
@@ -54,8 +59,10 @@ export function FocusPane({
   syncBounds: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
+  processTrace?: ProcessTraceState;
+  onTraceDetailOpenChange?: (open: boolean) => void;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [providerAction, setProviderAction] = useState<ProviderActionState | undefined>();
   const providerActionGeneration = useRef(0);
 
@@ -114,6 +121,8 @@ export function FocusPane({
           </button>
         </div>
       ) : null}
+
+      {processTrace ? <ProcessTrace trace={processTrace} locale={locale} onDetailOpenChange={onTraceDetailOpenChange} /> : null}
 
       <StatusStrip
         centeredProvider={centeredProvider}
@@ -378,7 +387,9 @@ export function TextCenterView({
   if (centerText) {
     return (
       <div className="flex-1 overflow-auto p-3 text-zinc-900 dark:text-zinc-100">
-        <div className="whitespace-pre-wrap text-sm">{centerText}</div>
+        <div className="text-sm">
+          <MarkdownText text={centerText} />
+        </div>
       </div>
     );
   }
@@ -408,7 +419,7 @@ function StatusStrip({
         <h2 id="provider-connections-title" className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{t('provider.connections')}</h2>
         <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{t('provider.connectionsHint')}</span>
       </div>
-      <div className="grid grid-cols-5 gap-1.5">
+      <div className="grid grid-cols-4 gap-1.5">
         {PROVIDERS.map((provider) => (
           <StatusStripItem
             key={provider}

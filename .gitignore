@@ -4,7 +4,12 @@ target/
 dist/
 .orchestration/logs/
 .claude-memory/
-.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/launch-multi-ai-chat/
+!.claude/skills/launch-multi-ai-chat/SKILL.md
+.agent-runtime/
 agent-tools/
 src-tauri/gen
 *.log

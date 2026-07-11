@@ -7,7 +7,7 @@ use tauri_plugin_opener::OpenerExt;
 
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 const DEFAULT_LANGUAGE: &str = "system";
-const LANGUAGES: &[&str] = &["system", "en", "zh-TW"];
+const LANGUAGES: &[&str] = &["system", "en", "zh-TW", "ja", "de"];
 const DEFAULT_LAYOUT_MODE: &str = "focus";
 const DEFAULT_FOCUS_PANE_WIDTH: f64 = 620.0;
 const MIN_FOCUS_PANE_WIDTH: f64 = 420.0;
@@ -16,7 +16,7 @@ const RESIZER_WIDTH: f64 = 6.0;
 const SETTINGS_NORMALIZATION_CONTAINER_WIDTH: f64 = 1400.0;
 const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
 const SNAPSHOT_REDACTION_TIERS: &[&str] = &["metadata-only", "hashes", "prompt-text", "full-local"];
-const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok", "claude-code"];
+const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok"];
 const PRESENTATION_STATES: &[&str] = &["chip", "side", "center"];
 
 pub(crate) fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -64,10 +64,7 @@ pub fn normalize_settings_value(settings: Value) -> Value {
             .and_then(|value| value.as_str())
             .filter(|value| LANGUAGES.contains(value))
             .unwrap_or(DEFAULT_LANGUAGE);
-        map.insert(
-            "language".to_string(),
-            Value::String(language.to_string()),
-        );
+        map.insert("language".to_string(), Value::String(language.to_string()));
 
         map.insert(
             "layoutMode".to_string(),
@@ -117,8 +114,8 @@ pub fn normalize_settings_value(settings: Value) -> Value {
 }
 
 fn clamp_focus_pane_width(width: f64, container_width: f64) -> f64 {
-    let max_width = (container_width - MIN_CONTROL_PANE_WIDTH - RESIZER_WIDTH)
-        .max(MIN_FOCUS_PANE_WIDTH);
+    let max_width =
+        (container_width - MIN_CONTROL_PANE_WIDTH - RESIZER_WIDTH).max(MIN_FOCUS_PANE_WIDTH);
     width.round().clamp(MIN_FOCUS_PANE_WIDTH, max_width)
 }
 
@@ -156,12 +153,8 @@ fn normalize_presentation_value(value: Option<&Value>) -> Value {
     Value::Object(map)
 }
 
-fn default_presentation(provider: &str) -> &'static str {
-    if provider == "claude-code" {
-        "chip"
-    } else {
-        "side"
-    }
+fn default_presentation(_provider: &str) -> &'static str {
+    "side"
 }
 
 pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -410,8 +403,7 @@ mod tests {
                     "chatgpt": "side",
                     "claude": "side",
                     "gemini": "side",
-                    "grok": "side",
-                    "claude-code": "chip"
+                    "grok": "side"
                 }
             })
         );
@@ -423,8 +415,7 @@ mod tests {
                     "chatgpt": "chip",
                     "claude": "center",
                     "gemini": "side",
-                    "grok": "side",
-                    "claude-code": "chip"
+                    "grok": "side"
                 }
             })),
             json!({
@@ -437,8 +428,7 @@ mod tests {
                     "chatgpt": "chip",
                     "claude": "center",
                     "gemini": "side",
-                    "grok": "side",
-                    "claude-code": "chip"
+                    "grok": "side"
                 }
             })
         );
@@ -450,7 +440,7 @@ mod tests {
                     "chatgpt": "center",
                     "claude": "center",
                     "gemini": "bad",
-                    "claude-code": "bad",
+                    "removed-provider": "bad",
                     "unknown": "chip"
                 }
             })),
@@ -464,8 +454,7 @@ mod tests {
                     "chatgpt": "center",
                     "claude": "side",
                     "gemini": "side",
-                    "grok": "side",
-                    "claude-code": "chip"
+                    "grok": "side"
                 }
             })
         );
@@ -480,6 +469,14 @@ mod tests {
         assert_eq!(
             normalize_settings_value(json!({ "language": "zh-TW" })).get("language"),
             Some(&json!("zh-TW"))
+        );
+        assert_eq!(
+            normalize_settings_value(json!({ "language": "ja" })).get("language"),
+            Some(&json!("ja"))
+        );
+        assert_eq!(
+            normalize_settings_value(json!({ "language": "de" })).get("language"),
+            Some(&json!("de"))
         );
         assert_eq!(
             normalize_settings_value(json!({ "language": "fr" })).get("language"),
@@ -505,11 +502,15 @@ mod tests {
             Some(&json!(420))
         );
         assert_eq!(
-            normalize_settings_value(json!({ "columnWidths": { "left": 500, "right": 320 } })).get("focusPaneWidth"),
+            normalize_settings_value(json!({ "columnWidths": { "left": 500, "right": 320 } }))
+                .get("focusPaneWidth"),
             Some(&json!(500))
         );
         assert_eq!(
-            normalize_settings_value(json!({ "focusPaneWidth": "wide", "columnWidths": { "left": 1200 } })).get("focusPaneWidth"),
+            normalize_settings_value(
+                json!({ "focusPaneWidth": "wide", "columnWidths": { "left": 1200 } })
+            )
+            .get("focusPaneWidth"),
             Some(&json!(1034))
         );
     }

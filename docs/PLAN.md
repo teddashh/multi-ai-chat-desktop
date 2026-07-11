@@ -1,9 +1,9 @@
 # PLAN — Multi-AI Chat Desktop implementation
 
-> Status: **v2.0** (v1 M-series shipped; next phase = SPEC §17 roadmap N0–N9 — see "Next phase" below)
-> Date: 2026-07-06 (the M0–M6 map below is the shipped-v1 record; "Next phase" tracks N0–N9)
-> Contract: `docs/SPEC.md` v2.0. Decisions: `docs/ARCHITECTURE.md` v1.0. Roadmap synthesis: `.orchestration/analysis/roadmap-synthesis.md`.
-> Working model: codex (`codex exec --dangerously-bypass-approvals-and-sandbox`, /goal) implements each milestone from this plan; Claude/Opus orchestrates, reviews diffs, and gates milestone exit; grok + codex do independent blind review passes. Every milestone starts from a clean git state and ends with a commit — codex runs unsandboxed, so git history is the safety net.
+> Status: **v2.1** (v1 M-series shipped; active roadmap excludes the retired N6 fifth-provider experiment)
+> Date: 2026-07-10 (the M0–M6 map below is the shipped-v1 record; "Next phase" tracks the active N milestones)
+> Contract: `docs/SPEC.md` v2.1. Decisions: `docs/ARCHITECTURE.md` v1.0. Roadmap synthesis: `.orchestration/analysis/roadmap-synthesis.md`.
+> Working model: every milestone starts from a clean git state, receives an independent review pass, runs the relevant verification suite, and ends with an intentional commit so git history remains the safety net.
 
 ## Milestone map (risk-first ordering)
 
@@ -14,12 +14,12 @@ M0 scaffold ──► M1 bridge spike ──► M2 providers+adapters ──► 
 
 ---
 
-## Next phase — v2.0 roadmap (N0–N9)
+## Next phase — v2.1 roadmap (N0–N5, N7–N9)
 
 > Full detail: `docs/SPEC.md` §17 + `.orchestration/analysis/roadmap-synthesis.md`. The M-series (below)
-> shipped the v1 Chrome-extension port; N0–N9 evolve it per the `New Comments2.md` 4-AI design debate
-> ("底線硬、入口軟"; killer feature = reproducibility). Same working model: codex implements · Opus gates ·
-> blind grok/codex reviews · commit-per-milestone · frozen contract preserved every step.
+> shipped the v1 Chrome-extension port; the active N milestones evolve it per the `New Comments2.md` 4-AI design debate
+> ("底線硬、入口軟"; killer feature = reproducibility). Independent review, commit-per-milestone, and the
+> frozen contract remain required at every step.
 
 | # | Milestone | Status |
 |---|---|---|
@@ -33,13 +33,12 @@ M0 scaffold ──► M1 bridge spike ──► M2 providers+adapters ──► 
 | N3 | Workflow pack export/import (`.macflow.json`, share) | ⏭ |
 | N4 | Preset catalog UX + read-only process trace | ⏭ |
 | N5 | RAM three-state webviews (chip → side → center + hibernate) | ⏭ |
-| N6 | Adapter completeness: Claude Code (web-DOM) + hardening | ⏭ |
 | N7 | Local context injection v2 (PDF/DOCX extract, fan-out) | ⏭ |
 | N8 | Contributor graph view → constrained editor (LAST) | ⏭ |
 | N9 | Dynamic preset promotion / temperature feedback | ⏭ |
 
-Sequence: N0 → N1 → N2+N4 → N3 → N5 → N6 → N7 → N8 → N9 (N5 may parallelize with N1).
-**Frozen throughout N0–N9:** §5.1 seeds · §6.1 zero-permission · §7 transport · §8.2 strategies · zero-key identity.
+Sequence: N0 → N1 → N2+N4 → N3 → N5 → N7 → N8 → N9 (N5 may parallelize with N1).
+**Frozen throughout the active N milestones:** §5.1 seeds · §6.1 zero-permission · §7 transport · §8.2 strategies · zero-key identity.
 
 ---
 

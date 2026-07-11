@@ -102,6 +102,7 @@ class InputInjectionError extends Error {
   let checkDoneInterval: number | undefined;
   let pollInterval: number | undefined;
   let lastSeenResponseEl: Element | null = null;
+  let responseBaselineEls = new Set<Element>();
   let waitingForResponse = false;
   let lastResponseText = '';
   let lastChunkTime = 0;
@@ -241,6 +242,7 @@ class InputInjectionError extends Error {
 
     const existingResponses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
     lastSeenResponseEl = existingResponses.length > 0 ? existingResponses[existingResponses.length - 1] : null;
+    responseBaselineEls = new Set(existingResponses);
     waitingForResponse = true;
     lastResponseText = '';
     startResponsePolling();
@@ -480,12 +482,24 @@ class InputInjectionError extends Error {
 
   function getLatestResponseText(): string | null {
     if (!adapter) return null;
-    const responseEls = document.querySelectorAll(adapter.responseSelectors.join(', '));
+    const responseEls = Array.from(document.querySelectorAll(adapter.responseSelectors.join(', ')));
     if (responseEls.length === 0) return null;
-    const lastEl = responseEls[responseEls.length - 1];
-    if (waitingForResponse && lastSeenResponseEl && lastEl === lastSeenResponseEl) return null;
-    const text = lastEl.textContent?.trim() ?? '';
-    return text || null;
+    for (let index = responseEls.length - 1; index >= 0; index -= 1) {
+      const response = responseEls[index];
+      if (waitingForResponse && responseBaselineEls.has(response)) continue;
+      const text = extractResponseText(response);
+      if (text) return text;
+    }
+    return null;
+  }
+
+  function extractResponseText(response: Element): string | null {
+    const text = response.textContent?.trim() ?? '';
+    if (text) return text;
+    const asset = response.querySelector('img, canvas, video');
+    if (!asset) return null;
+    const alt = asset instanceof HTMLImageElement ? asset.alt.trim() : '';
+    return alt ? `[Image generated: ${alt}]` : '[Image generated]';
   }
 
   function isThinking(): boolean {
@@ -520,6 +534,7 @@ class InputInjectionError extends Error {
     if (!waitingForResponse || !adapter) return;
     waitingForResponse = false;
     clearTimersForResponse();
+    responseBaselineEls.clear();
     bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider: adapter.provider, payload: lastResponseText });
   }
 
@@ -528,6 +543,7 @@ class InputInjectionError extends Error {
     if (!provider) return;
     waitingForResponse = false;
     clearTimersForResponse();
+    responseBaselineEls.clear();
     bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider, payload: `[Error: ${reason}]` });
   }
 

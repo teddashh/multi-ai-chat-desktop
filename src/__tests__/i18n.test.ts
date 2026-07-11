@@ -1,23 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import { CHAT_MODES } from '../../shared/constants';
+import { de } from '../i18n/de';
 import { en } from '../i18n/en';
 import { I18N_KEYS } from '../i18n/keys';
-import { resolveLocale } from '../i18n/resolve';
+import { ja } from '../i18n/ja';
+import { LANGUAGE_SETTINGS, normalizeLanguageSetting, resolveLocale } from '../i18n/resolve';
 import { zhTW } from '../i18n/zh-TW';
 
 describe('i18n dictionaries', () => {
-  it('defines every key in English and Traditional Chinese with non-empty values', () => {
-    for (const key of I18N_KEYS) {
-      expect(en[key], `en.${key}`).toEqual(expect.any(String));
-      expect(en[key].trim(), `en.${key}`).not.toBe('');
-      expect(zhTW[key], `zh-TW.${key}`).toEqual(expect.any(String));
-      expect(zhTW[key].trim(), `zh-TW.${key}`).not.toBe('');
+  const dictionaries = { en, 'zh-TW': zhTW, ja, de } as const;
+
+  it('defines every key in every language with non-empty values', () => {
+    for (const [locale, dictionary] of Object.entries(dictionaries)) {
+      expect(Object.keys(dictionary).sort(), locale).toEqual([...I18N_KEYS].sort());
+      for (const key of I18N_KEYS) {
+        expect(dictionary[key], `${locale}.${key}`).toEqual(expect.any(String));
+        expect(dictionary[key].trim(), `${locale}.${key}`).not.toBe('');
+      }
     }
   });
 
-  it('does not include CJK characters in English strings', () => {
-    for (const key of I18N_KEYS) {
-      expect(en[key], key).not.toMatch(/[一-鿿]/);
+  it('preserves interpolation placeholders in every translation', () => {
+    const placeholders = (value: string) => [...value.matchAll(/\{[^}]+\}/g)].map(([match]) => match).sort();
+
+    for (const [locale, dictionary] of Object.entries(dictionaries)) {
+      for (const key of I18N_KEYS) {
+        expect(placeholders(dictionary[key]), `${locale}.${key}`).toEqual(placeholders(en[key]));
+      }
+    }
+  });
+
+  it('does not include CJK characters in English or German strings', () => {
+    for (const [locale, dictionary] of Object.entries({ en, de })) {
+      for (const key of I18N_KEYS) {
+        expect(dictionary[key], `${locale}.${key}`).not.toMatch(/[一-鿿]/);
+      }
     }
   });
 
@@ -27,12 +44,33 @@ describe('i18n dictionaries', () => {
     }
   });
 
-  it('resolves system and explicit locale choices', () => {
+  it('normalizes supported language settings', () => {
+    expect(LANGUAGE_SETTINGS).toEqual(['system', 'en', 'zh-TW', 'ja', 'de']);
+    expect(normalizeLanguageSetting('ja')).toBe('ja');
+    expect(normalizeLanguageSetting('de')).toBe('de');
+    expect(normalizeLanguageSetting('ja-JP')).toBe('system');
+    expect(normalizeLanguageSetting('fr')).toBe('system');
+  });
+
+  it('resolves system locales in navigator preference order', () => {
     expect(resolveLocale('system', ['zh'])).toBe('zh-TW');
     expect(resolveLocale('system', ['zh-CN'])).toBe('zh-TW');
     expect(resolveLocale('system', ['zh-TW'])).toBe('zh-TW');
+    expect(resolveLocale('system', ['ja'])).toBe('ja');
+    expect(resolveLocale('system', ['ja-JP'])).toBe('ja');
+    expect(resolveLocale('system', ['JA_jp'])).toBe('ja');
+    expect(resolveLocale('system', ['de'])).toBe('de');
+    expect(resolveLocale('system', ['de-DE'])).toBe('de');
+    expect(resolveLocale('system', ['fr-FR', 'de-AT', 'ja-JP'])).toBe('de');
+    expect(resolveLocale('system', ['ja-JP', 'de-DE'])).toBe('ja');
     expect(resolveLocale('system', ['en-US'])).toBe('en');
+    expect(resolveLocale('system', ['fr-FR'])).toBe('en');
+  });
+
+  it('keeps explicit locale choices regardless of system locale', () => {
     expect(resolveLocale('en', ['zh-TW'])).toBe('en');
     expect(resolveLocale('zh-TW', ['en-US'])).toBe('zh-TW');
+    expect(resolveLocale('ja', ['de-DE'])).toBe('ja');
+    expect(resolveLocale('de', ['ja-JP'])).toBe('de');
   });
 });

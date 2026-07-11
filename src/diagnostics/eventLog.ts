@@ -8,7 +8,7 @@ import {
   normalizeStatusReason,
 } from './statusValues';
 
-export const EVENT_LOG_CAP = 500;
+export const EVENT_LOG_CAP = 2_000;
 
 export type EventLogKind =
   | 'provider-state'

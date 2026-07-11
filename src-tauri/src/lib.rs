@@ -36,6 +36,7 @@ pub fn run() {
             webviews::provider_open_login,
             webviews::provider_open_login_external,
             webviews::provider_reload,
+            webviews::provider_new_session,
             webviews::connections_get,
             webviews::dev_log,
             adapters::adapter_push,

@@ -1,4 +1,4 @@
-import { AI_PROVIDERS, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 
 export type WebviewPresentationState = 'chip' | 'side' | 'center';
@@ -12,7 +12,7 @@ export function isWebviewPresentationState(value: unknown): value is WebviewPres
 }
 
 export function defaultPresentation(): PresentationByProvider {
-  return Object.fromEntries(PROVIDERS.map((provider) => [provider, defaultPresentationState(provider)])) as PresentationByProvider;
+  return Object.fromEntries(PROVIDERS.map((provider) => [provider, defaultPresentationState()])) as PresentationByProvider;
 }
 
 export function normalizePresentation(value: unknown, _fallback: PresentationByProvider = defaultPresentation()): PresentationByProvider {
@@ -21,7 +21,7 @@ export function normalizePresentation(value: unknown, _fallback: PresentationByP
   let centerSeen = false;
 
   for (const provider of PROVIDERS) {
-    const candidate = isWebviewPresentationState(input[provider]) ? input[provider] : defaultPresentationState(provider);
+    const candidate = isWebviewPresentationState(input[provider]) ? input[provider] : defaultPresentationState();
     if (candidate === 'center') {
       next[provider] = centerSeen ? 'side' : 'center';
       centerSeen = true;
@@ -33,8 +33,8 @@ export function normalizePresentation(value: unknown, _fallback: PresentationByP
   return next;
 }
 
-function defaultPresentationState(provider: AIProvider): WebviewPresentationState {
-  return (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider) ? 'side' : 'chip';
+function defaultPresentationState(): WebviewPresentationState {
+  return 'side';
 }
 
 export function setProviderPresentation(

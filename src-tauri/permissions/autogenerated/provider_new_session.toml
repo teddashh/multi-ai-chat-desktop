@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-new-session"
+description = "Enables the provider_new_session command without any pre-configured scope."
+commands.allow = ["provider_new_session"]
+
+[[permission]]
+identifier = "deny-provider-new-session"
+description = "Denies the provider_new_session command without any pre-configured scope."
+commands.deny = ["provider_new_session"]

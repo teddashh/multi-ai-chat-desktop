@@ -10,12 +10,33 @@ export function recordEventLog(event: EventLogInput | undefined): void {
   try {
     if (!event) return;
     const enriched = withProviderDuration(event);
+    if (isDuplicateProviderHeartbeat(events, enriched)) return;
     events = appendEvent(events, enriched);
     updatePendingDurations(events[events.length - 1]);
     notifyListeners();
   } catch {
     // Diagnostics must never break the workflow or send path.
   }
+}
+
+function isDuplicateProviderHeartbeat(current: readonly EventLogEvent[], event: EventLogInput): boolean {
+  if (event.kind !== 'provider-state' || !event.provider) return false;
+  const previous = [...current]
+    .reverse()
+    .find((candidate) => candidate.kind === 'provider-state' && candidate.provider === event.provider);
+  if (!previous) return false;
+  return previous.summary === event.summary && diagnosticFingerprint(previous.detail) === diagnosticFingerprint(event.detail);
+}
+
+function diagnosticFingerprint(detail: EventLogInput['detail']): string {
+  if (!detail) return '';
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(detail)
+        .filter(([key]) => key !== 'lastStatusAt' && key !== 'seq' && key !== 'mid')
+        .sort(([left], [right]) => left.localeCompare(right)),
+    ),
+  );
 }
 
 export function getEventLogSnapshot(): readonly EventLogEvent[] {

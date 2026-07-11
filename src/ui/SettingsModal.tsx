@@ -211,6 +211,8 @@ export function SettingsModal({
                   <option value="system">{t('settings.language.system')}</option>
                   <option value="en">{t('settings.language.en')}</option>
                   <option value="zh-TW">{t('settings.language.zhTW')}</option>
+                  <option value="ja">{t('settings.language.ja')}</option>
+                  <option value="de">{t('settings.language.de')}</option>
                 </select>
               </label>
             </section>
@@ -245,22 +247,23 @@ export function SettingsModal({
                   </span>
                 </span>
               </label>
-              <label className="block text-xs text-zinc-600 dark:text-zinc-400">
-                <span className="mb-1 block">{t('settings.snapshotRedactionTier')}</span>
-                <select
-                  value={draft.snapshotRedactionTier}
-                  onChange={(event) =>
-                    updateDraft({ snapshotRedactionTier: event.target.value as AppSettings['snapshotRedactionTier'] })
-                  }
-                  disabled={!draft.snapshotPersistence}
-                  className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="metadata-only">metadata-only</option>
-                  <option value="hashes">hashes</option>
-                  <option value="prompt-text">prompt-text</option>
-                  <option value="full-local">full-local</option>
-                </select>
-              </label>
+              {draft.snapshotPersistence ? (
+                <label className="block text-xs text-zinc-600 dark:text-zinc-400">
+                  <span className="mb-1 block">{t('settings.snapshotRedactionTier')}</span>
+                  <select
+                    value={draft.snapshotRedactionTier}
+                    onChange={(event) =>
+                      updateDraft({ snapshotRedactionTier: event.target.value as AppSettings['snapshotRedactionTier'] })
+                    }
+                    className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
+                  >
+                    <option value="metadata-only">metadata-only</option>
+                    <option value="hashes">hashes</option>
+                    <option value="prompt-text">prompt-text</option>
+                    <option value="full-local">full-local</option>
+                  </select>
+                </label>
+              ) : null}
             </section>
 
             {!draft.portable ? (
@@ -300,6 +303,28 @@ export function SettingsModal({
               </section>
             ) : null}
 
+            <section className="space-y-3 border-t border-zinc-200 pt-4 text-xs dark:border-zinc-800">
+              <h3 className="font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('settings.about')}</h3>
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-zinc-700 dark:text-zinc-300">
+                <dt className="text-zinc-500 dark:text-zinc-400">{t('settings.sponsoredBy')}</dt>
+                <dd>
+                  <button type="button" className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100" onClick={() => void host.app.openExternal('https://ai-sister.com')}>
+                    AI-Sister.com
+                  </button>
+                </dd>
+                <dt className="text-zinc-500 dark:text-zinc-400">{t('settings.author')}</dt>
+                <dd>Ted Huang</dd>
+                <dt className="text-zinc-500 dark:text-zinc-400">{t('settings.email')}</dt>
+                <dd className="select-all">TED@TED-H.com</dd>
+                <dt className="text-zinc-500 dark:text-zinc-400">{t('settings.website')}</dt>
+                <dd>
+                  <button type="button" className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100" onClick={() => void host.app.openExternal('https://ted-h.com')}>
+                    https://ted-h.com
+                  </button>
+                </dd>
+              </dl>
+            </section>
+
             <details className="group border-t border-zinc-200 pt-4 dark:border-zinc-800">
               <summary className="cursor-pointer list-none rounded px-1 py-2 focus-visible:outline-offset-2">
                 <span className="flex items-start justify-between gap-3">
@@ -321,12 +346,16 @@ export function SettingsModal({
                     />
                   </label>
                 </section>
-                <AccessTransparencySection />
-                <DiagnosticsSection providerStates={providerStates} settings={draft} />
+                <details className="group/access rounded border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+                  <summary className="cursor-pointer text-xs font-medium text-zinc-700 dark:text-zinc-300">{t('provider.access')}</summary>
+                  <AccessTransparencySection />
+                </details>
+                <details className="group/diagnostics rounded border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+                  <summary className="cursor-pointer text-xs font-medium text-zinc-700 dark:text-zinc-300">{t('settings.diagnostics')}</summary>
+                  <DiagnosticsSection providerStates={providerStates} settings={draft} />
+                </details>
               </div>
             </details>
-
-            <section className="border-t border-zinc-200 dark:border-zinc-800 pt-4 text-xs text-zinc-600 dark:text-zinc-400">{t('settings.telemetryNone')}</section>
           </div>
         ) : (
           <div className="py-8 text-sm text-zinc-500 dark:text-zinc-500">{t('settings.loading')}</div>

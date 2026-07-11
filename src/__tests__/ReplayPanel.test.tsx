@@ -219,27 +219,6 @@ describe('ReplayPanel', () => {
     expect(replaySnapshot).toHaveBeenCalledTimes(1);
   });
 
-  it('shows claude-code replay blocks through normal preflight and keeps replay available', async () => {
-    const snapshot = buildSnapshot();
-    vi.mocked(getLastSnapshot).mockReturnValue(snapshot);
-    vi.mocked(replaySnapshot).mockResolvedValueOnce({
-      ok: false,
-      blocked: 'preflight',
-      preflight: { ok: false, unavailable: ['claude-code'], aliased: [] },
-    });
-    const panel = new ReplayPanel({});
-
-    propsOf(buttonWithText(panel.render(), t('replay.lastRun', 'en'))).onClick?.();
-    await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
-
-    const blockedTree = panel.render();
-    expect(renderToStaticMarkup(blockedTree)).toContain(t('replay.cannotStartReplay', 'en'));
-    expect(renderToStaticMarkup(blockedTree)).toContain(`Claude Code ${t('replay.unavailable', 'en')}`);
-    expect(propsOf(buttonWithText(blockedTree, t('replay.lastRun', 'en'))).disabled).toBe(false);
-    propsOf(buttonWithText(blockedTree, t('replay.openLogin', 'en'))).onClick?.();
-    expect(host.provider.openLogin).toHaveBeenCalledWith('claude-code');
-  });
-
   it('shows missing snapshots as a small error line', async () => {
     const snapshot = buildSnapshot();
     vi.mocked(getLastSnapshot).mockReturnValue(snapshot);

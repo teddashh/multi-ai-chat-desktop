@@ -16,6 +16,7 @@ interface TestAdapter {
   sendButtonSelectors: string[];
   responseSelectors: string[];
   loginDetectors: string[];
+  thinkingDetectors?: string[];
   inputStrategy: InputStrategyName;
   sendStrategy?: SendStrategy;
   timing: {
@@ -33,6 +34,7 @@ interface FakeDomEnv {
   input: FakeElement;
   sendButton: FakeElement | null;
   responses: FakeElement[];
+  thinking: boolean;
 }
 
 describe('injected engine input hardening', () => {
@@ -326,6 +328,107 @@ describe('injected engine input hardening', () => {
     expect(env.emitted).toContainEqual({ v: 1, action: 'RESPONSE_DONE', provider: 'grok', payload: 'native answer' });
   });
 
+  it('finishes an image-only response when the provider emits no markdown text', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, 'draw a snowy runner');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    const response = new FakeElement(env.document, 'article');
+    const image = new FakeImageElement(env.document, 'snowy runner');
+    response.appendChild(image);
+    env.responses = [response];
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: '[Image generated: snowy runner]',
+    });
+  });
+
+  it('finds image media on the assistant root when an empty markdown match follows it', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const oldRoot = new FakeElement(env.document, 'article', 'old response');
+    const oldMarkdown = new FakeElement(env.document, 'div', 'old response');
+    env.responses = [oldRoot, oldMarkdown];
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, 'draw a snowy runner');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    const responseRoot = new FakeElement(env.document, 'article');
+    responseRoot.appendChild(new FakeImageElement(env.document, 'snowy runner'));
+    const emptyMarkdown = new FakeElement(env.document, 'div');
+    env.responses = [oldRoot, oldMarkdown, responseRoot, emptyMarkdown];
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: '[Image generated: snowy runner]',
+    });
+  });
+
+  it('waits for image generation to stop before emitting the image-only DONE', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      thinkingDetectors: ['.thinking'],
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, 'draw a snowy runner');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    env.thinking = true;
+    const response = new FakeElement(env.document, 'article');
+    response.appendChild(new FakeImageElement(env.document, 'snowy runner'));
+    env.responses = [response];
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(env.emitted.some((message) => message.action === 'RESPONSE_DONE')).toBe(false);
+
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(1_010);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: '[Image generated: snowy runner]',
+    });
+  });
+
   it('FILL_DRAFT with no adapter emits adapter-not-installed DONE', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -381,6 +484,7 @@ function createEnv(options: { inputKind: 'textarea' | 'contenteditable'; sendBut
     input,
     sendButton: options.sendButton === undefined ? new FakeElement(document, 'button') : options.sendButton,
     responses: [],
+    thinking: false,
   };
   document.env = env;
   return env;
@@ -504,6 +608,13 @@ class FakeElement {
     return this.children.filter((child) => child.tagName === 'p');
   }
 
+  querySelector(selector: string): FakeElement | null {
+    if (selector === 'img, canvas, video') {
+      return this.children.find((child) => ['img', 'canvas', 'video'].includes(child.tagName)) ?? null;
+    }
+    return null;
+  }
+
   remove() {
     if (!this.parent) return;
     const index = this.parent.children.indexOf(this);
@@ -550,6 +661,12 @@ class FakeTextAreaElement extends FakeElement {
   }
 }
 
+class FakeImageElement extends FakeElement {
+  constructor(fakeDocument: FakeDocument, readonly alt: string) {
+    super(fakeDocument, 'img');
+  }
+}
+
 class FakeFragment {
   readonly children: FakeElement[] = [];
 
@@ -569,6 +686,7 @@ class FakeDocument {
   querySelector(selector: string): Element | null {
     if (selector === '#editor') return this.requireEnv().input as unknown as Element;
     if (selector === 'button.send') return this.requireEnv().sendButton as unknown as Element | null;
+    if (selector === '.thinking' && this.requireEnv().thinking) return this.body as unknown as Element;
     return null;
   }
 
@@ -661,6 +779,7 @@ function installEngineGlobals(env: FakeDomEnv) {
   vi.stubGlobal('document', env.document);
   vi.stubGlobal('location', { href: 'https://grok.com', hostname: 'grok.com' });
   vi.stubGlobal('HTMLTextAreaElement', FakeTextAreaElement);
+  vi.stubGlobal('HTMLImageElement', FakeImageElement);
   vi.stubGlobal('Event', FakeEvent);
   vi.stubGlobal('KeyboardEvent', FakeKeyboardEvent);
   vi.stubGlobal('InputEvent', FakeInputEvent);

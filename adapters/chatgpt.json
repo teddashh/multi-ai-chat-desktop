@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 3,
+  "adapterVersion": 4,
   "provider": "chatgpt",
   "displayName": "ChatGPT",
   "urls": {
@@ -12,7 +12,7 @@
   },
   "inputSelectors": ["#prompt-textarea", "[id=\"prompt-textarea\"]", "div[contenteditable=\"true\"][data-placeholder]"],
   "sendButtonSelectors": ["[data-testid=\"send-button\"]", "button[aria-label=\"Send prompt\"]", "button[aria-label=\"Send\"]"],
-  "responseSelectors": ["[data-message-author-role=\"assistant\"] .markdown"],
+  "responseSelectors": ["[data-message-author-role=\"assistant\"] .markdown", "[data-message-author-role=\"assistant\"]"],
   "loginDetectors": ["#prompt-textarea", "[data-testid=\"send-button\"]"],
   "loggedOutDetectors": [],
   "thinkingDetectors": ["[data-testid=\"stop-button\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop streaming\"]", "button[aria-label=\"Stop\"]"],

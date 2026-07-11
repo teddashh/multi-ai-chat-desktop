@@ -11,6 +11,7 @@ fn main() {
             "provider_open_login",
             "provider_open_login_external",
             "provider_reload",
+            "provider_new_session",
             "connections_get",
             "dev_log",
             "adapter_push",

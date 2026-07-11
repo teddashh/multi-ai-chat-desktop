@@ -25,12 +25,22 @@ import {
   type ManualFocusPointerDown,
 } from './ui/autoFocus';
 import { CheckpointCard } from './ui/CheckpointCard';
+import { ConversationSidebar } from './ui/ConversationSidebar';
+import {
+  createConversationSession,
+  loadConversationSessions,
+  saveConversationSessions,
+  titleFromFirstUserMessage,
+  upsertConversationSession,
+  type ConversationSession,
+  type ConversationSessionMessage,
+} from './ui/conversationSessions';
 import { FocusPane, type CenterSurface } from './ui/FocusPane';
 import { InputBar } from './ui/InputBar';
+import { MarkdownText } from './ui/MarkdownText';
 import { makeFileDragGuard } from './ui/fileDrop';
 import { PreflightDialog } from './ui/PreflightDialog';
 import { PresetCatalog } from './ui/PresetCatalog';
-import { ProcessTrace } from './ui/ProcessTrace';
 import { createProcessTrace, reduceProcessTraceEvent, settleProcessTrace, type ProcessTraceState } from './ui/processTraceModel';
 import { ReplayPanel, type ReplaySource } from './ui/ReplayPanel';
 import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
@@ -76,7 +86,6 @@ import {
 } from './ui/sessionCheckpointStartup';
 import { nextStepTimeoutState } from './ui/stepTimeoutState';
 import {
-  applyFreeTargetDefaults,
   defaultTargets,
   freeModeTargets,
   hasEffectiveFreeModeTargets,
@@ -113,6 +122,36 @@ interface Bubble {
 }
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
+
+function initialConversationState(): { sessions: ConversationSession[]; active: ConversationSession } {
+  const loaded = loadConversationSessions();
+  const active = loaded[0] ?? createConversationSession();
+  return { sessions: upsertConversationSession(loaded, active), active };
+}
+
+function conversationMessages(messages: readonly Bubble[]): ConversationSessionMessage[] {
+  return messages.map((message) => ({
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    ...(message.provider ? { provider: message.provider } : {}),
+    ...(message.modeRole ? { modeRole: message.modeRole } : {}),
+    ...(typeof message.final === 'boolean' ? { final: message.final } : {}),
+    ...(typeof message.truncated === 'boolean' ? { truncated: message.truncated } : {}),
+  }));
+}
+
+function bubblesFromSession(session: ConversationSession): Bubble[] {
+  return session.messages.map((message) => ({
+    id: message.id,
+    role: message.role,
+    content: message.content,
+    ...(message.provider ? { provider: message.provider } : {}),
+    ...(message.modeRole ? { modeRole: message.modeRole } : {}),
+    ...(typeof message.final === 'boolean' ? { final: message.final } : {}),
+    ...(typeof message.truncated === 'boolean' ? { truncated: message.truncated } : {}),
+  }));
+}
 
 const presentationHost: PresentationCommandHost = {
   close: host.provider.close,
@@ -186,8 +225,13 @@ function renderablePayload(payload: unknown): { content: string; truncated: bool
   return { content: JSON.stringify(payload ?? ''), truncated: false };
 }
 
+function isGeneratedImageResponse(content: string): boolean {
+  return /^\[Image generated(?::[^\]]+)?\]$/.test(content.trim());
+}
+
 export default function App() {
   const { locale, t: translate, setLanguage } = useI18n();
+  const initialConversation = useMemo(initialConversationState, []);
   const [states, setStates] = useState<Record<AIProvider, ProviderState>>(() =>
     Object.fromEntries(
       PROVIDERS.map((provider) => [
@@ -196,14 +240,19 @@ export default function App() {
       ]),
     ) as Record<AIProvider, ProviderState>,
   );
-  const [messages, setMessages] = useState<Bubble[]>([]);
+  const [sessions, setSessions] = useState<ConversationSession[]>(initialConversation.sessions);
+  const [activeSessionId, setActiveSessionId] = useState(initialConversation.active.id);
+  const [sessionSidebarCollapsed, setSessionSidebarCollapsed] = useState(false);
+  const [messages, setMessages] = useState<Bubble[]>(() => bubblesFromSession(initialConversation.active));
   const [workflowStatus, setWorkflowStatus] = useState('');
-  const [mode, setMode] = useState<ChatMode>('free');
+  const [mode, setMode] = useState<ChatMode>(initialConversation.active.mode);
+  const [presetDetailsMode, setPresetDetailsMode] = useState<ChatMode | undefined>();
   const [replayDrawerOpen, setReplayDrawerOpen] = useState(false);
   const [processTrace, setProcessTrace] = useState<ProcessTraceState | undefined>();
+  const [processTraceDetailOpen, setProcessTraceDetailOpen] = useState(false);
   const [targetSelection, setTargetSelection] = useState<FreeTargetSelection>(() => ({
-    targets: [],
-    defaultsInitialized: false,
+    targets: [...DEFAULT_FREE_TARGET_PROVIDERS],
+    defaultsInitialized: true,
     userTouched: false,
   }));
   const [checkpoint, setCheckpoint] = useState<PendingCheckpoint | undefined>();
@@ -219,8 +268,6 @@ export default function App() {
   const [reportBusy, setReportBusy] = useState(false);
   const [adapterNotice, setAdapterNotice] = useState<AdapterNotice | null>(null);
   const [sharing, setSharing] = useState(false);
-  const [autoFollowEnabled, setAutoFollowEnabledState] = useState(true);
-  const [manualFocusLockActive, setManualFocusLockActive] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings>(() => defaultSettings());
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [initialRestoreComplete, setInitialRestoreComplete] = useState(false);
@@ -238,7 +285,7 @@ export default function App() {
   const userHiddenRef = useRef<Set<AIProvider>>(userHidden);
   const settingsRef = useRef<AppSettings>(appSettings);
   const localeRef = useRef(locale);
-  const autoFollowEnabledRef = useRef(autoFollowEnabled);
+  const autoFollowEnabledRef = useRef(true);
   const manualFocusLockRef = useRef<ManualFocusLock | undefined>();
   const manualFocusPointerDownRef = useRef<ManualFocusPointerDown | undefined>();
   const manualFocusIdlePausedRef = useRef(false);
@@ -278,7 +325,6 @@ export default function App() {
     if (modalHiddenProviders.has(centered)) return [];
     return [centered];
   }, [centerSurface, modalHiddenProviders, presentation, states]);
-  const defaultSendableTargets = useMemo(() => defaultTargets(states, [...DEFAULT_FREE_TARGET_PROVIDERS]), [states]);
   const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
   const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
   const requiredModeProviders = useMemo(
@@ -304,9 +350,9 @@ export default function App() {
   const centerText = latestCenterBubble?.content;
   const centerTextFinal = latestCenterBubble?.final === true;
 
-  const overlayGuardOpen = Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview);
+  const overlayGuardOpen =
+    Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || processTraceDetailOpen;
   const manualFocusIdlePaused = Boolean(checkpoint) || Boolean(stepTimeout);
-  const followRunPaused = autoFollowEnabled && manualFocusLockActive;
   overlayGuardOpenRef.current = overlayGuardOpen;
 
   const setCenterSurfaceMode = useCallback((surface: CenterSurface) => {
@@ -356,20 +402,28 @@ export default function App() {
     localeRef.current = locale;
   }, [locale]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSessions((current) => {
+        const existing = current.find((session) => session.id === activeSessionId) ?? createConversationSession({ id: activeSessionId, mode });
+        const storedMessages = conversationMessages(messages);
+        const next = upsertConversationSession(current, {
+          ...existing,
+          title: titleFromFirstUserMessage(storedMessages),
+          updatedAt: Date.now(),
+          mode,
+          messages: storedMessages,
+        });
+        saveConversationSessions(next);
+        return next;
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [activeSessionId, messages, mode]);
+
   const setManualFocusLock = useCallback((lock: ManualFocusLock | undefined) => {
     manualFocusLockRef.current = lock;
-    setManualFocusLockActive(Boolean(lock));
   }, []);
-
-  useEffect(() => {
-    autoFollowEnabledRef.current = autoFollowEnabled;
-  }, [autoFollowEnabled]);
-
-  const setAutoFollowEnabled = useCallback((enabled: boolean) => {
-    autoFollowEnabledRef.current = enabled;
-    setAutoFollowEnabledState(enabled);
-    if (enabled) setManualFocusLock(undefined);
-  }, [setManualFocusLock]);
 
   const markManualFocusControl = useCallback((provider: AIProvider) => {
     const now = Date.now();
@@ -574,6 +628,13 @@ export default function App() {
         activeTurns.current.set(message.provider, active);
       }
       const { content, truncated } = renderablePayload(message.payload);
+      if (
+        message.action === 'RESPONSE_DONE' &&
+        isGeneratedImageResponse(content) &&
+        centerPresentationProvider(presentationRef.current) === message.provider
+      ) {
+        setCenterSurfaceMode('native');
+      }
       setMessages((current) => {
         const id = `ai-${message.provider}-${active.turn}`;
         const existing = current.find((bubble) => bubble.id === id);
@@ -645,12 +706,7 @@ export default function App() {
       cleanupBridge?.();
       cleanupTimeout();
     };
-  }, [setManualFocusLock]);
-
-  useEffect(() => {
-    if (mode !== 'free') return;
-    setTargetSelection((current) => applyFreeTargetDefaults(current, defaultSendableTargets));
-  }, [defaultSendableTargets, mode]);
+  }, [setCenterSurfaceMode, setManualFocusLock]);
 
   const handleTargetsChange = useCallback((nextTargets: AIProvider[]) => {
     setTargetSelection((current) => markFreeTargetsTouched(current, nextTargets));
@@ -1303,6 +1359,64 @@ export default function App() {
     setProcessTrace((current) => (current ? settleProcessTrace(current) : current));
   };
 
+  const startNewConversation = useCallback(() => {
+    if (isProcessing) return;
+    const now = Date.now();
+    const nextSession = createConversationSession({ now });
+    setSessions((current) => {
+      const existing = current.find((session) => session.id === activeSessionId);
+      const archived = existing
+        ? upsertConversationSession(current, {
+            ...existing,
+            title: titleFromFirstUserMessage(conversationMessages(messages)),
+            updatedAt: now,
+            mode,
+            messages: conversationMessages(messages),
+          })
+        : current;
+      const next = upsertConversationSession(archived, nextSession);
+      saveConversationSessions(next);
+      return next;
+    });
+    setActiveSessionId(nextSession.id);
+    setMessages([]);
+    setMode('free');
+    setPresetDetailsMode(undefined);
+    setWorkflowStatus('');
+    setProcessTrace(undefined);
+    setReplayDrawerOpen(false);
+    setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
+    activeTurns.current.clear();
+    for (const provider of PROVIDERS) {
+      if (statesRef.current[provider].webview !== 'loaded') continue;
+      resetProviderBootState(provider);
+      void host.provider.newSession(provider).catch((reason) => {
+        recordEventLog({
+          kind: 'workflow-error',
+          provider,
+          summary: `${AI_PROVIDERS[provider].name} new session failed`,
+          detail: { failure: reason instanceof Error ? reason.message : String(reason) },
+        });
+      });
+    }
+  }, [activeSessionId, isProcessing, messages, mode]);
+
+  const selectConversationSession = useCallback(
+    (session: ConversationSession) => {
+      if (isProcessing || session.id === activeSessionId) return;
+      setActiveSessionId(session.id);
+      setMessages(bubblesFromSession(session));
+      setMode(session.mode);
+      setPresetDetailsMode(undefined);
+      setWorkflowStatus('');
+      setProcessTrace(undefined);
+      setReplayDrawerOpen(false);
+      setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
+      activeTurns.current.clear();
+    },
+    [activeSessionId, isProcessing],
+  );
+
   const exportConversation = async () => {
     if (messages.length === 0 || sharing) return;
     setSharing(true);
@@ -1428,7 +1542,9 @@ export default function App() {
 
   const selectPreset = useCallback(
     (nextMode: ChatMode) => {
-      if (!isProcessing) setMode(nextMode);
+      if (isProcessing) return;
+      setMode(nextMode);
+      setPresetDetailsMode((current) => (current === nextMode ? undefined : nextMode));
     },
     [isProcessing],
   );
@@ -1468,8 +1584,25 @@ export default function App() {
   return (
     <main className="h-screen overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <div ref={gridRef} className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)]" style={{ gridTemplateColumns: focusGridTemplateColumns(focusPaneWidth) }}>
-        <div className="flex min-h-0 min-w-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-          <FocusPane
+        <div className="flex min-h-0 min-w-0 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <ConversationSidebar
+            collapsed={sessionSidebarCollapsed}
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            disabled={isProcessing}
+            locale={locale}
+            labels={{
+              toggle: translate('conversation.toggle'),
+              newConversation: translate('conversation.new'),
+              history: translate('conversation.history'),
+              empty: translate('conversation.empty'),
+            }}
+            onToggle={() => setSessionSidebarCollapsed((current) => !current)}
+            onNewConversation={startNewConversation}
+            onSelectSession={selectConversationSession}
+          />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <FocusPane
             centeredProvider={centeredProvider}
             states={states}
             presentation={presentation}
@@ -1488,16 +1621,8 @@ export default function App() {
             syncBounds={syncBounds}
             reportProvider={reportProvider}
             reportBusy={reportBusy}
-          />
-          <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800 px-3 pb-3">
-            <InputBar
-              onSend={send}
-              onCancel={cancelWorkflow}
-              disabled={noSendableProviders}
-              sendBlocked={modeSendBlocked}
-              blockedMessage={modeBlockedMessage}
-              isProcessing={isProcessing}
-              locale={locale}
+            processTrace={processTrace}
+            onTraceDetailOpenChange={setProcessTraceDetailOpen}
             />
           </div>
         </div>
@@ -1522,22 +1647,6 @@ export default function App() {
                   <span className="min-w-0 truncate text-xs text-zinc-600 dark:text-zinc-400">{workflowStatus || translate('processTrace.settled')}</span>
                 </div>
               </div>
-              {messages.length > 0 || isProcessing ? (
-                <label
-                  title={translate('header.followRunHelp')}
-                  className={`flex items-center gap-2 border px-2 py-1 text-xs ${
-                    followRunPaused ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-100' : 'border-zinc-300 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className={`h-3.5 w-3.5 ${followRunPaused ? 'accent-amber-500' : 'accent-sky-500'}`}
-                    checked={autoFollowEnabled}
-                    onChange={(event) => setAutoFollowEnabled(event.currentTarget.checked)}
-                  />
-                  {followRunPaused ? translate('header.followRunPaused') : translate('header.followRun')}
-                </label>
-              ) : null}
               <button
                 type="button"
                 className={`flex h-7 items-center justify-center gap-1.5 border px-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
@@ -1615,6 +1724,7 @@ export default function App() {
               locale={locale}
               states={states}
               disabled={isProcessing}
+              detailsMode={presetDetailsMode}
             />
           </div>
           {mode === 'free' ? (
@@ -1624,11 +1734,6 @@ export default function App() {
                 <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} disabled={isProcessing} locale={locale} />
               </div>
             </section>
-          ) : null}
-          {processTrace ? (
-            <div className="max-h-48 overflow-auto">
-              <ProcessTrace trace={processTrace} locale={locale} />
-            </div>
           ) : null}
           <div className="mt-3 space-y-2">
             {checkpoint ? (
@@ -1656,6 +1761,17 @@ export default function App() {
           <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3">
             <ChatArea messages={messages} locale={locale} states={states} />
             {import.meta.env.DEV ? <EchoPanel /> : null}
+          </div>
+          <div className="shrink-0 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+            <InputBar
+              onSend={send}
+              onCancel={cancelWorkflow}
+              disabled={noSendableProviders}
+              sendBlocked={modeSendBlocked}
+              blockedMessage={modeBlockedMessage}
+              isProcessing={isProcessing}
+              locale={locale}
+            />
           </div>
         </section>
       </div>
@@ -1818,7 +1934,9 @@ export function ChatArea({
             {thinking ? (
               <div className="whitespace-pre-wrap text-sm italic text-zinc-500 dark:text-zinc-500">{translateKey('chat.thinking', locale)}</div>
             ) : (
-              <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+              <div className="text-sm">
+                <MarkdownText text={message.content} />
+              </div>
             )}
             {message.truncated ? <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">{translateKey('chat.truncated', locale)}</div> : null}
           </article>

@@ -82,6 +82,14 @@ describe('host snapshot bindings', () => {
     expect(String(invokeMock.mock.calls.at(-1)?.[1]?.js)).not.toContain('SEND_MESSAGE');
   });
 
+  it('starts a fresh provider conversation through the dedicated host command', async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+
+    await host.provider.newSession('chatgpt');
+
+    expect(invokeMock).toHaveBeenLastCalledWith('provider_new_session', { provider: 'chatgpt' });
+  });
+
   it.each(['chatgpt', 'claude', 'gemini', 'grok'] as const)('parks %s offscreen without stealing focus', async (provider) => {
     invokeMock.mockResolvedValue(undefined);
     const bounds = { x: -10_000, y: -10_000, width: 420, height: 320 } as DOMRectReadOnly;

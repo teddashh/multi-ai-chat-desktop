@@ -11,6 +11,7 @@ export function PresetCatalog({
   visiblePresetCount = PRESET_CATALOG.length,
   states,
   disabled = false,
+  detailsMode,
 }: {
   mode: ChatMode;
   onSelectPreset: (mode: ChatMode) => void;
@@ -18,11 +19,13 @@ export function PresetCatalog({
   visiblePresetCount?: number;
   states?: Record<AIProvider, ProviderState>;
   disabled?: boolean;
+  detailsMode?: ChatMode;
 }) {
   const visiblePresets = PRESET_CATALOG.slice(0, visiblePresetCount);
   const quickMode = visiblePresetCount < PRESET_CATALOG.length;
+  const detailPreset = PRESET_CATALOG.find((preset) => preset.graphId === detailsMode);
   return (
-    <section aria-label={t('preset.catalog.aria', locale)} className="space-y-3">
+    <section aria-label={t('preset.catalog.aria', locale)} className="space-y-2">
       {renderPresetGrid({
         presets: visiblePresets,
         mode,
@@ -32,6 +35,17 @@ export function PresetCatalog({
         disabled,
         className: quickMode ? 'grid gap-2 lg:grid-cols-3' : 'grid gap-2 md:grid-cols-2 xl:grid-cols-5',
       })}
+      {detailPreset ? (
+        <div className="flex flex-wrap items-start justify-between gap-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs dark:border-sky-900 dark:bg-sky-950/30">
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-sky-900 dark:text-sky-100">{t(detailPreset.displayNameKey, locale)}</div>
+            <p className="mt-1 leading-relaxed text-zinc-700 dark:text-zinc-300">{t(detailPreset.descriptionKey, locale)}</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+            {t(detailPreset.costLabelKey, locale)}
+          </span>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -67,14 +81,13 @@ function renderPresetGrid({
             type="button"
             onClick={() => onSelectPreset(preset.graphId)}
             disabled={disabled}
-            className={`flex min-h-20 flex-col border p-3 text-left transition ${
+            className={`flex min-h-14 flex-col justify-center rounded border px-3 py-2 text-left transition ${
               selected ? 'border-sky-500 bg-sky-50 dark:bg-sky-950 text-sky-900 dark:text-zinc-50' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-600'
             } disabled:cursor-not-allowed disabled:opacity-60`}
             aria-pressed={selected}
           >
-            <span className="text-sm font-semibold">{displayName}</span>
-            <span className="mt-2 flex w-full items-center justify-between gap-2">
-              {preset.metaKey ? <span className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{t(preset.metaKey, locale)}</span> : <span />}
+            <span className="flex w-full items-center justify-between gap-2">
+              <span className="truncate text-sm font-semibold">{displayName}</span>
               {readiness ? (
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
@@ -87,6 +100,7 @@ function renderPresetGrid({
                 </span>
               ) : null}
             </span>
+            {preset.metaKey ? <span className="mt-1 text-[11px] leading-none text-zinc-500 dark:text-zinc-400">{t(preset.metaKey, locale)}</span> : null}
           </button>
         );
       })}

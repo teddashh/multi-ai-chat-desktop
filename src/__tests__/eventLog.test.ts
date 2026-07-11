@@ -171,4 +171,41 @@ describe('event log reducer', () => {
       unsubscribeHealthy();
     }
   });
+
+  it('coalesces repeated provider heartbeats while keeping real state transitions', () => {
+    recordEventLog({
+      ts: 1,
+      provider: 'chatgpt',
+      kind: 'provider-state',
+      summary: 'ChatGPT state: ready',
+      detail: { dom: 'ready', thinking: false, seq: 1, lastStatusAt: 1 },
+    });
+    recordEventLog({
+      ts: 2,
+      provider: 'chatgpt',
+      kind: 'provider-state',
+      summary: 'ChatGPT state: ready',
+      detail: { dom: 'ready', thinking: false, seq: 2, lastStatusAt: 2 },
+    });
+    recordEventLog({
+      ts: 3,
+      provider: 'chatgpt',
+      kind: 'provider-state',
+      summary: 'ChatGPT state: thinking',
+      detail: { dom: 'ready', thinking: true, seq: 3, lastStatusAt: 3 },
+    });
+    recordEventLog({
+      ts: 4,
+      provider: 'chatgpt',
+      kind: 'provider-state',
+      summary: 'ChatGPT state: ready',
+      detail: { dom: 'ready', thinking: false, seq: 4, lastStatusAt: 4 },
+    });
+
+    expect(getEventLogSnapshot().map((event) => event.summary)).toEqual([
+      'ChatGPT state: ready',
+      'ChatGPT state: thinking',
+      'ChatGPT state: ready',
+    ]);
+  });
 });

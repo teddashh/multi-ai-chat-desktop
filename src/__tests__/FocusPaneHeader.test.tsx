@@ -69,7 +69,7 @@ describe('FocusPane provider header', () => {
     expect(renderHeader('logged_in')).not.toContain('Login');
   });
 
-  it('renders a five-provider status strip with login and thinking states', () => {
+  it('renders a four-provider status strip with login and thinking states', () => {
     const html = renderFocusPane({
       presentation: setProviderPresentation(defaultPresentation(), 'chatgpt', 'center'),
       stateOverrides: {
@@ -95,6 +95,6 @@ describe('FocusPane provider header', () => {
 
     expect(html).toContain('Choose an AI to get started');
     expect(html).toContain('Open ChatGPT');
-    expect(html).toContain('Open Claude Code');
+    expect(html).toContain('Open Grok');
   });
 });

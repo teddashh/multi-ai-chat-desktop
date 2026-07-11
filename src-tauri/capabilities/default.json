@@ -17,6 +17,7 @@
     "allow-provider-open-login",
     "allow-provider-open-login-external",
     "allow-provider-reload",
+    "allow-provider-new-session",
     "allow-connections-get",
     "allow-dev-log",
     "allow-adapter-push",

@@ -184,7 +184,7 @@ pub(crate) fn get_adapter(provider: &str) -> Result<Adapter, String> {
 }
 
 pub(crate) fn all_provider_states() -> Vec<String> {
-    let mut providers = vec!["chatgpt", "claude", "gemini", "grok", "claude-code"]
+    let mut providers = vec!["chatgpt", "claude", "gemini", "grok"]
         .into_iter()
         .map(str::to_string)
         .collect::<Vec<_>>();
@@ -211,7 +211,6 @@ fn init_adapters() {
     for (provider, text) in [
         ("chatgpt", include_str!("../../adapters/chatgpt.json")),
         ("claude", include_str!("../../adapters/claude.json")),
-        ("claude-code", include_str!("../../adapters/claude-code.json")),
         ("gemini", include_str!("../../adapters/gemini.json")),
         ("grok", include_str!("../../adapters/grok.json")),
     ] {
@@ -579,28 +578,32 @@ mod tests {
             ("claude", "https://auth.anthropic.com/login"),
             ("claude", "https://gsi.google.com/client"),
             ("claude", "https://www.google.com/accounts/ServiceLogin"),
-            ("claude-code", "https://auth.anthropic.com/login"),
-            ("claude-code", "https://gsi.google.com/client"),
-            ("claude-code", "https://www.google.com/accounts/ServiceLogin"),
-            ("claude-code", "https://claude.ai/oauth/callback"),
             ("grok", "https://x.com/i/oauth2/authorize"),
             ("grok", "https://twitter.com/i/oauth2/authorize"),
             ("grok", "https://accounts.x.ai/session"),
-            ("grok", "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b"),
+            (
+                "grok",
+                "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b",
+            ),
             ("grok", "https://accounts.google.com/o/oauth2/v2/auth"),
             ("grok", "https://accounts.google.de/ServiceLogin"),
             ("chatgpt", "https://accounts.google.com.tw/accounts/SetSID"),
             ("claude", "https://accounts.google.com.tw/accounts/SetSID"),
-            ("claude-code", "https://accounts.google.com.tw/accounts/SetSID"),
             ("grok", "https://accounts.google.com.tw/accounts/SetSID"),
-            ("grok", "https://auth.grokusercontent.com/api/auth/callback/google"),
+            (
+                "grok",
+                "https://auth.grokusercontent.com/api/auth/callback/google",
+            ),
             ("grok", "https://auth.grok.com/oauth/authorize"),
             ("grok", "https://auth.grokipedia.com/login"),
             ("grok", "https://gsi.google.com/client"),
             ("grok", "https://www.google.com/accounts/ServiceLogin"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
-            assert!(url_allowed_for_sso(provider, &url).unwrap(), "{provider} {value}");
+            assert!(
+                url_allowed_for_sso(provider, &url).unwrap(),
+                "{provider} {value}"
+            );
         }
     }
 
@@ -622,11 +625,11 @@ mod tests {
             ("grok", "https://auth.grok.com.evil.net/"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
-            assert!(!url_allowed_for_sso(provider, &url).unwrap(), "{provider} {value}");
+            assert!(
+                !url_allowed_for_sso(provider, &url).unwrap(),
+                "{provider} {value}"
+            );
         }
-
-        let claude_code_chat = tauri::Url::parse("https://claude.ai/new").unwrap();
-        assert!(!url_allowed_for_provider("claude-code", &claude_code_chat).unwrap());
     }
 
     #[test]
@@ -670,7 +673,10 @@ mod tests {
             ),
         ] {
             let login = tauri::Url::parse(login).unwrap();
-            assert!(url_allowed_for_provider(provider, &login).unwrap(), "{provider} login");
+            assert!(
+                url_allowed_for_provider(provider, &login).unwrap(),
+                "{provider} login"
+            );
 
             let deep_app = tauri::Url::parse(deep_app).unwrap();
             assert!(
@@ -683,31 +689,6 @@ mod tests {
                 !url_allowed_for_provider(provider, &http_app).unwrap(),
                 "{provider} http denied"
             );
-        }
-    }
-
-    #[test]
-    fn claude_code_navigation_is_narrow_to_code_and_login() {
-        for value in [
-            "https://claude.ai/code",
-            "https://claude.ai/code/project",
-            "https://claude.ai/code/project?x=1",
-            "https://claude.ai/login",
-        ] {
-            let url = tauri::Url::parse(value).unwrap();
-            assert!(url_allowed_for_provider("claude-code", &url).unwrap(), "{value}");
-        }
-
-        for value in [
-            "https://claude.ai/new",
-            "https://claude.ai",
-            "https://claude.ai/chats",
-            "https://claude.ai/codeevil",
-            "https://claude.ai/loginevil",
-            "http://claude.ai/code",
-        ] {
-            let url = tauri::Url::parse(value).unwrap();
-            assert!(!url_allowed_for_provider("claude-code", &url).unwrap(), "{value}");
         }
     }
 

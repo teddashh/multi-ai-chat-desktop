@@ -391,6 +391,25 @@ pub async fn provider_reload(
 }
 
 #[tauri::command]
+pub async fn provider_new_session(
+    app: AppHandle,
+    webview: tauri::Webview,
+    provider: String,
+) -> Result<(), String> {
+    ensure_control_webview(&webview)?;
+    if app.get_webview(&provider_label(&provider)).is_none() {
+        return Ok(());
+    }
+    let adapter = adapters::get_adapter(&provider)?;
+    reset_bridge_state(&app, &provider);
+    let js = format!(
+        "location.href = {};",
+        serde_json::to_string(&adapter.urls.app).map_err(|error| error.to_string())?
+    );
+    eval_provider(&app, &provider, &js)
+}
+
+#[tauri::command]
 pub async fn connections_get(webview: tauri::Webview) -> Result<Vec<ProviderState>, String> {
     ensure_control_webview(&webview)?;
     let guard = runtime()
