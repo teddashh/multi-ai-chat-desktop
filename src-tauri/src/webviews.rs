@@ -5,6 +5,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{
+    utils::config::BackgroundThrottlingPolicy,
     webview::{NewWindowResponse, WebviewBuilder},
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl,
 };
@@ -20,6 +21,7 @@ const ENGINE_JS: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/gen/injected/engine.js"
 ));
+const PROVIDER_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows";
 /// Auto-deny site permission prompts that otherwise pop a blocking native dialog.
 /// SCOPE: Notifications + Geolocation ONLY. We intentionally leave microphone/camera alone so the
 /// providers' voice-input buttons keep working. Runs at document-start, before site scripts.
@@ -167,6 +169,8 @@ pub async fn provider_open(
         .initialization_script(&init_script)
         .initialization_script_for_all_frames(PERMISSION_SHIM_JS)
         .data_directory(profile_dir)
+        .background_throttling(BackgroundThrottlingPolicy::Disabled)
+        .additional_browser_args(PROVIDER_BROWSER_ARGS)
         .on_document_title_changed(move |_webview, title| {
             let _ = crate::bridge::ingest_title(&title_app, &title_provider, &title);
         })
@@ -253,6 +257,7 @@ pub async fn provider_show(
     app: AppHandle,
     webview: tauri::Webview,
     provider: String,
+    focus: Option<bool>,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
     let label = provider_label(&provider);
@@ -260,7 +265,10 @@ pub async fn provider_show(
         .get_webview(&label)
         .ok_or_else(|| format!("webview not found: {label}"))?;
     webview.show().map_err(|error| error.to_string())?;
-    webview.set_focus().map_err(|error| error.to_string())
+    if focus.unwrap_or(true) {
+        webview.set_focus().map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -355,7 +363,7 @@ pub async fn provider_open_login(
         serde_json::to_string(&adapter.urls.login).map_err(|error| error.to_string())?
     );
     eval_provider(&app, &provider, &js)?;
-    provider_show(app, webview, provider).await
+    provider_show(app, webview, provider, Some(true)).await
 }
 
 #[tauri::command]
@@ -756,11 +764,19 @@ mod tests {
     use super::{
         bridge_resets_on_boot_rotation, decide_new_window_action, runtime,
         should_reset_bridge_on_boot_rotation, staleness_action, state_with, NewWindowAction,
-        StalenessAction,
+        StalenessAction, PROVIDER_BROWSER_ARGS,
     };
 
     fn url(input: &str) -> tauri::Url {
         tauri::Url::parse(input).expect("test URL should parse")
+    }
+
+    #[test]
+    fn provider_browser_args_keep_hidden_automation_responsive() {
+        assert!(PROVIDER_BROWSER_ARGS.contains("--disable-background-timer-throttling"));
+        assert!(PROVIDER_BROWSER_ARGS.contains("--disable-renderer-backgrounding"));
+        assert!(PROVIDER_BROWSER_ARGS.contains("--disable-backgrounding-occluded-windows"));
+        assert!(PROVIDER_BROWSER_ARGS.contains("msSmartScreenProtection"));
     }
 
     #[test]

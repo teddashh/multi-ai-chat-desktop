@@ -61,7 +61,7 @@ import {
   type PresentationCommandHost,
   waitForPresentationTargetBounds,
 } from './ui/presentationCommands';
-import { preflightGraph, workflowGraphs, type WorkflowGraph } from './workflow/graph';
+import { preflightGraph, workflowGraphs } from './workflow/graph';
 import { defaultRolesForPreset, PRESET_CATALOG } from './ui/presetCatalogData';
 import { buildPreflightDialogModel } from './ui/preflightModel';
 import { preflightFromResult } from './ui/preflightFromResult';
@@ -116,7 +116,7 @@ const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
 const presentationHost: PresentationCommandHost = {
   close: host.provider.close,
-  hide: host.provider.hide,
+  hide: (provider) => host.provider.park(provider, hiddenProviderLoadBounds()),
   open: host.provider.open,
   setBounds: host.layout.setBounds,
   show: host.provider.show,
@@ -135,7 +135,17 @@ function providerSetEquals(left: ReadonlySet<AIProvider>, right: ReadonlySet<AIP
 }
 
 function hiddenProviderLoadBounds(): DOMRectReadOnly {
-  return { x: 24, y: 24, width: 420, height: 320, top: 24, left: 24, right: 444, bottom: 344, toJSON: () => ({}) };
+  return {
+    x: -10_000,
+    y: -10_000,
+    width: 420,
+    height: 320,
+    top: -10_000,
+    left: -10_000,
+    right: -9_580,
+    bottom: -9_680,
+    toJSON: () => ({}),
+  };
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -176,14 +186,6 @@ function renderablePayload(payload: unknown): { content: string; truncated: bool
   return { content: JSON.stringify(payload ?? ''), truncated: false };
 }
 
-function serialStepCount(graph: WorkflowGraph): number {
-  return Object.values(graph.nodes).filter((node) => node.kind === 'step' && node.policy === 'serialRunStep').length;
-}
-
-function isMultiStepMode(mode: ChatMode): boolean {
-  return serialStepCount(workflowGraphs[mode]) > 1;
-}
-
 export default function App() {
   const { locale, t: translate, setLanguage } = useI18n();
   const [states, setStates] = useState<Record<AIProvider, ProviderState>>(() =>
@@ -204,7 +206,6 @@ export default function App() {
     defaultsInitialized: false,
     userTouched: false,
   }));
-  const [confirmEachStep, setConfirmEachStep] = useState(false);
   const [checkpoint, setCheckpoint] = useState<PendingCheckpoint | undefined>();
   const [checkpointDraft, setCheckpointDraft] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -306,7 +307,6 @@ export default function App() {
   const overlayGuardOpen = Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview);
   const manualFocusIdlePaused = Boolean(checkpoint) || Boolean(stepTimeout);
   const followRunPaused = autoFollowEnabled && manualFocusLockActive;
-  const showConfirmEachStepControl = isMultiStepMode(mode);
   overlayGuardOpenRef.current = overlayGuardOpen;
 
   const setCenterSurfaceMode = useCallback((surface: CenterSurface) => {
@@ -652,11 +652,6 @@ export default function App() {
     setTargetSelection((current) => applyFreeTargetDefaults(current, defaultSendableTargets));
   }, [defaultSendableTargets, mode]);
 
-  useEffect(() => {
-    if (showConfirmEachStepControl) return;
-    setConfirmEachStep(false);
-  }, [showConfirmEachStepControl]);
-
   const handleTargetsChange = useCallback((nextTargets: AIProvider[]) => {
     setTargetSelection((current) => markFreeTargetsTouched(current, nextTargets));
   }, []);
@@ -753,7 +748,7 @@ export default function App() {
         await host.provider.open(provider, bounds);
       }
       if (!shouldContinue()) return;
-      await host.provider.hide(provider);
+      await host.provider.park(provider, bounds);
     },
     [],
   );
@@ -791,7 +786,7 @@ export default function App() {
       !userHiddenRef.current.has(provider) &&
       !overlayGuardOpenRef.current;
     if (!shouldPaintCenter) {
-      await host.provider.hide(provider);
+      await host.provider.park(provider, hiddenProviderLoadBounds());
       return;
     }
     const rect = boundsForProvider(provider);
@@ -1001,7 +996,7 @@ export default function App() {
           shouldContinue,
         });
         if (state === 'center' && !shouldContinue() && statesRef.current[provider].webview === 'loaded') {
-          await host.provider.hide(provider);
+          await host.provider.park(provider, hiddenProviderLoadBounds());
         }
       } catch (error) {
         if (state === 'center') clearCenterTransitionInFlight(provider, generation);
@@ -1111,7 +1106,7 @@ export default function App() {
             });
             if (!shouldPaintCenter()) {
               if (presentationRef.current[centered] === 'center' && statesRef.current[centered].webview === 'loaded') {
-                await host.provider.hide(centered);
+                await host.provider.park(centered, hiddenProviderLoadBounds());
               }
               return;
             }
@@ -1125,7 +1120,7 @@ export default function App() {
             });
             if (centerSurfaceRef.current !== 'native') {
               if (presentationRef.current[centered] === 'center' && statesRef.current[centered].webview === 'loaded') {
-                await host.provider.hide(centered);
+                await host.provider.park(centered, hiddenProviderLoadBounds());
               }
               await applyCenterHiddenCommands({
                 host: presentationHost,
@@ -1233,7 +1228,6 @@ export default function App() {
       mode,
       roles: workflowRoles,
       targets: workflowTargets,
-      checkpoints: showConfirmEachStepControl && confirmEachStep,
       snapshotPersistence: snapshotSettings.snapshotPersistence,
       snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
     });
@@ -1394,7 +1388,9 @@ export default function App() {
       clearCenterTransitionInFlight(provider);
     }
     setCenterSurfaceMode('text');
-    if (provider && statesRef.current[provider].webview === 'loaded') void host.provider.hide(provider);
+    if (provider && statesRef.current[provider].webview === 'loaded') {
+      void host.provider.park(provider, hiddenProviderLoadBounds());
+    }
   }, [beginPresentationTransition, clearCenterTransitionInFlight, setCenterSurfaceMode]);
 
   const openProviderLogin = useCallback(
@@ -1494,18 +1490,6 @@ export default function App() {
             reportBusy={reportBusy}
           />
           <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800 px-3 pb-3">
-            {showConfirmEachStepControl ? (
-              <label className="mt-3 flex w-fit items-center gap-2 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-200">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-amber-500"
-                  checked={confirmEachStep}
-                  onChange={(event) => setConfirmEachStep(event.currentTarget.checked)}
-                  disabled={isProcessing}
-                />
-                {translate('checkpoint.confirmEachStep')}
-              </label>
-            ) : null}
             <InputBar
               onSend={send}
               onCancel={cancelWorkflow}

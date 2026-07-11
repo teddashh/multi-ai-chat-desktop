@@ -4,6 +4,7 @@ import type { AIProvider, BridgeMessage } from '../../shared/types';
 const PRE_SEND_DELAY_MS = 800;
 const SEND_BUTTON_SELECTOR_TIMEOUT_MS = 800;
 const SEND_RETRY_DELAY_MS = 1500;
+const SEND_FINAL_VERIFY_DELAY_MS = 1500;
 
 type InputStrategyName = 'default' | 'prosemirror-paste' | 'quill-angular';
 type SendStrategy = 'click' | 'enter';
@@ -137,6 +138,36 @@ describe('injected engine input hardening', () => {
     expect(env.sendButton?.clickCount).toBe(1);
   });
 
+  it('uses the ProseMirror paste result once without duplicating the prompt', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    env.input.onDispatch = (event) => {
+      if (event.type === 'paste') {
+        const clipboardEvent = event as unknown as FakeClipboardEvent;
+        env.input.setVisibleText(`${env.input.textContent}${clipboardEvent.clipboardData?.getData('text/plain') ?? ''}`);
+      }
+    };
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { inputStrategy: 'prosemirror-paste' });
+
+    send(handler, 'one prompt');
+    await flushMicrotasks();
+
+    expect(env.input.textContent).toBe('one prompt');
+  });
+
+  it('falls back to one direct ProseMirror draft when synthetic paste is ignored', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { inputStrategy: 'prosemirror-paste' });
+
+    send(handler, 'fallback prompt');
+    await flushMicrotasks();
+
+    expect(env.input.textContent).toBe('fallback prompt');
+  });
+
   it('falls back from a missing send button to one Enter target on the shortened budget', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea', sendButton: null });
@@ -203,7 +234,7 @@ describe('injected engine input hardening', () => {
     expect(errorDone(env)).toBeUndefined();
   });
 
-  it('retries a still-enabled send button without forcing Enter', async () => {
+  it('retries a false-positive click, falls back to Enter, then reports the stuck draft', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
     const handler = await installEngine(env);
@@ -214,8 +245,12 @@ describe('injected engine input hardening', () => {
     await vi.advanceTimersByTimeAsync(SEND_RETRY_DELAY_MS);
 
     expect(env.sendButton?.clickCount).toBe(2);
-    expect(keyEventCount(env.input)).toBe(0);
+    await vi.advanceTimersByTimeAsync(SEND_FINAL_VERIFY_DELAY_MS);
+    expect(keyEventCount(env.input)).toBe(3);
     expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(SEND_FINAL_VERIFY_DELAY_MS);
+    expect(errorDone(env)?.payload).toBe('[Error: grok send was not accepted; draft is still in composer]');
   });
 
   it('does not force Enter or emit error when retry sees a disabled button after a successful click', async () => {
@@ -411,6 +446,8 @@ class FakeElement {
   clickThrows = false;
   clickCount = 0;
   focusTarget?: FakeElement;
+  onClick?: () => void;
+  onDispatch?: (event: Event) => void;
   readonly events: string[] = [];
   readonly children: FakeElement[] = [];
   private parent: FakeElement | null = null;
@@ -431,11 +468,13 @@ class FakeElement {
   click() {
     this.clickCount += 1;
     if (this.clickThrows) throw new Error('click failed');
+    this.onClick?.();
   }
 
   dispatchEvent(event: Event): boolean {
     if (this.dispatchThrows) throw new Error('dispatch failed');
     this.events.push(event.type);
+    this.onDispatch?.(event);
     return this.dispatchReturn;
   }
 

@@ -82,6 +82,19 @@ describe('host snapshot bindings', () => {
     expect(String(invokeMock.mock.calls.at(-1)?.[1]?.js)).not.toContain('SEND_MESSAGE');
   });
 
+  it.each(['chatgpt', 'claude', 'gemini', 'grok'] as const)('parks %s offscreen without stealing focus', async (provider) => {
+    invokeMock.mockResolvedValue(undefined);
+    const bounds = { x: -10_000, y: -10_000, width: 420, height: 320 } as DOMRectReadOnly;
+
+    await host.provider.park(provider, bounds);
+
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'provider_set_bounds', {
+      provider,
+      bounds: { x: -10_000, y: -10_000, width: 420, height: 320 },
+    });
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'provider_show', { provider, focus: false });
+  });
+
   it('subscribes to nav-blocked diagnostics and forwards the host-only payload', async () => {
     const unlisten = vi.fn();
     const handler = vi.fn();

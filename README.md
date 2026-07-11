@@ -4,14 +4,14 @@
 
 A Tauri 2 desktop control pane that orchestrates your **logged-in** ChatGPT, Claude, Gemini, Grok, and Claude Code web sessions — **no API keys, no telemetry**. Instead of just placing chats side by side, a central control pane drives them through multi-model **workflows** (debate, roundtable, consulting, coding, free-mode) and routes every provider's reply back to the hub.
 
-Status: **v0.5.1** — the control pane, five workflow modes, five web-session providers, reproducible runs (snapshots + replay), human relay checkpoints, per-provider adapters with remote hot-update, and three-platform packaging (Windows / macOS / Linux) are built and shipping. v0.5.1 focuses on a clearer first run, safer workflow starts, accessibility, and small-window reliability. Portable-first, MIT, with community-maintained selector adapters. See [`docs/SPEC.md`](./docs/SPEC.md) for the behavior contract and [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the design.
+Status: **v0.5.2** — the control pane, five workflow modes, five web-session providers, reproducible runs (snapshots + replay), per-provider adapters with remote hot-update, and three-platform packaging (Windows / macOS / Linux) are built and shipping. v0.5.2 keeps provider automation active offscreen, verifies that native sends were accepted before advancing, prevents duplicated Claude prompts, and removes the confusing per-step confirmation toggle. Portable-first, MIT, with community-maintained selector adapters. See [`docs/SPEC.md`](./docs/SPEC.md) for the behavior contract and [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the design.
 
-## What's new in v0.5.1
+## What's new in v0.5.2
 
-- **Start without guesswork.** The first-run provider picker explains what to open, shows live progress, and offers retry or sign-in actions when needed.
-- **Keep your work.** Workflow readiness is checked before a run starts, so a blocked provider no longer clears the prompt draft.
-- **Keyboard- and screen-reader-friendly.** Dialog focus trapping, Escape-to-close, visible focus states, keyboard resizing, reduced-motion support, and clearer labels make the control pane easier to navigate.
-- **Reliable at the minimum window size.** The focused provider, workflow cards, and composer remain visible without page-level overflow at `960×640`.
+- **No live-page detour.** ChatGPT, Claude, Gemini, and Grok remain active offscreen, so workflows can submit prompts without opening each provider's live page.
+- **Verified sends.** The engine now confirms that the composer cleared, thinking started, or a response appeared; rejected clicks retry with Enter and fail fast instead of hanging.
+- **Clean Claude prompts.** ProseMirror injection no longer inserts the same prompt twice.
+- **Simpler composer.** The unused per-step confirmation toggle is gone; built-in workflows run automatically after you start them.
 
 ## Highlights
 
@@ -19,10 +19,9 @@ Status: **v0.5.1** — the control pane, five workflow modes, five web-session p
 - **Guided first run.** Start from a clear provider picker, see live connection and workflow-readiness states, and keep your draft when a workflow cannot start yet.
 - **Five providers, one hub.** ChatGPT, Claude, Gemini, Grok, and Claude Code (`claude.ai/code`, the agentic tier). Each keeps its own login profile.
 - **Multi-model workflows.** Debate, roundtable, consulting, coding, and free-mode route prompts between providers and collect their replies — driven by a declarative graph engine, picked from a catalog of preset cards.
-- **Focused view + status strip.** One provider takes the stage at a time; a compact strip lists all five with live status and next actions. Click to switch focus, or let focus follow whichever provider is responding. Only the focused provider's page is ever rendered; the rest stay warm and hidden.
+- **Focused view + status strip.** One provider takes the stage at a time; a compact strip lists all five with live status and next actions. Click to switch focus, or let focus follow whichever provider is responding. Only the focused provider's page is painted; the rest stay active offscreen so workflows continue without opening each live page.
 - **Text-first center.** The focused provider shows a clean DOM-extracted text view by default; switch to the live page (真實頁面) only when you want to interact directly. A Login button appears in the header only when a provider actually needs it; reload and "report broken" sit behind a ⋯ menu.
 - **Reproducible runs.** Opt-in execution snapshots with privacy tiers (metadata-only / hashes / prompt-text / full-local); a history icon opens the replay panel to rerun any past run on your current logged-in sessions.
-- **Human relay checkpoints.** Tick "Ask me before each step" next to the composer (shown for multi-step presets) to pause between serial steps and review or edit each draft before it's sent — nothing is ever auto-sent on your behalf.
 - **Local file inject.** Drag-and-drop or pick multiple local files to attach to a prompt.
 - **Light & dark themes + i18n.** Minimal light default with a dark toggle; English and 繁體中文 language selector.
 - **Hot-updatable adapters.** Per-provider selector adapters refresh remotely; what each adapter is allowed to touch is summarized per provider in Settings. A broken-adapter reporter and an opt-in redacted debug-bundle export are the only other outbound paths.

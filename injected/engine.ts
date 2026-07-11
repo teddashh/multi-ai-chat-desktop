@@ -56,6 +56,7 @@ const INPUT_SELECTOR_TIMEOUT_MS = 2500;
 const SEND_BUTTON_SELECTOR_TIMEOUT_MS = 800;
 const PRE_SEND_DELAY_MS = 800;
 const SEND_RETRY_DELAY_MS = 1500;
+const SEND_FINAL_VERIFY_DELAY_MS = 1500;
 
 export async function retryLookup<T>(lookup: () => T | null | undefined, options: RetryLookupOptions = {}): Promise<T | null> {
   const intervalMs = Math.max(1, options.intervalMs ?? SELECTOR_RETRY_INTERVAL_MS);
@@ -285,73 +286,72 @@ class InputInjectionError extends Error {
 
   async function retrySendIfStillPending(originalInput: Element, firstAttempt: SendActivationResult, originalAdapter: AdapterConfig) {
     if (!waitingForResponse || !adapter) return;
-
-    const currentResponses = document.querySelectorAll(adapter.responseSelectors.join(', '));
-    const currentLastEl = currentResponses.length > 0 ? currentResponses[currentResponses.length - 1] : null;
-    if (currentLastEl && currentLastEl !== lastSeenResponseEl) return;
+    if (sendStarted(adapter)) return;
 
     const currentInput = queryFirst(adapter.inputSelectors);
+    if (!currentInput) {
+      if (!firstAttempt.ok) doneWithError(`${originalAdapter.provider} input disappeared before send was confirmed`, originalAdapter.provider);
+      return;
+    }
     const inputText = getInputText(currentInput).trim();
     if (!inputText) return;
 
+    if (firstAttempt.ok && firstAttempt.path === 'button-click') {
+      const firstButton = querySendButton(adapter, currentInput);
+      if (!firstButton || isDisabled(firstButton)) return;
+    }
+
     const retryInput = currentInput ?? originalInput;
-    const retryAttempt = firstAttempt.ok
-      ? await retryAfterSuccessfulAttempt(retryInput, firstAttempt)
-      : await activateSend(retryInput);
+    const retryAttempt = await activateSend(retryInput);
 
-    if (retryAttempt.ok) return;
-
-    if (firstAttempt.ok) {
-      logEngine(
-        `${adapter?.provider ?? originalAdapter.provider} send retry failed after successful ${firstAttempt.path}: ${
-          retryAttempt.detail ?? retryAttempt.path
-        }`,
+    if (!retryAttempt.ok) {
+      doneWithError(
+        `${originalAdapter.provider} send activation failed: ${retryAttempt.detail ?? firstAttempt.detail ?? retryAttempt.path}`,
+        originalAdapter.provider,
       );
       return;
     }
 
-    doneWithError(
-      `${originalAdapter.provider} send activation failed: ${retryAttempt.detail ?? firstAttempt.detail ?? retryAttempt.path}`,
-      originalAdapter.provider,
-    );
+    window.setTimeout(() => {
+      void verifySendAfterRetry(retryAttempt, originalAdapter);
+    }, SEND_FINAL_VERIFY_DELAY_MS);
   }
 
-  async function retryAfterSuccessfulAttempt(input: Element, firstAttempt: SendActivationResult): Promise<SendActivationResult> {
+  async function verifySendAfterRetry(retryAttempt: SendActivationResult, originalAdapter: AdapterConfig) {
     const activeAdapter = adapter;
-    if (!activeAdapter) return { ok: false, path: firstAttempt.path, detail: 'adapter not installed' };
+    if (!waitingForResponse || !activeAdapter || activeAdapter.provider !== originalAdapter.provider) return;
+    if (sendStarted(activeAdapter)) return;
 
-    if (firstAttempt.path !== 'button-click' || activeAdapter.sendStrategy === 'enter') {
-      logEngine(`${activeAdapter.provider} send retry skipped after successful ${firstAttempt.path}`);
-      return { ok: true, path: firstAttempt.path, detail: 'retry skipped after successful send' };
+    const currentInput = queryFirst(activeAdapter.inputSelectors);
+    if (!currentInput) return;
+
+    const sendButton = querySendButton(activeAdapter, currentInput);
+    if (retryAttempt.path === 'button-click' && (!sendButton || isDisabled(sendButton))) return;
+    const hadSendButton = Boolean(sendButton);
+
+    const enterOk = dispatchEnter(currentInput);
+    logEngine(`${activeAdapter.provider} final send fallback: enter-key${enterOk ? '' : ' failed'}`);
+    if (!enterOk) {
+      doneWithError(`${activeAdapter.provider} send activation failed: enter key dispatch failed`, activeAdapter.provider);
+      return;
     }
 
-    const sendBtn = await retryLookup(() => queryFirst(activeAdapter.sendButtonSelectors), {
-      intervalMs: SELECTOR_RETRY_INTERVAL_MS,
-      timeoutMs: SEND_BUTTON_SELECTOR_TIMEOUT_MS,
-    });
-    if (!sendBtn) {
-      logEngine(`${activeAdapter.provider} send retry skipped: send button not found`);
-      return { ok: true, path: 'button-click', detail: 'retry skipped: send button not found' };
-    }
-    if (isDisabled(sendBtn)) {
-      logEngine(`${activeAdapter.provider} send retry skipped: send button disabled`);
-      return { ok: true, path: 'button-click', detail: 'retry skipped: send button disabled' };
-    }
-
-    const clicked = clickElement(sendBtn, `${activeAdapter.provider} retry send button`);
-    logEngine(`${activeAdapter.provider} send retry path: button-click${clicked ? '' : ' failed'}`);
-    return {
-      ok: clicked,
-      path: 'button-click',
-      detail: clicked ? undefined : 'retry send button click failed',
-    };
+    window.setTimeout(() => {
+      if (!waitingForResponse || !adapter || adapter.provider !== originalAdapter.provider) return;
+      if (sendStarted(adapter)) return;
+      const finalInput = queryFirst(adapter.inputSelectors);
+      const finalButton = finalInput ? querySendButton(adapter, finalInput) : null;
+      if (!finalInput || !getInputText(finalInput).trim()) return;
+      if (hadSendButton && (!finalButton || isDisabled(finalButton))) return;
+      doneWithError(`${adapter.provider} send was not accepted; draft is still in composer`, adapter.provider);
+    }, SEND_FINAL_VERIFY_DELAY_MS);
   }
 
   async function activateSend(input: Element): Promise<SendActivationResult> {
     const activeAdapter = adapter;
     if (!activeAdapter) return { ok: false, path: 'enter-key', detail: 'adapter not installed' };
     if (activeAdapter.sendStrategy !== 'enter') {
-      const sendBtn = await retryLookup(() => queryFirst(activeAdapter.sendButtonSelectors), {
+      const sendBtn = await retryLookup(() => querySendButton(activeAdapter, input), {
         intervalMs: SELECTOR_RETRY_INTERVAL_MS,
         timeoutMs: SEND_BUTTON_SELECTOR_TIMEOUT_MS,
       });
@@ -402,15 +402,6 @@ class InputInjectionError extends Error {
     const editor = el as HTMLElement;
     tryFocus(editor, 'prosemirror editor');
 
-    const paragraphs = editor.querySelectorAll('p');
-    paragraphs.forEach((p) => p.remove());
-
-    const p = document.createElement('p');
-    p.textContent = text;
-    editor.appendChild(p);
-    editor.dispatchEvent(new Event('input', { bubbles: true }));
-
-    await sleep(100);
     try {
       tryFocus(editor, 'prosemirror paste');
       const selection = window.getSelection();
@@ -428,11 +419,35 @@ class InputInjectionError extends Error {
         cancelable: true,
       });
       editor.dispatchEvent(pasteEvent);
+      await Promise.resolve();
     } catch (error) {
       logEngine(`prosemirror synthetic paste failed: ${errorMessage(error)}`);
-      if (text.trim() && !getInputText(editor).trim()) {
-        throw new InputInjectionError(`synthetic paste failed and editor is empty: ${errorMessage(error)}`);
+    }
+
+    if (!composerTextMatches(editor, text)) {
+      try {
+        tryFocus(editor, 'prosemirror insertText fallback');
+        const selection = window.getSelection();
+        if (!selection) throw new InputInjectionError('selection unavailable');
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        if (execInsertText(text)) {
+          editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+          await Promise.resolve();
+        }
+      } catch (error) {
+        logEngine(`prosemirror insertText fallback failed: ${errorMessage(error)}`);
       }
+    }
+
+    if (!composerTextMatches(editor, text)) {
+      editor.replaceChildren();
+      const p = document.createElement('p');
+      p.textContent = text;
+      editor.appendChild(p);
+      editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
     }
   }
 
@@ -455,7 +470,7 @@ class InputInjectionError extends Error {
     editor.dispatchEvent(new Event('input', { bubbles: true }));
     editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
 
-    await sleep(150);
+    await Promise.resolve();
     if (!editor.textContent?.trim()) {
       tryFocus(editor, 'quill fallback');
       if (!execInsertText(text)) throw new InputInjectionError('quill fallback execCommand insertText returned false');
@@ -588,8 +603,38 @@ class InputInjectionError extends Error {
 
   function assertInputLanded(input: Element, text: string, strategy: InputStrategyName) {
     if (!text.trim()) return;
-    if (getInputText(input).trim()) return;
-    throw new InputInjectionError(`${strategy} left editor empty after injection`);
+    if (composerTextMatches(input, text)) return;
+    if (!getInputText(input).trim()) throw new InputInjectionError(`${strategy} left editor empty after injection`);
+    throw new InputInjectionError(`${strategy} produced mismatched editor text after injection`);
+  }
+
+  function composerTextMatches(input: Element, expected: string): boolean {
+    const compact = (value: string) => value.replace(/\s+/g, '');
+    return compact(getInputText(input)) === compact(expected);
+  }
+
+  function sendStarted(activeAdapter: AdapterConfig): boolean {
+    if (!waitingForResponse) return true;
+    if (isThinking()) return true;
+    const responses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
+    const latest = responses.length > 0 ? responses[responses.length - 1] : null;
+    if (latest && latest !== lastSeenResponseEl) return true;
+    const currentInput = queryFirst(activeAdapter.inputSelectors);
+    return Boolean(currentInput && !getInputText(currentInput).trim());
+  }
+
+  function querySendButton(activeAdapter: AdapterConfig, input: Element): Element | null {
+    const closest = (input as Element & { closest?: (selectors: string) => Element | null }).closest;
+    if (typeof closest === 'function') {
+      const container = closest.call(input, 'form, fieldset, [data-testid*="composer"]');
+      if (container) {
+        for (const selector of activeAdapter.sendButtonSelectors) {
+          const candidate = container.querySelector(selector);
+          if (candidate) return candidate;
+        }
+      }
+    }
+    return queryFirst(activeAdapter.sendButtonSelectors);
   }
 
   function execInsertText(text: string): boolean {

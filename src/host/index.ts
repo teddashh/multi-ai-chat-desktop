@@ -46,8 +46,12 @@ export const host = {
     open: (provider: AIProvider, bounds: DOMRectReadOnly): Promise<ProviderState> =>
       invoke('provider_open', { provider, bounds: toBounds(bounds) }),
     close: (provider: AIProvider): Promise<void> => invoke('provider_close', { provider }),
-    show: (provider: AIProvider): Promise<void> => invoke('provider_show', { provider }),
+    show: (provider: AIProvider, focus = true): Promise<void> => invoke('provider_show', { provider, focus }),
     hide: (provider: AIProvider): Promise<void> => invoke('provider_hide', { provider }),
+    park: async (provider: AIProvider, bounds: DOMRectReadOnly): Promise<void> => {
+      await invoke('provider_set_bounds', { provider, bounds: toBounds(bounds) });
+      await invoke('provider_show', { provider, focus: false });
+    },
     eval: (provider: AIProvider, js: string): Promise<void> => invoke('provider_eval', { provider, js }),
     evalWithCallback: (provider: AIProvider, js: string): Promise<string> =>
       invoke('provider_eval_with_callback', { provider, js }),

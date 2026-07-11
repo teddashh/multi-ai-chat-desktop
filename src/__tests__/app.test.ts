@@ -17,7 +17,8 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 import { bubbleAuthorLabel } from '../bubbleAuthorLabel';
-import { ChatArea, presentationHiddenProvidersForCenterSurface } from '../App';
+import App, { ChatArea, presentationHiddenProvidersForCenterSurface } from '../App';
+import { I18nProvider } from '../i18n/context';
 import { applyCenterHiddenCommands } from '../ui/presentationCommands';
 import { defaultPresentation, setProviderPresentation } from '../ui/presentation';
 
@@ -52,6 +53,15 @@ describe('App bubble author labels', () => {
     expect(bubbleAuthorLabel({ role: 'ai', provider: 'system' })).toBe('System');
     expect(bubbleAuthorLabel({ role: 'ai', provider: 'unknown-provider' })).toBe('System');
     expect(bubbleAuthorLabel({ role: 'ai' })).toBe('System');
+  });
+});
+
+describe('App workflow controls', () => {
+  it('does not expose the legacy ask-before-each-step toggle', () => {
+    const html = renderToStaticMarkup(createElement(I18nProvider, { language: 'en', children: createElement(App) }));
+
+    expect(html).not.toContain('Ask me before each step');
+    expect(html).not.toContain('每步先問我再送出');
   });
 });
 
