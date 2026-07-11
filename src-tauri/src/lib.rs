@@ -9,7 +9,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        // TODO(SPEC §12, M6): register updater plugin with minisign pubkey
+        // The feature-frozen edition intentionally uses GitHub Releases instead of a self-updater.
         .setup(|app| {
             // SPEC §5 hot-update: refresh adapters at startup and every 6h (best-effort, off the UI thread).
             let handle = app.handle().clone();

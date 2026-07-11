@@ -4,9 +4,11 @@
 
 ログイン済みの **ChatGPT、Claude、Gemini、Grok** に同じ質問を送り、回答・レビュー・反論・統合を自動で進める Tauri 2 デスクトップハブです。4つのチャットを並べるだけではなく、複数AIの workflow を実行します。
 
-**最新版：[v0.6.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v0.6.0)** · MIT · APIキー不要 · 解析なし
+**最新版：[v1.0.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.0)** · MIT · APIキー不要 · 解析なし
 
 > 本アプリは各プロバイダーのWebページを自動操作します。ページ構造の変更で adapter が一時的に動かなくなる場合があります。各サービスの利用規約と、利用権限のあるアカウント・コンテンツを使用してください。
+
+> **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeを追加しました。今後はprovider互換性、セキュリティ、build障害のみを保守します。既存のsnapshot／replayは現状のまま残し、拡張しません。
 
 ## エディション
 
@@ -15,7 +17,7 @@
 | **Desktop（このrepo）** | 完全な workflow、ライブ表示、replay、snapshot、ローカルファイル | 独立したローカルプロファイルを持つ Tauri app |
 | [Browser extension](https://github.com/teddashh/multi-ai-chat) | Chrome 内で軽量に使う | Side Panel から既存のAIタブを操作 |
 
-## v0.6.0 の主な機能
+## v1.0.0 の主な機能
 
 - 非表示のプロバイダーにも安定して送信し、失敗時は再試行または明確なエラーを表示。
 - workflow コントロールを左側 WebView の上へ移動し、右側の会話と入力欄を広く確保。
@@ -23,6 +25,7 @@
 - 最大30件のローカル会話履歴と「新しい会話」。
 - 安全な Markdown、画像のみの回答完了判定、snapshot／replay、2,000件の診断ログ。
 - English、繁體中文、日本語、Deutsch。
+- 4人のキャラクターをproviderカード、発言状態、process row、app shellに表示する唯一のオプションTheme「AI-Sister 記念版」。第三者ページ自体は変更しません。
 - Codex／Claude Code 用の repo Skill から、インストーラーなしでソース版を起動。
 
 ## Workflow

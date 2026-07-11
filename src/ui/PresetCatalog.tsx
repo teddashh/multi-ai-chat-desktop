@@ -44,7 +44,7 @@ export function PresetCatalog({
               : 'grid gap-2 md:grid-cols-2 xl:grid-cols-5',
       })}
       {detailPreset ? (
-        <div className="flex flex-wrap items-start justify-between gap-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs dark:border-sky-900 dark:bg-sky-950/30">
+        <div className="ai-sister-preset-detail flex flex-wrap items-start justify-between gap-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs dark:border-sky-900 dark:bg-sky-950/30">
           <div className="min-w-0 flex-1">
             <div className="font-semibold text-sky-900 dark:text-sky-100">{t(detailPreset.displayNameKey, locale)}</div>
             <p className="mt-1 leading-relaxed text-zinc-700 dark:text-zinc-300">{t(detailPreset.descriptionKey, locale)}</p>
@@ -91,7 +91,7 @@ function renderPresetGrid({
             type="button"
             onClick={() => onSelectPreset(preset.graphId)}
             disabled={disabled}
-            className={`flex ${compact ? 'min-h-12 px-2 py-1.5' : 'min-h-14 px-3 py-2'} flex-col justify-center rounded border text-left transition ${
+            className={`ai-sister-preset-card flex ${compact ? 'min-h-12 px-2 py-1.5' : 'min-h-14 px-3 py-2'} flex-col justify-center rounded border text-left transition ${
               selected ? 'border-sky-500 bg-sky-50 dark:bg-sky-950 text-sky-900 dark:text-zinc-50' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-600'
             } disabled:cursor-not-allowed disabled:opacity-60`}
             aria-pressed={selected}

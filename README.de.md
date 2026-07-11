@@ -4,9 +4,11 @@
 
 Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Claude, Gemini und Grok** antworten, prüfen, widersprechen und gemeinsam verfeinern. Multi-AI Chat Desktop ist ein Tauri-2-Workflow-Hub – nicht nur vier nebeneinander angeordnete Chats.
 
-**Aktuelle Version: [v0.6.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v0.6.0)** · MIT · keine API-Schlüssel · keine Analyse
+**Aktuelle Version: [v1.0.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.0)** · MIT · keine API-Schlüssel · keine Analyse
 
 > Das Projekt automatisiert die Webseiten der Anbieter. Änderungen an deren Oberfläche können einen Adapter vorübergehend beschädigen. Beachte die Bedingungen der Anbieter und verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist.
+
+> **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren ist enthalten; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Die vorhandenen Snapshot-/Replay-Funktionen bleiben unverändert und werden nicht erweitert.
 
 ## Edition wählen
 
@@ -15,7 +17,7 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 | **Desktop (dieses Repo)** | Vollständige Workflows, Live-Ansicht, Replay, Snapshots, lokale Dateien | Tauri-App mit getrennten lokalen Anbieterprofilen |
 | [Browser-Erweiterung](https://github.com/teddashh/multi-ai-chat) | Leichte Nutzung in Chrome | Side Panel steuert vorhandene Anbieter-Tabs |
 
-## Inhalt von v0.6.0
+## Inhalt von v1.0.0
 
 - Zuverlässige Automatisierung im Hintergrund; abgelehnte Sendungen werden erneut versucht oder klar als Fehler gemeldet.
 - Workflow-Steuerung links über dem weniger wichtigen WebView; mehr Platz für Transkript und Eingabe rechts.
@@ -23,6 +25,7 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 - Bis zu 30 lokale Sitzungen plus **Neuer Chat**.
 - Sicher gerendertes Markdown, Abschluss von reinen Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
 - English, 繁體中文, 日本語 und Deutsch.
+- Die optionale **AI-Sister Gedenkausgabe** zeigt alle vier Figuren in Anbieterkarten, Sprecherstatus, Prozesszeilen und App-Oberfläche; Drittanbieter-Seiten bleiben unverändert.
 - Repo-Skills für Codex und Claude Code starten die Quellversion ohne Installer.
 
 ## Workflow-Modi

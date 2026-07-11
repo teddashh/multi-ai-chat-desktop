@@ -1,14 +1,14 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.1** (four-provider web edition; v1.2.1 frozen clauses preserved; §16 changelog)
-> Date: 2026-07-10
-> Upstream decisions: `docs/ARCHITECTURE.md` v1.0 (D1–D7), `docs/PLAN.md`, and `.orchestration/analysis/roadmap-synthesis.md` (active N0–N5, N7–N9). Evidence: `docs/study/*.md`, `.orchestration/analysis/roadmap-grok.md`, `.orchestration/analysis/refs-survey.md`.
-> Review history: v1.0 DRAFT reviewed adversarially by codex + grok (both REQUEST-CHANGES); all blocking/major findings integrated. v1.2.1 live-gated the callback-pull bridge. v2.0 evolved that contract additively; v2.1 retires the fifth-provider experiment while keeping §5.1, §6.1, §7, §8.2, and the zero-key identity behavior-intact.
-> Audience: implementing agents and community contributors.
+> Status: **v2.2 feature-frozen** (four-provider web edition; `v1.0.0` final baseline)
+> Date: 2026-07-11
+> Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
+> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme.
+> Audience: maintenance contributors. Existing snapshot/replay/checkpoint behavior is compatibility-maintained but has no vNext roadmap.
 
 ## 0. One-paragraph summary
 
-A Tauri 2 desktop app (Windows-first) with one main window: a central **control pane** (our React UI) flanked by **child webviews** loading the real AI chat websites (ChatGPT, Claude, Gemini, and Grok). The user types once in the control pane; the message is injected into every provider page via DOM automation (ported from the MIT-licensed `multi-ai-chat` Chrome extension); streaming responses are scraped back and aggregated in the control pane. Five workflow modes (free/debate/consult/coding/roundtable) remain the shipped parity floor, and the v2 roadmap turns that floor into graph-driven presets with execution snapshots, replay, human relay checkpoints, and one-click workflow-pack sharing. Zero API keys: everything rides on the user's logged-in web sessions. Provider DOM selectors live in community-maintained `adapters/*.json` with remote hot-update. The product pivot is 底線硬、入口軟: hard adapter/transport/security floor, soft preset entry; the killer feature is reproducibility, not a day-one graph editor. NEXT-PHASE (N0/N4) owner rule: "每個 adapter 進入預設五 workflow;選了 workflow 自動補齊 adapter."
+A Tauri 2 desktop app with one main window: a React control pane and child webviews loading the real ChatGPT, Claude, Gemini, and Grok sites. The user types once; DOM automation sends through the user's logged-in web sessions and aggregates responses into five shipped workflows. Zero API keys and local provider profiles remain the product core. Adapter JSON can be maintained when provider DOM changes. Sessions, snapshots, replay, checkpoints, diagnostics, and source-launch Skills remain available in their shipped form. No marketplace, graph editor, fifth provider, embedded terminal agent, or snapshot vNext is planned. The only final product addition is the optional AI-Sister Commemorative Edition theme.
 
 ## 1. Goals / Non-goals (v2.1)
 
@@ -17,17 +17,10 @@ A Tauri 2 desktop app (Windows-first) with one main window: a central **control 
 - G2. **SHIPPED floor:** port the original extension's injection engine (`createContentScript`) and all 5 workflow modes with identical semantics, **except the four declared improvements** (§1.1).
 - G3. **SHIPPED floor:** adapter system: JSON per provider, schema-validated, hot-updated from GitHub raw, last-known-good cache, one-click broken-DOM report.
 - G4. **SHIPPED floor:** per-provider persistent login sessions (WebView2 profile dirs). Login survives app restarts.
-- G5. **SHIPPED floor:** Windows NSIS installer and portable zip. **NEXT-PHASE (M6):** in-app auto-update.
+- G5. **SHIPPED floor:** Windows NSIS installer and portable zip, macOS Apple Silicon DMG, Linux x86_64 AppImage, and tag-driven draft Releases.
 - G6. **SHIPPED floor:** MIT, community-forkable; `adapters/` contributable without touching Rust for existing providers.
-- G7. **NEXT-PHASE (N0):** graph-driven presets route production workflows through `executeGraph` while preserving all five modes' golden observable sequences. Current state: graph types/executor exist under `src/workflow/graph/`, but `runWorkflow` still calls imperative mode handlers at `src/workflow/index.ts:68-71`.
-- G8. **NEXT-PHASE (N1):** execution snapshots + replay: each run can produce a reproducibility record containing graph id/graphVersion, provider adapter versions, role map, step inputs/outputs, human edits, timestamps, and app version; durable storage is opt-in with redaction tiers. Current graph code has no monotonic content `version`; N0/N1 must add `graphVersion` or an explicit equivalent.
-- G9. **NEXT-PHASE (N2):** human relay checkpoints auto-fill the next step's draft in the control pane and require explicit user confirmation before sending; default mode behavior stays auto-for-parity until a checkpoint is enabled.
-- G10. **NEXT-PHASE (N3):** workflow pack export/import (`.macflow.json`) for one-click sharing: graph + role defaults + prompt templates + metadata.
-- G11. **NEXT-PHASE (N4):** preset catalog UX becomes the primary entry: cards with cost labels, required providers, estimated time, RAM hints, login prerequisites, and a read-only process trace.
-- G12. **NEXT-PHASE (N5):** RAM-aware webview presentation states: session-ready chip → side rail → center stage, with lazy recreate/hibernate while preserving WebView2 profile directories.
-- G14. **NEXT-PHASE (N7):** local file inject v2: drag/drop or picker can extract supported local text contexts (text now; PDF/DOCX later), chunk them, and optionally fan out to sendable providers or workflow steps.
-- G15. **NEXT-PHASE (N8):** contributor graph view first, constrained editor last: read-only graph/process visualization before any limited editor; no arbitrary n8n-grade node wall as a launch surface.
-- G16. **NEXT-PHASE (N9):** open-source flywheel: workflow packs can be PR'd back with metadata, maintenance state, cost label, local `downloadCount`/`lastDownloadedAt`, and completion signals that avoid telemetry by default.
+- G7. **FROZEN compatibility:** shipped sessions, snapshots, replay, checkpoints, local-file insertion, preset catalog, and process trace may receive bug fixes but no feature expansion or new persistence schema.
+- G8. **FINAL addition:** one optional AI-Sister Commemorative Edition theme; it must not alter provider automation, workflow ordering, security boundaries, or the default readable theme.
 
 ### 1.1 Declared behavior improvements (the ONLY intentional deviations)
 1. **Status tri-state** — `ProviderState` replaces the original boolean `connected` (ARCH D5 #1).
@@ -37,46 +30,36 @@ A Tauri 2 desktop app (Windows-first) with one main window: a central **control 
 
 Everything else must match the original extension's observable behavior. Any other deviation found in review is a bug.
 
-### 1.2 v2 capability additions
+### 1.2 Frozen capability boundary
 
-The following capabilities are intentional extensions beyond the extension parity surface. They MUST NOT change the shipped five-mode golden sequences unless the user enables a new v2 affordance:
-
-1. **NEXT-PHASE (N0) Graph-driven presets** — built-in and imported presets are backed by `WorkflowGraph` definitions; the graph substrate is internal first and UI-visible later.
-2. **NEXT-PHASE (N1) Execution snapshots + replay** — reproducibility records capture workflow structure, adapter versions, role mappings, redaction-tiered inputs/outputs, human edits, timestamps, and app version; they never capture cookies or provider storage.
-3. **NEXT-PHASE (N2) Relay checkpoints** — optional graph step policies pause between providers, auto-fill a control-pane draft, and wait for Confirm / Skip / Edit-in-provider.
-4. **NEXT-PHASE (N3) Workflow packs** — `.macflow.json` files carry graph, role defaults, prompt templates, and metadata (`displayName`, `description`, `costLabel`, `requiredProviders`, `estMinutes`, `author`, `minAdapterVersion`).
-5. **NEXT-PHASE (N4) Preset catalog + process trace** — cards are the soft entry; read-only trace is the transparency layer; graph editing is deferred.
-6. **NEXT-PHASE (N5) RAM three-state webviews** — providers can sit as a session-ready chip, side rail, or center stage; hibernate destroys the webview but preserves its profile.
-7. **NEXT-PHASE (N7) Local-file inject v2** — local files become controlled workflow inputs, not hidden uploads; text extraction/chunking is local.
-8. **NEXT-PHASE (N8) Contributor graph view → constrained editor** — read-only view first; a limited editor may later reorder serial steps, swap role providers, or edit prompt templates.
-9. **NEXT-PHASE (N9) OSS feedback loop** — pack metadata and local counters can surface temperature/maintenance state without adding a telemetry server.
+The shipped five-mode sequences, graph runtime, snapshots/replay, checkpoints, local sessions, diagnostics, preset catalog, focus layout, and local-file insertion form the compatibility boundary. Maintenance may repair data loss, crashes, inaccessible UI, or provider breakage. It must not introduce new workflow-pack formats, snapshot schemas, graph editing, telemetry, provider IDs, or background services. The commemorative theme is presentation-only.
 
 ### Non-goals (v2.1)
 - No API-key mode. This is not a deferred option: zero-key web-session identity is the product core.
 - No automatic full conversation persistence. Snapshots and replay are opt-in and redaction-tiered; in-memory chat plus explicit export remains valid.
-- No macOS/Linux release builds as a v2.0 launch gate (code stays portable; CI matrix can come later).
+- No additional platform architecture beyond the currently published Windows x64, macOS Apple Silicon, and Linux x86_64 artifacts.
 - No split-tree drag-and-drop layout. The v2 RAM model is chip/side/center, not a tempo-term pane tree.
 - No remote Tauri IPC to provider origins. No local WebSocket server for provider pages.
-- No code signing certificate as a spec requirement; release/updater hardening continues without making signing a behavior dependency.
+- No code-signing/notarization or self-updater program in this frozen edition; GitHub Releases remains the documented distribution channel.
 - No new provider IDs via adapters alone: **the provider set is fixed and code-defined**; adding any future provider requires code changes (types, UI labels, seed adapter/profile dir).
 - No adapter signing in v2.0 (schema validation + repo-pinned HTTPS only; signing remains v2+).
-- No arbitrary n8n-grade workflow editor. The end-state editor is constrained and contributor-oriented.
-- No embedded agent SDK/CLI runtime in this web-session edition. Future terminal-agent work belongs to a separate product track and does not alter §7.
-- Capability Tags are deferred; preset metadata remains explicit fields until usage proves the taxonomy.
+- No workflow graph editor or pack marketplace.
+- No embedded agent SDK/CLI runtime in this web-session edition. Any terminal-agent work belongs to a separate product and repository.
+- No Capability Tags, promotion metrics, or community temperature system.
 
 ## 2. Tech stack (pinned)
 
 | Layer | Choice | Rationale |
 |---|---|---|
 | Shell | Tauri 2 — **exact-patch pin** `=2.x.y` in Cargo.toml (tauri, tauri-build, all plugins aligned to same minor) | child webviews need `unstable` cargo feature (ARCH D1) |
-| Rust crates | tauri (features `["unstable"]`), tauri-plugin-updater, tauri-plugin-dialog, tauri-plugin-opener, reqwest, serde/serde_json, tokio, thiserror | same set proven in refs; updater registration remains NEXT-PHASE (M6) |
+| Rust crates | tauri (features `["unstable"]`), tauri-plugin-updater (inactive compatibility dependency), tauri-plugin-dialog, tauri-plugin-opener, reqwest, serde/serde_json, tokio, thiserror | self-update is intentionally not registered in the frozen edition |
 | Frontend | React 18 + TypeScript 5 + Vite + Tailwind CSS | direct port of original sidepanel UI plus preset catalog/process trace |
 | State | Zustand | small, proven pattern (clean-room) |
 | Injected scripts | TypeScript compiled to IIFE strings via esbuild (build step), embedded via `include_str!` | one bundle per concern: bootstrap, engine |
-| Workflow graph | `src/workflow/graph/` TypeScript graph types/validator/executor | already present and golden-tested for debate; N0 wires to production (`src/workflow/index.ts:68-71` currently bypasses it) |
+| Workflow graph | `src/workflow/graph/` TypeScript graph types/validator/executor | shipped internal workflow runtime; no editor roadmap |
 | Package manager | pnpm (pinned via `packageManager` field) | BAT convention |
 | Monorepo layout | single package + `src-tauri/` | matches both refs |
-| Future graph UI dep | `@xyflow/react` / React Flow only when N8b starts | neither `better-agent-terminal` nor `tempo-term` provides an editable workflow canvas |
+| Graph UI dependency | none | graph editing is retired scope |
 
 ## 3. Repository layout
 
@@ -602,42 +585,28 @@ User sees the exact payload in a preview dialog and must confirm; then a prefill
 
 ## 11. Settings & persistence
 
-**SHIPPED today:** `<app-data>/settings.json` via Rust settings.rs (BAT pattern) stores pane layout + slot assignment, open-provider set (for lazy restore), adapter channel/base-URL, HackMD token, updater channel, portable flag, and `telemetry=none`. Current `src/ui/settingsModel.ts` `AppSettings` has NO snapshot, pack-catalog, RAM, or presentation fields.
-**HackMD token is stored in plaintext in settings.json — an accepted v1 tradeoff, disclosed in the Settings UI ("stored unencrypted on this machine") and README. OS keychain storage is v2+.**
+`<app-data>/settings.json` stores layout, provider selection, adapter channel/base URL, portable/update-channel flags, snapshot opt-in/redaction settings, and `telemetry=none`. Provider credentials are never stored there. A configured HackMD token is plaintext on this machine, as disclosed in Settings.
 
-**SHIPPED today:** `<app-data>/webviews/<provider>/` holds WebView2 profiles (login sessions; preserved on provider_close; deleted only via Settings "forget login"). `<app-data>/adapters-cache/` holds last-known-good adapters.
+`<app-data>/webviews/<provider>/` contains isolated provider profiles. `<app-data>/adapters-cache/` contains last-known-good adapters. Local conversation sessions and minimum workflow checkpoints are bounded and stored locally.
 
-**SHIPPED today:** diagnostics/event log is in-memory only (`src/diagnostics/eventLogStore.ts` module array, `src/diagnostics/eventLog.ts` cap 500); no snapshot/pack/execution-log persistence exists until N1/N3.
+Diagnostics keep up to 2,000 deduplicated events in memory and export only on explicit user action.
 
-**NEXT-PHASE (N1):** settings gain snapshot opt-in defaults and a minimum session checkpoint (graph id, step index, pending checkpoint id/action state) so an interrupted metadata-only run can resume where it stopped. Full replay remains opt-in.
-
-**NEXT-PHASE (N5):** settings gain webview presentation state (`chip`/`side`/`center`) and RAM chip state.
-
-**NEXT-PHASE (N3/N9):** settings or a bounded local pack index gain pack catalog entries and pulse metadata (`downloadCount`, `lastDownloadedAt`, `successRate`/`compatibilityReports`). These counters are local-only and MUST NOT upload automatically.
-
-**NEXT-PHASE (N3):** `<app-data>/workflow-packs/` stores imported `.macflow.json` files after validation; built-in packs remain bundled/read-only.
-
-**NEXT-PHASE (N1):** `<app-data>/snapshots/` stores opt-in `ExecutionSnapshot` records. Snapshots, packs, logs, and session checkpoints reference provider ids and adapter versions, NEVER cookies, storage, or profile files. Redaction tiers:
+`<app-data>/snapshots/` may store opt-in `ExecutionSnapshot` records. Snapshots and checkpoints reference provider ids and adapter versions, never cookies, storage, or profile files. Supported redaction tiers are frozen:
 - `metadata-only`: graph/provider/adapter/timestamps/status only; no prompt/output text or hashes.
 - `hashes`: metadata plus content hashes for compare-without-display.
 - `prompt-text`: prompts and human edits; provider outputs are hashes/refs unless explicitly included.
 - `full-local`: prompts, outputs, and human edits stored locally for full replay/compare. Never includes cookies or provider storage.
 
-**NEXT-PHASE (N1):** `<app-data>/execution-logs/` stores bounded-channel JSONL run logs with retention. Tempo's `session_log` pattern is useful inspiration, but the local checkout has no LICENSE; reimplement the bounded-channel/retention shape rather than copying verbatim. Better Agent Terminal's MIT window registry/message-archive patterns may be adapted with notice for opaque snapshot storage and paging.
-
-No telemetry server is introduced. Temperature/usage counters for packs are local unless a future governance decision explicitly adds an opt-in sharing channel.
+Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixes only. No new snapshot schema, execution-log store, workflow-pack store, telemetry server, usage counter, or sharing channel will be added.
 
 ## 12. Packaging / release
 
-- **SHIPPED floor:** `tauri.conf.json` identifier `com.tedh.multiaichat` (final TBD by owner), Windows NSIS installer + Evergreen WebView2 `downloadBootstrapper`, and portable zip packaging.
-- **NEXT-PHASE (M6):** updater artifacts, updater endpoint, minisign registration, and in-app auto-update. Current state: `src-tauri/tauri.conf.json:46` = `"createUpdaterArtifacts": false`; `src-tauri/src/lib.rs:10` = `TODO(SPEC §12, M6): register updater plugin with minisign pubkey`.
-- **NEXT-PHASE (M6):** set `createUpdaterArtifacts: true`, upload updater `latest.json` to the fixed **`manifests`** GitHub release (BAT pattern, ARCH D7), register the updater plugin with the minisign public key, and surface in-app update checks in Settings.
+- **SHIPPED:** final identifier `com.tedh.multiaichat`; Windows NSIS + portable zip, macOS Apple Silicon DMG, and Linux x86_64 AppImage.
+- **FROZEN policy:** `createUpdaterArtifacts` remains false. The app may detect a newer GitHub Release and open its page, but does not download or install updates. No updater endpoint, minisign registration, signing, or notarization roadmap remains.
 - Portable zip job: after NSIS build, zip the raw `target/release` app dir + `README-portable.txt` (WebView2 preflight note). **`PORTABLE` marker file present ⇒ updater disabled at runtime AND the updater section is hidden in Settings.**
-- `release.yml` adapted from BAT (MIT attribution preserved): tag `v*` → verify (tsc, vitest, cargo check, adapter schema validation + §5.1 diff) → windows build → GitHub Release upload. **NEXT-PHASE (M6):** also upload `latest.json` to `manifests`. Version injected from tag.
-- `ci.yml`: PR gate = tsc + eslint + vitest + `cargo clippy` + adapter schema validation + §5.1 seed diff (adapter-only PRs get fast feedback without full build). **NEXT-PHASE (N9):** new provider seed + adapter PRs must pass §14 golden tests for all five modes before promotion, or carry a declared §18.2 mercy tier at merge.
-- Release/updater hardening and verification should adapt Better Agent Terminal MIT patterns with notice: resource boundary checks, updater manifest validation, release-readiness scripts, and capabilities tests.
+- `release.yml`: annotated `v*` tag → version injection → verify → Windows/macOS/Linux bundles → draft GitHub Release with four artifact classes.
+- `ci.yml`: TypeScript, ESLint, Vitest, adapter validation, and cross-platform `cargo clippy -- -D warnings` gates.
 - Capability tests are v2 gates: provider labels (`ai-<provider>`) MUST be absent from capabilities; no Tauri imports outside `src/host/`; provider webviews receive no `remote.urls`.
-- Tempo release/webview lifecycle examples are pattern-reference only until licensing is confirmed; do not copy local Tempo code verbatim.
 
 ## 13. Error handling & degraded states
 
@@ -680,17 +649,18 @@ No telemetry server is introduced. Temperature/usage counters for packs are loca
 - Manual smoke checklist per milestone (docs/PLAN.md): create webviews, login persist across restart, send/receive on shipped providers, DPI 100/125/150%, mode runs, cancel/stop, hot-update, portable zip run, graph parity, snapshot replay, pack import/export, chip/side/center promotion, local-file insert.
 - Playwright-driven adapter smoke against live sites can run on CI cron; it must not require API keys.
 
-## 15. Open questions (tracked, non-blocking)
+## 15. Closed decisions
 
-1. ~~`eval_with_callback` availability on child `Webview`~~ — **RESOLVED at M1 gate (2026-07-03)**: available on Tauri 2.11.x child webviews, live-verified at 192 KB; §7.3 amended to the callback pull transport.
-2. Final repo home: new repo vs `desktop/` in teddashh/multi-ai-chat — **owner decision**.
-3. App identifier / product name final ("Multi-AI Chat Desktop" placeholder).
-4. Adapter signing — v2+ (threat model documented in §1 non-goals).
-5. Snapshot default UX: durable snapshots are opt-in; product copy must make replay limitations visible when the user chooses metadata-only/no persistence.
-6. Terminal-agent work — future-only and tracked as a separate product, not as another webview provider in this edition.
+1. Callback-pull transport is the frozen bridge implementation.
+2. The product remains in `teddashh/multi-ai-chat-desktop` with identifier `com.tedh.multiaichat` and name **Multi-AI Chat Desktop**.
+3. Adapter signing, app signing/notarization, and self-update are closed scope.
+4. Durable snapshots stay opt-in; snapshot/replay/checkpoint behavior is compatibility-only and will not gain new schemas or UI.
+5. Terminal-agent work, if pursued, is a separate product and repository.
+6. The only final presentation work is the AI-Sister ensemble commemorative theme.
 
 ## 16. Changelog
 
+- **v2.2 (2026-07-11)** — feature-freeze decision: retires all N-series expansion, preserves shipped snapshot/replay/checkpoints as compatibility-only, closes updater/signing/editor/marketplace work, and scopes one final AI-Sister ensemble theme before maintenance-only status.
 - **v2.1 (2026-07-10)** — fixes the web edition at four providers and retires the unfinished fifth-provider/N6 experiment. Source launch from local Codex and Claude Code desktop sessions is documented in the README and implemented as repo-scoped Skills; it does not add another provider or alter the web bridge.
 - **v2.0 (2026-07-06)** — additive roadmap pivot: preserves the v1 Chrome-extension port as the hard floor and specifies graph-driven presets, execution snapshots + replay, human relay checkpoints, `.macflow.json` workflow packs, preset catalog + read-only process trace, RAM-aware chip/side/center webviews, local-file inject v2, staged contributor graph view/constrained editor, and OSS temperature/governance loop. A fifth web-provider experiment was later retired to keep this edition focused on its four stable web sessions. Explicitly preserved byte-intact/unchanged: §5.1 normative seed adapter table, §6.1 capabilities/security scoping, §7 bridge protocol, §8.2 named input strategies, and zero-API-key web-session identity.
 - **v1.2.1 (2026-07-04)** — M2 review corrections to §7.3: pull expression returns the **bare** `peekOutbox()` array (the transport's `ExecuteScript` already JSON-serializes once; the v1.2 `JSON.stringify(...)` wrapper double-encodes — live-gate-proven transport kill) with a mandatory `__MAC_BRIDGE__ ?` guard; degraded state gains an explicit recovery rule (new bootId / reload clears it — never permanent); 1 MB pull cap enforced at enqueue with a truncation policy (oversized `RESPONSE_DONE` truncated with a `truncated: true` flag — no silent final-answer loss, no wedged entry). Added `doneReady: true` marker on the immediate DONE hint (§7.3 Ready hint) so the §7.5-rule-2 5 s watchdog arms **only** on a real DONE hint, never at send time or on chunk hints (fix-pass re-review found the send-time arming corrupts grok's 8 s `doneDelayMs` window). Source: M2 multi-agent review + fix-pass re-review + live gate `plans/m2-log.md`.
@@ -698,40 +668,24 @@ No telemetry server is introduced. Temperature/usage counters for packs are loca
 - **v1.1 FINAL (2026-07-03)** — integrated adversarial reviews (grok B1–B5/M1–M10, codex 6 blocking/12 major, minors from both). Headlines: named input strategies replace customScript; sentinel framing (bootId/mid/segIdx/segTotal/len, 8 KB, ack); title channel hardening (U+200B, lastSeq, coalesce); DONE authority = sentinel only; boot/re-injection lifecycle; Rust bus made dumb (TS owns waiters); `targets` declared improvement #4; serial preflight; normative seed table §5.1; capabilities zero-permission rule; geometry contract; privacy contract for reports; expanded §13/§14. Dispositions: `.orchestration/reviews/spec-author-responses.md`.
 - v1.0 DRAFT (2026-07-03) — initial contract.
 
-## 17. Roadmap (N0–N5, N7–N9)
+## 17. Feature-freeze and maintenance policy
 
-Sequence: N0 → N1 → N2+N4 → N3 → N5 → N7 → N8 → N9. N5 may parallelize with N1 if a second track owns `webviews.rs` + layout. None of these milestones reopens the zero-key identity. N0/N4 implement the owner rule from §0: every promoted adapter enters the built-in five workflows, and choosing a workflow auto-completes missing adapters/providers before hard-blocking.
+Allowed after the commemorative edition:
 
-| # | Milestone | What / why | Frozen transport impact |
-|---|---|---|---|
-| N0 | Graph → production | Route `runWorkflow` through `executeGraph`; graph exists but is currently unwired at `src/workflow/index.ts:68-71`; this unlocks presets while preserving five-mode parity. | No — reuses existing `sendAndWait` / `runStep`. |
-| N1 | Execution snapshots + replay | Persist opt-in reproducibility records with graph/version, adapter versions, role map, redaction-tiered step data, human edits, timestamps, app version; persist minimum session checkpoint even when full replay is off. | No — read-only attachment to workflow/bridge events. |
-| N2 | Human relay checkpoints | Add checkpoint node/policy: control-pane draft, user confirms/edits/skips before target send; `FILL_DRAFT` fills provider draft without send activation for Edit-in-provider. | No — confirm uses existing send path; `FILL_DRAFT` is additive §4/engine behavior, not §7. |
-| N3 | Workflow pack export/import | `.macflow.json` graph + role defaults + prompt templates + metadata, including required providers, adapter minimums, and partial-run policy; makes workflows safe to forward and PR back. | No. |
-| N4 | Preset catalog UX + process trace | Cards with plain-language scenario/provider/time/RAM/login labels, auto-complete panel, degraded badges, thinking pulse rows, and read-only step trace; soft entry for non-technical users without hiding the process. | No. |
-| N5 | RAM-aware webview lifecycle | Session-ready chip → side rail → center stage; lazy recreate/hibernate preserves profile dirs for typical office-PC RAM limits and surfaces chip activity. | No — hibernate is close/reopen and replays §8.1 boot. |
-| N7 | Local context injection v2 | PDF/DOCX/text extraction, chunking, optional fan-out to all sendable providers or workflow steps; desktop-local data advantage. | No — fan-out uses existing SEND path. |
-| N8 | Contributor graph view → constrained editor | 8a read-only graph/process view; 8b constrained editor for reorder/swap/templates only. Editable canvas requires a new dep such as `@xyflow/react`; refs do not provide it. | No. |
-| N9 | Dynamic preset promotion | Local privacy-preserving counters and metadata surface community temperature without telemetry by default; promotion weighs maintenance quality and completion rate, not raw downloads. Thresholds remain governed by §18.2–§18.4. | No. |
+- provider selector/DOM compatibility fixes and adapter hot-updates;
+- security fixes, privacy corrections, data-loss prevention, and crash fixes;
+- dependency, CI, packaging, and operating-system build-breakage fixes;
+- accessibility corrections that do not redesign workflow behavior;
+- documentation corrections for shipped behavior.
 
-Reuse/license map for roadmap work:
-- `better-agent-terminal` is MIT; reusable/adaptable code requires preserving notice.
-- `tempo-term` has no LICENSE in the local checkout; use as pattern-reference only and reimplement.
-- Neither ref provides an editable workflow graph editor; add a purpose-built dependency only when N8b starts.
+Closed permanently in this repository:
 
-## 18. Open questions / OSS governance
+- snapshot/replay/checkpoint expansion, new persistence formats, or comparison UI;
+- workflow-pack import/export, marketplace, graph editor, promotion metrics, or telemetry;
+- fifth provider, embedded SDK/CLI agents, or terminal orchestration;
+- self-update, package-manager distribution, signing/notarization program, or new platform matrix;
+- new workflow modes or changes to the five shipped sequences.
 
-These are real unresolved risks, not launch blockers disguised as solved policy:
+## 18. Final AI-Sister commemorative theme
 
-1. **Confirmation theater** — relay checkpoints may still ask users to approve content they cannot evaluate. Mitigation candidates: side-by-side provider peek, snapshot diff, and "edit in provider" before continue.
-2. **及格線 mercy tier** — lightweight/local models may need a two-tier pass/fail standard so useful but weaker providers are not excluded from every pack. New provider seed + adapter PRs that fail one of the five-mode golden gates may merge only with an explicit mercy-tier label and user-visible degraded/preset eligibility limits.
-3. **溫度回饋 vanity-metric risk** — "87 families used this" can motivate contributors or become empty gamification. Keep counters local/private by default and tie N9 promotion to maintenance quality and completion rate, not raw downloads.
-4. **Workflow-author abandonment / promotion thresholds TBD** — packs need fork, auto-stale-mark, and merge-authority rules before community catalogs become authoritative. N9 promotion thresholds must resolve:
-   - minimum recent successful completions / `successRate`
-   - maximum stale-maintenance age
-   - adapter health and `minAdapterVersion` pass rate
-   - mercy-tier eligibility limits from §18.2
-   - fork/ownership handoff after abandonment
-5. **Adapter-outage playbook** — graceful degradation needs a community SLA: fallback presets, auto-stale badges, partial-sendable recommendations, and maintainer escalation rules tied to the §18.2 mercy tier.
-6. **Capability Tags deferred** — do not launch a premature taxonomy; keep explicit pack metadata until repeated workflows prove stable tags.
-7. **Microcopy** — wording and onboarding require continuous improvement, but they are not a launch gate for the v2 architecture.
+The final scoped feature is the shipped optional presentation theme featuring all four AI-Sister characters together. It adds supplied artwork, provider avatars, active-speaker treatment, color tokens, and themed panel surfaces while preserving the default theme, text contrast, keyboard focus, reduced-motion behavior, responsive layout, and every provider/workflow behavior. Asset provenance and implementation scope are defined in `docs/AI-SISTER-THEME.md`.

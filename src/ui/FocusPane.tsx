@@ -6,6 +6,7 @@ import { host } from '../host';
 import { useI18n } from '../i18n/context';
 import { formatI18n } from '../i18n/t';
 import type { AdapterPermissionSummary } from './adapterPermissions';
+import { AiSisterAvatar } from './AiSisterTheme';
 import { MarkdownText } from './MarkdownText';
 import type { PresentationByProvider, WebviewPresentationState } from './presentation';
 import { chipState } from './providerChipState';
@@ -150,17 +151,17 @@ function FirstRunPanel({
     <section
       ref={setCenterStageRef}
       aria-labelledby="first-run-title"
-      className="grid min-h-[280px] flex-1 place-items-center overflow-auto rounded-lg border border-zinc-200 bg-gradient-to-b from-sky-50 to-white p-4 dark:border-zinc-800 dark:from-sky-950/30 dark:to-zinc-950"
+      className="ai-sister-first-run grid min-h-[280px] flex-1 place-items-center overflow-auto rounded-lg border border-zinc-200 bg-gradient-to-b from-sky-50 to-white p-4 dark:border-zinc-800 dark:from-sky-950/30 dark:to-zinc-950"
     >
       <div className="w-full max-w-2xl text-center">
-        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-sky-100 text-2xl dark:bg-sky-950" aria-hidden="true">
+        <div className="ai-sister-onboarding-star mx-auto grid h-12 w-12 place-items-center rounded-full bg-sky-100 text-2xl dark:bg-sky-950" aria-hidden="true">
           ✦
         </div>
         <h1 id="first-run-title" className="mt-4 text-xl font-semibold text-zinc-950 dark:text-zinc-50">
           {t('onboarding.title')}
         </h1>
         <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{t('onboarding.description')}</p>
-        <div className="mt-5 grid grid-cols-2 gap-2 min-[900px]:grid-cols-3">
+        <div className="ai-sister-onboarding-providers mt-5 grid grid-cols-2 gap-2 min-[900px]:grid-cols-3">
           {PROVIDERS.map((provider) => {
             const opening = openingProvider === provider;
             return (
@@ -171,12 +172,16 @@ function FirstRunPanel({
                 disabled={openingProvider !== undefined}
                 onClick={() => void activateProvider(provider)}
               >
-                <span className="block">{opening ? t('provider.opening') : `${t('provider.open')} ${AI_PROVIDERS[provider].name}`}</span>
+                <span className="flex items-center gap-2">
+                  <AiSisterAvatar provider={provider} size="md" active={opening} />
+                  <span className="default-provider-action-label min-w-0 truncate">{opening ? t('provider.opening') : `${t('provider.open')} ${AI_PROVIDERS[provider].name}`}</span>
+                  <span className="ai-sister-only ai-sister-provider-action-label min-w-0">{opening ? t('provider.opening') : AI_PROVIDERS[provider].name}</span>
+                </span>
               </button>
             );
           })}
         </div>
-        <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">{t('onboarding.hint')}</p>
+        <p className="ai-sister-onboarding-hint mt-4 text-xs text-zinc-500 dark:text-zinc-400">{t('onboarding.hint')}</p>
       </div>
     </section>
   );
@@ -247,11 +252,14 @@ function FocusStage({
   return (
     <section
       ref={setCenterStageRef}
-      className="flex min-h-[280px] flex-1 flex-col overflow-hidden border border-sky-300 dark:border-sky-900 bg-zinc-50 dark:bg-zinc-900"
+      className="ai-sister-focus-stage flex min-h-[280px] flex-1 flex-col overflow-hidden border border-sky-300 dark:border-sky-900 bg-zinc-50 dark:bg-zinc-900"
       onPointerDownCapture={() => onManualFocusControl(provider)}
     >
       <div className="flex items-center justify-between gap-2 border-b border-sky-300 dark:border-sky-900 px-3 py-2 text-sm">
-        <span className="min-w-0 truncate">{AI_PROVIDERS[provider].name}</span>
+        <span className="flex min-w-0 items-center gap-2 truncate">
+          <AiSisterAvatar provider={provider} size="sm" active={state.thinking} />
+          <span className="truncate">{AI_PROVIDERS[provider].name}</span>
+        </span>
         <div className="flex flex-wrap justify-end gap-2 text-xs">
           {centerSurface === 'text' ? (
             <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={onEnlargeCenter}>
@@ -350,6 +358,7 @@ function FocusStage({
         </div>
       ) : centerSurface === 'text' ? (
         <TextCenterView
+          provider={provider}
           thinking={state.thinking}
           centerText={centerText}
           centerTextFinal={centerTextFinal}
@@ -365,11 +374,13 @@ function FocusStage({
 }
 
 export function TextCenterView({
+  provider,
   thinking,
   centerText,
   centerTextFinal,
   idleText,
 }: {
+  provider?: AIProvider;
   thinking: boolean;
   centerText?: string;
   centerTextFinal: boolean;
@@ -379,7 +390,10 @@ export function TextCenterView({
   if (thinking && !centerTextFinal) {
     return (
       <div className="grid flex-1 place-items-center p-3">
-        <div className="whitespace-pre-wrap text-sm italic text-zinc-500 dark:text-zinc-500">{t('chat.thinking')}</div>
+        <div className="ai-sister-thinking-state flex items-center gap-3">
+          {provider ? <AiSisterAvatar provider={provider} size="lg" active /> : null}
+          <div className="whitespace-pre-wrap text-sm italic text-zinc-500 dark:text-zinc-500">{t('chat.thinking')}</div>
+        </div>
       </div>
     );
   }
@@ -414,12 +428,12 @@ function StatusStrip({
 }) {
   const { t } = useI18n();
   return (
-    <section aria-labelledby="provider-connections-title" className="mt-3 shrink-0 overflow-x-auto overflow-y-hidden rounded border border-zinc-200 bg-white px-2 py-2 dark:border-zinc-800 dark:bg-zinc-950">
+    <section aria-labelledby="provider-connections-title" className="ai-sister-connections mt-3 shrink-0 overflow-x-auto overflow-y-hidden rounded border border-zinc-200 bg-white px-2 py-2 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="mb-2 flex items-baseline justify-between gap-3 px-0.5">
         <h2 id="provider-connections-title" className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{t('provider.connections')}</h2>
         <span className="text-[11px] text-zinc-500 dark:text-zinc-400">{t('provider.connectionsHint')}</span>
       </div>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="ai-sister-connection-grid grid grid-cols-4 gap-1.5">
         {PROVIDERS.map((provider) => (
           <StatusStripItem
             key={provider}
@@ -468,17 +482,22 @@ function StatusStripItem({
       aria-label={`${AI_PROVIDERS[provider].name}: ${status.label}`}
       aria-pressed={centered}
       disabled={state.webview === 'creating' || openingProvider !== undefined}
-      className={`min-w-0 rounded border px-2 py-1.5 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${
+      className={`ai-sister-provider-card min-w-0 rounded border px-2 py-1.5 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${
         centered
           ? 'cursor-default border-sky-400 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40'
           : 'cursor-pointer border-zinc-200 bg-zinc-50 hover:border-sky-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-sky-700'
       }`}
       onClick={focusProvider}
     >
-      <span className="block truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">{AI_PROVIDERS[provider].name}</span>
-      <span className="mt-1 flex min-w-0 items-center gap-1">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${status.dotClassName}`} aria-hidden="true" />
-          <span className={`min-w-0 truncate text-[11px] ${status.className}`}>{openingProvider === provider ? t('connection.connecting') : status.label}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <AiSisterAvatar provider={provider} size="md" active={state.thinking} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-medium text-zinc-900 dark:text-zinc-100">{AI_PROVIDERS[provider].name}</span>
+          <span className="mt-1 flex min-w-0 items-center gap-1">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${status.dotClassName}`} aria-hidden="true" />
+            <span className={`min-w-0 truncate text-[11px] ${status.className}`}>{openingProvider === provider ? t('connection.connecting') : status.label}</span>
+          </span>
+        </span>
       </span>
     </button>
   );

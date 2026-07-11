@@ -70,6 +70,14 @@ describe('App workflow controls', () => {
     expect(html).toContain('id="workflow-control-shelf"');
     expect(html.indexOf('id="workflow-control-shelf"')).toBeLessThan(html.indexOf('id="provider-connections-title"'));
   });
+
+  it('includes the optional AI-Sister commemorative surface without changing the default app structure', () => {
+    const html = renderToStaticMarkup(createElement(I18nProvider, { language: 'en', children: createElement(App) }));
+
+    expect(html).toContain('ai-sister-ensemble-card');
+    expect(html).toContain('AI-Sister Commemorative Edition');
+    expect(html).toContain('app-shell');
+  });
 });
 
 describe('ChatArea thinking indicator', () => {
@@ -83,6 +91,8 @@ describe('ChatArea thinking indicator', () => {
     );
 
     expect(html).toContain('Thinking…');
+    expect(html).toContain('data-provider="chatgpt"');
+    expect(html).toContain('data-active="true"');
     expect(html).not.toContain('provider reasoning scrape');
     expect(html).not.toContain('streaming');
   });

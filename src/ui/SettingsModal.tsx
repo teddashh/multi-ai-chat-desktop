@@ -227,6 +227,7 @@ export function SettingsModal({
                 >
                   <option value="light">{t('settings.themeLight')}</option>
                   <option value="dark">{t('settings.themeDark')}</option>
+                  <option value="ai-sister">{t('settings.themeAiSister')}</option>
                 </select>
               </label>
             </section>
@@ -303,28 +304,6 @@ export function SettingsModal({
               </section>
             ) : null}
 
-            <section className="space-y-3 border-t border-zinc-200 pt-4 text-xs dark:border-zinc-800">
-              <h3 className="font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('settings.about')}</h3>
-              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-zinc-700 dark:text-zinc-300">
-                <dt className="text-zinc-500 dark:text-zinc-400">{t('settings.sponsoredBy')}</dt>
-                <dd>
-                  <button type="button" className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100" onClick={() => void host.app.openExternal('https://ai-sister.com')}>
-                    AI-Sister.com
-                  </button>
-                </dd>
-                <dt className="text-zinc-500 dark:text-zinc-400">{t('settings.author')}</dt>
-                <dd>Ted Huang</dd>
-                <dt className="text-zinc-500 dark:text-zinc-400">{t('settings.email')}</dt>
-                <dd className="select-all">TED@TED-H.com</dd>
-                <dt className="text-zinc-500 dark:text-zinc-400">{t('settings.website')}</dt>
-                <dd>
-                  <button type="button" className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100" onClick={() => void host.app.openExternal('https://ted-h.com')}>
-                    https://ted-h.com
-                  </button>
-                </dd>
-              </dl>
-            </section>
-
             <details className="group border-t border-zinc-200 pt-4 dark:border-zinc-800">
               <summary className="cursor-pointer list-none rounded px-1 py-2 focus-visible:outline-offset-2">
                 <span className="flex items-start justify-between gap-3">
@@ -373,18 +352,40 @@ export function SettingsModal({
           </div>
         ) : null}
 
-        <div className="mt-5 flex items-center justify-end gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-4">
-          <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onClose}>
-            {t('settings.cancel')}
-          </button>
-          <button
-            type="button"
-            className="min-w-16 border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950 px-3 py-1.5 text-sm text-sky-700 dark:text-sky-100 hover:bg-sky-100 dark:hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => void save()}
-            disabled={!draft}
-          >
-            {saved ? t('settings.saved') : t('settings.save')}
-          </button>
+        <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <div className="space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <div>
+              <button
+                type="button"
+                className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
+                onClick={() => void host.app.openExternal('https://ted-h.com')}
+              >
+                {t('settings.madeByTedH')}
+              </button>
+              <span> · Ted Huang · </span>
+              <span className="select-all">TED@TED-H.com</span>
+            </div>
+            <button
+              type="button"
+              className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
+              onClick={() => void host.app.openExternal('https://ai-sister.com')}
+            >
+              {t('settings.sponsoredByAiSister')}
+            </button>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onClose}>
+              {t('settings.cancel')}
+            </button>
+            <button
+              type="button"
+              className="min-w-16 border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950 px-3 py-1.5 text-sm text-sky-700 dark:text-sky-100 hover:bg-sky-100 dark:hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void save()}
+              disabled={!draft}
+            >
+              {saved ? t('settings.saved') : t('settings.save')}
+            </button>
+          </div>
         </div>
     </ModalDialog>
   );

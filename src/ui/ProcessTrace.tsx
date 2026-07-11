@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Locale } from '../i18n/resolve';
 import { t } from '../i18n/t';
+import { AiSisterAvatar } from './AiSisterTheme';
 import { ModalDialog } from './ModalDialog';
 import { MarkdownText } from './MarkdownText';
 import type { ProcessTraceState, ProcessTraceStep, ProcessTraceStepStatus } from './processTraceModel';
@@ -27,7 +28,7 @@ export function ProcessTrace({
 
   return (
     <>
-      <section aria-label={t('processTrace.title', locale)} className="mt-2 shrink-0 overflow-hidden rounded border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+      <section aria-label={t('processTrace.title', locale)} className="ai-sister-process-trace mt-2 shrink-0 overflow-hidden rounded border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-2.5 py-1.5 dark:border-zinc-800">
           <h2 className="text-[11px] font-semibold uppercase text-zinc-700 dark:text-zinc-300">{t('processTrace.title', locale)}</h2>
           <div className="min-w-0 truncate text-right text-[11px] text-sky-700 dark:text-sky-200">{trace.currentStatus || t('processTrace.settled', locale)}</div>
@@ -47,7 +48,10 @@ export function ProcessTrace({
                   }}
                   title={step.content || step.detail || step.label}
                 >
-                  <span className={`h-2 w-2 rounded-full ${statusDotClass(step.status)}`} aria-hidden="true" />
+                  <span className="flex items-center gap-1" aria-hidden="true">
+                    <span className={`h-2 w-2 rounded-full ${statusDotClass(step.status)}`} />
+                    {step.provider ? <AiSisterAvatar provider={step.provider} size="xs" active={step.status === 'active'} /> : null}
+                  </span>
                   <span className={`truncate text-[11px] font-medium uppercase ${statusClass(step.status)}`}>{statusLabel(step.status, locale)}</span>
                   <span className="min-w-0 truncate text-zinc-800 dark:text-zinc-200">
                     <span className="font-medium">{step.label}</span>
@@ -70,7 +74,10 @@ export function ProcessTrace({
         >
           <div className="flex items-start justify-between gap-4 border-b border-zinc-200 pb-3 dark:border-zinc-800">
             <div>
-              <h2 id="process-trace-detail-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{detailStep.label}</h2>
+              <h2 id="process-trace-detail-title" className="flex items-center gap-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                {detailStep.provider ? <AiSisterAvatar provider={detailStep.provider} size="md" active={detailStep.status === 'active'} /> : null}
+                <span>{detailStep.label}</span>
+              </h2>
               <div className={`mt-1 text-xs uppercase ${statusClass(detailStep.status)}`}>{statusLabel(detailStep.status, locale)}</div>
             </div>
             <button type="button" className="border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800" onClick={closeDetail}>

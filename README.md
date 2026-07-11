@@ -4,9 +4,11 @@
 
 Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** web sessions answer, review, challenge, and refine one another. Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
 
-**Current release: [v0.6.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v0.6.0)** · MIT · no API keys · no analytics
+**Current release: [v1.0.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.0)** · MIT · no API keys · no analytics
 
 > This project automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider’s terms. Use accounts and content you are authorized to use.
+
+> **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme is included; future changes are limited to provider compatibility, security, and build breakage. The shipped snapshot/replay tools remain available as-is but have no further roadmap.
 
 ## Choose the right edition
 
@@ -15,7 +17,7 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 | **Desktop (this repo)** | Full workflows, focused live provider view, replay, snapshots, local files | Tauri app with isolated local provider profiles |
 | [Browser extension](https://github.com/teddashh/multi-ai-chat) | Lightweight workflows inside Chrome | Chrome Side Panel controlling your existing provider tabs |
 
-## What v0.6.0 includes
+## What v1.0.0 includes
 
 - **Reliable offscreen automation.** Providers keep working without manually opening each “live page”; rejected sends retry and fail clearly instead of waiting forever.
 - **Conversation-first layout.** Workflow controls sit above the less-important provider WebView on the left; the transcript and composer keep the larger right pane.
@@ -25,6 +27,7 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 - **Image completion.** Image-only ChatGPT responses complete the workflow instead of hanging.
 - **Reproducible work.** Optional snapshots, privacy tiers, replay, provider diagnostics, and a 2,000-event deduplicated log.
 - **Four UI languages.** English, Traditional Chinese, Japanese, and German.
+- **AI-Sister Commemorative Edition.** One optional four-character theme adds the supplied portraits to provider cards, active speakers, process rows, and the app shell without reskinning third-party pages.
 - **Repository Skills.** Codex and Claude Code can validate prerequisites and launch the source app without an installer.
 
 ## Workflow modes

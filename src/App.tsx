@@ -25,6 +25,7 @@ import {
   type ManualFocusPointerDown,
 } from './ui/autoFocus';
 import { CheckpointCard } from './ui/CheckpointCard';
+import { AiSisterAvatar, AiSisterEnsembleCard } from './ui/AiSisterTheme';
 import { ConversationSidebar } from './ui/ConversationSidebar';
 import {
   createConversationSession,
@@ -395,7 +396,8 @@ export default function App() {
   }, [appSettings]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', appSettings.theme === 'dark');
+    document.documentElement.classList.toggle('dark', appSettings.theme !== 'light');
+    document.documentElement.classList.toggle('ai-sister', appSettings.theme === 'ai-sister');
   }, [appSettings.theme]);
 
   useEffect(() => {
@@ -1582,9 +1584,9 @@ export default function App() {
     : undefined;
 
   return (
-    <main className="h-screen overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+    <main className="app-shell h-screen overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <div ref={gridRef} className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)]" style={{ gridTemplateColumns: focusGridTemplateColumns(focusPaneWidth) }}>
-        <div className="flex min-h-0 min-w-0 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="ai-sister-left-shell flex min-h-0 min-w-0 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           <ConversationSidebar
             collapsed={sessionSidebarCollapsed}
             sessions={sessions}
@@ -1605,8 +1607,9 @@ export default function App() {
             <section
               id="workflow-control-shelf"
               aria-label={translate('preset.catalog.aria')}
-              className="max-h-[42vh] shrink-0 overflow-auto border-b border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/70"
+              className="ai-sister-workflow-shelf max-h-[42vh] shrink-0 overflow-auto border-b border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/70"
             >
+              <AiSisterEnsembleCard />
               <PresetCatalog
                 mode={mode}
                 onSelectPreset={selectPreset}
@@ -1679,12 +1682,12 @@ export default function App() {
           max={focusPaneMaxWidth}
         />
 
-        <section className="flex min-h-0 min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
-          <div className="border-b border-zinc-200 dark:border-zinc-800 pb-3">
+        <section className="ai-sister-conversation-workspace flex min-h-0 min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
+          <div className="ai-sister-conversation-toolbar border-b border-zinc-200 dark:border-zinc-800 pb-3">
             <div className="flex flex-wrap items-start gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="shrink-0 border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-100">
+                  <span className="ai-sister-mode-badge shrink-0 border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-100">
                     <span className="mr-1">{CHAT_MODES[mode].icon}</span>
                     {translate(MODE_NAME_KEYS[mode])}
                   </span>
@@ -1761,11 +1764,11 @@ export default function App() {
               {adapterNoticeText(adapterNotice)}
             </div>
           ) : null}
-          <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3">
+          <div className="ai-sister-conversation-transcript mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3">
             <ChatArea messages={messages} locale={locale} states={states} />
             {import.meta.env.DEV ? <EchoPanel /> : null}
           </div>
-          <div className="shrink-0 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+          <div className="ai-sister-conversation-composer shrink-0 border-t border-zinc-200 pt-2 dark:border-zinc-800">
             <InputBar
               onSend={send}
               onCancel={cancelWorkflow}
@@ -1928,11 +1931,18 @@ export function ChatArea({
           message.role === 'ai' && !message.final ? translateKey(thinking ? 'chat.thinking' : 'chat.streaming', locale) : '';
 
         return (
-          <article key={message.id} className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
-            <div className="mb-1 text-xs uppercase text-zinc-500 dark:text-zinc-500">
-              {bubbleAuthorLabel(message)}
-              {message.modeRole ? ` · ${message.modeRole}` : ''}
-              {statusLabel ? ` ${statusLabel}` : ''}
+          <article
+            key={message.id}
+            className="ai-sister-message border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3"
+            data-provider={isProvider ? p : undefined}
+          >
+            <div className="mb-1 flex items-center gap-2">
+              {isProvider ? <AiSisterAvatar provider={p as AIProvider} active={thinking} size="md" /> : null}
+              <div className="text-xs uppercase text-zinc-500 dark:text-zinc-500">
+                {bubbleAuthorLabel(message)}
+                {message.modeRole ? ` · ${message.modeRole}` : ''}
+                {statusLabel ? ` ${statusLabel}` : ''}
+              </div>
             </div>
             {thinking ? (
               <div className="whitespace-pre-wrap text-sm italic text-zinc-500 dark:text-zinc-500">{translateKey('chat.thinking', locale)}</div>

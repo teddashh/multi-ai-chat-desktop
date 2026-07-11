@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { I18nProvider } from '../i18n/context';
 import { TextCenterView } from '../ui/FocusPane';
 
-function renderTextCenterView(props: { thinking: boolean; centerText?: string; centerTextFinal: boolean }): string {
+function renderTextCenterView(props: { provider?: 'chatgpt'; thinking: boolean; centerText?: string; centerTextFinal: boolean }): string {
   return renderToStaticMarkup(
     <I18nProvider language="en">
       <TextCenterView {...props} />
@@ -14,12 +14,15 @@ function renderTextCenterView(props: { thinking: boolean; centerText?: string; c
 describe('TextCenterView', () => {
   it('shows the thinking indicator and hides partial content while thinking', () => {
     const html = renderTextCenterView({
+      provider: 'chatgpt',
       thinking: true,
       centerText: 'partial scrape',
       centerTextFinal: false,
     });
 
     expect(html).toContain('Thinking…');
+    expect(html).toContain('data-provider="chatgpt"');
+    expect(html).toContain('data-active="true"');
     expect(html).not.toContain('partial scrape');
   });
 

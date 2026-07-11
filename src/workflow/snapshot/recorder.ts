@@ -8,7 +8,7 @@ import type {
 } from './types';
 
 const REDACTION_TIER = 'full-local' as const;
-// TODO(N1b): replace with the app version source used by durable snapshot/export metadata.
+// Frozen compatibility fallback for snapshots created without a runtime version override.
 const SNAPSHOT_APP_VERSION = '0.0.0';
 
 let currentSnapshot: ExecutionSnapshot | undefined;

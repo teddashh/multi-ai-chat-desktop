@@ -1,4 +1,5 @@
 import appIconUrl from '../assets/app-icon.svg';
+import { AiSisterBrandMark } from './AiSisterTheme';
 import { DEFAULT_CONVERSATION_SESSION_TITLE, type ConversationSession } from './conversationSessions';
 
 export interface ConversationSidebarLabels {
@@ -32,7 +33,7 @@ export function ConversationSidebar({
   return (
     <nav
       aria-label={labels.history}
-      className={`${collapsed ? 'w-14' : 'w-48'} flex min-h-0 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 transition-[width] dark:border-zinc-800 dark:bg-zinc-900`}
+      className={`ai-sister-session-sidebar ${collapsed ? 'w-14' : 'w-48'} flex min-h-0 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 transition-[width] dark:border-zinc-800 dark:bg-zinc-900`}
     >
       <div className="flex items-center gap-2 border-b border-zinc-200 p-2 dark:border-zinc-800">
         <button
@@ -42,9 +43,15 @@ export function ConversationSidebar({
           title={labels.toggle}
           onClick={onToggle}
         >
-          <img src={appIconUrl} alt="" className="h-8 w-8" />
+          <img src={appIconUrl} alt="" className="default-brand-icon h-8 w-8" />
+          <AiSisterBrandMark className="h-8 w-8" />
         </button>
-        {!collapsed ? <span className="min-w-0 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">Multi-AI Chat</span> : null}
+        {!collapsed ? (
+          <span className="min-w-0 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            Multi-AI Chat
+            <span className="ai-sister-only ai-sister-brand-subtitle">AI-Sister Edition</span>
+          </span>
+        ) : null}
       </div>
 
       <div className="p-2">

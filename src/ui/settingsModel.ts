@@ -14,7 +14,7 @@ import { normalizeLanguageSetting, type LanguageSetting } from '../i18n/resolve'
 
 export interface AppSettings {
   language: LanguageSetting;
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'ai-sister';
   layoutMode: 'focus';
   focusPaneWidth: number;
   columnWidths: ColumnWidths;
@@ -63,6 +63,10 @@ function snapshotRedactionTier(value: unknown, fallback: SnapshotRedactionTier):
   return isSnapshotRedactionTier(value) ? value : fallback;
 }
 
+function theme(value: unknown, fallback: AppSettings['theme']): AppSettings['theme'] {
+  return value === 'light' || value === 'dark' || value === 'ai-sister' ? value : fallback;
+}
+
 function columnWidths(value: unknown, fallback: ColumnWidths): ColumnWidths {
   if (!value || typeof value !== 'object') return { ...fallback };
   const input = value as Partial<Record<keyof ColumnWidths, unknown>>;
@@ -94,7 +98,7 @@ export function normalizeSettings(value: unknown): AppSettings {
 
   return {
     language: normalizeLanguageSetting(input.language),
-    theme: input.theme === 'dark' ? 'dark' : 'light',
+    theme: theme(input.theme, defaults.theme),
     layoutMode: 'focus',
     focusPaneWidth: focusPaneWidth(input.focusPaneWidth, input.columnWidths, defaults.focusPaneWidth),
     columnWidths: normalizedColumnWidths,

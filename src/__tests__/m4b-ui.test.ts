@@ -135,6 +135,7 @@ describe('M4b UI helpers', () => {
     expect(normalizeSettings({}).theme).toBe('light');
     expect(normalizeSettings({ theme: 'system' }).theme).toBe('light');
     expect(normalizeSettings({ theme: 'dark' }).theme).toBe('dark');
+    expect(normalizeSettings({ theme: 'ai-sister' }).theme).toBe('ai-sister');
   });
 
   it('migrates focus pane width from the legacy left column width', () => {

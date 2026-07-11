@@ -91,10 +91,8 @@ jobs:
       - name: Build Tauri bundle
         run: pnpm tauri build
 
-      # TODO(signing): Add Windows Authenticode signing here, after Tauri builds
-      # the NSIS installer and before artifact upload.
-      # TODO(notarization): Add macOS signing and notarization here, after Tauri
-      # builds the .dmg and before artifact upload.
+      # Frozen distribution policy: artifacts are intentionally unsigned and
+      # GitHub Releases remains the documented manual update channel.
 
       - name: Build Windows portable zip
         if: matrix.platform == 'windows'
