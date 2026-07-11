@@ -1,0 +1,130 @@
+# Multi-AI Chat Desktop
+
+[English](./README.md) · [繁體中文](./README.zh-TW.md) · **日本語** · [Deutsch](./README.de.md)
+
+ログイン済みの **ChatGPT、Claude、Gemini、Grok** に同じ質問を送り、回答・レビュー・反論・統合を自動で進める Tauri 2 デスクトップハブです。4つのチャットを並べるだけではなく、複数AIの workflow を実行します。
+
+**最新版：[v0.6.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v0.6.0)** · MIT · APIキー不要 · 解析なし
+
+> 本アプリは各プロバイダーのWebページを自動操作します。ページ構造の変更で adapter が一時的に動かなくなる場合があります。各サービスの利用規約と、利用権限のあるアカウント・コンテンツを使用してください。
+
+## エディション
+
+| エディション | 用途 | 実行方法 |
+|---|---|---|
+| **Desktop（このrepo）** | 完全な workflow、ライブ表示、replay、snapshot、ローカルファイル | 独立したローカルプロファイルを持つ Tauri app |
+| [Browser extension](https://github.com/teddashh/multi-ai-chat) | Chrome 内で軽量に使う | Side Panel から既存のAIタブを操作 |
+
+## v0.6.0 の主な機能
+
+- 非表示のプロバイダーにも安定して送信し、失敗時は再試行または明確なエラーを表示。
+- workflow コントロールを左側 WebView の上へ移動し、右側の会話と入力欄を広く確保。
+- 自由送信、四者討論、多角相談、Coding、5ラウンド円卓討論。
+- 最大30件のローカル会話履歴と「新しい会話」。
+- 安全な Markdown、画像のみの回答完了判定、snapshot／replay、2,000件の診断ログ。
+- English、繁體中文、日本語、Deutsch。
+- Codex／Claude Code 用の repo Skill から、インストーラーなしでソース版を起動。
+
+## Workflow
+
+| モード | 流れ | 向いている用途 |
+|---|---|---|
+| **自由送信** | 選択したAIが並列回答 | 比較、発想、画像生成 |
+| **四者討論** | 賛成 → 反対 → 判定 → 統合 | 主張や判断の検証 |
+| **多角相談** | 独立回答2件 → レビュー → 最終回答 | 調査、セカンドオピニオン |
+| **Coding** | 仕様 → Review → v1 → Test → v2 → 受入 → 最終版 | ソフトウェア設計とレビュー |
+| **円卓討論** | 5ラウンド × 4 AI = 20発言 | 難題を対立させながら収束 |
+
+workflow 完了後も右下の入力欄から会話を続けられます。文脈をリセットする場合は「新しい会話」を選びます。
+
+## リリース版をインストール
+
+[Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest) から取得します。
+
+- **Windows x64：** portable `.zip` または `x64-setup.exe`。Windows 10/11 は通常 WebView2 を含みます。
+- **macOS Apple Silicon：** `aarch64.dmg`。署名されていないbuildが拒否された場合は、右クリック → **開く**。Intel版は未提供です。
+- **Linux x64：** `.AppImage` に `chmod +x Multi-AI*.AppImage` を実行。Ubuntu 22.04／Debian 12 以降を推奨します。
+
+初回だけ各 provider を開いてログインします。パスワードは provider ページにのみ入力され、アプリは取得しません。
+
+## Codex／Claude Code からソース版を起動
+
+- Codex Skill： [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md)
+- Claude Code Skill： [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md)
+
+ディレクトリ構成は公式の [Codex Agent Skills](https://developers.openai.com/codex/skills) と [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills) に準拠します。
+
+repoを開いただけでは安全上コードを実行しません。Skillを明示的に1回呼び出すと、環境確認、必要なJavaScript依存関係、injected bundle、`tauri dev` のバックグラウンド起動を行います。システムtoolchainやinstallerを勝手に導入せず、provider資格情報にもアクセスしません。
+
+### Codex app／CLI／IDE
+
+1. このrepoをダウンロード／cloneし、**ローカル**の Codex project/task で開きます。
+2. `$launch-multi-ai-chat` と入力するか、`/skills` から **Launch Multi-AI Chat** を選択します。
+3. 必要に応じてローカルコマンド実行を許可します。
+4. 初回の Rust build が終わると Tauri ウィンドウが開きます。
+
+Codex repo Skill は app、CLI、IDE で利用できます。remote/cloud task からは手元PCにGUIを表示できません。
+
+### Claude Code desktop／CLI／IDE
+
+1. このrepoを、グラフィカルPC上の**ローカルshell**を持つ Claude Code surface で開きます。
+2. `/launch-multi-ai-chat` を実行します。
+3. dev app の実行中はrepoフォルダを移動しないでください。
+
+desktop/browser session が remote の場合は、local Claude Code session を使うか、このフォルダで `claude` を起動して `/launch-multi-ai-chat` を実行します。
+
+### OS別の前提条件
+
+共通：**Node.js 20+**、pnpm（または Corepack）、stable Rust。
+
+**Windows 10/11**
+
+1. Node.js LTS をインストール。
+2. `winget install --id Rustlang.Rustup` を実行し、MSVC toolchain を選択。
+3. **Visual Studio Build Tools → Desktop development with C++** をインストール。
+4. 不足している場合のみ Microsoft Edge WebView2 Evergreen Runtime を追加。
+
+**macOS 10.15+**
+
+1. `xcode-select --install` を実行（desktop開発だけなら完全なXcodeは不要）。
+2. Node.js LTS と Rust stable をインストール。
+3. SSHではなくローカルのGUI sessionからSkillを実行。
+
+**Ubuntu／Debian**
+
+```sh
+sudo apt update
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+Node.js 20+ と Rust stable を追加し、X11／Wayland session でSkillを実行します。他のdistributionは [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) を参照してください。
+
+### Skill コマンド
+
+```sh
+node scripts/agent/doctor.mjs
+node scripts/agent/launch.mjs
+node scripts/agent/status.mjs --lines 80
+node scripts/agent/stop.mjs
+```
+
+初回buildには数分かかる場合があります。ログは `.agent-runtime/tauri-dev.log` に残ります。
+
+## 開発
+
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm build:injected
+pnpm verify
+pnpm tauri dev
+```
+
+仕様：[`docs/SPEC.md`](./docs/SPEC.md) · 構成：[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · Release：[`docs/RELEASE.md`](./docs/RELEASE.md)
+
+## プライバシー
+
+APIキー、独自アカウント、telemetry、会話backendはありません。promptは選択したproviderページへ直接送信され、cookieとprofileはローカルに残ります。adapter更新は任意です。debug bundle、export、shareは利用者が明示的に実行した場合だけ動作します。
+
+Sponsored by [AI-Sister.com](https://ai-sister.com)。作者 Ted Huang（[TED@TED-H.com](mailto:TED@TED-H.com)、[ted-h.com](https://ted-h.com)）。MIT License。

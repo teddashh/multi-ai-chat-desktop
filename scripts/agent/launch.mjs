@@ -1,16 +1,19 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { processAlive, processMatchesRunner } from './process-identity.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const runtimeDir = path.join(root, '.agent-runtime');
 const statePath = path.join(runtimeDir, 'tauri-dev.json');
 const logPath = path.join(runtimeDir, 'tauri-dev.log');
 const dryRun = process.argv.includes('--dry-run');
+const pnpm = resolvePnpmCommand();
 
 const existing = readState();
-if (existing?.pid && processAlive(existing.pid)) {
+if (existing?.pid && processAlive(existing.pid) && processMatchesRunner(existing.pid, existing.runnerToken)) {
   process.stdout.write(`ALREADY_RUNNING pid=${existing.pid} log=${existing.logPath || logPath}\n`);
   process.exit(0);
 }
@@ -27,17 +30,17 @@ if (dryRun) {
   process.exit(0);
 }
 
-if (needsInstall) run('pnpm', ['install', '--frozen-lockfile']);
-run('pnpm', ['build:injected']);
+if (needsInstall) run(pnpm.command, [...pnpm.prefixArgs, 'install', '--frozen-lockfile']);
+run(pnpm.command, [...pnpm.prefixArgs, 'build:injected']);
 
 mkdirSync(runtimeDir, { recursive: true });
 const logFd = openSync(logPath, 'a');
 const startedAt = new Date().toISOString();
 writeFileSync(logFd, `\n[${startedAt}] Launch requested by repository skill\n`);
 
-const command = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : 'pnpm';
-const args = process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm tauri dev'] : ['tauri', 'dev'];
-const child = spawn(command, args, {
+const runnerToken = randomUUID();
+const runnerPath = path.join(root, 'scripts', 'agent', 'runner.mjs');
+const child = spawn(process.execPath, [runnerPath, runnerToken, pnpm.command, ...pnpm.prefixArgs, 'tauri', 'dev'], {
   cwd: root,
   detached: true,
   env: { ...process.env, MAC_AGENT_LAUNCH: '1' },
@@ -49,7 +52,7 @@ closeSync(logFd);
 
 writeFileSync(
   statePath,
-  `${JSON.stringify({ pid: child.pid, startedAt, root, logPath }, null, 2)}\n`,
+  `${JSON.stringify({ pid: child.pid, runnerToken, startedAt, root, logPath }, null, 2)}\n`,
   'utf8',
 );
 process.stdout.write(`STARTED pid=${child.pid} log=${logPath}\n`);
@@ -75,11 +78,13 @@ function readState() {
   }
 }
 
-function processAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
+function resolvePnpmCommand() {
+  const executable = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : 'pnpm';
+  const args = process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm --version'] : ['--version'];
+  const direct = spawnSync(executable, args, {
+    cwd: root,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  return direct.status === 0 ? { command: 'pnpm', prefixArgs: [] } : { command: 'corepack', prefixArgs: ['pnpm'] };
 }

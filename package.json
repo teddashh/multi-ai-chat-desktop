@@ -11,6 +11,7 @@
     "agent:doctor": "node scripts/agent/doctor.mjs",
     "agent:launch": "node scripts/agent/launch.mjs",
     "agent:status": "node scripts/agent/status.mjs",
+    "agent:stop": "node scripts/agent/stop.mjs",
     "pack:portable": "node scripts/pack-portable.mjs",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",

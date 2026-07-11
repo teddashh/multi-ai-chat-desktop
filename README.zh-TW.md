@@ -1,77 +1,143 @@
 # Multi-AI Chat Desktop
 
-[English](./README.md) | **繁體中文**
+[English](./README.md) · **繁體中文** · [日本語](./README.ja.md) · [Deutsch](./README.de.md)
 
-一個 Tauri 2 桌面控制台，用來編排你**已登入**的 ChatGPT、Claude、Gemini 與 Grok 網頁 session —— **不需 API key、不做遙測**。它不只是把幾個聊天視窗並排，而是用一個中央控制台，透過多模型 **workflow**（辯論 debate、圓桌 roundtable、諮詢 consulting、coding、自由模式 free-mode）驅動它們，並把每一家的回覆彙整回中樞。
+問一個問題，讓你已登入的 **ChatGPT、Claude、Gemini 與 Grok** 互相回答、審查、質疑，再把結果收斂。Multi-AI Chat Desktop 是 Tauri 2 多 AI workflow 中樞，不只是把四個聊天視窗並排。
 
-狀態：**目前原始碼（v0.5.2 之後）** —— 控制台、五種 workflow 模式、四家網頁 session provider、可重現的執行（snapshots + replay）、可遠端 hot-update 的 per-provider adapter，以及三平台打包（Windows / macOS / Linux）皆已完成。下一個 release 發佈前，最新的安裝版仍是 v0.5.2。Portable 優先、MIT 授權，selector adapter 由社群維護。行為契約見 [`docs/SPEC.md`](./docs/SPEC.md)，設計見 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。
+**目前版本：[v0.6.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v0.6.0)** · MIT · 不需 API Key · 無分析追蹤
 
-## v0.5.2 之後的原始碼更新
+> 本專案會自動操作你原本就在使用的 provider 網頁。第三方頁面改版可能暫時使 adapter 失效；自動化使用也可能受各服務條款約束。請只使用你有權使用的帳號與內容。
 
-- **聚焦四家 provider。** 移除未完成的第五家網頁 provider／orchestrator；web 版專注在 ChatGPT、Claude、Gemini 與 Grok。
-- **桌面 agent 啟動。** Repo 內建 Codex 與 Claude Code Skill，可檢查環境並直接開啟 Tauri 原始碼版本，不需安裝程式或另外安裝 agent CLI。
-- **以對話為主的版面。** 輸入框固定在右側控制台底部；五種模式卡片縮小；真正有用的一行式流程追蹤移到 provider 畫面旁，不再佔掉主要對話空間。
-- **本機對話紀錄。** 可收合的側欄會保留最近 30 個本機 transcript，並提供「新對話」按鈕，同時重設四家 provider 頁面。
-- **更好閱讀的結果。** 彙整回覆會安全渲染 Markdown；流程追蹤中的每段回答也能點開完整內容。
-- **修復圖片回覆卡住。** ChatGPT 只產生圖片、沒有 Markdown 文字時，現在仍能正確判定完成，畫圖 prompt 不會再無限等待。
-- **更久、更乾淨的診斷紀錄。** 記憶體 log 提高到 2,000 個有意義事件，並自動合併沒有變化的 provider heartbeat。
-- **四種介面語言。** 設定中可選 English、繁體中文、日本語與 Deutsch。
+## 選擇適合的版本
 
-## v0.5.2 更新重點
+| 版本 | 適合情境 | 執行方式 |
+|---|---|---|
+| **Desktop（本 repo）** | 完整 workflow、聚焦真實頁面、replay、snapshot、本機檔案 | Tauri app 與獨立的本機 provider profile |
+| [瀏覽器外掛](https://github.com/teddashh/multi-ai-chat) | 在 Chrome 裡輕量使用 | Side Panel 控制你既有的 provider 分頁 |
 
-- **不必切到真實頁面。** ChatGPT、Claude、Gemini 與 Grok 在離屏狀態仍保持運作，workflow 可直接送出 prompt，不必逐家開啟真實頁面。
-- **驗證真正送出。** 引擎會確認輸入框已清空、開始思考或出現新回覆；點擊未被接受時會重試 Enter，仍失敗則立即回報，不再卡住等待。
-- **Claude prompt 不再重複。** ProseMirror 注入不會把同一段 prompt 貼上兩次。
-- **輸入區更單純。** 移除用途不明的「每步先問我再送出」開關；內建 workflow 啟動後會自動執行。
+## v0.6.0 有什麼
 
-## 特色
+- **可靠的離屏自動化。** 不必逐家點進「真實頁面」；送出未被接受時會重試，真的失敗就明確回報，不再無限等待。
+- **以對話為主的版面。** 模式卡片、說明與等待狀態移到左側 provider WebView 上方；右側保留更大的逐字稿與輸入區。
+- **五種引導模式。** 自由分送、四方辯證、多方諮詢、Coding、五輪道理辯證。
+- **本機 session。** 可新增對話，或開啟最多 30 個只保存在這台電腦的近期 transcript。
+- **Markdown 結果。** 安全顯示標題、清單、連結、引用與程式碼區塊。
+- **圖片完成判定。** ChatGPT 只產生圖片、沒有文字時也能結束流程。
+- **可重現執行。** 可選 snapshot、隱私分級、replay、provider 診斷與 2,000 筆去重 log。
+- **四種 UI 語言。** English、繁體中文、日本語、Deutsch。
+- **Repo Skills。** Codex 與 Claude Code 可檢查環境並從原始碼開啟 app，不需安裝檔。
 
-- **零 API key。** 一切都跑在你已經登入的網頁 session 上，不儲存、不索取、不傳送任何金鑰。
-- **引導式首次使用。** 從清楚的 provider 選擇器開始，直接看到連線與 workflow 就緒狀態；workflow 尚未就緒時也會保留你的草稿。
-- **四家 provider，一個中樞。** ChatGPT、Claude、Gemini 與 Grok。每一家各自保有獨立的登入 profile。
-- **多模型 workflow。** debate、roundtable、consulting、coding、free-mode 在各 provider 間路由 prompt 並收集回覆，底層由宣告式的 graph engine 驅動，從 preset 卡片目錄一鍵挑選。
-- **聚焦視圖 + 狀態列。** 同一時間只有一家 provider 上台；下方精簡狀態列列出全部四家，顯示即時狀態與下一步操作。點一下就切換焦點，也可以讓焦點自動跟隨正在回應的 provider。只有聚焦中的頁面會顯示，其餘 provider 在離屏位置保持運作，不必逐一開啟真實頁面也能繼續 workflow。
-- **文字優先 center。** 聚焦的 provider 預設顯示乾淨的 DOM 抽取文字檢視；需要直接操作時再切到真實頁面。登入按鈕只在該 provider 真的需要登入時才出現在 header；重載與「回報損壞」收在 ⋯ 選單裡。
-- **可重現的執行。** 可選開的執行 snapshot，附隱私分級（僅 metadata / hash / prompt 文字 / 完整本地）；點歷史圖示開啟 replay 面板，在你目前已登入的 session 上重跑任何一次過往執行。
-- **本地檔案注入。** 拖放或挑選多個本地檔案附加到 prompt。
-- **淺色／深色主題 + i18n。** 極簡淺色為預設，可切深色；提供 English、繁體中文、日本語與 Deutsch 語言選單。
-- **可 hot-update 的 adapter。** per-provider selector adapter 可遠端更新；每個 adapter 能碰什麼，都在 Settings 裡逐家列出。broken-adapter 回報與可選開的去識別化 debug bundle 匯出，是僅有的其他對外路徑。
+## 五種模式
 
-## 安裝
+| 模式 | 流程 | 適合用途 |
+|---|---|---|
+| **自由分送** | 勾選的 AI 平行回答 | 快速比較、腦力激盪、畫圖 prompt |
+| **四方辯證** | 正方 → 反方 → 判官 → 綜合 | 檢驗決策或論點 |
+| **多方諮詢** | 兩份獨立回答 → 審查 → 最終答案 | 研究與第二意見 |
+| **Coding** | 規格 → 審查 → v1 → 測試 → v2 → 驗收 → 最終版 | 結構化軟體規劃與 review |
+| **道理辯證** | 5 輪 × 4 家 = 20 次發言 | 對困難題目慢慢攻防、收斂 |
 
-到[最新 release](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest) 下載對應的檔案。
+流程結束後可直接在右下輸入框繼續同一段對話；需要乾淨上下文時再按「新對話」。
 
-- **Windows** —— 下載 portable `.zip` 解壓後執行 `.exe`（或用 `x64-setup.exe` 安裝檔）。若 SmartScreen 跳警告，選 *More info → Run anyway*。需要 Microsoft Edge WebView2 Evergreen Runtime。
-- **macOS（Apple Silicon）** —— 開啟 `aarch64.dmg` 把 app 拖到 Applications。在尚未加上 notarization 前，若 Gatekeeper 擋首次啟動，用右鍵 → *打開*。（目前不提供 Intel 版。）
-- **Linux** —— 下載 `.AppImage`，執行 `chmod +x *.AppImage` 後啟動。
+## 安裝正式版本
 
-## 從 Codex 或 Claude Code 啟動（免安裝程式）
+到 [Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest) 下載：
 
-Repo 內建本機桌面 Skill，會先檢查環境，再替你開啟 Tauri 原始碼版本：
+- **Windows x64：** portable `.zip` 或 `x64-setup.exe`。Windows 10/11 通常已內建 WebView2，缺少時安裝檔可下載補上。
+- **macOS Apple Silicon：** `aarch64.dmg`。若未簽章版本被阻擋，對 app 按右鍵 → **打開**。目前沒有 Intel 版。
+- **Linux x64：** `.AppImage`，先執行 `chmod +x Multi-AI*.AppImage`。建議 Ubuntu 22.04／Debian 12 或更新版本。
 
-- **Codex app** —— 在本機環境開啟此 repo，選擇 **Launch Multi-AI Chat**，或輸入 `$launch-multi-ai-chat`。
-- **Claude Code Desktop** —— 在 **Code** 分頁選擇 **Local** session、加入此 repo，然後執行 `/launch-multi-ai-chat`。
+第一次開啟時，逐家開啟 provider 並登入一次。密碼只進入 provider 自己的頁面與本機 WebView profile，本 app 不會索取密碼。
 
-使用桌面 app 時，不需要另外安裝 Codex 或 Claude Code CLI。基於安全設計，單純開啟 repo 不會自動執行其中的程式，因此仍需明確呼叫一次 Skill。原始碼啟動仍需要 Node.js 20+、pnpm、Rust/Cargo 與該平台的 Tauri 原生相依套件；Skill 會清楚列出缺少項目，且不會偷偷安裝系統 toolchain。Remote／雲端 session 無法在你的電腦上彈出 GUI。
+## 用 Codex 或 Claude Code 從原始碼啟動
+
+Repo 內建兩個必須明確呼叫的本機 Skill：
+
+- Codex： [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md)
+- Claude Code： [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md)
+
+目錄格式遵循官方 [Codex Agent Skills](https://developers.openai.com/codex/skills) 與 [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills) 規格。
+
+基於安全，單純打開 repo 不會自動執行程式。呼叫一次 Skill 後，它會檢查電腦、在需要時安裝 JavaScript 專案相依套件、建置 injected bundle，並在背景啟動 `tauri dev`。它不會偷偷安裝系統 toolchain、不會產生安裝檔，也不會讀取 provider 登入資料。
+
+### Codex app、CLI 或 IDE
+
+1. 下載／clone repo，並在 Codex 用**本機** project／task 開啟資料夾。
+2. 輸入 `$launch-multi-ai-chat`，或從 `/skills` 選 **Launch Multi-AI Chat**。
+3. 若 Codex 安全設定要求，允許執行本機指令。
+4. 第一次 Rust 編譯完成後，Tauri 視窗會自動出現。
+
+Repo Skill 可在 Codex app、CLI 與 IDE 使用。雲端／remote task 可以改程式，但不能把 GUI 顯示在你的電腦上。
+
+### Claude Code desktop、CLI 或 IDE
+
+1. 用具有「你這台圖形電腦上的本機 shell」的 Claude Code surface 開啟 repo。
+2. 執行 `/launch-multi-ai-chat`。
+3. 開發版執行期間不要移動或刪除 repo 資料夾。
+
+若 Claude desktop／browser session 是 remote，請改用本機 Claude Code session；或在此資料夾的 terminal 執行 `claude`，再呼叫 `/launch-multi-ai-chat`。
+
+### 各平台原始碼前置環境
+
+共同需求：**Node.js 20+**、pnpm（或 Corepack）與 stable Rust toolchain。
+
+**Windows 10/11**
+
+1. 安裝 Node.js LTS。
+2. 執行 `winget install --id Rustlang.Rustup`，使用 MSVC toolchain。
+3. 安裝 **Visual Studio Build Tools → Desktop development with C++**。
+4. 只有系統真的缺少時，才安裝 Microsoft Edge WebView2 Evergreen Runtime。
+
+**macOS 10.15+**
+
+1. 執行 `xcode-select --install`；只開發桌面版不必安裝完整 Xcode。
+2. 安裝 Node.js LTS 與 Rust stable。
+3. 從本機圖形登入 session 啟動 Skill，不要用 SSH。
+
+**Ubuntu／Debian**
+
+```sh
+sudo apt update
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+```
+
+接著安裝 Node.js 20+、Rust stable，並在 X11／Wayland 圖形 session 執行 Skill。其他 distribution 請參考 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/)。
+
+### Skill 生命週期指令
+
+```sh
+node scripts/agent/doctor.mjs          # 說明缺少什麼
+node scripts/agent/launch.mjs          # 啟動；已在執行時不會重複開
+node scripts/agent/status.mjs --lines 80
+node scripts/agent/stop.mjs
+```
+
+第一次 Rust build 可能要幾分鐘；log 會保留在 `.agent-runtime/tauri-dev.log`。
 
 ## 開發
 
 ```sh
-pnpm install
+corepack enable        # 系統還沒有 pnpm 時才需要
+pnpm install --frozen-lockfile
 pnpm build:injected
 pnpm verify
+pnpm tauri dev
 ```
 
-`pnpm tauri dev` 啟動 app；`pnpm tauri build` 產出安裝檔／portable 產物。Windows 上需要 MSVC C++ build tools 與 WebView2 runtime。
+`pnpm tauri build` 產生各平台套件。詳細契約見 [`docs/SPEC.md`](./docs/SPEC.md)、[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)、[`docs/RELEASE.md`](./docs/RELEASE.md)。
 
-## 隱私與信任
+## 隱私與網路行為
 
-不需 API key、不需專案帳號、無分析追蹤。你的登入狀態保存在本機的 per-provider WebView profile 裡；prompt 只會直接送到你選擇的 provider 頁面，Multi-AI Chat 沒有另外的對話後端。其他對外行為只有可選的 adapter hot-update，以及使用者主動開啟的 broken-adapter／issue 連結。Debug bundle 在本機產生，只有你手動要求時才會存檔。每個 adapter 的存取範圍都能在 Settings 裡查看。確切的傳輸與權限契約見 [`docs/SPEC.md`](./docs/SPEC.md)。
+- 不需 API Key、專案帳號、telemetry 或額外對話後端。
+- Prompt 直接送往使用者勾選的 provider 頁面。
+- Provider cookie 與 profile 留在本機 app data。
+- Adapter 更新是可選功能，並受 schema 限制。
+- Debug bundle 只有使用者要求時才在本機建立。
+- 匯出／分享只有在明確按下功能後才執行。
 
 ## 專案資訊
 
 Sponsored by [AI-Sister.com](https://ai-sister.com)。作者 Ted Huang（[TED@TED-H.com](mailto:TED@TED-H.com)、[ted-h.com](https://ted-h.com)）。
 
-## 授權
-
-MIT。
+MIT License。

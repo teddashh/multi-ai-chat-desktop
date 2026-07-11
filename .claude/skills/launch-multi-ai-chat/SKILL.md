@@ -1,15 +1,17 @@
 ---
 name: launch-multi-ai-chat
-description: Launch the local Multi-AI Chat Tauri source app from this repository without building or running an installer. Use when the user explicitly asks to open, run, preview, or try the desktop app in a local Claude Code Desktop session.
+description: Launch, inspect, or stop the local Multi-AI Chat Tauri source app from this repository without an installer. Use when the user explicitly asks Claude Code to open, run, preview, check, or stop the app on a local graphical computer.
 disable-model-invocation: true
 ---
 
 Launch the checked-out source app, not an installer or release build.
 
-1. Confirm the Code session environment is Local. If it is Remote, SSH, or has no graphical desktop, explain that the Tauri window can only open on the user's computer and stop.
+1. Confirm Claude Code has a local shell on the user's graphical computer. A remote web or SSH session cannot display the Tauri window on the user's screen.
 2. Run `node scripts/agent/doctor.mjs` from the repository root.
 3. If a prerequisite is missing, report the exact missing item and stop. Do not silently install system toolchains or weaken security settings.
 4. Run `node scripts/agent/launch.mjs`.
-5. Report that the first Rust build may take several minutes. If the window does not appear, run `node scripts/agent/status.mjs` and summarize the last relevant error from `.agent-runtime/tauri-dev.log`.
+5. Report that the first Rust build may take several minutes. If the window does not appear, run `node scripts/agent/status.mjs --lines 80` and summarize the last relevant error from `.agent-runtime/tauri-dev.log`.
 
-Never run `pnpm tauri build`, download an installer, access provider credentials, or delete an existing provider profile. The user completes any first-time provider login inside the Tauri window.
+For a status request, run `node scripts/agent/status.mjs`. For an explicit stop request, run `node scripts/agent/stop.mjs`.
+
+Never run `pnpm tauri build`, download an installer, access provider credentials, or delete an existing provider profile. The user completes any first-time provider login inside the Tauri window. Do not claim that a window opened unless the launch command succeeds.

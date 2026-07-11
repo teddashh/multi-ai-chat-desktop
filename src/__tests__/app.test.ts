@@ -63,6 +63,13 @@ describe('App workflow controls', () => {
     expect(html).not.toContain('Ask me before each step');
     expect(html).not.toContain('每步先問我再送出');
   });
+
+  it('places workflow controls in the left shelf before provider connections', () => {
+    const html = renderToStaticMarkup(createElement(I18nProvider, { language: 'en', children: createElement(App) }));
+
+    expect(html).toContain('id="workflow-control-shelf"');
+    expect(html.indexOf('id="workflow-control-shelf"')).toBeLessThan(html.indexOf('id="provider-connections-title"'));
+  });
 });
 
 describe('ChatArea thinking indicator', () => {

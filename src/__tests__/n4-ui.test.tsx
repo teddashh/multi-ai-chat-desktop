@@ -119,6 +119,15 @@ describe('N4 preset catalog', () => {
     expect(renderToStaticMarkup(tree)).not.toContain('raw controls');
   });
 
+  it('uses a two-column compact layout inside the workflow sidebar', () => {
+    const html = renderToStaticMarkup(
+      <PresetCatalog mode="free" onSelectPreset={vi.fn()} locale="en" layout="sidebar" />,
+    );
+
+    expect(html).toContain('grid-cols-2');
+    expect(html).toContain('min-h-12');
+  });
+
   it('shows live readiness before the user selects a workflow', () => {
     const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
     const states = Object.fromEntries(

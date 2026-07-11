@@ -1602,27 +1602,71 @@ export default function App() {
             onSelectSession={selectConversationSession}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <section
+              id="workflow-control-shelf"
+              aria-label={translate('preset.catalog.aria')}
+              className="max-h-[42vh] shrink-0 overflow-auto border-b border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/70"
+            >
+              <PresetCatalog
+                mode={mode}
+                onSelectPreset={selectPreset}
+                locale={locale}
+                states={states}
+                disabled={isProcessing}
+                detailsMode={presetDetailsMode}
+                layout="sidebar"
+              />
+              {mode === 'free' ? (
+                <section className="mt-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
+                  <div className="mb-2 text-xs font-semibold uppercase text-zinc-600 dark:text-zinc-400">{translate('input.sendSelectedProviders')}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} disabled={isProcessing} locale={locale} />
+                  </div>
+                </section>
+              ) : null}
+              {checkpoint ? (
+                <details className="mt-2 border border-amber-300 bg-white dark:border-amber-900 dark:bg-zinc-950" open>
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-950">
+                    {translate('checkpoint.confirmEachStep')}
+                  </summary>
+                  <div className="border-t border-amber-300 px-3 pb-3 dark:border-amber-900">
+                    <CheckpointCard
+                      checkpoint={checkpoint}
+                      draft={checkpointDraft}
+                      onDraftChange={setCheckpointDraft}
+                      onNativeEdit={(provider) => {
+                        void forceProviderNativeCenter(provider);
+                      }}
+                      locale={locale}
+                    />
+                  </div>
+                </details>
+              ) : null}
+              {stepTimeout && !stepTimeout.timedOut ? (
+                <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />
+              ) : null}
+            </section>
             <FocusPane
-            centeredProvider={centeredProvider}
-            states={states}
-            presentation={presentation}
-            centerSurface={centerSurface}
-            centerText={centerText}
-            centerTextFinal={centerTextFinal}
-            userHidden={userHidden}
-            presentationHidden={presentationHidden}
-            setPaneRef={setPaneRef}
-            setCenterStageRef={setCenterStageRef}
-            changeProviderPresentation={changeProviderPresentationManually}
-            onManualFocusControl={markManualFocusControl}
-            onEnlargeCenter={enlargeCenter}
-            onCollapseCenter={collapseCenter}
-            onOpenLogin={openProviderLogin}
-            syncBounds={syncBounds}
-            reportProvider={reportProvider}
-            reportBusy={reportBusy}
-            processTrace={processTrace}
-            onTraceDetailOpenChange={setProcessTraceDetailOpen}
+              centeredProvider={centeredProvider}
+              states={states}
+              presentation={presentation}
+              centerSurface={centerSurface}
+              centerText={centerText}
+              centerTextFinal={centerTextFinal}
+              userHidden={userHidden}
+              presentationHidden={presentationHidden}
+              setPaneRef={setPaneRef}
+              setCenterStageRef={setCenterStageRef}
+              changeProviderPresentation={changeProviderPresentationManually}
+              onManualFocusControl={markManualFocusControl}
+              onEnlargeCenter={enlargeCenter}
+              onCollapseCenter={collapseCenter}
+              onOpenLogin={openProviderLogin}
+              syncBounds={syncBounds}
+              reportProvider={reportProvider}
+              reportBusy={reportBusy}
+              processTrace={processTrace}
+              onTraceDetailOpenChange={setProcessTraceDetailOpen}
             />
           </div>
         </div>
@@ -1716,47 +1760,6 @@ export default function App() {
             <div role={adapterNotice.kind.endsWith('failed') ? 'alert' : 'status'} className={`mt-3 border px-3 py-2 text-xs ${adapterNoticeClass(adapterNotice.kind)}`}>
               {adapterNoticeText(adapterNotice)}
             </div>
-          ) : null}
-          <div className="mt-3">
-            <PresetCatalog
-              mode={mode}
-              onSelectPreset={selectPreset}
-              locale={locale}
-              states={states}
-              disabled={isProcessing}
-              detailsMode={presetDetailsMode}
-            />
-          </div>
-          {mode === 'free' ? (
-            <section className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3">
-              <div className="mb-2 text-xs font-semibold uppercase text-zinc-600 dark:text-zinc-400">{translate('input.sendSelectedProviders')}</div>
-              <div className="flex flex-wrap gap-2">
-                <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} disabled={isProcessing} locale={locale} />
-              </div>
-            </section>
-          ) : null}
-          <div className="mt-3 space-y-2">
-            {checkpoint ? (
-              <details className="border border-amber-300 dark:border-amber-900 bg-white dark:bg-zinc-950" open>
-                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-950">
-                  {translate('checkpoint.confirmEachStep')}
-                </summary>
-                <div className="border-t border-amber-300 dark:border-amber-900 px-3 pb-3">
-                  <CheckpointCard
-                    checkpoint={checkpoint}
-                    draft={checkpointDraft}
-                    onDraftChange={setCheckpointDraft}
-                    onNativeEdit={(provider) => {
-                      void forceProviderNativeCenter(provider);
-                    }}
-                    locale={locale}
-                  />
-                </div>
-              </details>
-            ) : null}
-          </div>
-          {stepTimeout && !stepTimeout.timedOut ? (
-            <StepTimeoutDialog event={stepTimeout} onClose={() => setStepTimeout(undefined)} locale={locale} />
           ) : null}
           <div className="mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3">
             <ChatArea messages={messages} locale={locale} states={states} />
