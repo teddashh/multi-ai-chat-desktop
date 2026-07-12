@@ -378,9 +378,12 @@ Source of truth: `docs/study/multi-ai-chat.md` §2 + §7 (line-referenced to the
 
 Order of checks:
 1. Host == `mac-bridge.invalid` ⇒ **return false** (defensive block; no ingest — §7.3 residue).
-2. URL matches adapter `urls.match` or `urls.login` ⇒ allow.
-3. Host in shared SSO allowlist (`shared/constants.ts`: `accounts.google.com`, `accounts.youtube.com`, `appleid.apple.com`, `login.microsoftonline.com`, `login.live.com`, `github.com`) or adapter `urls.ssoMatch` ⇒ allow (SSO flows stay in-webview).
-4. Anything else ⇒ **return false** + open in system browser via opener plugin.
+2. Grok only: `about:blank` or `about:srcdoc` ⇒ allow for Cloudflare challenge auxiliary documents. Other `about:`, `data:`, and `javascript:` URLs remain denied.
+3. URL matches adapter `urls.match` or `urls.login` ⇒ allow.
+4. Host in shared SSO allowlist (`shared/constants.ts`: `accounts.google.com`, `accounts.youtube.com`, `appleid.apple.com`, `login.microsoftonline.com`, `login.live.com`, `github.com`) or adapter `urls.ssoMatch` ⇒ allow (SSO flows stay in-webview).
+5. Anything else ⇒ **return false** + open in system browser via opener plugin.
+
+Grok's Cloudflare-protected WebView MUST NOT receive `PERMISSION_SHIM_JS`. Cloudflare's WebView integration requires standard Web APIs and no modification of core browser behavior; the other three providers retain the notification/geolocation prompt shim. This is a provider-specific compatibility exception, not a reduction of Tauri capability isolation. Reference: `https://developers.cloudflare.com/turnstile/get-started/mobile-implementation/`.
 
 ## 7. Bridge protocol (`bridge.rs` + `injected/bootstrap.ts`)
 
@@ -681,6 +684,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 ## 16. Changelog
 
+- **v2.2.3 (2026-07-12)** — Apple Silicon compatibility follow-up: records the first successful real-Mac `v1.0.1` launch and three-provider login report, while treating Grok's Cloudflare verification loop as a release blocker. Grok and its challenge frames no longer receive permission Web-API monkey-patches, and only Cloudflare-required `about:blank` / `about:srcdoc` auxiliary navigation is added. Final success remains pending an Apple Silicon retest.
 - **v2.2.2 (2026-07-12)** — formalizes the Codex/Claude source-launch path as Agent-Ready Source Release contract 1.0.0: strict manifest/schema, explicit trust and permission boundaries, deterministic JSON lifecycle commands, read-only dry-run, local before/after receipts, current-run control-pane READY evidence, identity-safe stop, Skill drift tests, and cross-platform CI self-tests. Explicitly rejects Docker, silent host installation, automatic rollback, and readiness claims based only on process creation.
 - **v2.2.1 (2026-07-11)** — final hardening clarification: preserves same-session roundtable history and existing prompts while correcting snapshot app-version provenance, adding session-safe Markdown provenance, narrowing Tauri capability scope to the `main` webview, enabling production CSP, locking remote adapters to bundled URL scopes, and documenting private security reporting plus honest platform/provider smoke evidence.
 - **v2.2 (2026-07-11)** — feature-freeze decision: retires all N-series expansion, preserves shipped snapshot/replay/checkpoints as compatibility-only, closes updater/signing/editor/marketplace work, and scopes one final AI-Sister ensemble theme before maintenance-only status.

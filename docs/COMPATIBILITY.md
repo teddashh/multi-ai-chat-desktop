@@ -5,6 +5,7 @@
 ## Status legend
 
 - **Verified** — exercised manually on the named platform or validated by a focused automated test.
+- **Partially verified** — real-device evidence exists, but at least one named path remains unverified or blocked.
 - **CI-only** — compiles/packages in GitHub Actions, but no maintainer end-user launch report is available.
 - **Pending** — needs a repeatable manual check before claiming support for that behavior.
 
@@ -13,10 +14,10 @@
 | Platform | Packaging evidence | End-user launch | Status |
 |---|---|---|---|
 | Windows x64 | NSIS and portable builds; local development and packaged builds | Maintainer/user runs available | **Verified** |
-| macOS Apple Silicon | DMG builds in CI; embedded app is verified as ad-hoc signed | No real-Mac report for `v1.0.1` yet | **CI-only** |
+| macOS Apple Silicon | DMG builds in CI; embedded app is verified as ad-hoc signed | A `v1.0.1` user opened the app and logged into ChatGPT, Claude, and Gemini; Grok looped on Cloudflare verification | **Partially verified** |
 | Linux x86_64 | AppImage builds in CI with WebKitGTK dependencies | No maintainer desktop report yet | **CI-only** |
 
-macOS remains ad-hoc signed, not Developer ID signed or notarized. Follow the first-launch steps in the README. A real-device launch report is still required before describing it as warning-free or broadly verified.
+macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. The current source stops injecting the permission Web-API shim into Grok/Cloudflare frames and permits only Cloudflare's required `about:blank` / `about:srcdoc` auxiliary documents; this fix still requires an Apple Silicon retest before final release publication.
 
 ## Agent-ready source lane
 
@@ -41,6 +42,8 @@ The Agent contract does not claim that CI displayed a window. It also does not i
 
 Automated tests validate adapter structure, approved strategies, HTTPS URL parsing, and navigation boundaries. They do not log into live provider accounts. Remote adapter updates cannot expand the URL scopes bundled with the installed app.
 
+macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. The next release candidate leaves Grok's core browser APIs unmodified, following Cloudflare's documented WebView requirements. CI can compile this policy but cannot prove that a live challenge completes.
+
 ## Product behavior
 
 | Area | Automated evidence | Manual release check |
@@ -58,6 +61,7 @@ Automated tests validate adapter structure, approved strategies, HTTPS URL parsi
 
 1. Install or launch the platform artifact on a clean profile.
 2. Open and authenticate each provider using a non-sensitive test account where possible.
+   On macOS, explicitly confirm that Grok exits the Cloudflare verification page before calling the release verified.
 3. Verify prompt insertion, automatic send, thinking state, text completion, and new-session reset.
 4. Run Free mode and one serial mode; cancel one in-progress run.
 5. Generate an image on a supporting provider and confirm the workflow reaches completion without relying on text-only output.

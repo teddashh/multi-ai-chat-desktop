@@ -49,7 +49,7 @@ Portable Windows builds include a `PORTABLE` marker next to the app `.exe`. Port
 - Confirm the default capability targets only `webviews:["main"]`, has no `windows` or `remote` entry, and the packaged control pane still supports update checks and export under the production CSP.
 - Confirm remote adapter tests permit selector/timing changes inside bundled URL scopes and reject provider/login/match/SSO expansion.
 - Update [`docs/COMPATIBILITY.md`](./COMPATIBILITY.md) with only evidence actually observed. CI packaging is not an end-user launch result.
-- Before publishing, smoke-test Windows artifacts. macOS and Linux remain explicitly CI-only until a real-device report is recorded.
+- Before publishing, smoke-test Windows artifacts. On Apple Silicon, confirm first launch plus all four provider logins; specifically require Grok to leave Cloudflare verification with the release candidate. Linux remains CI-only until a real-device report is recorded.
 
 ## Frozen Distribution Policy
 

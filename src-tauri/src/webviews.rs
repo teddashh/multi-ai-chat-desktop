@@ -51,6 +51,14 @@ const PERMISSION_SHIM_JS: &str = r#"(function () {
   } catch (e) {}
 })();"#;
 
+fn provider_uses_permission_shim(provider: &str) -> bool {
+    provider != "grok"
+}
+
+fn challenge_auxiliary_navigation_allowed(provider: &str, url: &tauri::Url) -> bool {
+    provider == "grok" && url.scheme() == "about" && matches!(url.path(), "blank" | "srcdoc")
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Bounds {
     pub x: f64,
@@ -166,9 +174,17 @@ pub async fn provider_open(
     // the old Windows-only `register_title_watcher` (whose non-Windows branch was a no-op stub).
     let title_app = app.clone();
     let title_provider = provider.clone();
-    let builder = WebviewBuilder::new(&label, WebviewUrl::External(url))
-        .initialization_script(&init_script)
-        .initialization_script_for_all_frames(PERMISSION_SHIM_JS)
+    let builder =
+        WebviewBuilder::new(&label, WebviewUrl::External(url)).initialization_script(&init_script);
+    // Cloudflare Turnstile requires standard, unmodified browser APIs in embedded WebViews.
+    // Grok is Cloudflare-protected, so do not monkey-patch navigator.permissions,
+    // Notification, or geolocation in its top page or challenge frames.
+    let builder = if provider_uses_permission_shim(&provider) {
+        builder.initialization_script_for_all_frames(PERMISSION_SHIM_JS)
+    } else {
+        builder
+    };
+    let builder = builder
         .data_directory(profile_dir)
         .background_throttling(BackgroundThrottlingPolicy::Disabled)
         .additional_browser_args(PROVIDER_BROWSER_ARGS)
@@ -179,7 +195,8 @@ pub async fn provider_open(
             if url.host_str() == Some("mac-bridge.invalid") {
                 return false;
             }
-            if adapters::url_allowed_for_provider(&nav_provider, url).unwrap_or(false)
+            if challenge_auxiliary_navigation_allowed(&nav_provider, url)
+                || adapters::url_allowed_for_provider(&nav_provider, url).unwrap_or(false)
                 || adapters::url_allowed_for_sso(&nav_provider, url).unwrap_or(false)
             {
                 return true;
@@ -197,6 +214,8 @@ pub async fn provider_open(
             false
         })
         .on_new_window(move |url, _features| {
+            // Challenge auxiliary about: documents are allowed only as in-webview navigation.
+            // Keep all non-HTTP(S) popups fail-closed; Turnstile does not require popup windows.
             let allowlisted = adapters::url_allowed_for_provider(&popup_provider, &url)
                 .unwrap_or(false)
                 || adapters::url_allowed_for_sso(&popup_provider, &url).unwrap_or(false);
@@ -783,7 +802,8 @@ fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        bridge_resets_on_boot_rotation, decide_new_window_action, runtime,
+        bridge_resets_on_boot_rotation, challenge_auxiliary_navigation_allowed,
+        decide_new_window_action, provider_uses_permission_shim, runtime,
         should_reset_bridge_on_boot_rotation, staleness_action, state_with, NewWindowAction,
         StalenessAction, PROVIDER_BROWSER_ARGS,
     };
@@ -798,6 +818,42 @@ mod tests {
         assert!(PROVIDER_BROWSER_ARGS.contains("--disable-renderer-backgrounding"));
         assert!(PROVIDER_BROWSER_ARGS.contains("--disable-backgrounding-occluded-windows"));
         assert!(PROVIDER_BROWSER_ARGS.contains("msSmartScreenProtection"));
+    }
+
+    #[test]
+    fn grok_keeps_core_web_apis_unmodified_for_cloudflare_challenges() {
+        assert!(!provider_uses_permission_shim("grok"));
+        for provider in ["chatgpt", "claude", "gemini"] {
+            assert!(provider_uses_permission_shim(provider));
+        }
+    }
+
+    #[test]
+    fn grok_allows_only_cloudflare_auxiliary_about_documents() {
+        assert!(challenge_auxiliary_navigation_allowed(
+            "grok",
+            &url("about:blank")
+        ));
+        assert!(challenge_auxiliary_navigation_allowed(
+            "grok",
+            &url("about:srcdoc")
+        ));
+        assert!(!challenge_auxiliary_navigation_allowed(
+            "chatgpt",
+            &url("about:blank")
+        ));
+        assert!(!challenge_auxiliary_navigation_allowed(
+            "grok",
+            &url("data:text/plain,hello")
+        ));
+        assert!(!challenge_auxiliary_navigation_allowed(
+            "grok",
+            &url("javascript:alert(1)")
+        ));
+        assert!(!challenge_auxiliary_navigation_allowed(
+            "grok",
+            &url("about:config")
+        ));
     }
 
     #[test]
