@@ -70,7 +70,9 @@ The repo contains two explicit local Skills:
 
 These follow the official [Codex Agent Skills](https://developers.openai.com/codex/skills) and [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills) layouts.
 
-Opening a repository must not execute its code automatically. Invoke the Skill once; it checks the machine, installs only JavaScript project dependencies when needed, builds the injected bundle, and starts `tauri dev` in the background. It never installs system toolchains, builds an installer, or reads provider credentials.
+The machine-readable source of truth is [`agent-release.json`](./agent-release.json), validated by [`agent-release.schema.json`](./agent-release.schema.json). The full trust, permission, side-effect, readiness, and audit model is documented in the bilingual [`Agent-Ready Source Release contract`](./docs/AGENT-READY-SOURCE-RELEASE.md).
+
+Opening a repository never executes it automatically. Source launch executes this checkout, JavaScript dependency lifecycle code, and Rust build scripts/procedural macros, so review and trust the repo first. The explicit Skill can install locked dependencies into this project, build generated code, and start `tauri dev`; it never installs or removes host toolchains/global packages, changes `PATH` or security settings, builds an installer, or reads provider credentials. Any host installation is a separate operation requiring separate explicit approval.
 
 ### Codex app, CLI, or IDE
 
@@ -91,7 +93,7 @@ If your Claude desktop/browser session is remote, use a local Claude Code sessio
 
 ### Platform prerequisites for source launch
 
-Common: **Node.js 20+**, pnpm (or Corepack), and the stable Rust toolchain.
+Common: **Node.js 20+**, pnpm (or Corepack), and the stable Rust toolchain. The commands below are manual prerequisite examples; the Skill only reports missing items and stops.
 
 **Windows 10/11**
 
@@ -119,13 +121,17 @@ Then install Node.js 20+, Rust stable, and run the Skill from a graphical X11/Wa
 ### Skill lifecycle commands
 
 ```sh
-node scripts/agent/doctor.mjs          # explain missing prerequisites
-node scripts/agent/launch.mjs          # start once; safe if already running
-node scripts/agent/status.mjs --lines 80
-node scripts/agent/stop.mjs
+node scripts/agent/audit.mjs --phase before --write --json
+node scripts/agent/doctor.mjs --json
+node scripts/agent/launch.mjs --dry-run --json
+node scripts/agent/launch.mjs --wait --timeout-ms 600000 --json
+node scripts/agent/status.mjs --json --lines 80
+node scripts/agent/audit.mjs --phase after --write --json
+node scripts/agent/stop.mjs --json
+pnpm agent:verify
 ```
 
-The first Rust build can take several minutes. Logs stay in `.agent-runtime/tauri-dev.log`.
+The first Rust build can take several minutes. `accepted` and `building` are not readiness claims: only the current run's `[MAC_AGENT] READY control-pane` marker produces `state: "ready"`. Logs, identity state, and before/after receipts stay under ignored `.agent-runtime/`; nothing is uploaded automatically. This GUI/WebView lane intentionally has no Docker variant.
 
 ## Development
 
@@ -137,18 +143,20 @@ pnpm verify
 pnpm tauri dev
 ```
 
-`pnpm tauri build` creates platform packages. See [`docs/SPEC.md`](./docs/SPEC.md), [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), and [`docs/RELEASE.md`](./docs/RELEASE.md).
+`pnpm tauri build` creates platform packages. See [`docs/SPEC.md`](./docs/SPEC.md), [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), [`docs/RELEASE.md`](./docs/RELEASE.md), and the honest [`compatibility matrix`](./docs/COMPATIBILITY.md).
 
 ## Privacy and network behavior
 
 - No API keys, project account, telemetry, or conversation backend.
 - Prompts go directly to the provider pages selected by the user.
 - Provider cookies and profiles stay in local app data.
-- Adapter updates are optional and constrained by the adapter schema.
+- Adapter updates are optional, data-only, schema-validated, and unable to expand the URL scopes bundled with the app.
 - Debug bundles are created locally only when requested.
 - Export/share actions run only after an explicit user action.
 
 ## Project
+
+Report vulnerabilities privately through [`SECURITY.md`](./SECURITY.md). Report provider automation regressions with the GitHub **Adapter broken** issue form after reviewing the in-app diagnostic preview.
 
 Sponsored by [AI-Sister.com](https://ai-sister.com). Created by Ted Huang ([TED@TED-H.com](mailto:TED@TED-H.com), [ted-h.com](https://ted-h.com)).
 

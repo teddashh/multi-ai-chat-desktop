@@ -1,5 +1,6 @@
 import { AI_PROVIDERS, DEFAULT_FREE_TARGET_PROVIDERS } from '../../../shared/constants';
 import type { AIProvider, ChatMode } from '../../../shared/types';
+import { getRuntimeAppVersion } from '../../appVersion';
 import { host } from '../../host';
 import { executeGraph, preflightGraph, workflowGraphs } from '../graph';
 import type { WorkflowGraph } from '../graph';
@@ -139,11 +140,15 @@ export async function replaySnapshot(input: ReplayInput, options: ReplayOptions 
   if (!preflight.ok) return { ok: false, blocked: 'preflight', preflight };
 
   const targets = await replayTargets(plan);
+  const appVersion = await getRuntimeAppVersion();
 
   await executeGraph(
     plan.graph!,
     { text: question, roles: plan.roles, targets },
-    { onSnapshotComplete: options.onSnapshotComplete },
+    {
+      onSnapshotComplete: options.onSnapshotComplete,
+      ...(appVersion ? { appVersion } : {}),
+    },
   );
 
   return { ok: true, plan, newSnapshotId: getLastSnapshot()?.snapshotId };

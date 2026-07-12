@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/teddashh/multi-ai-chat-desktop/blob/main/agent-release.schema.json",
+  "title": "Agent-Ready Source Release Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "contractVersion",
+    "kind",
+    "product",
+    "trust",
+    "entrypoints",
+    "requirements",
+    "permissions",
+    "sideEffects",
+    "runtime",
+    "exitCodes",
+    "skills",
+    "privacy"
+  ],
+  "properties": {
+    "$schema": { "const": "./agent-release.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "contractVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "kind": { "const": "agent-ready-source-release" },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "package", "repository", "runtime", "distributionLane", "platforms", "not"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "package": { "type": "string", "minLength": 1 },
+        "repository": { "type": "string", "format": "uri" },
+        "runtime": { "type": "string", "minLength": 1 },
+        "distributionLane": { "const": "source-development" },
+        "platforms": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["windows", "macos", "linux"] } },
+        "not": { "$ref": "#/definitions/nonEmptyStrings" }
+      }
+    },
+    "trust": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invocation", "source", "warning"],
+      "properties": {
+        "invocation": { "const": "explicit-only" },
+        "source": { "type": "string", "minLength": 1 },
+        "warning": { "type": "string", "minLength": 1 }
+      }
+    },
+    "entrypoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["doctor", "audit", "launch", "status", "stop"],
+      "properties": {
+        "doctor": { "$ref": "#/definitions/entrypoint" },
+        "audit": { "$ref": "#/definitions/entrypoint" },
+        "launch": { "$ref": "#/definitions/entrypoint" },
+        "status": { "$ref": "#/definitions/entrypoint" },
+        "stop": { "$ref": "#/definitions/entrypoint" }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["common", "windows", "macos", "linux"],
+      "properties": {
+        "common": { "$ref": "#/definitions/nonEmptyStrings" },
+        "windows": { "$ref": "#/definitions/nonEmptyStrings" },
+        "macos": { "$ref": "#/definitions/nonEmptyStrings" },
+        "linux": { "$ref": "#/definitions/nonEmptyStrings" }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedByScripts", "requiresSeparateExplicitApproval", "deniedBySkill"],
+      "properties": {
+        "allowedByScripts": { "$ref": "#/definitions/nonEmptyStrings" },
+        "requiresSeparateExplicitApproval": { "$ref": "#/definitions/nonEmptyStrings" },
+        "deniedBySkill": { "$ref": "#/definitions/nonEmptyStrings" }
+      }
+    },
+    "sideEffects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repositoryLocal", "userCaches", "applicationData", "hostConfigurationByScripts", "automaticRollback"],
+      "properties": {
+        "repositoryLocal": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "when", "removal", "evidence"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "when": { "type": "string", "minLength": 1 },
+              "removal": { "type": "string", "minLength": 1 },
+              "evidence": { "$ref": "#/definitions/nonEmptyStrings" }
+            }
+          }
+        },
+        "userCaches": { "$ref": "#/definitions/nonEmptyStrings" },
+        "applicationData": { "$ref": "#/definitions/nonEmptyStrings" },
+        "hostConfigurationByScripts": { "type": "string", "minLength": 1 },
+        "automaticRollback": { "type": "string", "minLength": 1 }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directory", "stateFile", "launchLock", "logFile", "launchReceipt", "auditBefore", "auditAfter", "readyMarker", "states"],
+      "properties": {
+        "directory": { "type": "string", "minLength": 1 },
+        "stateFile": { "type": "string", "minLength": 1 },
+        "launchLock": { "type": "string", "minLength": 1 },
+        "logFile": { "type": "string", "minLength": 1 },
+        "launchReceipt": { "type": "string", "minLength": 1 },
+        "auditBefore": { "type": "string", "minLength": 1 },
+        "auditAfter": { "type": "string", "minLength": 1 },
+        "readyMarker": { "type": "string", "minLength": 1 },
+        "states": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "exitCodes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["0", "1", "2", "3"],
+      "properties": {
+        "0": { "type": "string", "minLength": 1 },
+        "1": { "type": "string", "minLength": 1 },
+        "2": { "type": "string", "minLength": 1 },
+        "3": { "type": "string", "minLength": 1 }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "codex", "codexMetadata", "claude", "implicitInvocation"],
+      "properties": {
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "codex": { "type": "string", "minLength": 1 },
+        "codexMetadata": { "type": "string", "minLength": 1 },
+        "claude": { "type": "string", "minLength": 1 },
+        "implicitInvocation": { "const": false }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localOnly", "logUpload", "auditUpload", "credentials"],
+      "properties": {
+        "localOnly": { "const": true },
+        "logUpload": { "type": "string", "minLength": 1 },
+        "auditUpload": { "type": "string", "minLength": 1 },
+        "credentials": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "definitions": {
+    "nonEmptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "entrypoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["argv", "flags", "sideEffect"],
+      "properties": {
+        "argv": { "type": "array", "minItems": 2, "items": { "type": "string", "minLength": 1 } },
+        "flags": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^--" } },
+        "sideEffect": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

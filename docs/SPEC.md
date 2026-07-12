@@ -311,9 +311,9 @@ All selector fields are **ordered arrays — first match wins** (original `query
 }
 ```
 
-**Validation (Rust, on bundle + every fetch):** JSON parse → `schemaVersion` supported → required fields present → required selector arrays non-empty (`inputSelectors`, `sendButtonSelectors`, `responseSelectors`, `loginDetectors`) → optional arrays may be empty (`loggedOutDetectors`, `thinkingDetectors`, `stopButtonSelectors`, `urls.ssoMatch`) → `inputStrategy`/`sendStrategy` in enum → `adapterVersion` integer ≥ `max(bundled, cached)` for the update to apply. Invalid remote bundle ⇒ keep last-known-good, emit warning event. Remote fetch response capped at 64 KB per adapter file.
+**Validation (Rust, on bundle + every fetch):** JSON parse → `schemaVersion` supported → required fields present → required selector arrays non-empty (`inputSelectors`, `sendButtonSelectors`, `responseSelectors`, `loginDetectors`) → optional arrays may be empty (`loggedOutDetectors`, `thinkingDetectors`, `stopButtonSelectors`, `urls.ssoMatch`) → `inputStrategy`/`sendStrategy` in enum → every adapter URL is HTTPS without credentials, custom ports, query strings, or fragments → `adapterVersion` integer ≥ `max(bundled, cached)` for the update to apply. Invalid remote bundle ⇒ keep last-known-good, emit warning event. Remote fetch response capped at 64 KB per adapter file.
 
-**Hot update flow**: on startup + every 6h, Rust `reqwest` GETs `https://raw.githubusercontent.com/<org>/<repo>/main/adapters/<provider>.json` (base URL configurable; HTTPS required) → validate → persist to `<app-data>/adapters-cache/` → push to live webviews via `ADAPTER_UPDATE` eval. Bundled adapters ship in the binary as final fallback. Downgrade (lower `adapterVersion`) only applies on explicit channel/base-URL change in Settings, with toast.
+**Hot update flow**: on startup + every 6h, Rust `reqwest` GETs `https://raw.githubusercontent.com/<org>/<repo>/main/adapters/<provider>.json` (base URL configurable; HTTPS required) → validate → persist to `<app-data>/adapters-cache/` → push to live webviews via `ADAPTER_UPDATE` eval. Bundled adapters ship in the binary as final fallback. A fetched or cached adapter may narrow paths and update selectors, approved strategies, or timing, but it MUST NOT expand the bundled `urls.app`, `urls.login`, `urls.match`, or `urls.ssoMatch` scopes; broader navigation requires an app release and security review. Downgrade (lower `adapterVersion`) only applies on explicit channel/base-URL change in Settings, with toast.
 
 **NEXT-PHASE (N9) contributor gate:** a new provider seed + adapter PR MUST pass the §14 golden tests for all five shipped modes (`free`, `debate`, `consult`, `coding`, `roundtable`) before promotion, OR declare an explicit mercy tier (§18.2) at merge. The CI gate (§12/§14) enforces this for promoted providers and keeps the five-mode floor as the adapter quality bar.
 
@@ -360,9 +360,10 @@ Source of truth: `docs/study/multi-ai-chat.md` §2 + §7 (line-referenced to the
 
 ### 6.1 Capabilities / security scoping
 
-- Control pane window label: full local IPC (the command set in this spec) via `capabilities/default.json`.
+- Control pane webview label `main`: full local IPC (the command set in this spec) via `capabilities/default.json` using `webviews:["main"]`; the capability MUST omit `windows` so sibling provider webviews do not inherit it.
 - `ai-<provider>` labels: **ZERO Tauri permissions**. No capability entries, no `remote.urls`, no plugin access. All provider communication is eval / title / navigation only (ARCH D3).
 - `withGlobalTauri: false`. Renderer never imports Tauri APIs outside `src/host/`.
+- Bundled control-pane HTML uses a production CSP restricted to local assets, Tauri IPC, and `https://api.github.com` for the explicit update check. `devCsp:null` is allowed only for the local Vite development server.
 
 ### 6.2 Geometry contract
 
@@ -486,6 +487,7 @@ When input/send/response resolution fails permanently (e.g. input element not fo
 ### 9.1 Graph runtime and presets
 
 - Built-in graph ids: `free`, `debate`, `consult`, `coding`, `roundtable`. **NEXT-PHASE (N3):** imported pack graph ids are namespaced by pack id.
+- Roundtable history accumulation is intentional: each speaker receives all earlier speeches from the same workflow run, including earlier speakers in the current round. Every `executeGraph` call creates a fresh history map, so this prompt context never carries into a different workflow question. Starting a new app conversation also requests a new session from every loaded provider.
 - **NEXT-PHASE (N0/N1):** graph versions are monotonic integers. Current `src/workflow/graph/types.ts:8-18` has no monotonic content `version`; N0/N1 MUST add `graphVersion` or an explicit equivalent before snapshot replay depends on it. A snapshot records `graphId` + `graphVersion`; replay refuses to silently substitute a different graph version unless the user explicitly selects "replay with current graph".
 - **NEXT-PHASE (N3):** `WorkflowPack` import validates graph shape, required provider ids, `minAdapterVersion`, prompt-template parameters, and absence of executable code. Packs contain prompts and metadata only; they do not carry scripts, cookies, local paths, or Tauri permissions.
 - **NEXT-PHASE (N3):** pack role defaults are suggestions. Serial-mode preflight (§9.5) remains authoritative and blocks if a required role provider is not sendable.
@@ -502,6 +504,7 @@ When input/send/response resolution fails permanently (e.g. input element not fo
 ### 9.3 Snapshot replay
 
 - **NEXT-PHASE (N1):** replay uses the snapshot's graph id/version, role map, provider ids, and adapter-version requirements to reconstruct the run plan.
+- Every production workflow and replay passes the runtime Tauri package version into the existing `ExecutionSnapshot.appVersion` field. The `0.0.0` recorder fallback is compatibility-only for direct tests or callers that cannot resolve a runtime package version.
 - Replay never reuses cookies or provider storage from the snapshot. It uses the current user's logged-in web sessions and blocks preflight if required providers are unavailable.
 - Replay can compare prior output refs against new outputs when the redaction tier preserved comparable material or hashes. Metadata-only snapshots can replay structure but cannot display prompt/output text.
 - Replay is a workflow run and therefore emits normal `WORKFLOW_STATUS`, `ROLE_ASSIGNMENT`, process-trace, timeout, cancel, and snapshot events.
@@ -561,7 +564,7 @@ Pack/snapshot/local-file UI:
 - **NEXT-PHASE (N2/N4):** checkpoint cards use the product label 「一鍵接力」 for auto-fill + human confirm. Built-in modes stay auto-for-parity unless a pack or user setting enables a checkpoint.
 - Local file drag/drop: current shipped behavior inserts text files into InputBar (`src/ui/fileInsert.ts:1-4`; binary/PDF unsupported). **NEXT-PHASE (N7):** extend this to PDF/DOCX text extraction, chunking, and optional fan-out through existing send paths. Better Agent Terminal's MIT native-drop cache/hit-test utilities may be reused/adapted inside `src/host/` with notice.
 
-Existing pane chrome remains: per-provider header (show/hide/promote, reload, open-login, report-broken), degraded-state banners, adapter update toast, and placeholder with "Open <provider>" (lazy creation, §6). **NEXT-PHASE (N5):** session-ready chip uses the same area. Export (.md download via dialog+fs) and HackMD publish (Rust reqwest command `publish_hackmd`) port as-is.
+Existing pane chrome remains: per-provider header (show/hide/promote, reload, open-login, report-broken), degraded-state banners, adapter update toast, and placeholder with "Open <provider>" (lazy creation, §6). **NEXT-PHASE (N5):** session-ready chip uses the same area. Markdown export records local and UTC export time plus the current app version. It adds latest-run graph/snapshot/adapter provenance only when that in-memory snapshot's question matches the current conversation's latest user message, preventing provenance leakage across sessions.
 
 ### 10.1 OPEN_LOGIN semantics (per provider)
 
@@ -605,8 +608,23 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 - **FROZEN policy:** `createUpdaterArtifacts` remains false. The app may detect a newer GitHub Release and open its page, but does not download or install updates. No updater endpoint, minisign registration, Developer ID, or notarization roadmap remains. Ad-hoc signing of the macOS bundle is mandatory and verified inside the produced DMG.
 - Portable zip job: after NSIS build, zip the raw `target/release` app dir + `README-portable.txt` (WebView2 preflight note). **`PORTABLE` marker file present ⇒ updater disabled at runtime AND the updater section is hidden in Settings.**
 - `release.yml`: annotated `v*` tag → version injection → verify → Windows/macOS/Linux bundles → draft GitHub Release with four artifact classes.
-- `ci.yml`: TypeScript, ESLint, Vitest, adapter validation, and cross-platform `cargo clippy -- -D warnings` gates.
+- `ci.yml`: TypeScript, ESLint, Vitest, adapter validation, Agent source-contract self-tests, and cross-platform Rust tests/`cargo clippy -- -D warnings` gates.
 - Capability tests are v2 gates: provider labels (`ai-<provider>`) MUST be absent from capabilities; no Tauri imports outside `src/host/`; provider webviews receive no `remote.urls`.
+
+### 12.1 Agent-Ready Source Release
+
+- `agent-release.json` is the machine-readable source-development contract; `agent-release.schema.json` is its strict schema. Contract version and Skill version MUST match.
+- This lane is explicit-only. Opening or cloning the repository MUST NOT execute code. It is distinct from release installers and MUST NOT invoke `pnpm tauri build`.
+- The Codex and Claude Code Skill instruction bodies MUST remain semantically identical; tool-specific frontmatter and Codex UI metadata may differ. Implicit invocation is disabled on both surfaces.
+- Source trust warning is normative: dependency installation may execute JavaScript lifecycle scripts, and Rust compilation may execute build scripts/procedural macros from the checked-out dependency graph.
+- Lifecycle commands are `doctor`, `audit`, `launch`, `status`, and `stop`. `--json` emits one object carrying `schemaVersion`, `contractVersion`, and `command`. Exit codes are stable: `0` success, `1` prerequisite/runtime/operation failure, `2` invalid usage/contract, `3` readiness timeout.
+- `launch --dry-run` MUST NOT create, delete, or rewrite runtime state and MUST predict reuse/refusal instead of always claiming it would start. Normal launch uses a short-lived `.agent-runtime/launch.lock` mutex, may install only locked project dependencies when absent, build generated code, use existing pnpm/Cargo caches, and start `tauri dev`.
+- Process acceptance is not readiness. `ready` requires an identity-verified live runner plus a flushed `[MAC_AGENT] READY control-pane` marker in the current launch segment, with the same `startedAt` identity the wait began with. Append-only markers from older or replacement runs MUST be ignored.
+- Runtime state is one of `not_started`, `building`, `ready`, `failed`, `exited`, `invalid_state`, or `foreign_process`. Stop MUST re-verify before kill, re-check the same `pid`/`startedAt` before deleting state, refuse foreign identity, and may terminate only the recorded repository runner process tree. Invalid state fails closed; an explicit `stop --clear-invalid-state` recovery removes only the inspected corrupt state file and no process.
+- Before/after audits and the launch receipt remain under gitignored `.agent-runtime/`. Comparisons accept only a same-contract, same-repository `phase:before` receipt and probe declared dependency/generated/binary/runtime evidence files. They are not recursive hashes, a sandbox, whole-host inventory, or proof of machine-wide non-mutation.
+- Lifecycle scripts MUST NOT install/uninstall host toolchains or global packages, modify `PATH`/profiles/security policy, access provider credentials/profiles, upload logs/receipts, or perform automatic host rollback. Host changes require a separate explicit user-approved operation outside the Skill.
+- Docker is not a distribution lane. Native WebViews, the host graphical session, and local provider profiles make container display/profile forwarding a more complex and misleading path than the supported local source launch.
+- Full rationale and reusable checklist: `docs/AGENT-READY-SOURCE-RELEASE.md`.
 
 ## 13. Error handling & degraded states
 
@@ -644,8 +662,10 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 - Unit (vitest): workflow engine mode sequencing with mocked `host` through `executeGraph` (golden tests replicate original ordering incl. coding 8-step, roundtable history accumulation, `ROLE_ASSIGNMENT` consumption order, error-as-DONE unblocking, free-mode default-targets parity, serial preflight block); adapter schema validator; title codec round-trip; outbox pull batch parsing + `(bootId, mid)` dedup.
 - **NEXT-PHASE (N0/N1/N2/N3/N4):** graph tests cover built-in graph validation, pack import validation, relay checkpoint pauses/confirm/skip, `FILL_DRAFT` inserts without send activation, "auto-fill but never auto-send" assertion, replay version mismatch, snapshot redaction tiers, minimum session checkpoint resume, partial-run consent, and catalog degraded badges.
 - Rust (`cargo test`): title codec (prefix/seq dedup/bootId switch), navigation policy table, adapter validation + version comparison, settings IO, provider profile path validation. **NEXT-PHASE (N1):** snapshot/log retention IO and session-checkpoint persistence. *(Sentinel reassembly tests retire with the transport in M2.)*
-- CI: §5.1 seed-adapter diff script. **NEXT-PHASE (N9):** new provider seed + adapter promotion gate runs §14 golden tests for all five modes, unless the PR declares a §18.2 mercy tier.
-- Capability/security tests: provider labels absent from capabilities, `withGlobalTauri:false`, no Tauri imports outside `src/host/`, provider webviews have no `remote.urls`.
+- CI: §5.1 seed-adapter diff script plus executed Rust library tests on Windows, macOS, and Linux. **NEXT-PHASE (N9):** new provider seed + adapter promotion gate runs §14 golden tests for all five modes, unless the PR declares a §18.2 mercy tier.
+- Capability/security tests: capability targets `webviews:["main"]` and omits `windows`/`remote`, production CSP preserves only required control-pane connections, `withGlobalTauri:false`, and provider webviews receive no Tauri capability.
+- Adapter Rust tests reject HTTPS credential/port/query tricks, provider-host expansion, and SSO path broadening while allowing selector/timing changes inside bundled URL scopes.
+- Agent source-contract tests validate the manifest/schema, entrypoint/package alignment, Skill-body parity, explicit invocation, JSON output, invalid-usage exit code, audit/dry-run non-mutation, current-run READY segmentation, and runner identity. CI executes them on Windows, macOS, and Linux; GUI observation remains a separate manual claim.
 - Manual smoke checklist per milestone (docs/PLAN.md): create webviews, login persist across restart, send/receive on shipped providers, DPI 100/125/150%, mode runs, cancel/stop, hot-update, portable zip run, graph parity, snapshot replay, pack import/export, chip/side/center promotion, local-file insert.
 - Playwright-driven adapter smoke against live sites can run on CI cron; it must not require API keys.
 
@@ -657,9 +677,12 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 4. Durable snapshots stay opt-in; snapshot/replay/checkpoint behavior is compatibility-only and will not gain new schemas or UI.
 5. Terminal-agent work, if pursued, is a separate product and repository.
 6. The only final presentation work is the AI-Sister ensemble commemorative theme.
+7. The repository-scoped Agent-Ready Source Release remains a narrow source-launch contract, not Docker, a package manager, daemon, embedded agent SDK, or host rollback system.
 
 ## 16. Changelog
 
+- **v2.2.2 (2026-07-12)** — formalizes the Codex/Claude source-launch path as Agent-Ready Source Release contract 1.0.0: strict manifest/schema, explicit trust and permission boundaries, deterministic JSON lifecycle commands, read-only dry-run, local before/after receipts, current-run control-pane READY evidence, identity-safe stop, Skill drift tests, and cross-platform CI self-tests. Explicitly rejects Docker, silent host installation, automatic rollback, and readiness claims based only on process creation.
+- **v2.2.1 (2026-07-11)** — final hardening clarification: preserves same-session roundtable history and existing prompts while correcting snapshot app-version provenance, adding session-safe Markdown provenance, narrowing Tauri capability scope to the `main` webview, enabling production CSP, locking remote adapters to bundled URL scopes, and documenting private security reporting plus honest platform/provider smoke evidence.
 - **v2.2 (2026-07-11)** — feature-freeze decision: retires all N-series expansion, preserves shipped snapshot/replay/checkpoints as compatibility-only, closes updater/signing/editor/marketplace work, and scopes one final AI-Sister ensemble theme before maintenance-only status.
 - **v2.1 (2026-07-10)** — fixes the web edition at four providers and retires the unfinished fifth-provider/N6 experiment. Source launch from local Codex and Claude Code desktop sessions is documented in the README and implemented as repo-scoped Skills; it does not add another provider or alter the web bridge.
 - **v2.0 (2026-07-06)** — additive roadmap pivot: preserves the v1 Chrome-extension port as the hard floor and specifies graph-driven presets, execution snapshots + replay, human relay checkpoints, `.macflow.json` workflow packs, preset catalog + read-only process trace, RAM-aware chip/side/center webviews, local-file inject v2, staged contributor graph view/constrained editor, and OSS temperature/governance loop. A fifth web-provider experiment was later retired to keep this edition focused on its four stable web sessions. Explicitly preserved byte-intact/unchanged: §5.1 normative seed adapter table, §6.1 capabilities/security scoping, §7 bridge protocol, §8.2 named input strategies, and zero-API-key web-session identity.
@@ -675,6 +698,7 @@ Allowed after the commemorative edition:
 - provider selector/DOM compatibility fixes and adapter hot-updates;
 - security fixes, privacy corrections, data-loss prevention, and crash fixes;
 - dependency, CI, packaging, and operating-system build-breakage fixes;
+- compatibility fixes for the versioned Agent source manifest, lifecycle scripts, and shipped Codex/Claude Skills;
 - accessibility corrections that do not redesign workflow behavior;
 - documentation corrections for shipped behavior.
 
@@ -683,6 +707,7 @@ Closed permanently in this repository:
 - snapshot/replay/checkpoint expansion, new persistence formats, or comparison UI;
 - workflow-pack import/export, marketplace, graph editor, promotion metrics, or telemetry;
 - fifth provider, embedded SDK/CLI agents, or terminal orchestration;
+- Docker/container source launch, automatic host-tool installation/uninstallation, or machine-wide rollback;
 - self-update, package-manager distribution, Developer ID/notarization program, or new platform matrix;
 - new workflow modes or changes to the five shipped sequences.
 

@@ -1,6 +1,6 @@
 interface:
   display_name: "Launch Multi-AI Chat"
-  short_description: "Run the local Tauri source app"
-  default_prompt: "Check prerequisites, then launch the Multi-AI Chat Tauri source app from this repository without an installer."
+  short_description: "Audit and run the local Tauri source app"
+  default_prompt: "Audit the declared effects, check prerequisites, launch this repository's Tauri source app, and verify that its control pane becomes ready."
 policy:
   allow_implicit_invocation: false

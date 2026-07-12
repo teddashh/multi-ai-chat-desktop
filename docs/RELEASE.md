@@ -42,9 +42,19 @@ Portable Windows builds include a `PORTABLE` marker next to the app `.exe`. Port
 - Windows portable builds require the Microsoft Edge WebView2 Evergreen Runtime.
 - macOS artifacts use Tauri's ad-hoc signing identity but are not notarized. After one launch attempt, users open System Settings -> Privacy & Security -> Security -> Open Anyway. The option is normally available for about one hour. `v1.0.0` must not be redistributed because it was emitted without a bundle signature.
 
+## Final Verification
+
+- Run `pnpm verify` (including `pnpm agent:verify`), Rust tests, `cargo fmt -- --check`, and `cargo clippy --all-targets -- -D warnings`.
+- Validate `agent-release.json` against its schema, confirm both Skill bodies remain synchronized and explicit-only, and inspect `node scripts/agent/launch.mjs --dry-run --json` for zero writes. The source lane never installs host prerequisites or builds release artifacts.
+- Confirm the default capability targets only `webviews:["main"]`, has no `windows` or `remote` entry, and the packaged control pane still supports update checks and export under the production CSP.
+- Confirm remote adapter tests permit selector/timing changes inside bundled URL scopes and reject provider/login/match/SSO expansion.
+- Update [`docs/COMPATIBILITY.md`](./COMPATIBILITY.md) with only evidence actually observed. CI packaging is not an end-user launch result.
+- Before publishing, smoke-test Windows artifacts. macOS and Linux remain explicitly CI-only until a real-device report is recorded.
+
 ## Frozen Distribution Policy
 
 - The final identifier is `com.tedh.multiaichat`.
 - GitHub Releases remains the update channel. The app may check for a newer release and open its page, but it does not download or install updates itself.
+- The repository tag also carries the Agent-Ready Source Release manifest and Skills, but they launch only `tauri dev` from a trusted checkout. They are not a packaged artifact, container, updater, or host-tool installer. See [`AGENT-READY-SOURCE-RELEASE.md`](./AGENT-READY-SOURCE-RELEASE.md).
 - Windows Authenticode signing, macOS Developer ID/notarization, updater manifests, and a separate package-manager distribution program are closed scope, not active roadmap items. Ad-hoc macOS signing is a required packaging-integrity baseline, not an identity/notarization program.
 - Every release tag must pass `pnpm verify`, cross-platform `cargo clippy -- -D warnings`, and the three-platform bundle workflow before its draft is published.

@@ -80,7 +80,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm agent:verify
       # gen/injected/*.js is gitignored + include_str!'d by the Rust build, so it must be
       # generated before cargo can compile.
       - run: pnpm build:injected
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --lib
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings

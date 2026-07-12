@@ -9,15 +9,17 @@
     "build": "vite build",
     "build:injected": "esbuild injected/bootstrap.ts injected/engine.ts --bundle --format=iife --platform=browser --target=es2020 --outdir=src-tauri/gen/injected",
     "agent:doctor": "node scripts/agent/doctor.mjs",
+    "agent:audit": "node scripts/agent/audit.mjs",
     "agent:launch": "node scripts/agent/launch.mjs",
     "agent:status": "node scripts/agent/status.mjs",
     "agent:stop": "node scripts/agent/stop.mjs",
+    "agent:verify": "node --test scripts/agent/tests/*.test.mjs",
     "pack:portable": "node scripts/pack-portable.mjs",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "verify": "pnpm build:injected && pnpm typecheck && pnpm lint && pnpm test && node scripts/check-adapters.mjs"
+    "verify": "pnpm build:injected && pnpm typecheck && pnpm lint && pnpm test && pnpm agent:verify && node scripts/check-adapters.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",

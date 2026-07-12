@@ -193,7 +193,7 @@ describe('workflow engine', () => {
     });
     vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
     const run = runWorkflow({ text: 'q', mode: 'free', targets: ['chatgpt', 'claude'] });
-    await Promise.resolve();
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
     publishBridgeMessage(done('chatgpt', 'ok'));
     await expect(run).resolves.toEqual({ ok: true });
     expect(host.provider.send).toHaveBeenCalledTimes(1);

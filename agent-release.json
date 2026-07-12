@@ -1,0 +1,156 @@
+{
+  "$schema": "./agent-release.schema.json",
+  "schemaVersion": 1,
+  "contractVersion": "1.0.0",
+  "kind": "agent-ready-source-release",
+  "product": {
+    "name": "Multi-AI Chat Desktop",
+    "package": "multi-ai-chat-desktop",
+    "repository": "https://github.com/teddashh/multi-ai-chat-desktop",
+    "runtime": "Tauri 2 native desktop development build",
+    "distributionLane": "source-development",
+    "platforms": ["windows", "macos", "linux"],
+    "not": ["installer", "release-bundle", "container", "remote-gui"]
+  },
+  "trust": {
+    "invocation": "explicit-only",
+    "source": "the checked-out repository and its locked dependencies",
+    "warning": "Source launch executes repository JavaScript dependency lifecycle scripts and Rust build code. Review the repository before invoking an Agent Skill."
+  },
+  "entrypoints": {
+    "doctor": {
+      "argv": ["node", "scripts/agent/doctor.mjs"],
+      "flags": ["--json"],
+      "sideEffect": "none"
+    },
+    "audit": {
+      "argv": ["node", "scripts/agent/audit.mjs"],
+      "flags": ["--json", "--phase", "--write"],
+      "sideEffect": "writes only an explicitly requested audit file under .agent-runtime"
+    },
+    "launch": {
+      "argv": ["node", "scripts/agent/launch.mjs"],
+      "flags": ["--json", "--dry-run", "--wait", "--timeout-ms"],
+      "sideEffect": "installs locked project dependencies when absent, builds generated code, and starts tauri dev"
+    },
+    "status": {
+      "argv": ["node", "scripts/agent/status.mjs"],
+      "flags": ["--json", "--lines"],
+      "sideEffect": "none"
+    },
+    "stop": {
+      "argv": ["node", "scripts/agent/stop.mjs"],
+      "flags": ["--json", "--clear-invalid-state"],
+      "sideEffect": "stops only the identity-verified repository launcher process tree and removes its same-run state; an explicit recovery flag can remove corrupt state without terminating an unknown process"
+    }
+  },
+  "requirements": {
+    "common": ["Node.js 20+", "pnpm or Corepack", "stable Rust toolchain", "local graphical session"],
+    "windows": ["Visual Studio C++ Build Tools", "Microsoft Edge WebView2 Runtime"],
+    "macos": ["Xcode Command Line Tools"],
+    "linux": ["WebKitGTK 4.1 development libraries", "pkg-config", "X11 or Wayland desktop session"]
+  },
+  "permissions": {
+    "allowedByScripts": [
+      "read repository files",
+      "run prerequisite version checks",
+      "install locked dependencies into this project",
+      "use pnpm and Cargo user caches",
+      "write declared repository-local generated paths",
+      "start and inspect this repository's tauri dev process",
+      "stop only the identity-verified repository launcher process tree"
+    ],
+    "requiresSeparateExplicitApproval": [
+      "install or uninstall host toolchains",
+      "install user-global or system-global packages",
+      "modify PATH or shell profiles",
+      "run winget, brew, apt, rustup, npm --global, pnpm --global, sudo, or an elevated installer",
+      "change operating-system security settings"
+    ],
+    "deniedBySkill": [
+      "implicit execution when the repository is opened",
+      "pnpm tauri build or installer generation",
+      "release asset download as part of source launch",
+      "provider credential, cookie, storage, or profile access",
+      "provider profile deletion",
+      "unverified process termination",
+      "automatic host rollback or toolchain uninstall",
+      "remote upload of logs or audit records"
+    ]
+  },
+  "sideEffects": {
+    "repositoryLocal": [
+      {
+        "path": "node_modules",
+        "when": "locked project dependencies are absent",
+        "removal": "manual; safe only when no project process is using it",
+        "evidence": ["node_modules/.modules.yaml"]
+      },
+      {
+        "path": "src-tauri/gen/injected",
+        "when": "the injected bridge bundle is built",
+        "removal": "generated; recreated on the next launch",
+        "evidence": ["src-tauri/gen/injected/bootstrap.js", "src-tauri/gen/injected/engine.js"]
+      },
+      {
+        "path": "src-tauri/target",
+        "when": "Cargo compiles the Tauri development app",
+        "removal": "manual cargo clean; removes incremental build cache",
+        "evidence": ["src-tauri/target/debug/multi-ai-chat-desktop", "src-tauri/target/debug/multi-ai-chat-desktop.exe"]
+      },
+      {
+        "path": ".agent-runtime",
+        "when": "audit, launch, status logging, or receipts are used",
+        "removal": "manual after the repository launcher is stopped",
+        "evidence": [
+          ".agent-runtime/launch.lock",
+          ".agent-runtime/tauri-dev.json",
+          ".agent-runtime/tauri-dev.log",
+          ".agent-runtime/last-launch.json",
+          ".agent-runtime/audit-before.json",
+          ".agent-runtime/audit-after.json"
+        ]
+      }
+    ],
+    "userCaches": [
+      "pnpm may populate its shared content-addressed store",
+      "Cargo may populate the user's registry, git, and compiler caches"
+    ],
+    "applicationData": [
+      "the running Tauri app may create its normal local settings and control-webview data",
+      "provider profiles are created only when the user opens providers and remain local"
+    ],
+    "hostConfigurationByScripts": "none; scripts do not install toolchains, modify PATH, elevate privileges, or weaken security settings",
+    "automaticRollback": "none; shared toolchains, caches, and provider profiles must never be removed automatically"
+  },
+  "runtime": {
+    "directory": ".agent-runtime",
+    "stateFile": ".agent-runtime/tauri-dev.json",
+    "launchLock": ".agent-runtime/launch.lock",
+    "logFile": ".agent-runtime/tauri-dev.log",
+    "launchReceipt": ".agent-runtime/last-launch.json",
+    "auditBefore": ".agent-runtime/audit-before.json",
+    "auditAfter": ".agent-runtime/audit-after.json",
+    "readyMarker": "[MAC_AGENT] READY control-pane",
+    "states": ["not_started", "building", "ready", "failed", "exited", "invalid_state", "foreign_process"]
+  },
+  "exitCodes": {
+    "0": "requested operation succeeded",
+    "1": "prerequisite, runtime, or operational failure",
+    "2": "invalid command usage or contract data",
+    "3": "readiness wait timed out"
+  },
+  "skills": {
+    "version": "1.0.0",
+    "codex": ".agents/skills/launch-multi-ai-chat/SKILL.md",
+    "codexMetadata": ".agents/skills/launch-multi-ai-chat/agents/openai.yaml",
+    "claude": ".claude/skills/launch-multi-ai-chat/SKILL.md",
+    "implicitInvocation": false
+  },
+  "privacy": {
+    "localOnly": true,
+    "logUpload": "never automatic",
+    "auditUpload": "never automatic",
+    "credentials": "never read by Agent lifecycle scripts"
+  }
+}

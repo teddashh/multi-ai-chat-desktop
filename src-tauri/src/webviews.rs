@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    io::{self, Write},
     sync::{Mutex, OnceLock},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -446,6 +447,7 @@ pub async fn dev_log(
         return Ok(());
     }
     println!("{message}");
+    let _ = io::stdout().flush();
     Ok(())
 }
 

@@ -22,6 +22,9 @@ import { resetWaitForResponseForTests } from '../workflow/waitForResponse';
 
 vi.mock('../host', () => ({
   host: {
+    app: {
+      version: vi.fn(),
+    },
     provider: {
       send: vi.fn(),
       eval: vi.fn(),
@@ -92,6 +95,7 @@ describe('snapshot replay', () => {
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
     vi.mocked(host.connections.get).mockResolvedValue(providers.map((provider) => state(provider)));
     vi.mocked(host.snapshot.load).mockResolvedValue(null);
+    vi.mocked(host.app.version).mockResolvedValue('');
     vi.mocked(host.sessionCheckpoint.save).mockResolvedValue(undefined);
     vi.mocked(host.sessionCheckpoint.clear).mockResolvedValue(undefined);
   });
@@ -333,6 +337,7 @@ describe('snapshot replay', () => {
     const snapshot = buildSnapshot({ snapshotId: 'snapshot-source' });
     vi.mocked(host.snapshot.load).mockResolvedValue(JSON.stringify(snapshot));
     const onSnapshotComplete = vi.fn();
+    vi.mocked(host.app.version).mockResolvedValue('1.0.2-test');
     const messages: BridgeMessage[] = [];
     const unsubscribe = onBridgeMessage((message) => messages.push(message));
 
@@ -348,8 +353,9 @@ describe('snapshot replay', () => {
     expect(executeGraph).toHaveBeenCalledWith(
       workflowGraphs.debate,
       { text: 'clean replay question', roles: DEFAULT_DEBATE_ROLES, targets: undefined },
-      { onSnapshotComplete },
+      { onSnapshotComplete, appVersion: '1.0.2-test' },
     );
+    expect(getLastSnapshot()?.appVersion).toBe('1.0.2-test');
     expect(messages.some((message) => message.action === 'WORKFLOW_STATUS')).toBe(true);
     expect(messages.some((message) => message.action === 'ROLE_ASSIGNMENT')).toBe(true);
   });

@@ -70,6 +70,7 @@ interface NodeRunResult {
 type RenderedPromptArg = string | number | HistoryItem[] | undefined;
 
 export interface ExecuteGraphOptions {
+  appVersion?: string;
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
 }
 
@@ -87,6 +88,7 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
     question: context.question,
     roleMap: snapshotRoleMap(context),
     adapterVersions: snapshotAdapterVersions(context),
+    appVersion: options.appVersion,
   });
   const abortAware = graph.preflight.kind !== 'free';
   let completedCleanly = false;

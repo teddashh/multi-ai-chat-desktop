@@ -1,5 +1,6 @@
 import type { AIProvider, ChatMode, ModeRoles } from '../../shared/types';
 import { CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
+import { getRuntimeAppVersion } from '../appVersion';
 import { host } from '../host';
 import { getInFlightProviders } from './cancel';
 import { emitSystemError, sendWorkflowStatus } from './events';
@@ -38,6 +39,12 @@ export async function runWorkflow({
     tier: snapshotRedactionTier,
   };
   try {
+    const appVersion = await getRuntimeAppVersion();
+    const graphOptions = {
+      onSnapshotComplete: (snapshot: Parameters<typeof persistSnapshotIfEnabled>[0]) =>
+        persistSnapshotIfEnabled(snapshot, snapshotOptions),
+      ...(appVersion ? { appVersion } : {}),
+    };
     if (!CHAT_MODES[mode].serial) {
       const snapshot = await host.connections.get();
       const sendable = snapshot.filter(isSendable).map((state) => state.provider);
@@ -45,9 +52,7 @@ export async function runWorkflow({
         targets === undefined
           ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
           : targets.filter((provider) => sendable.includes(provider));
-      await executeGraph(workflowGraphs.free, { text, targets: targetSet, checkpoints }, {
-        onSnapshotComplete: (snapshot) => persistSnapshotIfEnabled(snapshot, snapshotOptions),
-      });
+      await executeGraph(workflowGraphs.free, { text, targets: targetSet, checkpoints }, graphOptions);
       return { ok: true };
     }
 
@@ -56,9 +61,7 @@ export async function runWorkflow({
     const preflight = await preflightGraph(graph, roles);
     if (!preflight.ok) return { ok: false, preflight };
 
-    await executeGraph(graph, { text, roles, checkpoints }, {
-      onSnapshotComplete: (snapshot) => persistSnapshotIfEnabled(snapshot, snapshotOptions),
-    });
+    await executeGraph(graph, { text, roles, checkpoints }, graphOptions);
 
     return { ok: true };
   } catch (error) {

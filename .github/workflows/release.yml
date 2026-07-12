@@ -88,6 +88,9 @@ jobs:
       - name: Verify (typecheck + lint + tests + adapters)
         run: pnpm verify
 
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
       - name: Build Tauri bundle
         run: pnpm tauri build
 

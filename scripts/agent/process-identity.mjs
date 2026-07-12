@@ -4,15 +4,30 @@ export function processAlive(pid) {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    return processKillErrorMeansAlive(error);
   }
+}
+
+export function processKillErrorMeansAlive(error) {
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'EPERM');
 }
 
 export function processMatchesRunner(pid, runnerToken) {
   if (!Number.isInteger(pid) || pid <= 0 || typeof runnerToken !== 'string' || !runnerToken) return false;
   const commandLine = readCommandLine(pid);
+  return commandLineMatchesRunner(commandLine, runnerToken);
+}
+
+export function commandLineMatchesRunner(commandLine, runnerToken) {
+  if (typeof commandLine !== 'string' || typeof runnerToken !== 'string' || !runnerToken) return false;
   return commandLine.includes(runnerToken) && /(?:^|[\\/])runner\.mjs(?:\s|"|$)/i.test(commandLine);
+}
+
+export function processMatchesAgentScript(pid, scriptName) {
+  if (!Number.isInteger(pid) || pid <= 0 || !/^[a-z0-9._-]+$/i.test(scriptName)) return false;
+  const escaped = scriptName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[\\\\/])${escaped}(?:\\s|"|$)`, 'i').test(readCommandLine(pid));
 }
 
 function readCommandLine(pid) {

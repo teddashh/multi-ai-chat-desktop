@@ -260,7 +260,118 @@ pub(crate) fn validate_adapter(adapter: &Adapter) -> Result<(), String> {
     if !matches!(adapter.send_strategy.as_str(), "click" | "enter") {
         return Err("invalid sendStrategy".into());
     }
+    for (name, value) in [
+        ("urls.app", adapter.urls.app.as_str()),
+        ("urls.login", adapter.urls.login.as_str()),
+    ] {
+        parse_adapter_url_scope(value).map_err(|error| format!("{name}: {error}"))?;
+    }
+    for (name, values) in [
+        ("urls.match", &adapter.urls.match_patterns),
+        ("urls.ssoMatch", &adapter.urls.sso_match),
+    ] {
+        for value in values {
+            parse_adapter_url_scope(value).map_err(|error| format!("{name}: {error}"))?;
+        }
+    }
     Ok(())
+}
+
+fn validate_downloaded_adapter(provider: &str, adapter: &Adapter) -> Result<(), String> {
+    validate_adapter(adapter)?;
+    if adapter.provider != provider {
+        return Err("provider mismatch".into());
+    }
+    let bundled = adapters()
+        .get(provider)
+        .ok_or_else(|| format!("missing bundled adapter: {provider}"))?;
+    ensure_url_scope_within(
+        "urls.app",
+        std::slice::from_ref(&adapter.urls.app),
+        std::slice::from_ref(&bundled.urls.app),
+    )?;
+    ensure_url_scope_within(
+        "urls.login",
+        std::slice::from_ref(&adapter.urls.login),
+        std::slice::from_ref(&bundled.urls.login),
+    )?;
+    ensure_url_scope_within(
+        "urls.match",
+        &adapter.urls.match_patterns,
+        &bundled.urls.match_patterns,
+    )?;
+    ensure_url_scope_within(
+        "urls.ssoMatch",
+        &adapter.urls.sso_match,
+        &bundled.urls.sso_match,
+    )?;
+    Ok(())
+}
+
+fn ensure_url_scope_within(
+    field: &str,
+    candidates: &[String],
+    bundled: &[String],
+) -> Result<(), String> {
+    let bundled_scopes = bundled
+        .iter()
+        .map(|value| parse_adapter_url_scope(value))
+        .collect::<Result<Vec<_>, _>>()?;
+    for value in candidates {
+        let candidate = parse_adapter_url_scope(value)?;
+        let allowed = bundled_scopes.iter().any(|scope| {
+            candidate.host == scope.host
+                && (scope.path == "/" || path_matches_prefix(&scope.path, &candidate.path))
+        });
+        if !allowed {
+            return Err(format!("{field} expands bundled URL scope: {value}"));
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct AdapterUrlScope {
+    host: String,
+    path: String,
+}
+
+fn parse_adapter_url_scope(value: &str) -> Result<AdapterUrlScope, String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err("URL scope must not be empty".into());
+    }
+    let wildcard = value.ends_with("/*");
+    let base = value.strip_suffix("/*").unwrap_or(value);
+    let normalized = if base.starts_with("https://") {
+        base.to_string()
+    } else if wildcard && !base.contains('/') {
+        format!("https://{base}")
+    } else {
+        return Err(format!("URL scope must use https: {value}"));
+    };
+    let url = tauri::Url::parse(&normalized).map_err(|_| format!("invalid URL scope: {value}"))?;
+    if url.scheme() != "https"
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(format!("invalid HTTPS URL scope: {value}"));
+    }
+    if wildcard && url.path() != "/" {
+        return Err(format!("wildcard URL scope must target a host: {value}"));
+    }
+    Ok(AdapterUrlScope {
+        host: url.host_str().unwrap_or_default().to_ascii_lowercase(),
+        path: if wildcard {
+            "/".to_string()
+        } else {
+            url.path().to_string()
+        },
+    })
 }
 
 pub(crate) fn url_allowed_for_provider(provider: &str, url: &tauri::Url) -> Result<bool, String> {
@@ -399,7 +510,7 @@ fn hydrate_from_cache(app: &tauri::AppHandle, provider: &str) {
     let Ok(adapter) = serde_json::from_str::<Adapter>(&text) else {
         return;
     };
-    if validate_adapter(&adapter).is_err() || adapter.provider != provider {
+    if validate_downloaded_adapter(provider, &adapter).is_err() {
         return;
     }
     if adapter.adapter_version >= bundled_version(provider)
@@ -488,7 +599,7 @@ async fn refresh_one(app: &tauri::AppHandle, provider: &str, allow_downgrade: bo
     let adapter = match serde_json::from_str::<Adapter>(&text)
         .map_err(|error| error.to_string())
         .and_then(|adapter| {
-            validate_adapter(&adapter)?;
+            validate_downloaded_adapter(provider, &adapter)?;
             Ok(adapter)
         }) {
         Ok(adapter) => adapter,
@@ -499,19 +610,6 @@ async fn refresh_one(app: &tauri::AppHandle, provider: &str, allow_downgrade: bo
             return;
         }
     };
-    if adapter.provider != provider {
-        if allow_downgrade {
-            emit_notice(
-                app,
-                provider,
-                "validation-failed",
-                "provider mismatch",
-                None,
-            );
-        }
-        return;
-    }
-
     let Some(kind) = apply_decision(
         adapter.adapter_version,
         current_version(provider),
@@ -555,6 +653,54 @@ mod tests {
     fn bundled_adapters_validate() {
         for adapter in adapters().values() {
             validate_adapter(adapter).unwrap();
+        }
+    }
+
+    #[test]
+    fn downloaded_adapters_can_change_automation_inside_bundled_url_scopes() {
+        let mut adapter = adapters().get("chatgpt").unwrap().clone();
+        adapter.adapter_version += 1;
+        adapter.urls.app = "https://chatgpt.com/c/new".into();
+        adapter.urls.match_patterns = vec!["https://chatgpt.com/c".into()];
+        adapter.input_selectors.insert(0, "[data-new-input]".into());
+
+        validate_downloaded_adapter("chatgpt", &adapter).unwrap();
+    }
+
+    #[test]
+    fn downloaded_adapters_cannot_expand_provider_or_sso_scopes() {
+        let bundled = adapters().get("chatgpt").unwrap();
+
+        let mut app_host = bundled.clone();
+        app_host.urls.app = "https://example.com".into();
+        assert!(validate_downloaded_adapter("chatgpt", &app_host)
+            .unwrap_err()
+            .contains("urls.app expands"));
+
+        let mut match_host = bundled.clone();
+        match_host.urls.match_patterns.push("example.com/*".into());
+        assert!(validate_downloaded_adapter("chatgpt", &match_host)
+            .unwrap_err()
+            .contains("urls.match expands"));
+
+        let mut sso_path = bundled.clone();
+        sso_path.urls.sso_match = vec!["www.google.com/*".into()];
+        assert!(validate_downloaded_adapter("chatgpt", &sso_path)
+            .unwrap_err()
+            .contains("urls.ssoMatch expands"));
+    }
+
+    #[test]
+    fn adapter_url_scopes_reject_credentials_ports_queries_and_non_https() {
+        for value in [
+            "http://chatgpt.com",
+            "https://user:pass@chatgpt.com",
+            "https://chatgpt.com:8443",
+            "https://chatgpt.com?next=example.com",
+            "chatgpt.com/path",
+            "https://chatgpt.com/path/*",
+        ] {
+            assert!(parse_adapter_url_scope(value).is_err(), "{value}");
         }
     }
 

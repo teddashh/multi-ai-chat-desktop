@@ -5,6 +5,7 @@ import { startBridgePull, resetProviderBootState } from './bridge/pull';
 import { isRenderableResponseMessage } from './bridge/render';
 import { publishBridgeMessage } from './bridge/bus';
 import { EchoPanel } from './dev/EchoPanel';
+import { getRuntimeAppVersion } from './appVersion';
 import { host } from './host';
 import { useI18n } from './i18n/context';
 import { MODE_NAME_KEYS } from './i18n/modes';
@@ -94,9 +95,10 @@ import {
   type FreeTargetSelection,
 } from './ui/targets';
 import { useOverlayGuard } from './ui/useOverlayGuard';
-import { buildMarkdown, exportFilename } from './ui/exportMarkdown';
+import { buildMarkdown, exportFilename, matchingSnapshotForConversation } from './ui/exportMarkdown';
 import { formatReportBody, type AdapterNotice, type ReportDigest } from './ui/reportBroken';
 import { persistSnapshotIfEnabled } from './workflow/snapshot/persistence';
+import { getLastSnapshot } from './workflow/snapshot/recorder';
 import type { ReplayPlan } from './workflow/snapshot/replay';
 import type { ExecutionSnapshot } from './workflow/snapshot/types';
 import {
@@ -232,6 +234,11 @@ function isGeneratedImageResponse(content: string): boolean {
 
 export default function App() {
   const { locale, t: translate, setLanguage } = useI18n();
+  useEffect(() => {
+    void Promise.resolve()
+      .then(() => host.dev.log('[MAC_AGENT] READY control-pane'))
+      .catch(() => undefined);
+  }, []);
   const initialConversation = useMemo(initialConversationState, []);
   const [states, setStates] = useState<Record<AIProvider, ProviderState>>(() =>
     Object.fromEntries(
@@ -1424,7 +1431,9 @@ export default function App() {
     setSharing(true);
     try {
       const now = new Date();
-      const { content } = buildMarkdown(messages, mode, now);
+      const appVersion = await getRuntimeAppVersion();
+      const snapshot = matchingSnapshotForConversation(messages, getLastSnapshot());
+      const { content } = buildMarkdown(messages, mode, now, { appVersion, snapshot });
       const saved = await host.share.exportMarkdown(exportFilename(mode, now), content);
       if (saved) setShareNotice({ kind: 'ok', text: formatI18n(translateKey('share.exported', localeRef.current), { path: saved }) });
     } catch (reason) {

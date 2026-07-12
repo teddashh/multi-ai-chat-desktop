@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { AI_PROVIDERS, CHAT_MODES } from '../../shared/constants';
-import { buildMarkdown, exportFilename, type ExportMessage } from '../ui/exportMarkdown';
+import {
+  buildMarkdown,
+  exportFilename,
+  matchingSnapshotForConversation,
+  type ExportMessage,
+} from '../ui/exportMarkdown';
+import type { ExecutionSnapshot } from '../workflow/snapshot/types';
 
 const fixedDate = new Date('2026-07-04T13:45:07Z');
 
@@ -12,6 +18,7 @@ describe('M4c share export helpers', () => {
     expect(title).toBe(`Multi-AI Chat — ${CHAT_MODES[mode].icon} ${CHAT_MODES[mode].name}`);
     expect(content.split('\n')[0]).toBe(`# ${title}`);
     expect(content).toContain('> Exported: ');
+    expect(content).toContain('> Exported (UTC): 2026-07-04T13:45:07.000Z');
     expect(content).toContain('\n---\n');
   });
 
@@ -43,10 +50,59 @@ describe('M4c share export helpers', () => {
 
     expect(content).not.toContain('## 👤 User');
     expect(content).not.toContain('## 🤖');
-    expect(content.split('\n')).toHaveLength(5);
+    expect(content.split('\n')).toHaveLength(6);
+  });
+
+  it('renders app, workflow, snapshot, timing, and adapter provenance', () => {
+    const snapshot = buildSnapshot();
+    const { content } = buildMarkdown([{ role: 'user', content: 'question' }], 'roundtable', fixedDate, {
+      appVersion: '1.0.2',
+      snapshot,
+    });
+
+    expect(content).toContain('> App version: 1.0.2');
+    expect(content).toContain('> Latest workflow: roundtable v1');
+    expect(content).toContain('> Latest snapshot: snapshot-export');
+    expect(content).toContain('> Latest run app version: 1.0.1');
+    expect(content).toContain('> Latest run (UTC): 2026-07-04T13:40:00.000Z → 2026-07-04T13:44:00.000Z');
+    expect(content).toContain(`> Adapter versions: ${AI_PROVIDERS.chatgpt.name} v7, ${AI_PROVIDERS.claude.name} v8`);
+  });
+
+  it('only attaches the latest snapshot to its own conversation question', () => {
+    const snapshot = buildSnapshot();
+
+    expect(matchingSnapshotForConversation([{ role: 'user', content: 'question' }], snapshot)).toBe(snapshot);
+    expect(matchingSnapshotForConversation([{ role: 'user', content: 'another topic' }], snapshot)).toBeUndefined();
+    expect(
+      matchingSnapshotForConversation(
+        [
+          { role: 'user', content: 'question' },
+          { role: 'ai', provider: 'chatgpt', content: 'answer' },
+          { role: 'user', content: 'follow-up' },
+        ],
+        snapshot,
+      ),
+    ).toBeUndefined();
   });
 
   it('builds deterministic markdown filenames from ISO timestamps', () => {
     expect(exportFilename('debate', fixedDate)).toBe('multi-ai-chat-debate-2026-07-04-13-45-07.md');
   });
 });
+
+function buildSnapshot(): ExecutionSnapshot {
+  return {
+    snapshotId: 'snapshot-export',
+    graphId: 'roundtable',
+    graphVersion: 1,
+    appVersion: '1.0.1',
+    createdAt: '2026-07-04T13:40:00.000Z',
+    completedAt: '2026-07-04T13:44:00.000Z',
+    adapterVersions: { chatgpt: 7, claude: 8 },
+    roleMap: {},
+    redactionTier: 'full-local',
+    userQuestion: { tier: 'full-local', kind: 'inline', text: 'question' },
+    steps: [],
+    humanEdits: [],
+  };
+}

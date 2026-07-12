@@ -16,10 +16,12 @@ const child = spawn(executable, args, {
 });
 
 child.on('error', (error) => {
+  process.stderr.write(`[MAC_AGENT] EXIT error=${error.message}\n`);
   process.stderr.write(`${error.message}\n`);
   process.exit(1);
 });
 child.on('exit', (code, signal) => {
+  process.stdout.write(`[MAC_AGENT] EXIT code=${code ?? 'none'} signal=${signal ?? 'none'}\n`);
   if (signal) process.kill(process.pid, signal);
   else process.exit(code ?? 1);
 });

@@ -18,6 +18,9 @@ import type { ExecutionSnapshot } from '../workflow/snapshot/types';
 
 vi.mock('../host', () => ({
   host: {
+    app: {
+      version: vi.fn(),
+    },
     provider: {
       send: vi.fn(),
       eval: vi.fn(),
@@ -79,6 +82,7 @@ describe('workflow execution snapshots', () => {
     resetSnapshotRecorderForTests();
     resetSessionCheckpointForTests();
     resetEventLogForTests();
+    vi.mocked(host.app.version).mockResolvedValue('1.0.2-test');
     vi.mocked(host.provider.send).mockResolvedValue(undefined);
     vi.mocked(host.provider.eval).mockResolvedValue(undefined);
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
@@ -118,6 +122,7 @@ describe('workflow execution snapshots', () => {
     expect(snapshot).toMatchObject({
       graphId: 'debate',
       graphVersion: 1,
+      appVersion: '1.0.2-test',
       roleMap: DEFAULT_DEBATE_ROLES,
       redactionTier: 'full-local',
       adapterVersions: {},

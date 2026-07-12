@@ -66,7 +66,9 @@ Die ad-hoc Signatur verhindert die falsche Meldung, die App sei beschädigt. Nur
 
 Die Struktur folgt den offiziellen Formaten für [Codex Agent Skills](https://developers.openai.com/codex/skills) und [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills).
 
-Das Öffnen eines Repos führt aus Sicherheitsgründen keinen Code automatisch aus. Nach einem ausdrücklichen Skill-Aufruf prüft der Agent die Umgebung, installiert bei Bedarf nur JavaScript-Projektabhängigkeiten, baut das injected bundle und startet `tauri dev` im Hintergrund. System-Toolchains und Installer werden nicht heimlich installiert; Anbieter-Zugangsdaten werden nicht gelesen.
+Die maschinenlesbare Quelle ist [`agent-release.json`](./agent-release.json), validiert durch [`agent-release.schema.json`](./agent-release.schema.json). Vertrauensgrenze, Berechtigungen, Nebenwirkungen, READY-Nachweis und Audits beschreibt der zweisprachige [`Agent-Ready Source Release contract`](./docs/AGENT-READY-SOURCE-RELEASE.md).
+
+Das Öffnen des Repos führt niemals automatisch Code aus. Der Quellstart führt diesen Checkout, JavaScript-Lifecycle-Code aus Abhängigkeiten sowie Rust-Build-Skripte/Prozedurmakros aus; das Repo muss daher vorher geprüft und als vertrauenswürdig eingestuft werden. Der ausdrücklich aufgerufene Skill darf nur locked dependencies dieses Projekts installieren, generated code bauen und `tauri dev` starten. Er installiert oder entfernt keine Host-Toolchains/globalen Pakete, ändert weder `PATH` noch Sicherheitseinstellungen, baut keinen Installer und liest keine Provider-Zugangsdaten. Host-Installationen sind getrennte Vorgänge und benötigen eine eigene ausdrückliche Zustimmung.
 
 ### Codex App, CLI oder IDE
 
@@ -87,7 +89,7 @@ Ist die Desktop-/Browser-Sitzung remote, verwende eine lokale Claude-Code-Sitzun
 
 ### Voraussetzungen nach Betriebssystem
 
-Allgemein: **Node.js 20+**, pnpm (oder Corepack) und stabiles Rust.
+Allgemein: **Node.js 20+**, pnpm (oder Corepack) und stabiles Rust. Die folgenden Schritte sind manuelle Beispiele; der Skill meldet fehlende Voraussetzungen nur und beendet sich.
 
 **Windows 10/11**
 
@@ -115,13 +117,17 @@ Danach Node.js 20+ und Rust stable installieren und den Skill in einer X11-/Wayl
 ### Skill-Befehle
 
 ```sh
-node scripts/agent/doctor.mjs
-node scripts/agent/launch.mjs
-node scripts/agent/status.mjs --lines 80
-node scripts/agent/stop.mjs
+node scripts/agent/audit.mjs --phase before --write --json
+node scripts/agent/doctor.mjs --json
+node scripts/agent/launch.mjs --dry-run --json
+node scripts/agent/launch.mjs --wait --timeout-ms 600000 --json
+node scripts/agent/status.mjs --json --lines 80
+node scripts/agent/audit.mjs --phase after --write --json
+node scripts/agent/stop.mjs --json
+pnpm agent:verify
 ```
 
-Der erste Rust-Build kann mehrere Minuten dauern. Das Log bleibt unter `.agent-runtime/tauri-dev.log` erhalten.
+Der erste Rust-Build kann mehrere Minuten dauern. `accepted`/`building` sind kein READY-Nachweis; nur der Marker `[MAC_AGENT] READY control-pane` des aktuellen Laufs ergibt `state: "ready"`. Log, Prozessidentität sowie Before-/After-Audit-Receipts bleiben ausschließlich im gitignored Verzeichnis `.agent-runtime/` und werden nie automatisch hochgeladen. Für diesen lokalen GUI-/WebView-Pfad gibt es bewusst keine Docker-Variante.
 
 ## Entwicklung
 
@@ -133,10 +139,12 @@ pnpm verify
 pnpm tauri dev
 ```
 
-Vertrag: [`docs/SPEC.md`](./docs/SPEC.md) · Architektur: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · Releases: [`docs/RELEASE.md`](./docs/RELEASE.md)
+Vertrag: [`docs/SPEC.md`](./docs/SPEC.md) · Architektur: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · Releases: [`docs/RELEASE.md`](./docs/RELEASE.md) · Prüfstatus: [`docs/COMPATIBILITY.md`](./docs/COMPATIBILITY.md)
 
 ## Datenschutz
 
-Keine API-Schlüssel, kein Projektkonto, keine Telemetrie und kein eigener Gesprächsserver. Prompts gehen direkt an die ausgewählten Anbieter-Seiten; Cookies und Profile bleiben lokal. Adapter-Updates sind optional. Debug-Bundles, Exporte und Freigaben werden nur nach einer ausdrücklichen Benutzeraktion erstellt.
+Keine API-Schlüssel, kein Projektkonto, keine Telemetrie und kein eigener Gesprächsserver. Prompts gehen direkt an die ausgewählten Anbieter-Seiten; Cookies und Profile bleiben lokal. Adapter-Updates sind optionale reine JSON-Daten, werden gegen das Schema geprüft und können die mitgelieferten URL-Grenzen nicht erweitern. Debug-Bundles, Exporte und Freigaben werden nur nach einer ausdrücklichen Benutzeraktion erstellt.
+
+Schwachstellen bitte gemäß [`SECURITY.md`](./SECURITY.md) privat melden. Regressionen der Provider-Automatisierung können nach Prüfung der App-Diagnose über das GitHub-Formular **Adapter broken** gemeldet werden.
 
 Sponsored by [AI-Sister.com](https://ai-sister.com). Erstellt von Ted Huang ([TED@TED-H.com](mailto:TED@TED-H.com), [ted-h.com](https://ted-h.com)). MIT License.

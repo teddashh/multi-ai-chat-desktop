@@ -1,9 +1,9 @@
 # PLAN — Multi-AI Chat Desktop
 
 > Status: **feature freeze / final commemorative edition**
-> Date: 2026-07-11
-> Final maintenance baseline: `v1.0.1`. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
-> Working model: the web-session desktop edition is complete. After the final AI-Sister commemorative theme, only provider compatibility, security, build-breakage, and release-critical fixes remain in scope.
+> Date: 2026-07-12
+> Final maintenance baseline: `v1.0.1`; the current unreleased patch is final hardening only. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
+> Working model: the web-session desktop edition is complete. The final source-distribution work formalizes the existing Codex/Claude launch path as a tested Agent-Ready Source Release; it does not add an embedded agent runtime. After this patch, only provider compatibility, security, build-breakage, and release-critical fixes remain in scope.
 
 ## Final scope
 
@@ -12,8 +12,10 @@
 | Core product | Frozen at four providers and five workflow modes. |
 | Snapshot / replay / checkpoints | Keep the shipped implementation for compatibility. No new schema, comparison UI, sharing format, or reproducibility roadmap. |
 | Final feature | ✅ One optional **AI-Sister Commemorative Edition** theme showing all four characters together, with supplied per-provider portraits and active-speaker treatment. |
+| Final hardening | Correct runtime version provenance, session-safe Markdown export metadata, a main-webview-only Tauri capability, production CSP, non-expanding remote adapter URL scopes, security/compatibility templates, and the versioned Agent-Ready Source Release contract. No workflow sequence or prompt policy changes. |
+| Agent source lane | ✅ Explicit-only Codex/Claude Skills, strict manifest/schema, deterministic doctor/audit/launch/status/stop commands, app-level READY evidence, identity-safe stop, local receipts, dry-run, and cross-platform contract tests. No host-tool installer or automatic rollback. |
 | Maintenance | Fix provider DOM adapters, security issues, data-loss bugs, dependency/build failures, and release blockers. |
-| Closed work | Fifth provider, workflow-pack marketplace, graph editor, dynamic preset promotion, additional snapshot work, in-app auto-updater, Developer ID/notarization program, and an embedded terminal-agent runtime. Ad-hoc macOS bundle signing remains a release-integrity requirement. |
+| Closed work | Fifth provider, workflow-pack marketplace, graph editor, dynamic preset promotion, additional snapshot work, in-app auto-updater, Developer ID/notarization program, Docker source lane, host package manager, and an embedded terminal-agent runtime. Ad-hoc macOS bundle signing remains a release-integrity requirement. |
 | Separate future product | Any terminal/SDK multi-agent OS belongs in another repository and does not reopen this edition. |
 
 There are no active N-series milestones. References to N0–N9 below or in historical study material describe the design process only; they are not commitments.
