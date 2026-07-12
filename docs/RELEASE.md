@@ -9,8 +9,8 @@ release** when ready — the pipeline never creates tags and never auto-publishe
 Example:
 
 ```sh
-git tag -a v1.0.0 -m "v1.0.0: AI-Sister Commemorative Edition"
-git push origin v1.0.0
+git tag -a v1.0.1 -m "v1.0.1: fix macOS Gatekeeper packaging"
+git push origin v1.0.1
 ```
 
 Then wait ~10-20 min for the `Release` workflow, open the draft Release on GitHub, check the attached
@@ -24,15 +24,15 @@ The release workflow runs only for `v*` tag pushes. It strips the leading `v` an
 The repository keeps development metadata at `0.0.0`; release builds receive their real version from the tag:
 
 ```sh
-git tag -a v1.0.0 -m "v1.0.0: AI-Sister Commemorative Edition"
-git push origin v1.0.0
+git tag -a v1.0.1 -m "v1.0.1: fix macOS Gatekeeper packaging"
+git push origin v1.0.1
 ```
 
 ## What CI Produces
 
 - Windows: NSIS setup `.exe` and a portable `.zip`.
 - Linux: `.AppImage`.
-- macOS: `.dmg`.
+- macOS: ad-hoc-signed `.dmg`; CI mounts it and strictly verifies the embedded `.app` signature.
 
 Portable Windows builds include a `PORTABLE` marker next to the app `.exe`. Portable mode hides the in-app updater UI (the Settings update section is not shown), so portable users update by downloading a newer release from GitHub Releases manually. Installed (non-portable) users can use Settings -> Check for updates to detect a newer release and open its download page.
 
@@ -40,11 +40,11 @@ Portable Windows builds include a `PORTABLE` marker next to the app `.exe`. Port
 
 - Windows artifacts are unsigned for now. SmartScreen may warn; users can choose More info -> Run anyway.
 - Windows portable builds require the Microsoft Edge WebView2 Evergreen Runtime.
-- macOS artifacts are not notarized yet. Gatekeeper may block first launch; users can right-click the app and choose Open.
+- macOS artifacts use Tauri's ad-hoc signing identity but are not notarized. After one launch attempt, users open System Settings -> Privacy & Security -> Security -> Open Anyway. The option is normally available for about one hour. `v1.0.0` must not be redistributed because it was emitted without a bundle signature.
 
 ## Frozen Distribution Policy
 
 - The final identifier is `com.tedh.multiaichat`.
 - GitHub Releases remains the update channel. The app may check for a newer release and open its page, but it does not download or install updates itself.
-- Windows Authenticode signing, macOS signing/notarization, updater manifests, and a separate package-manager distribution program are closed scope, not active roadmap items.
+- Windows Authenticode signing, macOS Developer ID/notarization, updater manifests, and a separate package-manager distribution program are closed scope, not active roadmap items. Ad-hoc macOS signing is a required packaging-integrity baseline, not an identity/notarization program.
 - Every release tag must pass `pnpm verify`, cross-platform `cargo clippy -- -D warnings`, and the three-platform bundle workflow before its draft is published.

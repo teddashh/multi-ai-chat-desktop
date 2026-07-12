@@ -1,6 +1,6 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2 feature-frozen** (four-provider web edition; `v1.0.0` final baseline)
+> Status: **v2.2 feature-frozen** (four-provider web edition; `v1.0.1` maintenance baseline)
 > Date: 2026-07-11
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
 > Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme.
@@ -40,7 +40,7 @@ The shipped five-mode sequences, graph runtime, snapshots/replay, checkpoints, l
 - No additional platform architecture beyond the currently published Windows x64, macOS Apple Silicon, and Linux x86_64 artifacts.
 - No split-tree drag-and-drop layout. The v2 RAM model is chip/side/center, not a tempo-term pane tree.
 - No remote Tauri IPC to provider origins. No local WebSocket server for provider pages.
-- No code-signing/notarization or self-updater program in this frozen edition; GitHub Releases remains the documented distribution channel.
+- No Developer ID/notarization or self-updater program in this frozen edition; macOS DMGs use an ad-hoc bundle signature as a minimum integrity requirement, and GitHub Releases remains the documented distribution channel.
 - No new provider IDs via adapters alone: **the provider set is fixed and code-defined**; adding any future provider requires code changes (types, UI labels, seed adapter/profile dir).
 - No adapter signing in v2.0 (schema validation + repo-pinned HTTPS only; signing remains v2+).
 - No workflow graph editor or pack marketplace.
@@ -602,7 +602,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 ## 12. Packaging / release
 
 - **SHIPPED:** final identifier `com.tedh.multiaichat`; Windows NSIS + portable zip, macOS Apple Silicon DMG, and Linux x86_64 AppImage.
-- **FROZEN policy:** `createUpdaterArtifacts` remains false. The app may detect a newer GitHub Release and open its page, but does not download or install updates. No updater endpoint, minisign registration, signing, or notarization roadmap remains.
+- **FROZEN policy:** `createUpdaterArtifacts` remains false. The app may detect a newer GitHub Release and open its page, but does not download or install updates. No updater endpoint, minisign registration, Developer ID, or notarization roadmap remains. Ad-hoc signing of the macOS bundle is mandatory and verified inside the produced DMG.
 - Portable zip job: after NSIS build, zip the raw `target/release` app dir + `README-portable.txt` (WebView2 preflight note). **`PORTABLE` marker file present ⇒ updater disabled at runtime AND the updater section is hidden in Settings.**
 - `release.yml`: annotated `v*` tag → version injection → verify → Windows/macOS/Linux bundles → draft GitHub Release with four artifact classes.
 - `ci.yml`: TypeScript, ESLint, Vitest, adapter validation, and cross-platform `cargo clippy -- -D warnings` gates.
@@ -653,7 +653,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 1. Callback-pull transport is the frozen bridge implementation.
 2. The product remains in `teddashh/multi-ai-chat-desktop` with identifier `com.tedh.multiaichat` and name **Multi-AI Chat Desktop**.
-3. Adapter signing, app signing/notarization, and self-update are closed scope.
+3. Adapter signing, Developer ID/notarization, and self-update are closed scope; ad-hoc macOS bundle signing is release integrity, not a new signing program.
 4. Durable snapshots stay opt-in; snapshot/replay/checkpoint behavior is compatibility-only and will not gain new schemas or UI.
 5. Terminal-agent work, if pursued, is a separate product and repository.
 6. The only final presentation work is the AI-Sister ensemble commemorative theme.
@@ -683,7 +683,7 @@ Closed permanently in this repository:
 - snapshot/replay/checkpoint expansion, new persistence formats, or comparison UI;
 - workflow-pack import/export, marketplace, graph editor, promotion metrics, or telemetry;
 - fifth provider, embedded SDK/CLI agents, or terminal orchestration;
-- self-update, package-manager distribution, signing/notarization program, or new platform matrix;
+- self-update, package-manager distribution, Developer ID/notarization program, or new platform matrix;
 - new workflow modes or changes to the five shipped sequences.
 
 ## 18. Final AI-Sister commemorative theme

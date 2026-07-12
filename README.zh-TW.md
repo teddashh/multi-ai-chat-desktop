@@ -4,7 +4,7 @@
 
 問一個問題，讓你已登入的 **ChatGPT、Claude、Gemini 與 Grok** 互相回答、審查、質疑，再把結果收斂。Multi-AI Chat Desktop 是 Tauri 2 多 AI workflow 中樞，不只是把四個聊天視窗並排。
 
-**目前版本：[v1.0.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.0)** · MIT · 不需 API Key · 無分析追蹤
+**目前版本：[v1.0.1](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.1)** · MIT · 不需 API Key · 無分析追蹤
 
 > 本專案會自動操作你原本就在使用的 provider 網頁。第三方頁面改版可能暫時使 adapter 失效；自動化使用也可能受各服務條款約束。請只使用你有權使用的帳號與內容。
 
@@ -17,7 +17,7 @@
 | **Desktop（本 repo）** | 完整 workflow、聚焦真實頁面、replay、snapshot、本機檔案 | Tauri app 與獨立的本機 provider profile |
 | [瀏覽器外掛](https://github.com/teddashh/multi-ai-chat) | 在 Chrome 裡輕量使用 | Side Panel 控制你既有的 provider 分頁 |
 
-## v1.0.0 有什麼
+## v1.0.1 有什麼
 
 - **可靠的離屏自動化。** 不必逐家點進「真實頁面」；送出未被接受時會重試，真的失敗就明確回報，不再無限等待。
 - **以對話為主的版面。** 模式卡片、說明與等待狀態移到左側 provider WebView 上方；右側保留更大的逐字稿與輸入區。
@@ -29,6 +29,7 @@
 - **四種 UI 語言。** English、繁體中文、日本語、Deutsch。
 - **AI-Sister 紀念版。** 唯一一套四角色紀念 Theme，把角色加入 provider 卡片、發言狀態、流程列與 app shell，但不修改第三方網頁本身。
 - **Repo Skills。** Codex 與 Claude Code 可檢查環境並從原始碼開啟 app，不需安裝檔。
+- **較安全的 macOS 封裝。** Apple Silicon DMG 使用 ad-hoc 簽章，release CI 會在上傳前驗證裡面的 app 簽章。
 
 ## 五種模式
 
@@ -47,10 +48,18 @@
 到 [Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest) 下載：
 
 - **Windows x64：** portable `.zip` 或 `x64-setup.exe`。Windows 10/11 通常已內建 WebView2，缺少時安裝檔可下載補上。
-- **macOS Apple Silicon：** `aarch64.dmg`。若未簽章版本被阻擋，對 app 按右鍵 → **打開**。目前沒有 Intel 版。
+- **macOS Apple Silicon：** `aarch64.dmg`。`v1.0.1` 起使用 ad-hoc 簽章，但尚未經 Apple notarization。目前沒有 Intel 版。
 - **Linux x64：** `.AppImage`，先執行 `chmod +x Multi-AI*.AppImage`。建議 Ubuntu 22.04／Debian 12 或更新版本。
 
 第一次開啟時，逐家開啟 provider 並登入一次。密碼只進入 provider 自己的頁面與本機 WebView profile，本 app 不會索取密碼。
+
+### macOS 第一次開啟
+
+1. 刪除舊的 `v1.0.0`，下載 `v1.0.1` 或更新版本；打開 DMG，把 app 拖進 **Applications**。
+2. 先嘗試開啟 app 一次。
+3. 約一小時內前往 **系統設定 → 隱私權與安全性**，捲到「安全性」，按 **仍要打開（Open Anyway）** 並確認。
+
+ad-hoc 簽章可避免錯誤的「app 已損毀」bundle 完整性判定，但只有 Apple Developer ID 簽章加 notarization 才能完全移除第一次啟動的安全例外流程。公司或學校管理的 Mac 可能禁止使用者自行允許。
 
 ## 用 Codex 或 Claude Code 從原始碼啟動
 

@@ -91,8 +91,44 @@ jobs:
       - name: Build Tauri bundle
         run: pnpm tauri build
 
-      # Frozen distribution policy: artifacts are intentionally unsigned and
-      # GitHub Releases remains the documented manual update channel.
+      # Apple Silicon requires a valid code signature for browser-downloaded apps.
+      # tauri.conf.json uses Tauri's documented ad-hoc identity (`-`) until a
+      # Developer ID certificate and notarization credentials are available.
+      - name: Verify macOS app signature inside DMG
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg="$(find src-tauri/target/release/bundle/dmg -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          if [[ -z "$dmg" ]]; then
+            echo "No macOS DMG found" >&2
+            exit 1
+          fi
+
+          mount_dir="$(mktemp -d)"
+          cleanup() {
+            hdiutil detach "$mount_dir" -quiet >/dev/null 2>&1 || true
+            rmdir "$mount_dir" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount_dir"
+          app="$(find "$mount_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [[ -z "$app" ]]; then
+            echo "No .app bundle found inside $dmg" >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "$app"
+          signature="$(codesign --display --verbose=4 "$app" 2>&1)"
+          printf '%s\n' "$signature"
+          if ! grep -Eq '^(Signature=adhoc|Authority=Developer ID Application:)' <<<"$signature"; then
+            echo "macOS app is neither ad-hoc nor Developer ID signed" >&2
+            exit 1
+          fi
+
+      # Frozen distribution policy: Windows artifacts remain unsigned and
+      # macOS uses ad-hoc signing. GitHub Releases is the manual update channel.
 
       - name: Build Windows portable zip
         if: matrix.platform == 'windows'

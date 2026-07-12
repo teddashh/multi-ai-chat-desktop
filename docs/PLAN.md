@@ -2,7 +2,7 @@
 
 > Status: **feature freeze / final commemorative edition**
 > Date: 2026-07-11
-> Final baseline: `v1.0.0`. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
+> Final maintenance baseline: `v1.0.1`. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
 > Working model: the web-session desktop edition is complete. After the final AI-Sister commemorative theme, only provider compatibility, security, build-breakage, and release-critical fixes remain in scope.
 
 ## Final scope
@@ -13,7 +13,7 @@
 | Snapshot / replay / checkpoints | Keep the shipped implementation for compatibility. No new schema, comparison UI, sharing format, or reproducibility roadmap. |
 | Final feature | ✅ One optional **AI-Sister Commemorative Edition** theme showing all four characters together, with supplied per-provider portraits and active-speaker treatment. |
 | Maintenance | Fix provider DOM adapters, security issues, data-loss bugs, dependency/build failures, and release blockers. |
-| Closed work | Fifth provider, workflow-pack marketplace, graph editor, dynamic preset promotion, additional snapshot work, in-app auto-updater, signing/notarization program, and an embedded terminal-agent runtime. |
+| Closed work | Fifth provider, workflow-pack marketplace, graph editor, dynamic preset promotion, additional snapshot work, in-app auto-updater, Developer ID/notarization program, and an embedded terminal-agent runtime. Ad-hoc macOS bundle signing remains a release-integrity requirement. |
 | Separate future product | Any terminal/SDK multi-agent OS belongs in another repository and does not reopen this edition. |
 
 There are no active N-series milestones. References to N0–N9 below or in historical study material describe the design process only; they are not commitments.

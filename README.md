@@ -4,7 +4,7 @@
 
 Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** web sessions answer, review, challenge, and refine one another. Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
 
-**Current release: [v1.0.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.0)** · MIT · no API keys · no analytics
+**Current release: [v1.0.1](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.1)** · MIT · no API keys · no analytics
 
 > This project automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider’s terms. Use accounts and content you are authorized to use.
 
@@ -17,7 +17,7 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 | **Desktop (this repo)** | Full workflows, focused live provider view, replay, snapshots, local files | Tauri app with isolated local provider profiles |
 | [Browser extension](https://github.com/teddashh/multi-ai-chat) | Lightweight workflows inside Chrome | Chrome Side Panel controlling your existing provider tabs |
 
-## What v1.0.0 includes
+## What v1.0.1 includes
 
 - **Reliable offscreen automation.** Providers keep working without manually opening each “live page”; rejected sends retry and fail clearly instead of waiting forever.
 - **Conversation-first layout.** Workflow controls sit above the less-important provider WebView on the left; the transcript and composer keep the larger right pane.
@@ -29,6 +29,7 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 - **Four UI languages.** English, Traditional Chinese, Japanese, and German.
 - **AI-Sister Commemorative Edition.** One optional four-character theme adds the supplied portraits to provider cards, active speakers, process rows, and the app shell without reskinning third-party pages.
 - **Repository Skills.** Codex and Claude Code can validate prerequisites and launch the source app without an installer.
+- **Safer macOS packaging.** Apple Silicon DMGs are ad-hoc signed, and release CI verifies the embedded app signature before upload.
 
 ## Workflow modes
 
@@ -47,10 +48,18 @@ After a workflow finishes, use the bottom composer to continue the same conversa
 Download from [Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest):
 
 - **Windows x64:** portable `.zip` or `x64-setup.exe`. Windows 10/11 normally already includes WebView2; the installer can fetch it when missing.
-- **macOS Apple Silicon:** `aarch64.dmg`. If an unsigned build is blocked, right-click the app and choose **Open**. Intel builds are not currently published.
+- **macOS Apple Silicon:** `aarch64.dmg`. Builds from `v1.0.1` onward are ad-hoc signed but not Apple-notarized. Intel builds are not currently published.
 - **Linux x64:** `.AppImage`, then run `chmod +x Multi-AI*.AppImage` and open it. Ubuntu 22.04 / Debian 12 or newer is recommended.
 
 On first launch, open each provider once and sign in. Credentials stay in that provider’s local WebView profile; the app never asks for the password.
+
+### macOS first launch
+
+1. Delete any `v1.0.0` copy, download `v1.0.1` or newer, open the DMG, and drag the app to **Applications**.
+2. Try to open the app once.
+3. Within about one hour, open **System Settings → Privacy & Security**, scroll to **Security**, then choose **Open Anyway** and confirm.
+
+The ad-hoc signature prevents the false “app is damaged” bundle-integrity failure, but only Apple Developer ID signing plus notarization can remove the first-launch security exception entirely. Managed Macs may prohibit user exceptions.
 
 ## Launch the source with Codex or Claude Code
 

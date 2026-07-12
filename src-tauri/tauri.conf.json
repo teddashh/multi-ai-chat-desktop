@@ -36,6 +36,9 @@
       "icons/icon.ico"
     ],
     "targets": ["nsis", "dmg", "appimage"],
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
