@@ -30,7 +30,13 @@ test('launch dry-run reports a plan without changing runtime state', () => {
   assert.equal(payload.command, 'launch');
   assert.equal(payload.outcome, 'dry_run');
   assert.deepEqual(payload.writesPerformed, []);
-  assert.equal(payload.plan.some((step) => step.disposition === 'would_start'), true);
+  if (payload.prerequisitesOk) {
+    assert.equal(payload.predictedOutcome, 'would_start');
+    assert.equal(payload.plan.some((step) => step.disposition === 'would_start'), true);
+  } else {
+    assert.equal(payload.predictedOutcome, 'blocked');
+    assert.deepEqual(payload.plan, [{ action: 'prerequisite gate', disposition: 'would_block' }]);
+  }
 });
 
 test('audit current is read-only and emits declared effects', () => {
