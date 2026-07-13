@@ -175,7 +175,7 @@ export const de: Record<I18nKey, string> = {
   'conversation.history': 'Unterhaltungen',
   'conversation.empty': 'Noch keine gespeicherten Unterhaltungen.',
   'conversation.delete': 'Diese Unterhaltung löschen',
-  'conversation.deleteConfirm': 'Löschen bestätigen',
+  'conversation.deleteConfirm': 'Löschen?',
   'settings.title': 'Einstellungen',
   'settings.close': 'Schließen',
   'settings.general': 'Allgemein',

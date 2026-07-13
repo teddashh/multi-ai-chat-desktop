@@ -173,7 +173,7 @@ export const en: Record<I18nKey, string> = {
   'conversation.history': 'Conversations',
   'conversation.empty': 'No saved conversations yet.',
   'conversation.delete': 'Delete this conversation',
-  'conversation.deleteConfirm': 'Confirm delete',
+  'conversation.deleteConfirm': 'Delete?',
   'settings.title': 'Settings',
   'settings.close': 'Close',
   'settings.general': 'General',

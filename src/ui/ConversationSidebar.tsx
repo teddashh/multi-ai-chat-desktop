@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import appIconUrl from '../assets/app-icon.svg';
 import { AiSisterBrandMark } from './AiSisterTheme';
 import { DEFAULT_CONVERSATION_SESSION_TITLE, type ConversationSession } from './conversationSessions';
@@ -36,6 +36,15 @@ export function ConversationSidebar({
   onDeleteSession: (session: ConversationSession) => void;
 }) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (
+      pendingDeleteId
+      && (collapsed || disabled || !sessions.some((session) => session.id === pendingDeleteId))
+    ) {
+      setPendingDeleteId(undefined);
+    }
+  }, [collapsed, disabled, pendingDeleteId, sessions]);
 
   return (
     <nav
@@ -113,6 +122,8 @@ export function ConversationSidebar({
                         }}
                         onBlur={() => setPendingDeleteId(undefined)}
                         disabled={disabled}
+                        aria-label={labels.confirmDeleteConversation}
+                        title={labels.confirmDeleteConversation}
                         autoFocus
                       >
                         {labels.confirmDeleteConversation}

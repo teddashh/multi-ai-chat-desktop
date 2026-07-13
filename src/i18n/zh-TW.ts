@@ -164,7 +164,7 @@ export const zhTW: Record<I18nKey, string> = {
   'conversation.history': '對話紀錄',
   'conversation.empty': '目前還沒有已儲存的對話。',
   'conversation.delete': '刪除這段對話',
-  'conversation.deleteConfirm': '確認刪除',
+  'conversation.deleteConfirm': '刪除？',
   'settings.title': '設定',
   'settings.close': '關閉',
   'settings.general': '一般',

@@ -175,7 +175,7 @@ export const ja: Record<I18nKey, string> = {
   'conversation.history': '会話履歴',
   'conversation.empty': '保存された会話はまだありません。',
   'conversation.delete': 'この会話を削除',
-  'conversation.deleteConfirm': '削除を確認',
+  'conversation.deleteConfirm': '削除？',
   'settings.title': '設定',
   'settings.close': '閉じる',
   'settings.general': '一般',
