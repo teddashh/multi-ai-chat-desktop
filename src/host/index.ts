@@ -17,12 +17,17 @@ export interface NavBlockedPayload {
   host: string;
 }
 
-const toBounds = (rect: DOMRectReadOnly) => ({
-  x: Math.round(rect.x),
-  y: Math.round(rect.y),
-  width: Math.round(rect.width),
-  height: Math.round(rect.height),
-});
+// CSS px × devicePixelRatio = 實體像素。dpr 已包含 WebView2 頁面縮放
+// （Windows「文字大小」會變成 ZoomFactor），Logical 座標會少乘這個縮放而錯位。
+const toBounds = (rect: DOMRectReadOnly) => {
+  const dpr = globalThis.devicePixelRatio || 1;
+  return {
+    x: Math.round(rect.x * dpr),
+    y: Math.round(rect.y * dpr),
+    width: Math.round(rect.width * dpr),
+    height: Math.round(rect.height * dpr),
+  };
+};
 
 const SNAPSHOT_ID_RE = /^[A-Za-z0-9._-]{1,80}$/;
 

@@ -2,13 +2,16 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     io::{self, Write},
-    sync::{Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Mutex, OnceLock,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{
     utils::config::BackgroundThrottlingPolicy,
     webview::{NewWindowResponse, WebviewBuilder},
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl,
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl,
 };
 use tauri_plugin_opener::OpenerExt;
 
@@ -213,14 +216,35 @@ pub async fn provider_open(
             }
             false
         })
-        .on_new_window(move |url, _features| {
+        .on_new_window(move |url, features| {
             // Challenge auxiliary about: documents are allowed only as in-webview navigation.
             // Keep all non-HTTP(S) popups fail-closed; Turnstile does not require popup windows.
             let allowlisted = adapters::url_allowed_for_provider(&popup_provider, &url)
                 .unwrap_or(false)
                 || adapters::url_allowed_for_sso(&popup_provider, &url).unwrap_or(false);
             match decide_new_window_action(&url, allowlisted) {
-                NewWindowAction::AllowPopup => NewWindowResponse::Allow,
+                // Host popups in our own decorated window: the platform-default popup
+                // (WebView2) is undecorated, so it can't be dragged off the page it covers.
+                // window_features() wires the opener environment, so OAuth flows keep working.
+                NewWindowAction::AllowPopup => {
+                    static POPUP_SEQ: AtomicUsize = AtomicUsize::new(0);
+                    let label =
+                        format!("provider-popup-{}", POPUP_SEQ.fetch_add(1, Ordering::Relaxed));
+                    let builder = tauri::WebviewWindowBuilder::new(
+                        &popup_app,
+                        &label,
+                        WebviewUrl::External("about:blank".parse().expect("static url")),
+                    )
+                    .window_features(features)
+                    .title(url.as_str())
+                    .on_document_title_changed(|window, title| {
+                        let _ = window.set_title(&title);
+                    });
+                    match builder.build() {
+                        Ok(window) => NewWindowResponse::Create { window },
+                        Err(_) => NewWindowResponse::Allow,
+                    }
+                }
                 NewWindowAction::DenySilent => NewWindowResponse::Deny,
                 NewWindowAction::DenyExternal => {
                     if let Some(host) = url.host_str() {
@@ -239,8 +263,8 @@ pub async fn provider_open(
     let webview = window
         .add_child(
             builder,
-            LogicalPosition::new(bounds.x, bounds.y),
-            LogicalSize::new(bounds.width, bounds.height),
+            PhysicalPosition::new(bounds.x as i32, bounds.y as i32),
+            PhysicalSize::new(bounds.width as u32, bounds.height as u32),
         )
         .map_err(|error| error.to_string())?;
     webview.show().map_err(|error| error.to_string())?;
@@ -638,10 +662,18 @@ fn set_webview_bounds<R: tauri::Runtime>(
     webview: &tauri::Webview<R>,
     bounds: &Bounds,
 ) -> Result<(), String> {
+    // 前端傳來的是實體像素（CSS px × devicePixelRatio），必須用 Physical。
+    // 用 Logical 會少乘 WebView2 的頁面縮放（Windows「文字大小」），造成 webview 錯位。
     webview
         .set_bounds(tauri::Rect {
-            position: tauri::Position::Logical(LogicalPosition::new(bounds.x, bounds.y)),
-            size: tauri::Size::Logical(LogicalSize::new(bounds.width, bounds.height)),
+            position: tauri::Position::Physical(PhysicalPosition::new(
+                bounds.x as i32,
+                bounds.y as i32,
+            )),
+            size: tauri::Size::Physical(PhysicalSize::new(
+                bounds.width as u32,
+                bounds.height as u32,
+            )),
         })
         .map_err(|error| error.to_string())
 }
