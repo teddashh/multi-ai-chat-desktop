@@ -2,7 +2,7 @@
 
 > Status: **feature freeze / final commemorative edition**
 > Date: 2026-07-13
-> Stable maintenance baseline: `v1.2.0`; the current unreleased change is a response-language compatibility repair only. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
+> Stable maintenance baseline: `v1.3.0`; feature development remains frozen after the response-language compatibility repair. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
 > Working model: the web-session desktop edition is complete. The final source-distribution work formalizes the existing Codex/Claude launch path as a tested Agent-Ready Source Release; it does not add an embedded agent runtime. After this patch, only provider compatibility, security, build-breakage, and release-critical fixes remain in scope.
 
 ## Final scope
