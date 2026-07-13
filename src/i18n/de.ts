@@ -192,6 +192,7 @@ export const de: Record<I18nKey, string> = {
   'settings.themeLight': 'Hell',
   'settings.themeDark': 'Dunkel',
   'settings.themeAiSister': 'AI-Sister Gedenkausgabe',
+  'settings.fontSize': 'Schriftgröße',
   'theme.aiSister.badge': 'Finale AI-Sister Gedenkausgabe',
   'theme.aiSister.title': 'AI-Sister Gedenkausgabe',
   'theme.aiSister.subtitle': 'Vier Stimmen, eine letzte Runde.',

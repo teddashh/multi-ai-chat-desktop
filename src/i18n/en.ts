@@ -190,6 +190,7 @@ export const en: Record<I18nKey, string> = {
   'settings.themeLight': 'Light',
   'settings.themeDark': 'Dark',
   'settings.themeAiSister': 'AI-Sister Commemorative Edition',
+  'settings.fontSize': 'Font size',
   'theme.aiSister.badge': 'Final commemorative edition',
   'theme.aiSister.title': 'AI-Sister Commemorative Edition',
   'theme.aiSister.subtitle': 'Four voices, one last round.',

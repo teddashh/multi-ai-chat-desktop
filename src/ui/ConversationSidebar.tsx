@@ -70,7 +70,7 @@ export function ConversationSidebar({
 
       {!collapsed ? (
         <div className="flex min-h-0 flex-1 flex-col px-2 pb-2">
-          <h2 className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{labels.history}</h2>
+          <h2 className="px-1 pb-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{labels.history}</h2>
           <div className="min-h-0 flex-1 overflow-auto">
             {sessions.length === 0 ? (
               <div className="px-2 py-3 text-xs text-zinc-500 dark:text-zinc-400">{labels.empty}</div>
@@ -92,7 +92,7 @@ export function ConversationSidebar({
                       <span className="block truncate text-xs font-medium">
                         {session.title === DEFAULT_CONVERSATION_SESSION_TITLE ? labels.newConversation : session.title}
                       </span>
-                      <span className="mt-1 block text-[10px] text-zinc-500 dark:text-zinc-400">
+                      <span className="mt-1 block text-[0.625rem] text-zinc-500 dark:text-zinc-400">
                         {new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(session.updatedAt)}
                       </span>
                     </button>

@@ -125,4 +125,13 @@ describe('focus layout helpers', () => {
     expect(normalizeSettings({ focusPaneWidth: 250 }).focusPaneWidth).toBe(420);
     expect(normalizeSettings({ columnWidths: { left: 500, right: 320 } }).focusPaneWidth).toBe(500);
   });
+
+  it('normalizes font size: minimum 10, no upper limit, invalid falls back to default', () => {
+    expect(normalizeSettings({}).fontSize).toBe(16);
+    expect(normalizeSettings({ fontSize: 18 }).fontSize).toBe(18);
+    expect(normalizeSettings({ fontSize: 72 }).fontSize).toBe(72);
+    expect(normalizeSettings({ fontSize: 8 }).fontSize).toBe(16);
+    expect(normalizeSettings({ fontSize: '18' }).fontSize).toBe(16);
+    expect(normalizeSettings({ fontSize: Number.NaN }).fontSize).toBe(16);
+  });
 });

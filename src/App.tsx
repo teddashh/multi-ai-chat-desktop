@@ -408,6 +408,10 @@ export default function App() {
   }, [appSettings.theme]);
 
   useEffect(() => {
+    document.documentElement.style.fontSize = `${appSettings.fontSize}px`;
+  }, [appSettings.fontSize]);
+
+  useEffect(() => {
     localeRef.current = locale;
   }, [locale]);
 
