@@ -1,20 +1,20 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2 feature-frozen** (four-provider web edition; `v1.0.1` maintenance baseline)
-> Date: 2026-07-11
+> Status: **v2.2.4 feature-frozen** (four-provider web edition; `v1.0.1` maintenance baseline)
+> Date: 2026-07-13
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
-> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme.
+> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.4 records the owner-approved response-language compatibility repair without reopening feature development.
 > Audience: maintenance contributors. Existing snapshot/replay/checkpoint behavior is compatibility-maintained but has no vNext roadmap.
 
 ## 0. One-paragraph summary
 
-A Tauri 2 desktop app with one main window: a React control pane and child webviews loading the real ChatGPT, Claude, Gemini, and Grok sites. The user types once; DOM automation sends through the user's logged-in web sessions and aggregates responses into five shipped workflows. Zero API keys and local provider profiles remain the product core. Adapter JSON can be maintained when provider DOM changes. Sessions, snapshots, replay, checkpoints, diagnostics, and source-launch Skills remain available in their shipped form. No marketplace, graph editor, fifth provider, embedded terminal agent, or snapshot vNext is planned. The only final product addition is the optional AI-Sister Commemorative Edition theme.
+A Tauri 2 desktop app with one main window: a React control pane and child webviews loading the real ChatGPT, Claude, Gemini, and Grok sites. The user types once; DOM automation sends through the user's logged-in web sessions and aggregates responses into five shipped workflows. Zero API keys and local provider profiles remain the product core. Adapter JSON can be maintained when provider DOM changes. Sessions, snapshots, replay, checkpoints, diagnostics, and source-launch Skills remain available in their shipped form. No marketplace, graph editor, fifth provider, embedded terminal agent, or snapshot vNext is planned. The only final product addition is the optional AI-Sister Commemorative Edition theme; the response-language rule in §1.1 #5 is a maintenance compatibility repair.
 
 ## 1. Goals / Non-goals (v2.1)
 
 ### Goals
 - G1. **SHIPPED floor:** single window: control pane + provider webviews, resizable, show/hide per provider.
-- G2. **SHIPPED floor:** port the original extension's injection engine (`createContentScript`) and all 5 workflow modes with identical semantics, **except the four declared improvements** (§1.1).
+- G2. **SHIPPED floor:** port the original extension's injection engine (`createContentScript`) and all 5 workflow modes with identical semantics, **except the five declared improvements** (§1.1).
 - G3. **SHIPPED floor:** adapter system: JSON per provider, schema-validated, hot-updated from GitHub raw, last-known-good cache, one-click broken-DOM report.
 - G4. **SHIPPED floor:** per-provider persistent login sessions (WebView2 profile dirs). Login survives app restarts.
 - G5. **SHIPPED floor:** Windows NSIS installer and portable zip, macOS Apple Silicon DMG, Linux x86_64 AppImage, and tag-driven draft Releases.
@@ -27,6 +27,7 @@ A Tauri 2 desktop app with one main window: a React control pane and child webvi
 2. **Step timeout UI** — 600s timeout surfaced with countdown + retry + skip (ARCH D5 #2), plus serial-mode preflight (§9.5).
 3. **Explicit bus routing** — replaces Chrome implicit broadcast (ARCH D5 #3).
 4. **Functional free-mode `targets`** — user may deselect providers for free mode; default (nothing deselected) = all sendable = original fan-out parity (golden-tested).
+5. **Response-language routing repair** — interface language controls app chrome, not provider output. The separate response-language preference defaults to `auto`: an explicit request wins, followed by current-question language, established user conversation language, then resolved interface locale. The resulting policy is appended centrally to every provider-bound workflow prompt and must ignore workflow copy, relayed AI text, quotations, attachments, code, URLs, and filenames as language evidence. A fixed response language may be selected, while an explicit per-question request remains authoritative.
 
 Everything else must match the original extension's observable behavior. Any other deviation found in review is a bug.
 
@@ -149,7 +150,7 @@ interface WorkflowGraph {                    // src/workflow/graph/types.ts curr
 }
 ```
 
-`WorkflowGraph`, graph nodes, and graph edges already live internal to `src/workflow/graph/`; v2.0 makes that existing graph substrate production-routed at N0. Snapshot replay's `graphVersion` is a **NEXT-PHASE (N0/N1)** field to add to the existing graph schema, or to map to another explicit content-versioning field. It MUST NOT be treated as a shipped field today.
+`WorkflowGraph`, graph nodes, and graph edges already live internal to `src/workflow/graph/`; v2.0 made that existing graph substrate production-routed at N0. Snapshot replay's shipped `graphVersion` field is the monotonic content version used to prevent silent replay against changed graph semantics.
 
 ### 4.2 v2 TARGET additions
 
@@ -186,7 +187,7 @@ interface RedactedValueRef {
 interface ExecutionSnapshot {
   snapshotId: string;
   graphId: string;
-  graphVersion: number;                      // NEXT-PHASE N0/N1 content-version field.
+  graphVersion: number;                      // Shipped monotonic graph content version.
   appVersion: string;
   createdAt: string;
   completedAt?: string;
@@ -491,7 +492,7 @@ When input/send/response resolution fails permanently (e.g. input element not fo
 
 - Built-in graph ids: `free`, `debate`, `consult`, `coding`, `roundtable`. **NEXT-PHASE (N3):** imported pack graph ids are namespaced by pack id.
 - Roundtable history accumulation is intentional: each speaker receives all earlier speeches from the same workflow run, including earlier speakers in the current round. Every `executeGraph` call creates a fresh history map, so this prompt context never carries into a different workflow question. Starting a new app conversation also requests a new session from every loaded provider.
-- **NEXT-PHASE (N0/N1):** graph versions are monotonic integers. Current `src/workflow/graph/types.ts:8-18` has no monotonic content `version`; N0/N1 MUST add `graphVersion` or an explicit equivalent before snapshot replay depends on it. A snapshot records `graphId` + `graphVersion`; replay refuses to silently substitute a different graph version unless the user explicitly selects "replay with current graph".
+- Built-in graph versions are monotonic integers. A snapshot records `graphId` + `graphVersion`; replay refuses to silently substitute a different graph version unless the user explicitly selects "replay with current graph". The response-language prompt-policy repair bumps all built-in graphs from version 1 to version 2.
 - **NEXT-PHASE (N3):** `WorkflowPack` import validates graph shape, required provider ids, `minAdapterVersion`, prompt-template parameters, and absence of executable code. Packs contain prompts and metadata only; they do not carry scripts, cookies, local paths, or Tauri permissions.
 - **NEXT-PHASE (N3):** pack role defaults are suggestions. Serial-mode preflight (§9.5) remains authoritative and blocks if a required role provider is not sendable.
 
@@ -511,6 +512,7 @@ When input/send/response resolution fails permanently (e.g. input element not fo
 - Replay never reuses cookies or provider storage from the snapshot. It uses the current user's logged-in web sessions and blocks preflight if required providers are unavailable.
 - Replay can compare prior output refs against new outputs when the redaction tier preserved comparable material or hashes. Metadata-only snapshots can replay structure but cannot display prompt/output text.
 - Replay is a workflow run and therefore emits normal `WORKFLOW_STATUS`, `ROLE_ASSIGNMENT`, process-trace, timeout, cancel, and snapshot events.
+- Response-language replay adds no snapshot field. `prompt-text` and `full-local` snapshots recover the versioned policy tag already present in retained step input. `metadata-only`, `hashes`, and legacy snapshots cannot retain that prompt metadata and therefore use the current response-language setting after any applicable graph-version gate; a same-version replay does this without an additional language-policy confirmation.
 - **NEXT-PHASE (N1) crash/restart checkpoint:** even when durable full snapshots are off or redaction is metadata-only, the app persists a minimum session checkpoint (graph id, step index, pending checkpoint id/action state) in `settings.json` or bounded JSONL so an interrupted run can resume at the stopped step. Full replay remains opt-in.
 
 ### 9.4 Connections lifecycle
@@ -593,7 +595,7 @@ User sees the exact payload in a preview dialog and must confirm; then a prefill
 
 ## 11. Settings & persistence
 
-`<app-data>/settings.json` stores layout, provider selection, adapter channel/base URL, portable/update-channel flags, snapshot opt-in/redaction settings, and `telemetry=none`. Provider credentials are never stored there. A configured HackMD token is plaintext on this machine, as disclosed in Settings.
+`<app-data>/settings.json` stores interface language, response-language preference, layout, provider selection, adapter channel/base URL, portable/update-channel flags, snapshot opt-in/redaction settings, and `telemetry=none`. The response-language preference defaults to `auto`: explicit output-language requests win, followed by the current question and established conversation language, with the resolved interface locale as the final fallback. Provider credentials are never stored there. A configured HackMD token is plaintext on this machine, as disclosed in Settings.
 
 `<app-data>/webviews/<provider>/` contains isolated provider profiles. `<app-data>/adapters-cache/` contains last-known-good adapters. Local conversation sessions and minimum workflow checkpoints are bounded and stored locally.
 
@@ -686,6 +688,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 ## 16. Changelog
 
+- **v2.2.4 (2026-07-13)** — owner-approved response-language compatibility repair: separates interface and response language, applies a question-aware policy to every provider-bound workflow prompt, versions the changed built-in graphs, and preserves retained replay policy without expanding the snapshot schema.
 - **v2.2.3 (2026-07-12)** — Apple Silicon compatibility follow-up: records the first successful real-Mac `v1.0.1` launch and three-provider login report, while treating Grok's Cloudflare verification loop as a release blocker. Grok and its challenge frames no longer receive permission Web-API monkey-patches, and only Cloudflare-required `about:blank` / `about:srcdoc` auxiliary navigation is added. Final success remains pending an Apple Silicon retest.
 - **v2.2.2 (2026-07-12)** — formalizes the Codex/Claude source-launch path as Agent-Ready Source Release contract 1.0.0: strict manifest/schema, explicit trust and permission boundaries, deterministic JSON lifecycle commands, read-only dry-run, local before/after receipts, current-run control-pane READY evidence, identity-safe stop, Skill drift tests, and cross-platform CI self-tests. Explicitly rejects Docker, silent host installation, automatic rollback, and readiness claims based only on process creation.
 - **v2.2.1 (2026-07-11)** — final hardening clarification: preserves same-session roundtable history and existing prompts while correcting snapshot app-version provenance, adding session-safe Markdown provenance, narrowing Tauri capability scope to the `main` webview, enabling production CSP, locking remote adapters to bundled URL scopes, and documenting private security reporting plus honest platform/provider smoke evidence.

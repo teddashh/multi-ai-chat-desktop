@@ -27,6 +27,7 @@ import { chooseStepTimeoutAction, onStepTimeoutEvent, resetStepTimeoutForTests }
 import { tearDownWaiters } from '../workflow/teardown';
 import { STEP_TIMEOUT_MS, waitForResponse, resetWaitForResponseForTests, hasWaiter } from '../workflow/waitForResponse';
 import { resetWorkflowRuntimeForTests, runWorkflow } from '../workflow';
+import { createResponseLanguagePolicy } from '../workflow/responseLanguage';
 
 vi.mock('../host', () => ({
   host: {
@@ -206,6 +207,56 @@ describe('workflow engine', () => {
     unsubscribe();
     expect(host.provider.send).not.toHaveBeenCalled();
     expect(statuses).toEqual(['']);
+  });
+
+  it('applies the same Auto response-language policy to every free and serial provider prompt', async () => {
+    const policy = createResponseLanguagePolicy('auto', 'zh-TW');
+    const freePrompts: string[] = [];
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      freePrompts.push(prompt);
+      publishBridgeMessage(done(provider, `${provider}-free-answer`));
+    });
+
+    await expect(
+      runWorkflow({
+        text: 'Explain dependency injection in simple terms.',
+        mode: 'free',
+        targets: ['chatgpt', 'gemini'],
+        responseLanguagePolicy: policy,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(freePrompts).toHaveLength(2);
+    for (const prompt of freePrompts) {
+      expect(prompt).toContain('Explain dependency injection in simple terms.');
+      expect(prompt).toContain('<response-language-policy version="1" setting="auto" interface-locale="zh-TW">');
+      expect(prompt).toContain('primary language of the user-authored prose');
+      expect(prompt).toContain('Traditional Chinese (zh-TW) (the app interface language fallback)');
+    }
+
+    vi.mocked(host.provider.send).mockClear();
+    const serialPrompts: string[] = [];
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      serialPrompts.push(prompt);
+      publishBridgeMessage(done(provider, `${provider}-serial-answer`));
+    });
+
+    await expect(
+      runWorkflow({
+        text: 'Should cities ban private cars downtown?',
+        mode: 'debate',
+        roles: DEFAULT_DEBATE_ROLES,
+        responseLanguagePolicy: policy,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(serialPrompts).toHaveLength(4);
+    expect(
+      serialPrompts.every((prompt) =>
+        prompt.includes('<response-language-policy version="1" setting="auto" interface-locale="zh-TW">'),
+      ),
+    ).toBe(true);
+    expect(serialPrompts.every((prompt) => prompt.includes('Do not infer it from these workflow instructions, other AI responses'))).toBe(true);
   });
 
   it('send failures tear down their waiter and polling for serial and free-mode sends', async () => {

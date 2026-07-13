@@ -31,6 +31,8 @@ function baseBundle(overrides: Partial<Parameters<typeof buildDebugBundle>[0]> =
       ProviderState
     >,
     settings: {
+      language: 'en',
+      responseLanguage: 'auto',
       adapterBaseUrl: 'https://example.test/adapters',
       updaterChannel: 'stable',
       portable: true,
@@ -233,6 +235,8 @@ describe('debug bundle builder', () => {
     expect(parsed.app.version).toBe('0.2.0');
     expect(parsed.environment).toEqual({ userAgent: 'Vitest UA', platform: 'Win32' });
     expect(parsed.settings).toEqual({
+      language: 'en',
+      responseLanguage: 'auto',
       adapterBaseUrl: 'https://example.test/adapters',
       updaterChannel: 'stable',
       portable: true,

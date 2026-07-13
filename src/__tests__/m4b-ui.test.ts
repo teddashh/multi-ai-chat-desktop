@@ -85,6 +85,7 @@ describe('M4b UI helpers', () => {
 
     expect(defaultSettings()).toMatchObject({
       language: 'system',
+      responseLanguage: 'auto',
       theme: 'light',
       layoutMode: 'focus',
       focusPaneWidth: DEFAULT_FOCUS_PANE_WIDTH,
@@ -106,10 +107,12 @@ describe('M4b UI helpers', () => {
       snapshotPersistence: true,
       snapshotRedactionTier: 'unknown',
       language: 'fr',
+      responseLanguage: 'fr',
       theme: 'dark',
       presentation: { chatgpt: 'chip', claude: 'center', gemini: 'bad', grok: 'center' },
     });
     expect(normalized.language).toBe('system');
+    expect(normalized.responseLanguage).toBe('auto');
     expect(normalized.theme).toBe('dark');
     expect(normalized.layoutMode).toBe('focus');
     expect(normalized.focusPaneWidth).toBe(420);
@@ -123,10 +126,11 @@ describe('M4b UI helpers', () => {
     expect(normalized.snapshotRedactionTier).toBe('metadata-only');
     expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side' });
 
-    expect(mergeSettings(normalized, { snapshotRedactionTier: 'hashes', language: 'zh-TW' })).toMatchObject({
+    expect(mergeSettings(normalized, { snapshotRedactionTier: 'hashes', language: 'zh-TW', responseLanguage: 'en' })).toMatchObject({
       layoutMode: 'focus',
       focusPaneWidth: 420,
       language: 'zh-TW',
+      responseLanguage: 'en',
       openProviders: ['grok'],
       portable: true,
       snapshotRedactionTier: 'hashes',

@@ -3,7 +3,7 @@ import type { WorkflowGraph } from './types';
 export const freeGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'free',
-  version: 1,
+  version: 2,
   mode: 'free',
   start: 'fanout',
   roles: {},

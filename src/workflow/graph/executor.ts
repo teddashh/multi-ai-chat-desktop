@@ -5,6 +5,7 @@ import { awaitCheckpoint } from '../checkpoint';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
 import { fillAndAwaitNativeSend } from '../nativeEdit';
 import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
+import { appendResponseLanguagePolicy, type ResponseLanguagePolicy } from '../responseLanguage';
 import { runStep } from '../stepRunner';
 import { clearActiveTurn, SKIP_RESPONSE } from '../state';
 import { getSnapshotAdapterVersions } from '../snapshot/adapterVersions';
@@ -47,6 +48,7 @@ interface ExecutionContext {
   loopValues: Map<string, unknown>;
   loopIterations: Map<string, number>;
   checkpoints: boolean;
+  responseLanguagePolicy?: ResponseLanguagePolicy;
   completed: Set<NodeId>;
   ready: Set<NodeId>;
   evaluatedEdges: Set<number>;
@@ -143,6 +145,7 @@ function createExecutionContext(graph: WorkflowGraph, params: ExecuteGraphParams
     loopValues: new Map(),
     loopIterations: new Map(),
     checkpoints: params.checkpoints === true,
+    responseLanguagePolicy: params.responseLanguagePolicy,
     completed: new Set(),
     ready: new Set(),
     evaluatedEdges: new Set(),
@@ -434,7 +437,8 @@ function renderBatchStatus(batch: NodeId[], context: ExecutionContext): string |
 
 function renderPromptSpec(prompt: PromptSpec, context: ExecutionContext, nodeId: NodeId, provider?: AIProvider): string {
   const args = prompt.args.map((promptArg) => renderPromptArg(promptArg, context));
-  return renderRegisteredPrompt(prompt, args, { graph: context.graph, nodeId, provider, targets: context.targets });
+  const rendered = renderRegisteredPrompt(prompt, args, { graph: context.graph, nodeId, provider, targets: context.targets });
+  return appendResponseLanguagePolicy(rendered, context.responseLanguagePolicy);
 }
 
 function renderTextTemplate(template: TextTemplate, context: ExecutionContext, nodeId: NodeId, provider?: AIProvider): string {

@@ -25,6 +25,7 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 - Bis zu 30 lokale Sitzungen plus **Neuer Chat**.
 - Sicher gerendertes Markdown, Abschluss von reinen Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
 - English, 繁體中文, 日本語 und Deutsch.
+- Die Antwortsprache ist von der Oberflächensprache getrennt. Automatisch gelten zuerst ausdrückliche Vorgaben, dann Frage und Gespräch; die Oberfläche ist nur der Rückfall. Eine feste Antwortsprache ist ebenfalls wählbar.
 - Die optionale **AI-Sister Gedenkausgabe** zeigt alle vier Figuren in Anbieterkarten, Sprecherstatus, Prozesszeilen und App-Oberfläche; Drittanbieter-Seiten bleiben unverändert.
 - Repo-Skills für Codex und Claude Code starten die Quellversion ohne Installer.
 - Apple-Silicon-DMGs sind ad-hoc signiert; die Release-CI prüft die eingebettete App-Signatur vor dem Upload.

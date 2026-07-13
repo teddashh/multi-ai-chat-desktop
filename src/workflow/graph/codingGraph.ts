@@ -4,7 +4,7 @@ import type { WorkflowGraph } from './types';
 export const codingGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'coding',
-  version: 1,
+  version: 2,
   mode: 'coding',
   start: 'plannerSpec',
   roles: {

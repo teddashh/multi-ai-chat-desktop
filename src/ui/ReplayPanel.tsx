@@ -15,6 +15,7 @@ import {
   type ReplayResult,
 } from '../workflow/snapshot/replay';
 import type { ExecutionSnapshot } from '../workflow/snapshot/types';
+import type { ResponseLanguagePolicy } from '../workflow/responseLanguage';
 
 export type ReplaySource =
   | { kind: 'last'; snapshot: ExecutionSnapshot }
@@ -39,6 +40,7 @@ interface ReplayNotice {
 
 export interface ReplayPanelProps {
   locale?: Locale;
+  responseLanguagePolicy?: ResponseLanguagePolicy;
   onReplayWillRun?: (plan: ReplayPlan) => void;
   onReplaySettled?: () => void;
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
@@ -111,6 +113,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
       const result = await replaySnapshot(this.inputForSource(source, question), {
         replayWithCurrentGraph: options.replayWithCurrentGraph,
         onSnapshotComplete: this.props.onSnapshotComplete,
+        responseLanguagePolicy: this.props.responseLanguagePolicy,
       });
 
       if (result.ok) {

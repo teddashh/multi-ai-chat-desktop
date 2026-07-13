@@ -25,6 +25,7 @@
 - 最大30件のローカル会話履歴と「新しい会話」。
 - 安全な Markdown、画像のみの回答完了判定、snapshot／replay、2,000件の診断ログ。
 - English、繁體中文、日本語、Deutsch。
+- 応答言語はインターフェース言語から独立。自動では、明示的な指定、質問、会話の言語を優先し、インターフェース言語は最後のフォールバックとして使用。固定の応答言語も選択可能。
 - 4人のキャラクターをproviderカード、発言状態、process row、app shellに表示する唯一のオプションTheme「AI-Sister 記念版」。第三者ページ自体は変更しません。
 - Codex／Claude Code 用の repo Skill から、インストーラーなしでソース版を起動。
 - Apple Silicon DMGをad-hoc署名し、release CIがアップロード前にアプリ署名を検証。

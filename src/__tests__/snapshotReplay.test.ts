@@ -7,6 +7,7 @@ import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
 import { executeGraph, workflowGraphs } from '../workflow/graph';
 import { resetWorkflowRuntimeForTests } from '../workflow/runtime';
+import { appendResponseLanguagePolicy, createResponseLanguagePolicy } from '../workflow/responseLanguage';
 import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { getLastSnapshot, resetSnapshotRecorderForTests } from '../workflow/snapshot/recorder';
 import {
@@ -138,17 +139,17 @@ describe('snapshot replay', () => {
   });
 
   it('blocks graph version mismatches unless the caller opts into the current graph', async () => {
-    const snapshot = buildSnapshot({ graphVersion: 2 });
+    const snapshot = buildSnapshot({ graphVersion: 1 });
 
     expect(planReplay(snapshot)).toMatchObject({
       blocked: 'graph-version-mismatch',
-      detail: { snapshotVersion: 2, currentVersion: 1 },
+      detail: { snapshotVersion: 1, currentVersion: 2 },
     });
 
     await expect(replaySnapshot({ snapshot }, {})).resolves.toEqual({
       ok: false,
       blocked: 'graph-version-mismatch',
-      detail: { snapshotVersion: 2, currentVersion: 1 },
+      detail: { snapshotVersion: 1, currentVersion: 2 },
     });
     expect(executeGraph).not.toHaveBeenCalled();
 
@@ -206,6 +207,50 @@ describe('snapshot replay', () => {
       needsQuestion: false,
       textComparable: true,
     });
+  });
+
+  it('applies the current response-language policy when replaying without changing the snapshot schema', async () => {
+    const currentPolicy = createResponseLanguagePolicy('auto', 'en');
+    const snapshot = buildSnapshot();
+
+    await expect(replaySnapshot({ snapshot }, { responseLanguagePolicy: currentPolicy })).resolves.toMatchObject({ ok: true });
+
+    expect(executeGraph).toHaveBeenCalledWith(
+      workflowGraphs.debate,
+      {
+        text: 'clean replay question',
+        roles: DEFAULT_DEBATE_ROLES,
+        targets: undefined,
+        responseLanguagePolicy: currentPolicy,
+      },
+      { onSnapshotComplete: undefined },
+    );
+  });
+
+  it('restores a retained prompt policy before falling back to the current replay setting', async () => {
+    const retainedPolicy = createResponseLanguagePolicy('auto', 'ja');
+    const currentPolicy = createResponseLanguagePolicy('auto', 'en');
+    const snapshot = buildSnapshot({
+      steps: [
+        step('pro', {
+          input: inlineRef(appendResponseLanguagePolicy(PROMPTS.debate.pro('clean replay question'), retainedPolicy)),
+        }),
+      ],
+    });
+
+    expect(planReplay(snapshot).responseLanguagePolicy).toEqual(retainedPolicy);
+    await expect(replaySnapshot({ snapshot }, { responseLanguagePolicy: currentPolicy })).resolves.toMatchObject({ ok: true });
+
+    expect(executeGraph).toHaveBeenCalledWith(
+      workflowGraphs.debate,
+      {
+        text: 'clean replay question',
+        roles: DEFAULT_DEBATE_ROLES,
+        targets: undefined,
+        responseLanguagePolicy: retainedPolicy,
+      },
+      { onSnapshotComplete: undefined },
+    );
   });
 
   it('accepts caller-supplied questions for metadata-only snapshots and executes with derived roles', async () => {
@@ -435,7 +480,7 @@ function buildSnapshot(overrides: Partial<ExecutionSnapshot> = {}): ExecutionSna
   return {
     snapshotId: 'snapshot-source',
     graphId: 'debate',
-    graphVersion: 1,
+    graphVersion: 2,
     appVersion: '0.0.0-test',
     createdAt: '2026-07-06T00:00:00.000Z',
     completedAt: '2026-07-06T00:01:00.000Z',

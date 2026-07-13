@@ -27,6 +27,7 @@
 - **圖片完成判定。** ChatGPT 只產生圖片、沒有文字時也能結束流程。
 - **可重現執行。** 可選 snapshot、隱私分級、replay、provider 診斷與 2,000 筆去重 log。
 - **四種 UI 語言。** English、繁體中文、日本語、Deutsch。
+- **依問題判斷回覆語言。** 自動模式會依序採用明確指定、問題語言、對話語言，最後才以 UI 語言作為備援；也可以另外固定回覆語言。
 - **AI-Sister 紀念版。** 唯一一套四角色紀念 Theme，把角色加入 provider 卡片、發言狀態、流程列與 app shell，但不修改第三方網頁本身。
 - **Repo Skills。** Codex 與 Claude Code 可檢查環境並從原始碼開啟 app，不需安裝檔。
 - **較安全的 macOS 封裝。** Apple Silicon DMG 使用 ad-hoc 簽章，release CI 會在上傳前驗證裡面的 app 簽章。

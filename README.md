@@ -27,6 +27,7 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 - **Image completion.** Image-only ChatGPT responses complete the workflow instead of hanging.
 - **Reproducible work.** Optional snapshots, privacy tiers, replay, provider diagnostics, and a 2,000-event deduplicated log.
 - **Four UI languages.** English, Traditional Chinese, Japanese, and German.
+- **Question-aware response language.** Auto follows an explicit request, then the question and conversation language; the UI language is used only as a fallback. A fixed response language can be selected separately.
 - **AI-Sister Commemorative Edition.** One optional four-character theme adds the supplied portraits to provider cards, active speakers, process rows, and the app shell without reskinning third-party pages.
 - **Repository Skills.** Codex and Claude Code can validate prerequisites and launch the source app without an installer.
 - **Safer macOS packaging.** Apple Silicon DMGs are ad-hoc signed, and release CI verifies the embedded app signature before upload.
