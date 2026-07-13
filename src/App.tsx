@@ -31,6 +31,7 @@ import { ConversationSidebar } from './ui/ConversationSidebar';
 import {
   createConversationSession,
   loadConversationSessions,
+  removeConversationSession,
   saveConversationSessions,
   titleFromFirstUserMessage,
   upsertConversationSession,
@@ -1430,6 +1431,25 @@ export default function App() {
     [activeSessionId, isProcessing],
   );
 
+  const deleteConversationSession = useCallback(
+    (session: ConversationSession) => {
+      if (isProcessing) return;
+      const remaining = removeConversationSession(sessions, session.id);
+      if (session.id !== activeSessionId) {
+        setSessions(remaining);
+        saveConversationSessions(remaining);
+        return;
+      }
+
+      const nextActive = remaining[0] ?? createConversationSession();
+      const next = upsertConversationSession(remaining, nextActive);
+      setSessions(next);
+      saveConversationSessions(next);
+      selectConversationSession(nextActive);
+    },
+    [activeSessionId, isProcessing, selectConversationSession, sessions],
+  );
+
   const exportConversation = async () => {
     if (messages.length === 0 || sharing) return;
     setSharing(true);
@@ -1611,10 +1631,13 @@ export default function App() {
               newConversation: translate('conversation.new'),
               history: translate('conversation.history'),
               empty: translate('conversation.empty'),
+              deleteConversation: translate('conversation.delete'),
+              confirmDeleteConversation: translate('conversation.deleteConfirm'),
             }}
             onToggle={() => setSessionSidebarCollapsed((current) => !current)}
             onNewConversation={startNewConversation}
             onSelectSession={selectConversationSession}
+            onDeleteSession={deleteConversationSession}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <section

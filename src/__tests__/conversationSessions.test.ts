@@ -8,6 +8,7 @@ import {
   loadConversationSessions,
   normalizeConversationSession,
   normalizeConversationSessions,
+  removeConversationSession,
   saveConversationSessions,
   titleFromFirstUserMessage,
   upsertConversationSession,
@@ -145,6 +146,15 @@ describe('conversation sessions', () => {
     expect(normalized).toHaveLength(MAX_CONVERSATION_SESSIONS);
     expect(normalized[0]).toMatchObject({ id: 's-34', title: 'newest duplicate', updatedAt: 50 });
     expect(normalized.at(-1)?.id).toBe('s-5');
+  });
+
+  it('removes only the named session and leaves the others intact', () => {
+    const original = [session('keep', 20), session('drop', 10)];
+    const remaining = removeConversationSession(original, 'drop');
+
+    expect(remaining.map((entry) => entry.id)).toEqual(['keep']);
+    expect(original).toHaveLength(2);
+    expect(removeConversationSession(original, 'missing').map((entry) => entry.id)).toEqual(['keep', 'drop']);
   });
 
   it('round-trips through injected storage and only persists the newest 30 sessions', () => {
