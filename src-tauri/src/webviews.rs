@@ -59,6 +59,10 @@ fn challenge_auxiliary_navigation_allowed(provider: &str, url: &tauri::Url) -> b
     provider == "grok" && url.scheme() == "about" && matches!(url.path(), "blank" | "srcdoc")
 }
 
+fn provider_show_should_focus(focus: Option<bool>) -> bool {
+    focus.unwrap_or(false)
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Bounds {
     pub x: f64,
@@ -285,7 +289,7 @@ pub async fn provider_show(
         .get_webview(&label)
         .ok_or_else(|| format!("webview not found: {label}"))?;
     webview.show().map_err(|error| error.to_string())?;
-    if focus.unwrap_or(true) {
+    if provider_show_should_focus(focus) {
         webview.set_focus().map_err(|error| error.to_string())?;
     }
     Ok(())
@@ -803,9 +807,9 @@ fn now_ms() -> u64 {
 mod tests {
     use super::{
         bridge_resets_on_boot_rotation, challenge_auxiliary_navigation_allowed,
-        decide_new_window_action, provider_uses_permission_shim, runtime,
-        should_reset_bridge_on_boot_rotation, staleness_action, state_with, NewWindowAction,
-        StalenessAction, PROVIDER_BROWSER_ARGS,
+        decide_new_window_action, provider_show_should_focus, provider_uses_permission_shim,
+        runtime, should_reset_bridge_on_boot_rotation, staleness_action, state_with,
+        NewWindowAction, StalenessAction, PROVIDER_BROWSER_ARGS,
     };
 
     fn url(input: &str) -> tauri::Url {
@@ -818,6 +822,13 @@ mod tests {
         assert!(PROVIDER_BROWSER_ARGS.contains("--disable-renderer-backgrounding"));
         assert!(PROVIDER_BROWSER_ARGS.contains("--disable-backgrounding-occluded-windows"));
         assert!(PROVIDER_BROWSER_ARGS.contains("msSmartScreenProtection"));
+    }
+
+    #[test]
+    fn provider_show_requires_an_explicit_focus_request() {
+        assert!(!provider_show_should_focus(None));
+        assert!(!provider_show_should_focus(Some(false)));
+        assert!(provider_show_should_focus(Some(true)));
     }
 
     #[test]
