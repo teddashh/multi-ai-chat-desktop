@@ -70,7 +70,7 @@ function theme(value: unknown, fallback: AppSettings['theme']): AppSettings['the
 }
 
 export const DEFAULT_FONT_SIZE = 16;
-// ponytail: 下限 10px 防止 UI 縮到無法操作而救不回來；上限依需求不設
+// 下限 10px，避免 UI 縮到無法操作；依需求不限制上限。
 export const MIN_FONT_SIZE = 10;
 
 function fontSize(value: unknown): number {

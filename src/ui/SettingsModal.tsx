@@ -21,6 +21,7 @@ import { buildDebugBundle, debugBundleFilename } from '../diagnostics/debugBundl
 import { useEventLog } from './useEventLog';
 import { ModalDialog } from './ModalDialog';
 import { createSettingsPersistence } from './settingsPersistence';
+import { createTrailingDebounce, type TrailingDebounce } from './trailingDebounce';
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
@@ -35,6 +36,11 @@ type UpdateCheckState =
 interface SettingsError {
   messageKey: 'settings.loadFailed' | 'settings.saveFailed';
   detail?: string;
+}
+
+interface PendingFontSizeUpdate {
+  fontSize: number;
+  updateSeq: number;
 }
 
 export function SettingsModal({
@@ -63,6 +69,7 @@ export function SettingsModal({
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({ status: 'idle' });
   const closeTimerRef = useRef<number | undefined>();
   const settingsPersistenceRef = useRef(createSettingsPersistence(host.settings));
+  const fontSizeDebounceRef = useRef<TrailingDebounce<PendingFontSizeUpdate> | undefined>(undefined);
   const modalSessionRef = useRef(0);
   const draftUpdateSeqRef = useRef(0);
   const languageUpdateSeqRef = useRef(0);
@@ -79,6 +86,7 @@ export function SettingsModal({
     }
     let disposed = false;
     setDraft(undefined);
+    fontSizeDebounceRef.current?.cancel();
     setFontSizeText(undefined);
     setSaved(false);
     setSaving(false);
@@ -118,6 +126,7 @@ export function SettingsModal({
   useEffect(
     () => () => {
       if (closeTimerRef.current !== undefined) window.clearTimeout(closeTimerRef.current);
+      fontSizeDebounceRef.current?.cancel();
     },
     [],
   );
@@ -167,11 +176,8 @@ export function SettingsModal({
     }
   };
 
-  const updateFontSize = async (fontSize: number) => {
+  const persistFontSize = async ({ fontSize, updateSeq }: PendingFontSizeUpdate) => {
     const modalSession = modalSessionRef.current;
-    const updateSeq = ++fontSizeUpdateSeqRef.current;
-    setError(undefined);
-    updateDraft({ fontSize });
     try {
       const next = await persistSettingsPatch({ fontSize });
       onSaved(next);
@@ -179,8 +185,31 @@ export function SettingsModal({
     } catch (reason) {
       if (updateSeq === fontSizeUpdateSeqRef.current && modalSession === modalSessionRef.current) {
         updateDraft({ fontSize: settingsPersistenceRef.current.current()?.fontSize ?? DEFAULT_FONT_SIZE });
+        setFontSizeText(undefined);
         setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
       }
+      throw reason;
+    }
+  };
+
+  if (!fontSizeDebounceRef.current) {
+    fontSizeDebounceRef.current = createTrailingDebounce((update) => persistFontSize(update), 250);
+  }
+
+  const scheduleFontSizeUpdate = (fontSize: number) => {
+    const updateSeq = ++fontSizeUpdateSeqRef.current;
+    setError(undefined);
+    updateDraft({ fontSize });
+    fontSizeDebounceRef.current?.schedule({ fontSize, updateSeq });
+  };
+
+  const closeSettings = async () => {
+    const modalSession = modalSessionRef.current;
+    try {
+      await fontSizeDebounceRef.current?.flush();
+      if (modalSession === modalSessionRef.current) onClose();
+    } catch {
+      // persistFontSize already restored the last persisted value and exposed the error.
     }
   };
 
@@ -188,8 +217,9 @@ export function SettingsModal({
     if (!draft) return;
     const modalSession = modalSessionRef.current;
     const draftUpdateSeq = draftUpdateSeqRef.current;
-    languageUpdateSeqRef.current += 1;
+    const languageUpdateSeq = ++languageUpdateSeqRef.current;
     fontSizeUpdateSeqRef.current += 1;
+    fontSizeDebounceRef.current?.cancel();
     setSaving(true);
     setError(undefined);
     try {
@@ -205,8 +235,10 @@ export function SettingsModal({
         closeTimerRef.current = window.setTimeout(onClose, 400);
       }
     } catch (reason) {
-      setLanguage(settingsPersistenceRef.current.current()?.language ?? 'system');
-      if (modalSession === modalSessionRef.current) {
+      if (languageUpdateSeq === languageUpdateSeqRef.current) {
+        setLanguage(settingsPersistenceRef.current.current()?.language ?? 'system');
+      }
+      if (modalSession === modalSessionRef.current && draftUpdateSeq === draftUpdateSeqRef.current) {
         setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
       }
     } finally {
@@ -236,13 +268,13 @@ export function SettingsModal({
   return (
     <ModalDialog
       titleId="settings-title"
-      onEscape={onClose}
-      onBackdrop={onClose}
+      onEscape={closeSettings}
+      onBackdrop={closeSettings}
       panelClassName="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-lg border border-zinc-300 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-950"
     >
         <div className="mb-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
           <h2 id="settings-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h2>
-          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={onClose}>
+          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={closeSettings}>
             {t('settings.close')}
           </button>
         </div>
@@ -296,7 +328,7 @@ export function SettingsModal({
                     const text = event.target.value;
                     setFontSizeText(text);
                     const value = Number(text);
-                    if (Number.isFinite(value) && value >= MIN_FONT_SIZE) void updateFontSize(value);
+                    if (Number.isFinite(value) && value >= MIN_FONT_SIZE) scheduleFontSizeUpdate(value);
                   }}
                   onBlur={() => setFontSizeText(undefined)}
                   className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
@@ -446,7 +478,7 @@ export function SettingsModal({
             </button>
           </div>
           <div className="flex items-center justify-end gap-2">
-            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onClose}>
+            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={closeSettings}>
               {t('settings.cancel')}
             </button>
             <button
