@@ -192,7 +192,7 @@ export const ja: Record<I18nKey, string> = {
   'settings.language.de': 'ドイツ語',
   'settings.responseLanguage': '応答言語',
   'settings.responseLanguageDescription':
-    '自動では、明示的な指定、質問の言語、会話の言語の順に優先し、最後にインターフェース言語を使用します。',
+    '質問内の明示的な指定が常に優先されます。それ以外では、自動は質問、会話、インターフェースの順に判断し、固定設定は選択した言語を使用します。',
   'settings.responseLanguage.auto': '自動（推奨）',
   'settings.theme': 'テーマ',
   'settings.themeLight': 'ライト',

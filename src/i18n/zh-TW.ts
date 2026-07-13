@@ -181,7 +181,7 @@ export const zhTW: Record<I18nKey, string> = {
   'settings.language.de': '德文',
   'settings.responseLanguage': '回覆語言',
   'settings.responseLanguageDescription':
-    '自動會依序採用明確指定、問題語言、對話語言，最後才以介面語言作為備援。',
+    '問題中的明確指定永遠優先；否則自動模式會依問題、對話與介面語言判斷，固定選項則使用所選語言。',
   'settings.responseLanguage.auto': '自動（建議）',
   'settings.theme': '主題',
   'settings.themeLight': '淺色',

@@ -20,6 +20,7 @@ describe('response language policy', () => {
     expect(directive).toContain('primary language of the user-authored prose');
     expect(directive).toContain('language previously used by the user');
     expect(directive).toContain('Traditional Chinese (zh-TW) (the app interface language fallback)');
+    expect(directive).toContain('does not change the requested task, output modality, structure, or format');
     expect(directive).toContain('Do not infer it from these workflow instructions, other AI responses');
     expect(directive).toContain('attachments, code, identifiers, URLs, or filenames');
     expect(appendResponseLanguagePolicy('original prompt', policy)).toBe(`original prompt\n\n${directive}`);

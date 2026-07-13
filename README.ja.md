@@ -4,7 +4,7 @@
 
 ログイン済みの **ChatGPT、Claude、Gemini、Grok** に同じ質問を送り、回答・レビュー・反論・統合を自動で進める Tauri 2 デスクトップハブです。4つのチャットを並べるだけではなく、複数AIの workflow を実行します。
 
-**最新版：[v1.0.1](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.1)** · MIT · APIキー不要 · 解析なし
+**最新版：[最新の安定版をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)** · MIT · APIキー不要 · 解析なし
 
 > 本アプリは各プロバイダーのWebページを自動操作します。ページ構造の変更で adapter が一時的に動かなくなる場合があります。各サービスの利用規約と、利用権限のあるアカウント・コンテンツを使用してください。
 
@@ -17,7 +17,7 @@
 | **Desktop（このrepo）** | 完全な workflow、ライブ表示、replay、snapshot、ローカルファイル | 独立したローカルプロファイルを持つ Tauri app |
 | [Browser extension](https://github.com/teddashh/multi-ai-chat) | Chrome 内で軽量に使う | Side Panel から既存のAIタブを操作 |
 
-## v1.0.1 の主な機能
+## デスクトップ版の主な機能
 
 - 非表示のプロバイダーにも安定して送信し、失敗時は再試行または明確なエラーを表示。
 - workflow コントロールを左側 WebView の上へ移動し、右側の会話と入力欄を広く確保。

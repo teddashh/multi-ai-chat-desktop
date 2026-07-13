@@ -192,7 +192,7 @@ export const de: Record<I18nKey, string> = {
   'settings.language.de': 'Deutsch',
   'settings.responseLanguage': 'Antwortsprache',
   'settings.responseLanguageDescription':
-    'Automatisch folgt zuerst einer ausdrücklichen Vorgabe, dann der Sprache von Frage und Gespräch; die Oberflächensprache dient als Rückfall.',
+    'Eine ausdrückliche Vorgabe hat immer Vorrang. Sonst folgt Automatisch der Frage, dem Gespräch und zuletzt der Oberfläche; eine feste Auswahl nutzt diese Sprache.',
   'settings.responseLanguage.auto': 'Automatisch (empfohlen)',
   'settings.theme': 'Design',
   'settings.themeLight': 'Hell',

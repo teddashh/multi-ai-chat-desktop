@@ -1,9 +1,9 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2.4 feature-frozen** (four-provider web edition; `v1.0.1` maintenance baseline)
+> Status: **v2.2.4 feature-frozen** (four-provider web edition; `v1.2.0` maintenance baseline)
 > Date: 2026-07-13
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
-> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.4 records the owner-approved response-language compatibility repair without reopening feature development.
+> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.4 records the response-language compatibility repair without reopening feature development.
 > Audience: maintenance contributors. Existing snapshot/replay/checkpoint behavior is compatibility-maintained but has no vNext roadmap.
 
 ## 0. One-paragraph summary
@@ -688,7 +688,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 ## 16. Changelog
 
-- **v2.2.4 (2026-07-13)** — owner-approved response-language compatibility repair: separates interface and response language, applies a question-aware policy to every provider-bound workflow prompt, versions the changed built-in graphs, and preserves retained replay policy without expanding the snapshot schema.
+- **v2.2.4 (2026-07-13)** — response-language compatibility repair: separates interface and response language, applies a question-aware policy to every provider-bound workflow prompt, versions the changed built-in graphs, and preserves retained replay policy without expanding the snapshot schema.
 - **v2.2.3 (2026-07-12)** — Apple Silicon compatibility follow-up: records the first successful real-Mac `v1.0.1` launch and three-provider login report, while treating Grok's Cloudflare verification loop as a release blocker. Grok and its challenge frames no longer receive permission Web-API monkey-patches, and only Cloudflare-required `about:blank` / `about:srcdoc` auxiliary navigation is added. Final success remains pending an Apple Silicon retest.
 - **v2.2.2 (2026-07-12)** — formalizes the Codex/Claude source-launch path as Agent-Ready Source Release contract 1.0.0: strict manifest/schema, explicit trust and permission boundaries, deterministic JSON lifecycle commands, read-only dry-run, local before/after receipts, current-run control-pane READY evidence, identity-safe stop, Skill drift tests, and cross-platform CI self-tests. Explicitly rejects Docker, silent host installation, automatic rollback, and readiness claims based only on process creation.
 - **v2.2.1 (2026-07-11)** — final hardening clarification: preserves same-session roundtable history and existing prompts while correcting snapshot app-version provenance, adding session-safe Markdown provenance, narrowing Tauri capability scope to the `main` webview, enabling production CSP, locking remote adapters to bundled URL scopes, and documenting private security reporting plus honest platform/provider smoke evidence.

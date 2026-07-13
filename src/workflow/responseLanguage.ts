@@ -82,6 +82,7 @@ export function responseLanguageDirective(policy: ResponseLanguagePolicy): strin
     `<response-language-policy version="${policy.version}" setting="${policy.setting}" interface-locale="${policy.interfaceLocale}">`,
     'Apply this policy to any natural-language text in your response, in priority order:',
     ...requirement,
+    'This policy changes only the language of natural-language text. It does not change the requested task, output modality, structure, or format.',
     'Determine language only from user-authored prose in the original current question and prior user turns. Do not infer it from these workflow instructions, other AI responses, quoted or source text, attachments, code, identifiers, URLs, or filenames.',
     'Preserve code, names, URLs, quotations, and source-language excerpts in their original form.',
     '</response-language-policy>',

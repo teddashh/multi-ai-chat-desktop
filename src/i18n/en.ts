@@ -190,7 +190,7 @@ export const en: Record<I18nKey, string> = {
   'settings.language.de': 'German',
   'settings.responseLanguage': 'Response language',
   'settings.responseLanguageDescription':
-    'Auto follows an explicit request, then the question and conversation language; the interface language is the fallback.',
+    'An explicit request always wins. Otherwise, Auto follows the question and conversation language with the interface as fallback; a fixed choice uses that language.',
   'settings.responseLanguage.auto': 'Auto (recommended)',
   'settings.theme': 'Theme',
   'settings.themeLight': 'Light',
