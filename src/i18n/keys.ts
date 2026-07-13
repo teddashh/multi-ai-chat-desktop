@@ -174,6 +174,7 @@ export const I18N_KEYS = [
   'settings.themeLight',
   'settings.themeDark',
   'settings.themeAiSister',
+  'settings.fontSize',
   'theme.aiSister.badge',
   'theme.aiSister.title',
   'theme.aiSister.subtitle',
