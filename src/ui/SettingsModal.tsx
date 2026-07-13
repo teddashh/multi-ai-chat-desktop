@@ -6,7 +6,7 @@ import { AdapterAccessPanel } from './FocusPane';
 import { useI18n } from '../i18n/context';
 import { formatI18n } from '../i18n/t';
 import type { PresentationByProvider } from './presentation';
-import { type AppSettings, DEFAULT_FONT_SIZE, MIN_FONT_SIZE, mergeSettings, normalizeSettings } from './settingsModel';
+import { type AppSettings, DEFAULT_FONT_SIZE, MIN_FONT_SIZE, normalizeSettings } from './settingsModel';
 import { compareVersions, fetchLatestRelease } from './updateCheck';
 import { host } from '../host';
 import {
@@ -20,6 +20,7 @@ import {
 import { buildDebugBundle, debugBundleFilename } from '../diagnostics/debugBundle';
 import { useEventLog } from './useEventLog';
 import { ModalDialog } from './ModalDialog';
+import { createSettingsPersistence } from './settingsPersistence';
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
@@ -57,14 +58,20 @@ export function SettingsModal({
   const [draft, setDraft] = useState<AppSettings | undefined>();
   const [fontSizeText, setFontSizeText] = useState<string | undefined>();
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<SettingsError | undefined>();
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({ status: 'idle' });
-  const loadedRef = useRef<AppSettings | undefined>();
   const closeTimerRef = useRef<number | undefined>();
+  const settingsPersistenceRef = useRef(createSettingsPersistence(host.settings));
+  const modalSessionRef = useRef(0);
+  const draftUpdateSeqRef = useRef(0);
+  const languageUpdateSeqRef = useRef(0);
+  const fontSizeUpdateSeqRef = useRef(0);
   const liveRef = useRef({ openProviders, focusPaneWidth, presentation });
   liveRef.current = { openProviders, focusPaneWidth, presentation };
 
   useEffect(() => {
+    const modalSession = ++modalSessionRef.current;
     if (!open) return;
     if (closeTimerRef.current !== undefined) {
       window.clearTimeout(closeTimerRef.current);
@@ -74,15 +81,15 @@ export function SettingsModal({
     setDraft(undefined);
     setFontSizeText(undefined);
     setSaved(false);
+    setSaving(false);
     setError(undefined);
     setUpdateCheck({ status: 'idle' });
-    void host.settings
-      .get()
-      .then((value) => {
-        if (disposed) return;
-        const loaded = normalizeSettings(value);
+    void settingsPersistenceRef.current
+      .load()
+      .then((loaded) => {
+        if (disposed || modalSession !== modalSessionRef.current) return;
         const live = liveRef.current;
-        loadedRef.current = loaded;
+        setError(undefined);
         setDraft({
           ...loaded,
           openProviders: live.openProviders,
@@ -91,11 +98,11 @@ export function SettingsModal({
         });
       })
       .catch((reason: unknown) => {
-        if (disposed) return;
+        if (disposed || modalSession !== modalSessionRef.current) return;
         setError({ messageKey: 'settings.loadFailed', detail: errorDetail(reason) });
         const fallback = normalizeSettings({});
         const live = liveRef.current;
-        loadedRef.current = fallback;
+        settingsPersistenceRef.current.replaceCurrent(fallback);
         setDraft({
           ...fallback,
           openProviders: live.openProviders,
@@ -118,70 +125,92 @@ export function SettingsModal({
   if (!open) return null;
 
   const updateDraft = (patch: Partial<AppSettings>) => {
+    draftUpdateSeqRef.current += 1;
+    setSaved(false);
+    if (closeTimerRef.current !== undefined) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
     setDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
+  const persistSettingsPatch = (patch: Partial<AppSettings>): Promise<AppSettings> =>
+    settingsPersistenceRef.current.update(() => {
+      const live = liveRef.current;
+      return {
+        ...patch,
+        openProviders: live.openProviders,
+        focusPaneWidth: live.focusPaneWidth,
+        presentation: live.presentation,
+      };
+    });
+
   const updateLanguage = async (language: AppSettings['language']) => {
-    const previousLanguage = loadedRef.current?.language ?? 'system';
+    const modalSession = modalSessionRef.current;
+    const updateSeq = ++languageUpdateSeqRef.current;
     setError(undefined);
     updateDraft({ language });
     setLanguage(language);
-    const live = liveRef.current;
-    const next = mergeSettings(loadedRef.current, {
-      language,
-      openProviders: live.openProviders,
-      focusPaneWidth: live.focusPaneWidth,
-      presentation: live.presentation,
-    });
     try {
-      await host.settings.set(next);
-      loadedRef.current = next;
+      const next = await persistSettingsPatch({ language });
       onSaved(next);
+      if (modalSession === modalSessionRef.current) setError(undefined);
     } catch (reason) {
-      updateDraft({ language: previousLanguage });
-      setLanguage(previousLanguage);
-      setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      if (updateSeq === languageUpdateSeqRef.current) {
+        const persistedLanguage = settingsPersistenceRef.current.current()?.language ?? 'system';
+        setLanguage(persistedLanguage);
+        if (modalSession === modalSessionRef.current) {
+          updateDraft({ language: persistedLanguage });
+          setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+        }
+      }
     }
   };
 
   const updateFontSize = async (fontSize: number) => {
-    const previousFontSize = loadedRef.current?.fontSize ?? DEFAULT_FONT_SIZE;
+    const modalSession = modalSessionRef.current;
+    const updateSeq = ++fontSizeUpdateSeqRef.current;
     setError(undefined);
     updateDraft({ fontSize });
-    const live = liveRef.current;
-    const next = mergeSettings(loadedRef.current, {
-      fontSize,
-      openProviders: live.openProviders,
-      focusPaneWidth: live.focusPaneWidth,
-      presentation: live.presentation,
-    });
     try {
-      await host.settings.set(next);
-      loadedRef.current = next;
+      const next = await persistSettingsPatch({ fontSize });
       onSaved(next);
+      if (modalSession === modalSessionRef.current) setError(undefined);
     } catch (reason) {
-      updateDraft({ fontSize: previousFontSize });
-      setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      if (updateSeq === fontSizeUpdateSeqRef.current && modalSession === modalSessionRef.current) {
+        updateDraft({ fontSize: settingsPersistenceRef.current.current()?.fontSize ?? DEFAULT_FONT_SIZE });
+        setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      }
     }
   };
 
   const save = async () => {
     if (!draft) return;
+    const modalSession = modalSessionRef.current;
+    const draftUpdateSeq = draftUpdateSeqRef.current;
+    languageUpdateSeqRef.current += 1;
+    fontSizeUpdateSeqRef.current += 1;
+    setSaving(true);
     setError(undefined);
-    const next = mergeSettings(loadedRef.current, {
-      ...draft,
-      openProviders,
-      focusPaneWidth,
-      presentation,
-    });
     try {
-      await host.settings.set(next);
-      loadedRef.current = next;
+      const next = await persistSettingsPatch({
+        ...draft,
+        openProviders,
+        focusPaneWidth,
+        presentation,
+      });
       onSaved(next);
-      setSaved(true);
-      closeTimerRef.current = window.setTimeout(onClose, 400);
+      if (modalSession === modalSessionRef.current && draftUpdateSeq === draftUpdateSeqRef.current) {
+        setSaved(true);
+        closeTimerRef.current = window.setTimeout(onClose, 400);
+      }
     } catch (reason) {
-      setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      setLanguage(settingsPersistenceRef.current.current()?.language ?? 'system');
+      if (modalSession === modalSessionRef.current) {
+        setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      }
+    } finally {
+      if (modalSession === modalSessionRef.current) setSaving(false);
     }
   };
 
@@ -424,7 +453,7 @@ export function SettingsModal({
               type="button"
               className="min-w-16 border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950 px-3 py-1.5 text-sm text-sky-700 dark:text-sky-100 hover:bg-sky-100 dark:hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => void save()}
-              disabled={!draft}
+              disabled={!draft || saving}
             >
               {saved ? t('settings.saved') : t('settings.save')}
             </button>
