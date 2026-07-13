@@ -1,4 +1,5 @@
 import type { AIProvider, ChatMode, ModeRoles } from '../../../shared/types';
+import type { ResponseLanguagePolicy } from '../responseLanguage';
 
 export type NodeId = string;
 export type RoleKey = string;
@@ -154,6 +155,7 @@ export interface ExecuteGraphParams {
   roles?: ModeRoles | Partial<Record<RoleKey, AIProvider>>;
   targets?: AIProvider[];
   checkpoints?: boolean;
+  responseLanguagePolicy?: ResponseLanguagePolicy;
 }
 
 export interface StepOutput {

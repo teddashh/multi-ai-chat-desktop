@@ -166,7 +166,7 @@ describe('ReplayPanel', () => {
   });
 
   it('confirms graph version mismatches before replaying with the current graph', async () => {
-    const snapshot = buildSnapshot();
+    const snapshot = buildSnapshot({ graphVersion: 1 });
     vi.mocked(getLastSnapshot).mockReturnValue(snapshot);
     vi.mocked(replaySnapshot)
       .mockResolvedValueOnce({
@@ -236,7 +236,7 @@ function buildSnapshot(overrides: Partial<ExecutionSnapshot> = {}): ExecutionSna
   return {
     snapshotId: 'snapshot-source',
     graphId: 'debate',
-    graphVersion: 1,
+    graphVersion: 2,
     appVersion: '0.0.0-test',
     createdAt: '2026-07-06T00:00:00.000Z',
     completedAt: '2026-07-06T00:01:00.000Z',

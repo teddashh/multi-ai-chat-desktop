@@ -72,13 +72,13 @@ describe('settings persistence', () => {
     const persistence = createSettingsPersistence(store);
     persistence.replaceCurrent(initial);
 
-    const language = persistence.update({ language: 'ja' });
+    const language = persistence.update({ language: 'ja', responseLanguage: 'de' });
     const fontSize = persistence.update({ fontSize: 20 });
     await vi.waitFor(() => expect(store.set).toHaveBeenCalledTimes(1));
     firstWrite.resolve();
     await Promise.all([language, fontSize]);
 
-    expect(store.set.mock.calls[1][0]).toMatchObject({ language: 'ja', fontSize: 20 });
+    expect(store.set.mock.calls[1][0]).toMatchObject({ language: 'ja', responseLanguage: 'de', fontSize: 20 });
   });
 
   it('waits for a pending write before loading settings again', async () => {

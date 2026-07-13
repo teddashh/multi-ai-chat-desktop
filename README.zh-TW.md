@@ -4,7 +4,7 @@
 
 問一個問題，讓你已登入的 **ChatGPT、Claude、Gemini 與 Grok** 互相回答、審查、質疑，再把結果收斂。Multi-AI Chat Desktop 是 Tauri 2 多 AI workflow 中樞，不只是把四個聊天視窗並排。
 
-**目前版本：[v1.0.1](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.1)** · MIT · 不需 API Key · 無分析追蹤
+**目前版本：[下載最新穩定版](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)** · MIT · 不需 API Key · 無分析追蹤
 
 > 本專案會自動操作你原本就在使用的 provider 網頁。第三方頁面改版可能暫時使 adapter 失效；自動化使用也可能受各服務條款約束。請只使用你有權使用的帳號與內容。
 
@@ -17,7 +17,7 @@
 | **Desktop（本 repo）** | 完整 workflow、聚焦真實頁面、replay、snapshot、本機檔案 | Tauri app 與獨立的本機 provider profile |
 | [瀏覽器外掛](https://github.com/teddashh/multi-ai-chat) | 在 Chrome 裡輕量使用 | Side Panel 控制你既有的 provider 分頁 |
 
-## v1.0.1 有什麼
+## 桌面版包含什麼
 
 - **可靠的離屏自動化。** 不必逐家點進「真實頁面」；送出未被接受時會重試，真的失敗就明確回報，不再無限等待。
 - **以對話為主的版面。** 模式卡片、說明與等待狀態移到左側 provider WebView 上方；右側保留更大的逐字稿與輸入區。
@@ -27,6 +27,7 @@
 - **圖片完成判定。** ChatGPT 只產生圖片、沒有文字時也能結束流程。
 - **可重現執行。** 可選 snapshot、隱私分級、replay、provider 診斷與 2,000 筆去重 log。
 - **四種 UI 語言。** English、繁體中文、日本語、Deutsch。
+- **依問題判斷回覆語言。** 自動模式會依序採用明確指定、問題語言、對話語言，最後才以 UI 語言作為備援；也可以另外固定回覆語言。
 - **AI-Sister 紀念版。** 唯一一套四角色紀念 Theme，把角色加入 provider 卡片、發言狀態、流程列與 app shell，但不修改第三方網頁本身。
 - **Repo Skills。** Codex 與 Claude Code 可檢查環境並從原始碼開啟 app，不需安裝檔。
 - **較安全的 macOS 封裝。** Apple Silicon DMG 使用 ad-hoc 簽章，release CI 會在上傳前驗證裡面的 app 簽章。

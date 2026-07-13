@@ -10,10 +10,16 @@ import {
 } from './slotAssignment';
 import { isSnapshotRedactionTier, type SnapshotRedactionTier } from '../workflow/snapshot/types';
 import { defaultPresentation, normalizePresentation, type PresentationByProvider } from './presentation';
-import { normalizeLanguageSetting, type LanguageSetting } from '../i18n/resolve';
+import {
+  normalizeLanguageSetting,
+  normalizeResponseLanguageSetting,
+  type LanguageSetting,
+  type ResponseLanguageSetting,
+} from '../i18n/resolve';
 
 export interface AppSettings {
   language: LanguageSetting;
+  responseLanguage: ResponseLanguageSetting;
   theme: 'light' | 'dark' | 'ai-sister';
   fontSize: number;
   layoutMode: 'focus';
@@ -35,6 +41,7 @@ const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 export function defaultSettings(): AppSettings {
   return {
     language: 'system',
+    responseLanguage: 'auto',
     theme: 'light',
     fontSize: DEFAULT_FONT_SIZE,
     layoutMode: 'focus',
@@ -108,6 +115,7 @@ export function normalizeSettings(value: unknown): AppSettings {
 
   return {
     language: normalizeLanguageSetting(input.language),
+    responseLanguage: normalizeResponseLanguageSetting(input.responseLanguage),
     theme: theme(input.theme, defaults.theme),
     fontSize: fontSize(input.fontSize),
     layoutMode: 'focus',

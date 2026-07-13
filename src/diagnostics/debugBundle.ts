@@ -10,6 +10,8 @@ import {
 } from './statusValues';
 
 export const DEBUG_BUNDLE_SETTINGS_ALLOWLIST = [
+  'language',
+  'responseLanguage',
   'adapterBaseUrl',
   'updaterChannel',
   'portable',
@@ -86,6 +88,8 @@ export function debugBundleFilename(date: Date): string {
 export function pickDebugSettings(settings: unknown): DebugBundleSettings {
   const input = settings && typeof settings === 'object' ? (settings as Record<string, unknown>) : {};
   return {
+    language: stringOrNull(input.language),
+    responseLanguage: stringOrNull(input.responseLanguage),
     adapterBaseUrl: redactAdapterBaseUrl(input.adapterBaseUrl),
     updaterChannel: stringOrNull(input.updaterChannel),
     portable: typeof input.portable === 'boolean' ? input.portable : null,

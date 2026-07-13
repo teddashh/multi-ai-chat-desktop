@@ -14,6 +14,7 @@ import { formatI18n, t as translateKey } from './i18n/t';
 import { mergePullBridgeState, type PullBridgeState } from './appBridgeState';
 import { onCheckpoint, type PendingCheckpoint } from './workflow/checkpoint';
 import { isSendable, onStepTimeoutEvent, runWorkflow } from './workflow';
+import { createResponseLanguagePolicy } from './workflow/responseLanguage';
 import type { PreflightResult } from './workflow/preflight';
 import { bubbleAuthorLabel } from './bubbleAuthorLabel';
 import {
@@ -1300,6 +1301,7 @@ export default function App() {
       targets: workflowTargets,
       snapshotPersistence: snapshotSettings.snapshotPersistence,
       snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
+      responseLanguagePolicy: createResponseLanguagePolicy(snapshotSettings.responseLanguage, localeRef.current),
     });
     const blockedPreflight = preflightFromResult(mode, result);
     if (blockedPreflight && isSerialMode(mode)) {
@@ -1769,6 +1771,7 @@ export default function App() {
             <ReplayPanel
               ref={replayPanelRef}
               locale={locale}
+              responseLanguagePolicy={createResponseLanguagePolicy(appSettings.responseLanguage, locale)}
               onReplayWillRun={prepareReplayTrace}
               onReplaySettled={settleReplayTrace}
               onSnapshotComplete={persistReplaySnapshot}

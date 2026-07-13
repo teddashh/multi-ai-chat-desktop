@@ -4,7 +4,7 @@
 
 Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Claude, Gemini und Grok** antworten, prüfen, widersprechen und gemeinsam verfeinern. Multi-AI Chat Desktop ist ein Tauri-2-Workflow-Hub – nicht nur vier nebeneinander angeordnete Chats.
 
-**Aktuelle Version: [v1.0.1](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.0.1)** · MIT · keine API-Schlüssel · keine Analyse
+**Aktuelle Version: [neueste stabile Version herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)** · MIT · keine API-Schlüssel · keine Analyse
 
 > Das Projekt automatisiert die Webseiten der Anbieter. Änderungen an deren Oberfläche können einen Adapter vorübergehend beschädigen. Beachte die Bedingungen der Anbieter und verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist.
 
@@ -17,7 +17,7 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 | **Desktop (dieses Repo)** | Vollständige Workflows, Live-Ansicht, Replay, Snapshots, lokale Dateien | Tauri-App mit getrennten lokalen Anbieterprofilen |
 | [Browser-Erweiterung](https://github.com/teddashh/multi-ai-chat) | Leichte Nutzung in Chrome | Side Panel steuert vorhandene Anbieter-Tabs |
 
-## Inhalt von v1.0.1
+## Inhalt der Desktop-Ausgabe
 
 - Zuverlässige Automatisierung im Hintergrund; abgelehnte Sendungen werden erneut versucht oder klar als Fehler gemeldet.
 - Workflow-Steuerung links über dem weniger wichtigen WebView; mehr Platz für Transkript und Eingabe rechts.
@@ -25,6 +25,7 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 - Bis zu 30 lokale Sitzungen plus **Neuer Chat**.
 - Sicher gerendertes Markdown, Abschluss von reinen Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
 - English, 繁體中文, 日本語 und Deutsch.
+- Die Antwortsprache ist von der Oberflächensprache getrennt. Automatisch gelten zuerst ausdrückliche Vorgaben, dann Frage und Gespräch; die Oberfläche ist nur der Rückfall. Eine feste Antwortsprache ist ebenfalls wählbar.
 - Die optionale **AI-Sister Gedenkausgabe** zeigt alle vier Figuren in Anbieterkarten, Sprecherstatus, Prozesszeilen und App-Oberfläche; Drittanbieter-Seiten bleiben unverändert.
 - Repo-Skills für Codex und Claude Code starten die Quellversion ohne Installer.
 - Apple-Silicon-DMGs sind ad-hoc signiert; die Release-CI prüft die eingebettete App-Signatur vor dem Upload.

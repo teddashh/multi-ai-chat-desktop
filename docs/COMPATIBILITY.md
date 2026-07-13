@@ -66,7 +66,7 @@ macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but 
 4. Run Free mode and one serial mode; cancel one in-progress run.
 5. Generate an image on a supporting provider and confirm the workflow reaches completion without relying on text-only output.
 6. Export Markdown and inspect provenance; create a new app session and verify history isolation.
-7. Open Settings, check for updates, switch themes/languages, and review the author/sponsor links.
+7. Open Settings, check for updates, switch themes and interface languages, and review the author/sponsor links. With Response language set to Auto, verify an English question receives English text and a Traditional Chinese question receives Traditional Chinese text regardless of the interface language; then verify a fixed response-language choice.
 8. Export a sanitized debug bundle only if a failure occurs; never attach secrets or raw provider-page content.
 
 ## 回報方式

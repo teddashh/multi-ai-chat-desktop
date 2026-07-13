@@ -8,6 +8,8 @@ use tauri_plugin_opener::OpenerExt;
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 const DEFAULT_LANGUAGE: &str = "system";
 const LANGUAGES: &[&str] = &["system", "en", "zh-TW", "ja", "de"];
+const DEFAULT_RESPONSE_LANGUAGE: &str = "auto";
+const RESPONSE_LANGUAGES: &[&str] = &["auto", "en", "zh-TW", "ja", "de"];
 const DEFAULT_LAYOUT_MODE: &str = "focus";
 const DEFAULT_FOCUS_PANE_WIDTH: f64 = 620.0;
 const MIN_FOCUS_PANE_WIDTH: f64 = 420.0;
@@ -65,6 +67,16 @@ pub fn normalize_settings_value(settings: Value) -> Value {
             .filter(|value| LANGUAGES.contains(value))
             .unwrap_or(DEFAULT_LANGUAGE);
         map.insert("language".to_string(), Value::String(language.to_string()));
+
+        let response_language = map
+            .get("responseLanguage")
+            .and_then(|value| value.as_str())
+            .filter(|value| RESPONSE_LANGUAGES.contains(value))
+            .unwrap_or(DEFAULT_RESPONSE_LANGUAGE);
+        map.insert(
+            "responseLanguage".to_string(),
+            Value::String(response_language.to_string()),
+        );
 
         map.insert(
             "layoutMode".to_string(),
@@ -395,6 +407,7 @@ mod tests {
             normalize_settings_value(json!({})),
             json!({
                 "language": "system",
+                "responseLanguage": "auto",
                 "layoutMode": "focus",
                 "focusPaneWidth": 620,
                 "snapshotPersistence": false,
@@ -420,6 +433,7 @@ mod tests {
             })),
             json!({
                 "language": "system",
+                "responseLanguage": "auto",
                 "layoutMode": "focus",
                 "focusPaneWidth": 620,
                 "snapshotPersistence": true,
@@ -446,6 +460,7 @@ mod tests {
             })),
             json!({
                 "language": "system",
+                "responseLanguage": "auto",
                 "layoutMode": "focus",
                 "focusPaneWidth": 620,
                 "snapshotPersistence": false,
@@ -485,6 +500,25 @@ mod tests {
         assert_eq!(
             normalize_settings_value(json!({ "language": 123 })).get("language"),
             Some(&json!("system"))
+        );
+    }
+
+    #[test]
+    fn normalizes_response_language_setting_to_supported_values() {
+        for language in ["auto", "en", "zh-TW", "ja", "de"] {
+            assert_eq!(
+                normalize_settings_value(json!({ "responseLanguage": language }))
+                    .get("responseLanguage"),
+                Some(&json!(language))
+            );
+        }
+        assert_eq!(
+            normalize_settings_value(json!({ "responseLanguage": "fr" })).get("responseLanguage"),
+            Some(&json!("auto"))
+        );
+        assert_eq!(
+            normalize_settings_value(json!({ "responseLanguage": 123 })).get("responseLanguage"),
+            Some(&json!("auto"))
         );
     }
 

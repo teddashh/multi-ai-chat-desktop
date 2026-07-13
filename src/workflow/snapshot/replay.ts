@@ -6,6 +6,7 @@ import { executeGraph, preflightGraph, workflowGraphs } from '../graph';
 import type { WorkflowGraph } from '../graph';
 import type { PreflightResult } from '../preflight';
 import { prepareWorkflowRun } from '../runtime';
+import { responseLanguagePolicyFromPrompt, type ResponseLanguagePolicy } from '../responseLanguage';
 import { isSendable } from '../sendability';
 import { getLastSnapshot } from './recorder';
 import type { ExecutionSnapshot, RedactedValueRef } from './types';
@@ -39,6 +40,7 @@ export interface ReplayPlan {
   textComparable: boolean;
   priorOutputs?: Record<string, string>;
   priorHashes?: Record<string, string>;
+  responseLanguagePolicy?: ResponseLanguagePolicy;
   blocked?: ReplayBlockReason;
   detail?: unknown;
 }
@@ -50,9 +52,12 @@ export type ReplayResult =
 interface ReplayOptions {
   replayWithCurrentGraph?: boolean;
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
+  responseLanguagePolicy?: ResponseLanguagePolicy;
 }
 
 type ReplayInput = { snapshotId: string; question?: string } | { snapshot: ExecutionSnapshot; question?: string };
+
+const RESPONSE_LANGUAGE_POLICY_GRAPH_VERSION = 2;
 
 export function parseStoredSnapshot(json: string): ExecutionSnapshot {
   let parsed: unknown;
@@ -98,6 +103,7 @@ export function planReplay(snapshot: ExecutionSnapshot, opts: { replayWithCurren
     textComparable,
     priorOutputs: snapshot.redactionTier === 'full-local' ? priorOutputs(snapshot) : undefined,
     priorHashes: snapshot.redactionTier === 'hashes' ? priorHashes(snapshot) : undefined,
+    responseLanguagePolicy: retainedResponseLanguagePolicy(snapshot),
   };
 
   const liveGraph = (workflowGraphs as Partial<Record<string, WorkflowGraph>>)[snapshot.graphId as ChatMode];
@@ -141,10 +147,16 @@ export async function replaySnapshot(input: ReplayInput, options: ReplayOptions 
 
   const targets = await replayTargets(plan);
   const appVersion = await getRuntimeAppVersion();
+  const responseLanguagePolicy = plan.responseLanguagePolicy ?? options.responseLanguagePolicy;
 
   await executeGraph(
     plan.graph!,
-    { text: question, roles: plan.roles, targets },
+    {
+      text: question,
+      roles: plan.roles,
+      targets,
+      ...(responseLanguagePolicy ? { responseLanguagePolicy } : {}),
+    },
     {
       onSnapshotComplete: options.onSnapshotComplete,
       ...(appVersion ? { appVersion } : {}),
@@ -188,6 +200,15 @@ function priorHashes(snapshot: ExecutionSnapshot): Record<string, string> {
     if (typeof step.outputRef.sha256 === 'string') hashes[step.nodeId] = step.outputRef.sha256;
   });
   return hashes;
+}
+
+function retainedResponseLanguagePolicy(snapshot: ExecutionSnapshot): ResponseLanguagePolicy | undefined {
+  if (snapshot.graphVersion < RESPONSE_LANGUAGE_POLICY_GRAPH_VERSION) return undefined;
+  for (let index = snapshot.steps.length - 1; index >= 0; index -= 1) {
+    const policy = responseLanguagePolicyFromPrompt(inlineText(snapshot.steps[index].inputRef));
+    if (policy) return policy;
+  }
+  return undefined;
 }
 
 function freeTargets(snapshot: ExecutionSnapshot): AIProvider[] | undefined {

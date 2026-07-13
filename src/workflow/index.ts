@@ -7,6 +7,7 @@ import { emitSystemError, sendWorkflowStatus } from './events';
 import { executeGraph, preflightGraph, workflowGraphs } from './graph';
 import type { PreflightResult } from './preflight';
 import { prepareWorkflowRun } from './runtime';
+import type { ResponseLanguagePolicy } from './responseLanguage';
 import { isSendable } from './sendability';
 import { persistSnapshotIfEnabled } from './snapshot/persistence';
 import type { SnapshotRedactionTier } from './snapshot/types';
@@ -20,6 +21,7 @@ export interface RunWorkflowParams {
   checkpoints?: boolean;
   snapshotPersistence?: boolean;
   snapshotRedactionTier?: SnapshotRedactionTier;
+  responseLanguagePolicy?: ResponseLanguagePolicy;
 }
 
 export type RunWorkflowResult = { ok: true } | { ok: false; preflight: PreflightResult };
@@ -32,6 +34,7 @@ export async function runWorkflow({
   checkpoints,
   snapshotPersistence,
   snapshotRedactionTier,
+  responseLanguagePolicy,
 }: RunWorkflowParams): Promise<RunWorkflowResult> {
   prepareWorkflowRun();
   const snapshotOptions = {
@@ -52,7 +55,7 @@ export async function runWorkflow({
         targets === undefined
           ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
           : targets.filter((provider) => sendable.includes(provider));
-      await executeGraph(workflowGraphs.free, { text, targets: targetSet, checkpoints }, graphOptions);
+      await executeGraph(workflowGraphs.free, { text, targets: targetSet, checkpoints, responseLanguagePolicy }, graphOptions);
       return { ok: true };
     }
 
@@ -61,7 +64,7 @@ export async function runWorkflow({
     const preflight = await preflightGraph(graph, roles);
     if (!preflight.ok) return { ok: false, preflight };
 
-    await executeGraph(graph, { text, roles, checkpoints }, graphOptions);
+    await executeGraph(graph, { text, roles, checkpoints, responseLanguagePolicy }, graphOptions);
 
     return { ok: true };
   } catch (error) {

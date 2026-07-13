@@ -4,7 +4,13 @@ import { de } from '../i18n/de';
 import { en } from '../i18n/en';
 import { I18N_KEYS } from '../i18n/keys';
 import { ja } from '../i18n/ja';
-import { LANGUAGE_SETTINGS, normalizeLanguageSetting, resolveLocale } from '../i18n/resolve';
+import {
+  LANGUAGE_SETTINGS,
+  RESPONSE_LANGUAGE_SETTINGS,
+  normalizeLanguageSetting,
+  normalizeResponseLanguageSetting,
+  resolveLocale,
+} from '../i18n/resolve';
 import { zhTW } from '../i18n/zh-TW';
 
 describe('i18n dictionaries', () => {
@@ -50,6 +56,15 @@ describe('i18n dictionaries', () => {
     expect(normalizeLanguageSetting('de')).toBe('de');
     expect(normalizeLanguageSetting('ja-JP')).toBe('system');
     expect(normalizeLanguageSetting('fr')).toBe('system');
+  });
+
+  it('normalizes response language settings independently from the interface language', () => {
+    expect(RESPONSE_LANGUAGE_SETTINGS).toEqual(['auto', 'en', 'zh-TW', 'ja', 'de']);
+    expect(normalizeResponseLanguageSetting('auto')).toBe('auto');
+    expect(normalizeResponseLanguageSetting('en')).toBe('en');
+    expect(normalizeResponseLanguageSetting('zh-TW')).toBe('zh-TW');
+    expect(normalizeResponseLanguageSetting('fr')).toBe('auto');
+    expect(normalizeResponseLanguageSetting('system')).toBe('auto');
   });
 
   it('resolves system locales in navigator preference order', () => {

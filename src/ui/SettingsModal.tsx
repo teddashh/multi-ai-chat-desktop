@@ -303,6 +303,29 @@ export function SettingsModal({
 
             <section>
               <label className="block text-xs text-zinc-600 dark:text-zinc-400">
+                <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">{t('settings.responseLanguage')}</span>
+                <select
+                  value={draft.responseLanguage}
+                  aria-describedby="settings-response-language-description"
+                  onChange={(event) =>
+                    updateDraft({ responseLanguage: event.target.value as AppSettings['responseLanguage'] })
+                  }
+                  className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
+                >
+                  <option value="auto">{t('settings.responseLanguage.auto')}</option>
+                  <option value="en">{t('settings.language.en')}</option>
+                  <option value="zh-TW">{t('settings.language.zhTW')}</option>
+                  <option value="ja">{t('settings.language.ja')}</option>
+                  <option value="de">{t('settings.language.de')}</option>
+                </select>
+              </label>
+              <p id="settings-response-language-description" className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
+                {t('settings.responseLanguageDescription')}
+              </p>
+            </section>
+
+            <section>
+              <label className="block text-xs text-zinc-600 dark:text-zinc-400">
                 <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">{t('settings.theme')}</span>
                 <select
                   value={draft.theme}
