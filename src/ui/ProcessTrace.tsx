@@ -30,8 +30,8 @@ export function ProcessTrace({
     <>
       <section aria-label={t('processTrace.title', locale)} className="ai-sister-process-trace mt-2 shrink-0 overflow-hidden rounded border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-2.5 py-1.5 dark:border-zinc-800">
-          <h2 className="text-[11px] font-semibold uppercase text-zinc-700 dark:text-zinc-300">{t('processTrace.title', locale)}</h2>
-          <div className="min-w-0 truncate text-right text-[11px] text-sky-700 dark:text-sky-200">{trace.currentStatus || t('processTrace.settled', locale)}</div>
+          <h2 className="text-[0.6875rem] font-semibold uppercase text-zinc-700 dark:text-zinc-300">{t('processTrace.title', locale)}</h2>
+          <div className="min-w-0 truncate text-right text-[0.6875rem] text-sky-700 dark:text-sky-200">{trace.currentStatus || t('processTrace.settled', locale)}</div>
         </div>
         {trace.steps.length > 0 ? (
           <ol className="max-h-36 divide-y divide-zinc-200 overflow-auto dark:divide-zinc-800">
@@ -52,7 +52,7 @@ export function ProcessTrace({
                     <span className={`h-2 w-2 rounded-full ${statusDotClass(step.status)}`} />
                     {step.provider ? <AiSisterAvatar provider={step.provider} size="xs" active={step.status === 'active'} /> : null}
                   </span>
-                  <span className={`truncate text-[11px] font-medium uppercase ${statusClass(step.status)}`}>{statusLabel(step.status, locale)}</span>
+                  <span className={`truncate text-[0.6875rem] font-medium uppercase ${statusClass(step.status)}`}>{statusLabel(step.status, locale)}</span>
                   <span className="min-w-0 truncate text-zinc-800 dark:text-zinc-200">
                     <span className="font-medium">{step.label}</span>
                     {step.detail ? <span className="text-zinc-500 dark:text-zinc-400"> — {step.detail}</span> : null}

@@ -192,6 +192,7 @@ export const ja: Record<I18nKey, string> = {
   'settings.themeLight': 'ライト',
   'settings.themeDark': 'ダーク',
   'settings.themeAiSister': 'AI-Sister 記念版',
+  'settings.fontSize': '文字サイズ',
   'theme.aiSister.badge': 'AI-Sister 最終記念版',
   'theme.aiSister.title': 'AI-Sister 記念版',
   'theme.aiSister.subtitle': '4人の声で、最後のラウンドへ。',

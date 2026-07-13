@@ -15,6 +15,7 @@ import { normalizeLanguageSetting, type LanguageSetting } from '../i18n/resolve'
 export interface AppSettings {
   language: LanguageSetting;
   theme: 'light' | 'dark' | 'ai-sister';
+  fontSize: number;
   layoutMode: 'focus';
   focusPaneWidth: number;
   columnWidths: ColumnWidths;
@@ -35,6 +36,7 @@ export function defaultSettings(): AppSettings {
   return {
     language: 'system',
     theme: 'light',
+    fontSize: DEFAULT_FONT_SIZE,
     layoutMode: 'focus',
     focusPaneWidth: DEFAULT_FOCUS_PANE_WIDTH,
     columnWidths: { ...DEFAULT_COLUMN_WIDTHS },
@@ -65,6 +67,14 @@ function snapshotRedactionTier(value: unknown, fallback: SnapshotRedactionTier):
 
 function theme(value: unknown, fallback: AppSettings['theme']): AppSettings['theme'] {
   return value === 'light' || value === 'dark' || value === 'ai-sister' ? value : fallback;
+}
+
+export const DEFAULT_FONT_SIZE = 16;
+// 下限 10px，避免 UI 縮到無法操作；依需求不限制上限。
+export const MIN_FONT_SIZE = 10;
+
+function fontSize(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= MIN_FONT_SIZE ? value : DEFAULT_FONT_SIZE;
 }
 
 function columnWidths(value: unknown, fallback: ColumnWidths): ColumnWidths {
@@ -99,6 +109,7 @@ export function normalizeSettings(value: unknown): AppSettings {
   return {
     language: normalizeLanguageSetting(input.language),
     theme: theme(input.theme, defaults.theme),
+    fontSize: fontSize(input.fontSize),
     layoutMode: 'focus',
     focusPaneWidth: focusPaneWidth(input.focusPaneWidth, input.columnWidths, defaults.focusPaneWidth),
     columnWidths: normalizedColumnWidths,

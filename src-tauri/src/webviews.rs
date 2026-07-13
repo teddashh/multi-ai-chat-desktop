@@ -2,13 +2,16 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     io::{self, Write},
-    sync::{Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Mutex, OnceLock,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{
     utils::config::BackgroundThrottlingPolicy,
     webview::{NewWindowResponse, WebviewBuilder},
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl,
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl,
 };
 use tauri_plugin_opener::OpenerExt;
 
@@ -100,7 +103,7 @@ fn runtime() -> &'static Mutex<ProviderRuntime> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NewWindowAction {
-    /// Platform-native popup (OAuth / allowlisted window.open) — return NewWindowResponse::Allow.
+    /// OAuth / allowlisted window.open hosted in a decorated Tauri window.
     AllowPopup,
     /// Emit nav://blocked + open system browser, then Deny.
     DenyExternal,
@@ -121,6 +124,41 @@ fn decide_new_window_action(url: &tauri::Url, allowlisted: bool) -> NewWindowAct
     NewWindowAction::DenySilent
 }
 
+fn popup_initial_title(url: &tauri::Url) -> &str {
+    url.host_str().unwrap_or("Sign in")
+}
+
+fn physical_bounds(bounds: &Bounds) -> Result<(PhysicalPosition<i32>, PhysicalSize<u32>), String> {
+    fn position(value: f64, name: &str) -> Result<i32, String> {
+        if !value.is_finite() {
+            return Err(format!("invalid webview bounds: {name} must be finite"));
+        }
+        let rounded = value.round();
+        if rounded < i32::MIN as f64 || rounded > i32::MAX as f64 {
+            return Err(format!("invalid webview bounds: {name} is out of range"));
+        }
+        Ok(rounded as i32)
+    }
+
+    fn size(value: f64, name: &str) -> Result<u32, String> {
+        if !value.is_finite() {
+            return Err(format!("invalid webview bounds: {name} must be finite"));
+        }
+        let rounded = value.round();
+        if rounded < 1.0 || rounded > u32::MAX as f64 {
+            return Err(format!(
+                "invalid webview bounds: {name} must round to a positive u32"
+            ));
+        }
+        Ok(rounded as u32)
+    }
+
+    Ok((
+        PhysicalPosition::new(position(bounds.x, "x")?, position(bounds.y, "y")?),
+        PhysicalSize::new(size(bounds.width, "width")?, size(bounds.height, "height")?),
+    ))
+}
+
 #[tauri::command]
 pub async fn provider_open(
     app: AppHandle,
@@ -129,12 +167,13 @@ pub async fn provider_open(
     bounds: Bounds,
 ) -> Result<ProviderState, String> {
     ensure_control_webview(&webview)?;
+    let (position, size) = physical_bounds(&bounds)?;
     let adapter = adapters::get_adapter(&provider)?;
     let label = provider_label(&provider);
     if let Some(webview) = app.get_webview(&label) {
         webview.show().map_err(|error| error.to_string())?;
         webview.set_focus().map_err(|error| error.to_string())?;
-        set_webview_bounds(&webview, &bounds)?;
+        set_webview_bounds(&webview, position, size)?;
         let state = current_state(&provider);
         return Ok(state);
     }
@@ -213,14 +252,37 @@ pub async fn provider_open(
             }
             false
         })
-        .on_new_window(move |url, _features| {
+        .on_new_window(move |url, features| {
             // Challenge auxiliary about: documents are allowed only as in-webview navigation.
             // Keep all non-HTTP(S) popups fail-closed; Turnstile does not require popup windows.
             let allowlisted = adapters::url_allowed_for_provider(&popup_provider, &url)
                 .unwrap_or(false)
                 || adapters::url_allowed_for_sso(&popup_provider, &url).unwrap_or(false);
             match decide_new_window_action(&url, allowlisted) {
-                NewWindowAction::AllowPopup => NewWindowResponse::Allow,
+                // Host popups in our own decorated window: the platform-default popup
+                // (WebView2) is undecorated, so it can't be dragged off the page it covers.
+                // window_features() wires the opener environment, so OAuth flows keep working.
+                NewWindowAction::AllowPopup => {
+                    static POPUP_SEQ: AtomicUsize = AtomicUsize::new(0);
+                    let label = format!(
+                        "provider-popup-{}",
+                        POPUP_SEQ.fetch_add(1, Ordering::Relaxed)
+                    );
+                    let builder = tauri::WebviewWindowBuilder::new(
+                        &popup_app,
+                        &label,
+                        WebviewUrl::External("about:blank".parse().expect("static url")),
+                    )
+                    .window_features(features)
+                    .title(popup_initial_title(&url))
+                    .on_document_title_changed(|window, title| {
+                        let _ = window.set_title(&title);
+                    });
+                    match builder.build() {
+                        Ok(window) => NewWindowResponse::Create { window },
+                        Err(_) => NewWindowResponse::Allow,
+                    }
+                }
                 NewWindowAction::DenySilent => NewWindowResponse::Deny,
                 NewWindowAction::DenyExternal => {
                     if let Some(host) = url.host_str() {
@@ -237,11 +299,7 @@ pub async fn provider_open(
         });
 
     let webview = window
-        .add_child(
-            builder,
-            LogicalPosition::new(bounds.x, bounds.y),
-            LogicalSize::new(bounds.width, bounds.height),
-        )
+        .add_child(builder, position, size)
         .map_err(|error| error.to_string())?;
     webview.show().map_err(|error| error.to_string())?;
     let state = state_with(&provider, "loaded", "unknown", "unknown", false);
@@ -313,11 +371,12 @@ pub async fn provider_set_bounds(
     bounds: Bounds,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    let (position, size) = physical_bounds(&bounds)?;
     let label = provider_label(&provider);
     let webview = app
         .get_webview(&label)
         .ok_or_else(|| format!("webview not found: {label}"))?;
-    set_webview_bounds(&webview, &bounds)
+    set_webview_bounds(&webview, position, size)
 }
 
 #[tauri::command]
@@ -636,12 +695,15 @@ fn provider_label(provider: &str) -> String {
 
 fn set_webview_bounds<R: tauri::Runtime>(
     webview: &tauri::Webview<R>,
-    bounds: &Bounds,
+    position: PhysicalPosition<i32>,
+    size: PhysicalSize<u32>,
 ) -> Result<(), String> {
+    // 前端傳來的是實體像素（CSS px × devicePixelRatio），必須用 Physical。
+    // 用 Logical 會少乘 WebView2 的頁面縮放（Windows「文字大小」），造成 webview 錯位。
     webview
         .set_bounds(tauri::Rect {
-            position: tauri::Position::Logical(LogicalPosition::new(bounds.x, bounds.y)),
-            size: tauri::Size::Logical(LogicalSize::new(bounds.width, bounds.height)),
+            position: tauri::Position::Physical(position),
+            size: tauri::Size::Physical(size),
         })
         .map_err(|error| error.to_string())
 }
@@ -801,11 +863,14 @@ fn now_ms() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use tauri::{PhysicalPosition, PhysicalSize};
+
     use super::{
         bridge_resets_on_boot_rotation, challenge_auxiliary_navigation_allowed,
-        decide_new_window_action, provider_uses_permission_shim, runtime,
-        should_reset_bridge_on_boot_rotation, staleness_action, state_with, NewWindowAction,
-        StalenessAction, PROVIDER_BROWSER_ARGS,
+        decide_new_window_action, physical_bounds, popup_initial_title,
+        provider_uses_permission_shim, runtime, should_reset_bridge_on_boot_rotation,
+        staleness_action, state_with, Bounds, NewWindowAction, StalenessAction,
+        PROVIDER_BROWSER_ARGS,
     };
 
     fn url(input: &str) -> tauri::Url {
@@ -865,6 +930,97 @@ mod tests {
             ),
             NewWindowAction::AllowPopup
         );
+    }
+
+    #[test]
+    fn popup_initial_title_never_exposes_oauth_query_parameters() {
+        let oauth =
+            url("https://accounts.google.com/o/oauth2/v2/auth?client_id=secret&state=sensitive");
+        assert_eq!(popup_initial_title(&oauth), "accounts.google.com");
+        assert_eq!(popup_initial_title(&url("about:blank")), "Sign in");
+    }
+
+    #[test]
+    fn physical_bounds_round_valid_values_and_allow_negative_positions() {
+        let (position, size) = physical_bounds(&Bounds {
+            x: -10.4,
+            y: 0.0,
+            width: 640.6,
+            height: 479.5,
+        })
+        .expect("valid bounds should convert");
+
+        assert_eq!(position, PhysicalPosition::new(-10, 0));
+        assert_eq!(size, PhysicalSize::new(641, 480));
+    }
+
+    #[test]
+    fn physical_bounds_reject_non_finite_values() {
+        for field in 0..4 {
+            for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                let mut bounds = Bounds {
+                    x: 10.0,
+                    y: 20.0,
+                    width: 640.0,
+                    height: 480.0,
+                };
+                match field {
+                    0 => bounds.x = invalid,
+                    1 => bounds.y = invalid,
+                    2 => bounds.width = invalid,
+                    _ => bounds.height = invalid,
+                }
+                assert!(physical_bounds(&bounds).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn physical_bounds_reject_invalid_sizes_and_out_of_range_positions() {
+        for invalid_size in [0.0, -1.0, 0.49, u32::MAX as f64 + 1.0] {
+            for bounds in [
+                Bounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: invalid_size,
+                    height: 480.0,
+                },
+                Bounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 640.0,
+                    height: invalid_size,
+                },
+            ] {
+                assert!(physical_bounds(&bounds).is_err());
+            }
+        }
+        for bounds in [
+            Bounds {
+                x: i32::MAX as f64 + 1.0,
+                y: 0.0,
+                width: 640.0,
+                height: 480.0,
+            },
+            Bounds {
+                x: 0.0,
+                y: i32::MIN as f64 - 1.0,
+                width: 640.0,
+                height: 480.0,
+            },
+        ] {
+            assert!(physical_bounds(&bounds).is_err());
+        }
+
+        let (position, size) = physical_bounds(&Bounds {
+            x: i32::MIN as f64,
+            y: i32::MAX as f64,
+            width: 1.0,
+            height: u32::MAX as f64,
+        })
+        .expect("exact integer limits should remain valid");
+        assert_eq!(position, PhysicalPosition::new(i32::MIN, i32::MAX));
+        assert_eq!(size, PhysicalSize::new(1, u32::MAX));
     }
 
     #[test]

@@ -6,7 +6,7 @@ import { AdapterAccessPanel } from './FocusPane';
 import { useI18n } from '../i18n/context';
 import { formatI18n } from '../i18n/t';
 import type { PresentationByProvider } from './presentation';
-import { type AppSettings, mergeSettings, normalizeSettings } from './settingsModel';
+import { type AppSettings, DEFAULT_FONT_SIZE, MIN_FONT_SIZE, normalizeSettings } from './settingsModel';
 import { compareVersions, fetchLatestRelease } from './updateCheck';
 import { host } from '../host';
 import {
@@ -20,6 +20,8 @@ import {
 import { buildDebugBundle, debugBundleFilename } from '../diagnostics/debugBundle';
 import { useEventLog } from './useEventLog';
 import { ModalDialog } from './ModalDialog';
+import { createSettingsPersistence } from './settingsPersistence';
+import { createTrailingDebounce, type TrailingDebounce } from './trailingDebounce';
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
@@ -34,6 +36,11 @@ type UpdateCheckState =
 interface SettingsError {
   messageKey: 'settings.loadFailed' | 'settings.saveFailed';
   detail?: string;
+}
+
+interface PendingFontSizeUpdate {
+  fontSize: number;
+  updateSeq: number;
 }
 
 export function SettingsModal({
@@ -55,15 +62,23 @@ export function SettingsModal({
 }) {
   const { t, setLanguage } = useI18n();
   const [draft, setDraft] = useState<AppSettings | undefined>();
+  const [fontSizeText, setFontSizeText] = useState<string | undefined>();
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<SettingsError | undefined>();
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>({ status: 'idle' });
-  const loadedRef = useRef<AppSettings | undefined>();
   const closeTimerRef = useRef<number | undefined>();
+  const settingsPersistenceRef = useRef(createSettingsPersistence(host.settings));
+  const fontSizeDebounceRef = useRef<TrailingDebounce<PendingFontSizeUpdate> | undefined>(undefined);
+  const modalSessionRef = useRef(0);
+  const draftUpdateSeqRef = useRef(0);
+  const languageUpdateSeqRef = useRef(0);
+  const fontSizeUpdateSeqRef = useRef(0);
   const liveRef = useRef({ openProviders, focusPaneWidth, presentation });
   liveRef.current = { openProviders, focusPaneWidth, presentation };
 
   useEffect(() => {
+    const modalSession = ++modalSessionRef.current;
     if (!open) return;
     if (closeTimerRef.current !== undefined) {
       window.clearTimeout(closeTimerRef.current);
@@ -71,16 +86,18 @@ export function SettingsModal({
     }
     let disposed = false;
     setDraft(undefined);
+    fontSizeDebounceRef.current?.cancel();
+    setFontSizeText(undefined);
     setSaved(false);
+    setSaving(false);
     setError(undefined);
     setUpdateCheck({ status: 'idle' });
-    void host.settings
-      .get()
-      .then((value) => {
-        if (disposed) return;
-        const loaded = normalizeSettings(value);
+    void settingsPersistenceRef.current
+      .load()
+      .then((loaded) => {
+        if (disposed || modalSession !== modalSessionRef.current) return;
         const live = liveRef.current;
-        loadedRef.current = loaded;
+        setError(undefined);
         setDraft({
           ...loaded,
           openProviders: live.openProviders,
@@ -89,11 +106,11 @@ export function SettingsModal({
         });
       })
       .catch((reason: unknown) => {
-        if (disposed) return;
+        if (disposed || modalSession !== modalSessionRef.current) return;
         setError({ messageKey: 'settings.loadFailed', detail: errorDetail(reason) });
         const fallback = normalizeSettings({});
         const live = liveRef.current;
-        loadedRef.current = fallback;
+        settingsPersistenceRef.current.replaceCurrent(fallback);
         setDraft({
           ...fallback,
           openProviders: live.openProviders,
@@ -109,6 +126,7 @@ export function SettingsModal({
   useEffect(
     () => () => {
       if (closeTimerRef.current !== undefined) window.clearTimeout(closeTimerRef.current);
+      fontSizeDebounceRef.current?.cancel();
     },
     [],
   );
@@ -116,49 +134,115 @@ export function SettingsModal({
   if (!open) return null;
 
   const updateDraft = (patch: Partial<AppSettings>) => {
+    draftUpdateSeqRef.current += 1;
+    setSaved(false);
+    if (closeTimerRef.current !== undefined) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
     setDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
+  const persistSettingsPatch = (patch: Partial<AppSettings>): Promise<AppSettings> =>
+    settingsPersistenceRef.current.update(() => {
+      const live = liveRef.current;
+      return {
+        ...patch,
+        openProviders: live.openProviders,
+        focusPaneWidth: live.focusPaneWidth,
+        presentation: live.presentation,
+      };
+    });
+
   const updateLanguage = async (language: AppSettings['language']) => {
-    const previousLanguage = loadedRef.current?.language ?? 'system';
+    const modalSession = modalSessionRef.current;
+    const updateSeq = ++languageUpdateSeqRef.current;
     setError(undefined);
     updateDraft({ language });
     setLanguage(language);
-    const live = liveRef.current;
-    const next = mergeSettings(loadedRef.current, {
-      language,
-      openProviders: live.openProviders,
-      focusPaneWidth: live.focusPaneWidth,
-      presentation: live.presentation,
-    });
     try {
-      await host.settings.set(next);
-      loadedRef.current = next;
+      const next = await persistSettingsPatch({ language });
       onSaved(next);
+      if (modalSession === modalSessionRef.current) setError(undefined);
     } catch (reason) {
-      updateDraft({ language: previousLanguage });
-      setLanguage(previousLanguage);
-      setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      if (updateSeq === languageUpdateSeqRef.current) {
+        const persistedLanguage = settingsPersistenceRef.current.current()?.language ?? 'system';
+        setLanguage(persistedLanguage);
+        if (modalSession === modalSessionRef.current) {
+          updateDraft({ language: persistedLanguage });
+          setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+        }
+      }
+    }
+  };
+
+  const persistFontSize = async ({ fontSize, updateSeq }: PendingFontSizeUpdate) => {
+    const modalSession = modalSessionRef.current;
+    try {
+      const next = await persistSettingsPatch({ fontSize });
+      onSaved(next);
+      if (modalSession === modalSessionRef.current) setError(undefined);
+    } catch (reason) {
+      if (updateSeq === fontSizeUpdateSeqRef.current && modalSession === modalSessionRef.current) {
+        updateDraft({ fontSize: settingsPersistenceRef.current.current()?.fontSize ?? DEFAULT_FONT_SIZE });
+        setFontSizeText(undefined);
+        setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      }
+      throw reason;
+    }
+  };
+
+  if (!fontSizeDebounceRef.current) {
+    fontSizeDebounceRef.current = createTrailingDebounce((update) => persistFontSize(update), 250);
+  }
+
+  const scheduleFontSizeUpdate = (fontSize: number) => {
+    const updateSeq = ++fontSizeUpdateSeqRef.current;
+    setError(undefined);
+    updateDraft({ fontSize });
+    fontSizeDebounceRef.current?.schedule({ fontSize, updateSeq });
+  };
+
+  const closeSettings = async () => {
+    const modalSession = modalSessionRef.current;
+    try {
+      await fontSizeDebounceRef.current?.flush();
+      if (modalSession === modalSessionRef.current) onClose();
+    } catch {
+      // persistFontSize already restored the last persisted value and exposed the error.
     }
   };
 
   const save = async () => {
     if (!draft) return;
+    const modalSession = modalSessionRef.current;
+    const draftUpdateSeq = draftUpdateSeqRef.current;
+    const languageUpdateSeq = ++languageUpdateSeqRef.current;
+    fontSizeUpdateSeqRef.current += 1;
+    fontSizeDebounceRef.current?.cancel();
+    setSaving(true);
     setError(undefined);
-    const next = mergeSettings(loadedRef.current, {
-      ...draft,
-      openProviders,
-      focusPaneWidth,
-      presentation,
-    });
     try {
-      await host.settings.set(next);
-      loadedRef.current = next;
+      const next = await persistSettingsPatch({
+        ...draft,
+        openProviders,
+        focusPaneWidth,
+        presentation,
+      });
       onSaved(next);
-      setSaved(true);
-      closeTimerRef.current = window.setTimeout(onClose, 400);
+      if (modalSession === modalSessionRef.current && draftUpdateSeq === draftUpdateSeqRef.current) {
+        setSaved(true);
+        closeTimerRef.current = window.setTimeout(onClose, 400);
+      }
     } catch (reason) {
-      setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      if (languageUpdateSeq === languageUpdateSeqRef.current) {
+        setLanguage(settingsPersistenceRef.current.current()?.language ?? 'system');
+      }
+      if (modalSession === modalSessionRef.current && draftUpdateSeq === draftUpdateSeqRef.current) {
+        setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
+      }
+    } finally {
+      if (modalSession === modalSessionRef.current) setSaving(false);
     }
   };
 
@@ -184,13 +268,13 @@ export function SettingsModal({
   return (
     <ModalDialog
       titleId="settings-title"
-      onEscape={onClose}
-      onBackdrop={onClose}
+      onEscape={closeSettings}
+      onBackdrop={closeSettings}
       panelClassName="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-lg border border-zinc-300 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-950"
     >
         <div className="mb-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
           <h2 id="settings-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h2>
-          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={onClose}>
+          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={closeSettings}>
             {t('settings.close')}
           </button>
         </div>
@@ -229,6 +313,26 @@ export function SettingsModal({
                   <option value="dark">{t('settings.themeDark')}</option>
                   <option value="ai-sister">{t('settings.themeAiSister')}</option>
                 </select>
+              </label>
+            </section>
+
+            <section>
+              <label className="block text-xs text-zinc-600 dark:text-zinc-400">
+                <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">{t('settings.fontSize')}</span>
+                <input
+                  type="number"
+                  min={MIN_FONT_SIZE}
+                  step={1}
+                  value={fontSizeText ?? String(draft.fontSize)}
+                  onChange={(event) => {
+                    const text = event.target.value;
+                    setFontSizeText(text);
+                    const value = Number(text);
+                    if (Number.isFinite(value) && value >= MIN_FONT_SIZE) scheduleFontSizeUpdate(value);
+                  }}
+                  onBlur={() => setFontSizeText(undefined)}
+                  className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
+                />
               </label>
             </section>
 
@@ -346,7 +450,7 @@ export function SettingsModal({
             {error.detail ? (
               <details className="mt-2">
                 <summary className="cursor-pointer font-medium">{t('settings.technicalDetails')}</summary>
-                <code className="mt-1 block break-words text-[11px] opacity-80">{error.detail}</code>
+                <code className="mt-1 block break-words text-[0.6875rem] opacity-80">{error.detail}</code>
               </details>
             ) : null}
           </div>
@@ -374,14 +478,14 @@ export function SettingsModal({
             </button>
           </div>
           <div className="flex items-center justify-end gap-2">
-            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onClose}>
+            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={closeSettings}>
               {t('settings.cancel')}
             </button>
             <button
               type="button"
               className="min-w-16 border border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950 px-3 py-1.5 text-sm text-sky-700 dark:text-sky-100 hover:bg-sky-100 dark:hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => void save()}
-              disabled={!draft}
+              disabled={!draft || saving}
             >
               {saved ? t('settings.saved') : t('settings.save')}
             </button>
@@ -608,11 +712,11 @@ function EventLogRow({ event, now }: { event: EventLogEvent; now: number }) {
     <li className="px-3 py-2 text-xs">
       <div className="flex flex-wrap items-center gap-2 text-zinc-500 dark:text-zinc-500">
         <span>{formatRelativeTime(event.ts, now)}</span>
-        <span className="border border-zinc-300 dark:border-zinc-700 px-1.5 py-0.5 text-[11px] uppercase text-zinc-700 dark:text-zinc-300">{event.kind}</span>
+        <span className="border border-zinc-300 dark:border-zinc-700 px-1.5 py-0.5 text-[0.6875rem] uppercase text-zinc-700 dark:text-zinc-300">{event.kind}</span>
         {event.provider ? <span className="text-sky-700 dark:text-sky-300">{providerName(event.provider)}</span> : null}
       </div>
       <div className="mt-1 break-words text-zinc-800 dark:text-zinc-200">{event.summary}</div>
-      {event.detail ? <code className="mt-1 block break-words text-[11px] text-zinc-500 dark:text-zinc-500">{JSON.stringify(event.detail)}</code> : null}
+      {event.detail ? <code className="mt-1 block break-words text-[0.6875rem] text-zinc-500 dark:text-zinc-500">{JSON.stringify(event.detail)}</code> : null}
     </li>
   );
 }

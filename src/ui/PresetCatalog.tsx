@@ -49,7 +49,7 @@ export function PresetCatalog({
             <div className="font-semibold text-sky-900 dark:text-sky-100">{t(detailPreset.displayNameKey, locale)}</div>
             <p className="mt-1 leading-relaxed text-zinc-700 dark:text-zinc-300">{t(detailPreset.descriptionKey, locale)}</p>
           </div>
-          <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+          <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[0.6875rem] text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
             {t(detailPreset.costLabelKey, locale)}
           </span>
         </div>
@@ -100,7 +100,7 @@ function renderPresetGrid({
               <span className="truncate text-sm font-semibold">{displayName}</span>
               {readiness ? (
                 <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium ${
                     readiness.ready
                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
                       : 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
@@ -110,7 +110,7 @@ function renderPresetGrid({
                 </span>
               ) : null}
             </span>
-            {preset.metaKey ? <span className="mt-1 text-[11px] leading-none text-zinc-500 dark:text-zinc-400">{t(preset.metaKey, locale)}</span> : null}
+            {preset.metaKey ? <span className="mt-1 text-[0.6875rem] leading-none text-zinc-500 dark:text-zinc-400">{t(preset.metaKey, locale)}</span> : null}
           </button>
         );
       })}

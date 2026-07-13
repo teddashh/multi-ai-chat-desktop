@@ -181,6 +181,7 @@ export const zhTW: Record<I18nKey, string> = {
   'settings.themeLight': '淺色',
   'settings.themeDark': '深色',
   'settings.themeAiSister': 'AI-Sister 紀念版',
+  'settings.fontSize': '字體大小',
   'theme.aiSister.badge': 'AI-Sister 最終紀念版',
   'theme.aiSister.title': 'AI-Sister 紀念版',
   'theme.aiSister.subtitle': '四位角色，一起完成最後一輪。',
