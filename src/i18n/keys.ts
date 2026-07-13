@@ -268,6 +268,7 @@ export const I18N_KEYS = [
   'reportPreview.path',
   'reportPreview.firstMissingField',
   'reportPreview.none',
+  'reportPreview.noStructuralFailure',
   'reportPreview.cancel',
   'reportPreview.openGithubIssue',
   'fileInsert.binaryUnsupported',

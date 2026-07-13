@@ -76,17 +76,74 @@ describe('M5 report diagnostics', () => {
       field: 'inputSelectors',
       matched: ['#hit'],
       missed: ['#miss'],
+      state: 'available',
     });
     expect(digest.fields.find((field) => field.field === 'sendButtonSelectors')).toEqual({
       field: 'sendButtonSelectors',
       matched: ['button.hit'],
       missed: ['button.miss'],
+      state: 'available',
     });
     expect(digest.fields.find((field) => field.field === 'loginDetectors')).toEqual({
       field: 'loginDetectors',
       matched: ['.login'],
       missed: ['.login-miss'],
+      state: 'available',
     });
+  });
+
+  it('does not treat conditional controls on an empty new-session page as broken', () => {
+    const digest = buildReportDigest(
+      baseAdapter,
+      fakeEnv({
+        '#prompt': [fakeElement('DIV', { contenteditable: 'true' }, '')],
+      }, 'https://chatgpt.com/'),
+    );
+
+    expect(digest.pageContext).toBe('new-session');
+    expect(digest.composerHasText).toBe(false);
+    expect(digest.fields.find((field) => field.field === 'sendButtonSelectors')).toMatchObject({
+      state: 'not-rendered',
+      reason: 'composer-empty',
+    });
+    expect(digest.fields.find((field) => field.field === 'responseSelectors')).toMatchObject({
+      state: 'not-rendered',
+      reason: 'new-session',
+    });
+    expect(digest.firstMissingField).toBeUndefined();
+    expect(digest.candidates).toEqual([]);
+    expect(formatReportBody(digest)).toContain('No actionable structural selector failure was detected.');
+  });
+
+  it('treats a missing send control as actionable after a draft exists', () => {
+    const composer = { ...fakeElement('TEXTAREA', {}, ''), value: 'draft waiting to send' };
+    const digest = buildReportDigest(
+      baseAdapter,
+      fakeEnv({
+        '#prompt': [composer],
+      }, 'https://chatgpt.com/'),
+    );
+
+    expect(digest.composerHasText).toBe(true);
+    expect(digest.fields.find((field) => field.field === 'sendButtonSelectors')).toMatchObject({ state: 'missing' });
+    expect(digest.firstMissingField).toBe('sendButtonSelectors');
+  });
+
+  it('does not enumerate unused fallbacks when one selector is available', () => {
+    const digest = buildReportDigest(
+      {
+        ...baseAdapter,
+        inputSelectors: ['#prompt', '#legacy-prompt'],
+        sendButtonSelectors: [],
+        responseSelectors: [],
+        loginDetectors: [],
+      },
+      fakeEnv({ '#prompt': [fakeElement('TEXTAREA', {}, '')] }),
+    );
+    const body = formatReportBody(digest);
+
+    expect(body).toContain('1/2 ordered fallbacks matched');
+    expect(body).not.toContain('unmatched fallback: `#legacy-prompt`');
   });
 
   it('stores only the URL path', () => {
@@ -166,6 +223,7 @@ describe('M5 report diagnostics', () => {
       field,
       matched: [],
       missed: Array.from({ length: 100 }, (_, index) => `.missing-${fieldIndex}-${index}-${'x'.repeat(120)}`),
+      state: 'missing' as const,
     }));
     const digest = {
       provider: 'chatgpt',
@@ -173,6 +231,8 @@ describe('M5 report diagnostics', () => {
       adapterVersion: 3,
       appVersion: '0.1.0',
       path: `/${'long-path/'.repeat(500)}`,
+      pageContext: 'unknown' as const,
+      composerHasText: false,
       fields,
       firstMissingField: 'inputSelectors',
       candidates: Array.from({ length: 5 }, (_, index) => ({
@@ -210,7 +270,7 @@ describe('M5 report diagnostics', () => {
     expect(body).toContain('**Provider:** ChatGPT (chatgpt)');
     expect(body).toContain('**Adapter version:** 3');
     expect(body).toContain('**Path:** /c/abc');
-    expect(body).toContain('missing: `#missing`');
+    expect(body).toContain('unmatched fallback: `#missing`');
     expect(body).toContain('Selector-structural diagnostics only');
     expect(body).not.toContain(pageText);
   });

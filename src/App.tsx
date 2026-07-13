@@ -1870,6 +1870,11 @@ function ReportPreviewDialog({
             {translateKey('reportPreview.firstMissingField', locale)}: {digest.firstMissingField ?? translateKey('reportPreview.none', locale)}
           </div>
         </div>
+        {!digest.firstMissingField ? (
+          <div className="mt-4 border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-900 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100">
+            {translateKey('reportPreview.noStructuralFailure', locale)}
+          </div>
+        ) : null}
         <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 text-xs leading-relaxed text-zinc-800 dark:text-zinc-200">
           {preview.body}
         </pre>
@@ -1881,7 +1886,7 @@ function ReportPreviewDialog({
             type="button"
             className="border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950 px-3 py-1.5 text-sm text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onOpenIssue}
-            disabled={busy}
+            disabled={busy || !digest.firstMissingField}
           >
             {translateKey('reportPreview.openGithubIssue', locale)}
           </button>

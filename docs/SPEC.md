@@ -584,8 +584,10 @@ SSO redirects during login stay in-webview per §6.3.
 
 Diagnostics are **selector-structural only — never page text**:
 - adapter name + adapterVersion + app version + URL **path only** (no query/fragment)
-- per-selector-field miss results (which selectors matched/missed)
-- for the first missing field: up to 5 candidate elements as tag + attribute summary (attribute allowlist: `id`, `class`, `data-testid`, `aria-label` truncated to 40 chars) + text **lengths** only
+- per-selector-field observations; selector arrays are ordered fallbacks, so one match makes that field available
+- conditionally rendered fields are not failures: an empty composer may have no send button, and a new-session page has no response node before the first reply
+- only an actionable all-fallback miss sets `firstMissingField` and enables GitHub issue creation in the preview
+- for the first actionable missing field: up to 5 candidate elements as tag + attribute summary (attribute allowlist: `id`, `class`, `data-testid`, `aria-label` truncated to 40 chars) + text **lengths** only
 - explicitly excluded: any text content, input values, cookies, storage, account/profile DOM regions
 User sees the exact payload in a preview dialog and must confirm; then a prefilled GitHub issue URL opens via opener. Size cap 10 KB.
 

@@ -15,12 +15,24 @@ export function formatReportBody(digest: ReportDigest): string {
   lines.push(`**Adapter version:** ${digest.adapterVersion}`);
   lines.push(`**App version:** ${digest.appVersion}`);
   lines.push(`**Path:** ${digest.path}`);
+  lines.push(`**Page context:** ${digest.pageContext}`);
+  lines.push(`**Composer contains text:** ${digest.composerHasText ? 'yes' : 'no'}`);
+  lines.push('');
+  lines.push('> This is a point-in-time structural snapshot, not a send or response-capture test. Conditional controls may not exist until a draft or reply exists.');
   lines.push('');
   lines.push('### Selector health');
   for (const field of digest.fields) {
     const total = field.matched.length + field.missed.length;
-    lines.push(`- **${field.field}** - matched ${field.matched.length}/${total}`);
-    for (const selector of field.missed) lines.push(`  - missing: \`${selector}\``);
+    if (field.state === 'available') {
+      lines.push(`- **${field.field}** - available; ${field.matched.length}/${total} ordered fallbacks matched`);
+      continue;
+    }
+    if (field.state === 'not-rendered') {
+      lines.push(`- **${field.field}** - not rendered in this snapshot (${observationReason(field.reason)})`);
+      continue;
+    }
+    lines.push(`- **${field.field}** - unavailable; 0/${total} ordered fallbacks matched`);
+    for (const selector of field.missed) lines.push(`  - unmatched fallback: \`${selector}\``);
   }
   if (digest.firstMissingField && digest.candidates.length > 0) {
     lines.push('');
@@ -33,11 +45,24 @@ export function formatReportBody(digest: ReportDigest): string {
     }
   }
   lines.push('');
+  lines.push('### Interpretation');
+  if (digest.firstMissingField) {
+    lines.push(`Actionable structural miss detected in \`${digest.firstMissingField}\`. Reproduce the failure and attach the exported debug log when filing.`);
+  } else {
+    lines.push('No actionable structural selector failure was detected. If a real workflow failed, reproduce it and attach the exported debug log instead of treating conditional DOM as broken.');
+  }
+  lines.push('');
   lines.push('_Selector-structural diagnostics only - no page text, input values, cookies, or storage (SPEC §10.2)._');
   const body = lines.join('\n');
   if (byteLength(body) <= DIGEST_CAP_BYTES) return body;
   const marker = '\n\n_Truncated to satisfy the 10 KB §10.2 privacy cap._';
   return clampToBytes(body, DIGEST_CAP_BYTES - byteLength(marker)) + marker;
+}
+
+function observationReason(reason: 'composer-empty' | 'new-session' | undefined): string {
+  if (reason === 'composer-empty') return 'expected while the composer is empty';
+  if (reason === 'new-session') return 'expected before the first assistant reply';
+  return 'conditional page state';
 }
 
 function byteLength(value: string): number {
