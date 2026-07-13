@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import appIconUrl from '../assets/app-icon.svg';
 import { AiSisterBrandMark } from './AiSisterTheme';
 import { DEFAULT_CONVERSATION_SESSION_TITLE, type ConversationSession } from './conversationSessions';
@@ -7,6 +8,8 @@ export interface ConversationSidebarLabels {
   newConversation: string;
   history: string;
   empty: string;
+  deleteConversation: string;
+  confirmDeleteConversation: string;
 }
 
 export function ConversationSidebar({
@@ -19,6 +22,7 @@ export function ConversationSidebar({
   onToggle,
   onNewConversation,
   onSelectSession,
+  onDeleteSession,
 }: {
   collapsed: boolean;
   sessions: readonly ConversationSession[];
@@ -29,7 +33,10 @@ export function ConversationSidebar({
   onToggle: () => void;
   onNewConversation: () => void;
   onSelectSession: (session: ConversationSession) => void;
+  onDeleteSession: (session: ConversationSession) => void;
 }) {
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | undefined>();
+
   return (
     <nav
       aria-label={labels.history}
@@ -77,10 +84,10 @@ export function ConversationSidebar({
             ) : (
               <ol className="space-y-1">
                 {sessions.map((session) => (
-                  <li key={session.id}>
+                  <li key={session.id} className="flex items-stretch gap-1">
                     <button
                       type="button"
-                      className={`w-full rounded-md px-2 py-2 text-left transition ${
+                      className={`min-w-0 flex-1 rounded-md px-2 py-2 text-left transition ${
                         session.id === activeSessionId
                           ? 'bg-sky-100 text-sky-950 dark:bg-sky-950 dark:text-sky-100'
                           : 'text-zinc-700 hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-800'
@@ -96,6 +103,32 @@ export function ConversationSidebar({
                         {new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(session.updatedAt)}
                       </span>
                     </button>
+                    {pendingDeleteId === session.id ? (
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-md border border-red-300 px-2 text-[0.625rem] font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800 dark:text-red-200 dark:hover:bg-red-950"
+                        onClick={() => {
+                          setPendingDeleteId(undefined);
+                          onDeleteSession(session);
+                        }}
+                        onBlur={() => setPendingDeleteId(undefined)}
+                        disabled={disabled}
+                        autoFocus
+                      >
+                        {labels.confirmDeleteConversation}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-md px-2 text-xs text-zinc-400 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-500 dark:hover:bg-red-950 dark:hover:text-red-200"
+                        onClick={() => setPendingDeleteId(session.id)}
+                        disabled={disabled}
+                        aria-label={labels.deleteConversation}
+                        title={labels.deleteConversation}
+                      >
+                        <span aria-hidden="true">✕</span>
+                      </button>
+                    )}
                   </li>
                 ))}
               </ol>

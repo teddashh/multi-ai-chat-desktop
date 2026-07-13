@@ -144,6 +144,13 @@ export function upsertConversationSession(
   ]);
 }
 
+export function removeConversationSession(
+  sessions: readonly ConversationSession[],
+  sessionId: string,
+): ConversationSession[] {
+  return normalizeConversationSessions(sessions.filter((session) => session.id !== sessionId));
+}
+
 export function loadConversationSessions(storage?: ConversationSessionStorage): ConversationSession[] {
   const target = storage ?? defaultStorage();
   if (!target) return [];

@@ -362,10 +362,10 @@ export function SettingsModal({
                     }
                     className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
                   >
-                    <option value="metadata-only">metadata-only</option>
-                    <option value="hashes">hashes</option>
-                    <option value="prompt-text">prompt-text</option>
-                    <option value="full-local">full-local</option>
+                    <option value="metadata-only">{t('settings.snapshotTierMetadataOnly')}</option>
+                    <option value="hashes">{t('settings.snapshotTierHashes')}</option>
+                    <option value="prompt-text">{t('settings.snapshotTierPromptText')}</option>
+                    <option value="full-local">{t('settings.snapshotTierFullLocal')}</option>
                   </select>
                 </label>
               ) : null}
