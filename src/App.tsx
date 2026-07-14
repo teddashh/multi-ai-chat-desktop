@@ -883,6 +883,9 @@ export default function App() {
 
   const driveCenteredProviderToStage = useCallback(async (provider: AIProvider) => {
     if (centerSurfaceRef.current !== 'native') return;
+    // overlay(設定、preflight 等)開啟時 guard 已 hide webview；此處若照常把
+    // bounds 推回舞台，syncBounds 的 park→show 會讓 webview 重新蓋在 overlay 上。
+    if (overlayGuardOpenRef.current) return;
     await driveCenteredProviderToStageCommand({
       provider,
       presentation: presentationRef.current[provider],
@@ -1290,6 +1293,12 @@ export default function App() {
   useEffect(() => {
     syncAllBounds();
   }, [focusPaneWidth, presentation, syncAllBounds]);
+
+  // overlay 關閉後立即把置中的 webview 推回舞台，不等 2.5 秒的定時同步。
+  useEffect(() => {
+    if (overlayGuardOpen) return;
+    if (centeredProvider && centerSurfaceRef.current === 'native') void driveCenteredProviderToStage(centeredProvider);
+  }, [overlayGuardOpen, centeredProvider, driveCenteredProviderToStage]);
 
   const executeSend = async (trimmed: string) => {
     if (!trimmed) return;
