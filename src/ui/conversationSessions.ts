@@ -60,6 +60,18 @@ export function createConversationSession({
   };
 }
 
+// Bubble ids embed a per-run turn counter (`user-3`, `ai-claude-4`). When a session is
+// restored the counter must resume past the restored ids, or new turns collide with old
+// bubbles and overwrite them in place instead of appending.
+export function maxBubbleTurn(messages: readonly { id: string }[]): number {
+  let max = 0;
+  for (const message of messages) {
+    const match = /-(\d+)$/.exec(message.id);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return max;
+}
+
 export function titleFromFirstUserMessage(messages: unknown): string {
   if (!Array.isArray(messages)) return DEFAULT_CONVERSATION_SESSION_TITLE;
   const firstUserMessage = messages.find(
@@ -170,14 +182,17 @@ export function saveConversationSessions(
   const target = storage ?? defaultStorage();
   if (!target) return false;
 
-  try {
-    target.setItem(
-      CONVERSATION_SESSIONS_STORAGE_KEY,
-      JSON.stringify(normalizeConversationSessions(sessions)),
-    );
-    return true;
-  } catch {
-    return false;
+  // On write failure (typically quota), drop the oldest sessions until the payload
+  // fits — sessions are sorted most-recent-first, so the active one is the last to go.
+  let normalized = normalizeConversationSessions(sessions);
+  while (true) {
+    try {
+      target.setItem(CONVERSATION_SESSIONS_STORAGE_KEY, JSON.stringify(normalized));
+      return true;
+    } catch {
+      if (normalized.length <= 1) return false;
+      normalized = normalized.slice(0, -1);
+    }
   }
 }
 

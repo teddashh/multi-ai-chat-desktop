@@ -32,6 +32,7 @@ import { ConversationSidebar } from './ui/ConversationSidebar';
 import {
   createConversationSession,
   loadConversationSessions,
+  maxBubbleTurn,
   removeConversationSession,
   saveConversationSessions,
   titleFromFirstUserMessage,
@@ -144,6 +145,15 @@ function conversationMessages(messages: readonly Bubble[]): ConversationSessionM
     ...(typeof message.final === 'boolean' ? { final: message.final } : {}),
     ...(typeof message.truncated === 'boolean' ? { truncated: message.truncated } : {}),
   }));
+}
+
+function persistConversationSessions(sessions: readonly ConversationSession[]): void {
+  if (saveConversationSessions(sessions)) return;
+  recordEventLog({
+    kind: 'workflow-error',
+    summary: 'Conversation history save failed; recent messages may be lost on restart',
+    detail: { sessions: sessions.length },
+  });
 }
 
 function bubblesFromSession(session: ConversationSession): Bubble[] {
@@ -313,7 +323,7 @@ export default function App() {
   const overlayGuardOpenRef = useRef(false);
   const pendingRestore = useRef<Set<AIProvider>>(new Set());
   const dragStartFocusPaneWidth = useRef(defaultSettings().focusPaneWidth);
-  const turnRef = useRef(0);
+  const turnRef = useRef(maxBubbleTurn(initialConversation.active.messages));
   const activeTurns = useRef(new Map<AIProvider, { turn: number; label?: string }>());
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
@@ -429,7 +439,7 @@ export default function App() {
           mode,
           messages: storedMessages,
         });
-        saveConversationSessions(next);
+        persistConversationSessions(next);
         return next;
       });
     }, 300);
@@ -1391,7 +1401,7 @@ export default function App() {
           })
         : current;
       const next = upsertConversationSession(archived, nextSession);
-      saveConversationSessions(next);
+      persistConversationSessions(next);
       return next;
     });
     setActiveSessionId(nextSession.id);
@@ -1422,6 +1432,7 @@ export default function App() {
       if (isProcessing || session.id === activeSessionId) return;
       setActiveSessionId(session.id);
       setMessages(bubblesFromSession(session));
+      turnRef.current = Math.max(turnRef.current, maxBubbleTurn(session.messages));
       setMode(session.mode);
       setPresetDetailsMode(undefined);
       setWorkflowStatus('');
@@ -1439,14 +1450,14 @@ export default function App() {
       const remaining = removeConversationSession(sessions, session.id);
       if (session.id !== activeSessionId) {
         setSessions(remaining);
-        saveConversationSessions(remaining);
+        persistConversationSessions(remaining);
         return;
       }
 
       const nextActive = remaining[0] ?? createConversationSession();
       const next = upsertConversationSession(remaining, nextActive);
       setSessions(next);
-      saveConversationSessions(next);
+      persistConversationSessions(next);
       selectConversationSession(nextActive);
     },
     [activeSessionId, isProcessing, selectConversationSession, sessions],

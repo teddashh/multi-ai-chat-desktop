@@ -18,6 +18,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 import { bubbleAuthorLabel } from '../bubbleAuthorLabel';
 import App, { ChatArea, presentationHiddenProvidersForCenterSurface } from '../App';
+import { maxBubbleTurn } from '../ui/conversationSessions';
 import { I18nProvider } from '../i18n/context';
 import { applyCenterHiddenCommands } from '../ui/presentationCommands';
 import { defaultPresentation, setProviderPresentation } from '../ui/presentation';
@@ -53,6 +54,21 @@ describe('App bubble author labels', () => {
     expect(bubbleAuthorLabel({ role: 'ai', provider: 'system' })).toBe('System');
     expect(bubbleAuthorLabel({ role: 'ai', provider: 'unknown-provider' })).toBe('System');
     expect(bubbleAuthorLabel({ role: 'ai' })).toBe('System');
+  });
+});
+
+describe('maxBubbleTurn', () => {
+  it('resumes the turn counter past restored bubble ids so new turns never collide', () => {
+    // A collision makes RESPONSE_CHUNK/DONE overwrite an old bubble in place, silently
+    // eating the restored conversation instead of appending the new exchange.
+    expect(
+      maxBubbleTurn([{ id: 'user-1' }, { id: 'ai-claude-2' }, { id: 'ai-chatgpt-10' }]),
+    ).toBe(10);
+  });
+
+  it('ignores ids without a numeric turn suffix', () => {
+    expect(maxBubbleTurn([{ id: 'session-abc' }, { id: 'weird' }])).toBe(0);
+    expect(maxBubbleTurn([])).toBe(0);
   });
 });
 

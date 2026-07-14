@@ -166,6 +166,29 @@ describe('conversation sessions', () => {
     expect(JSON.parse(storage.value ?? '[]')).toHaveLength(MAX_CONVERSATION_SESSIONS);
   });
 
+  it('drops the oldest sessions when the write exceeds storage quota', () => {
+    // Silent quota failures froze the history; evicting old sessions keeps the
+    // active (most recent) conversation persisted instead of losing it.
+    const bigMessage = (id: string) => [{ id, role: 'user' as const, content: 'x'.repeat(400) }];
+    const sessions = [
+      session('newest', 30, { messages: bigMessage('user-1') }),
+      session('middle', 20, { messages: bigMessage('user-2') }),
+      session('oldest', 10, { messages: bigMessage('user-3') }),
+    ];
+    const capacity = JSON.stringify(normalizeConversationSessions(sessions.slice(0, 2))).length;
+    const storage = memoryStorage();
+    const quotaStorage: ConversationSessionStorage = {
+      getItem: (key) => storage.getItem(key),
+      setItem: (key, value) => {
+        if (value.length > capacity) throw new Error('quota exceeded');
+        storage.setItem(key, value);
+      },
+    };
+
+    expect(saveConversationSessions(sessions, quotaStorage)).toBe(true);
+    expect(loadConversationSessions(quotaStorage).map((entry) => entry.id)).toEqual(['newest', 'middle']);
+  });
+
   it('does not crash on broken JSON or storage failures', () => {
     expect(loadConversationSessions(memoryStorage('{not json'))).toEqual([]);
 
