@@ -87,6 +87,54 @@ class InputInjectionError extends Error {
   }
 }
 
+// textContent flattens block elements into one run of text; walk the DOM so
+// paragraphs/list items keep their line breaks and tables become markdown.
+const BLOCK_TAGS = new Set([
+  'ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DD', 'DETAILS', 'DIV', 'DL', 'DT', 'FIGCAPTION', 'FIGURE',
+  'FOOTER', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HEADER', 'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'SECTION', 'UL',
+]);
+
+export function serializeResponseText(root: Element): string {
+  return serializeNode(root)
+    .split('\n')
+    .map((line) => (line.trim() ? line : ''))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function serializeNode(node: Node): string {
+  if (node.nodeType === 3) return node.textContent ?? '';
+  const el = node as Element;
+  if (node.nodeType !== 1 && typeof el.tagName !== 'string') return '';
+  // Test doubles (and exotic hosts) have textContent but no childNodes.
+  if (!el.childNodes) return el.textContent ?? '';
+  const tag = el.tagName.toUpperCase();
+  if (tag === 'BR') return '\n';
+  if (tag === 'PRE') return `\n${el.textContent ?? ''}\n`;
+  if (tag === 'TABLE') {
+    const markdown = tableToMarkdown(el);
+    if (markdown) return `\n${markdown}\n`;
+  }
+  let out = '';
+  for (const child of el.childNodes) out += serializeNode(child);
+  return BLOCK_TAGS.has(tag) ? `\n${out}\n` : out;
+}
+
+function tableToMarkdown(table: Element): string {
+  const rows: string[][] = [];
+  for (const tr of table.querySelectorAll('tr')) {
+    const cells = Array.from(tr.querySelectorAll('th, td')).map((cell) =>
+      (cell.textContent ?? '').replace(/\s+/g, ' ').trim().replace(/\|/g, '\\|'),
+    );
+    if (cells.length > 0) rows.push(cells);
+  }
+  if (rows.length === 0) return '';
+  const line = (cells: string[]) => `| ${cells.join(' | ')} |`;
+  const [head, ...body] = rows;
+  return [line(head), line(head.map(() => '---')), ...body.map(line)].join('\n');
+}
+
 (function engine() {
   if (typeof window === 'undefined') return;
   if (window.self !== window.top) return;
@@ -494,7 +542,7 @@ class InputInjectionError extends Error {
   }
 
   function extractResponseText(response: Element): string | null {
-    const text = response.textContent?.trim() ?? '';
+    const text = serializeResponseText(response);
     if (text) return text;
     const asset = response.querySelector('img, canvas, video');
     if (!asset) return null;
