@@ -1949,7 +1949,9 @@ export function ChatArea({
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // block: 'nearest' 只捲 transcript 容器；預設 'start' 會連外層 overflow-hidden 的
+    // app shell 一起捲，把頂部 logo 與匯出鈕推出畫面。
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages]);
 
   if (messages.length === 0) {
