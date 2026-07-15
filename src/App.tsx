@@ -1488,18 +1488,7 @@ export default function App() {
       setReplayDrawerOpen(false);
       setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
       activeResponses.current.clear();
-      for (const provider of PROVIDERS) {
-        if (statesRef.current[provider].webview !== 'loaded') continue;
-        resetProviderBootState(provider);
-        void host.provider.newSession(provider).catch((reason) => {
-          recordEventLog({
-            kind: 'workflow-error',
-            provider,
-            summary: `${AI_PROVIDERS[provider].name} session restore reset failed`,
-            detail: { failure: reason instanceof Error ? reason.message : String(reason) },
-          });
-        });
-      }
+      // ponytail: 切換歷史只換本地畫面，provider webview 保持原連線不重連
     },
     [activeSessionId, isProcessing],
   );
