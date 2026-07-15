@@ -8,6 +8,7 @@ import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
 import { appendResponseLanguagePolicy, type ResponseLanguagePolicy } from '../responseLanguage';
 import { runStep } from '../stepRunner';
 import { clearActiveTurn, SKIP_RESPONSE } from '../state';
+import { questionWithConversationContext } from '../../ui/conversationContinuity';
 import { getSnapshotAdapterVersions } from '../snapshot/adapterVersions';
 import { beginSnapshot, completeSnapshot, recordHumanEdit, recordStep } from '../snapshot/recorder';
 import type { AIProviderV2, ExecutionSnapshot, ExecutionSnapshotStep } from '../snapshot/types';
@@ -40,6 +41,7 @@ import type {
 interface ExecutionContext {
   graph: WorkflowGraph;
   question: string;
+  conversationContext?: string;
   roles: Map<string, AIProvider>;
   targets: AIProvider[];
   outputs: Map<NodeId, StepOutput>;
@@ -137,6 +139,7 @@ function createExecutionContext(graph: WorkflowGraph, params: ExecuteGraphParams
   return {
     graph,
     question: params.text,
+    conversationContext: params.context,
     roles: resolveGraphRoles(graph, params.roles),
     targets: params.targets ?? [],
     outputs: new Map(),
@@ -453,7 +456,7 @@ function renderTextTemplate(template: TextTemplate, context: ExecutionContext, n
 }
 
 function renderPromptArg(promptArg: PromptArg, context: ExecutionContext): RenderedPromptArg {
-  if (promptArg.kind === 'input') return context.question;
+  if (promptArg.kind === 'input') return questionWithConversationContext(context.question, context.conversationContext);
   if (promptArg.kind === 'output') return context.outputs.get(promptArg.node)?.text ?? '';
   if (promptArg.kind === 'aggregate') return context.aggregates.get(promptArg.name) ?? '';
   if (promptArg.kind === 'providerName') return AI_PROVIDERS[resolveProviderRef(promptArg.provider, context)].name;

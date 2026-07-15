@@ -1,5 +1,6 @@
 import type { AIProvider, BridgeMessage } from '../shared/types';
 import { buildReportDigest, type ReportElement } from './reportDigest';
+import { serializeResponseText } from './responseSerializer';
 
 type InputStrategyName = 'default' | 'prosemirror-paste' | 'quill-angular';
 type SendStrategy = 'click' | 'enter';
@@ -494,9 +495,12 @@ class InputInjectionError extends Error {
   }
 
   function extractResponseText(response: Element): string | null {
-    const text = response.textContent?.trim() ?? '';
+    const text = serializeResponseText(response);
     if (text) return text;
-    const asset = response.querySelector('img, canvas, video');
+    const responseTag = typeof response.tagName === 'string' ? response.tagName.toUpperCase() : '';
+    const asset = ['IMG', 'CANVAS', 'VIDEO'].includes(responseTag)
+      ? response
+      : response.querySelector?.('img, canvas, video') ?? null;
     if (!asset) return null;
     const alt = asset instanceof HTMLImageElement ? asset.alt.trim() : '';
     return alt ? `[Image generated: ${alt}]` : '[Image generated]';

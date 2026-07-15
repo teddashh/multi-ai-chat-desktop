@@ -259,6 +259,28 @@ describe('workflow engine', () => {
     expect(serialPrompts.every((prompt) => prompt.includes('Do not infer it from these workflow instructions, other AI responses'))).toBe(true);
   });
 
+  it('replays restored conversation context without replacing the current snapshot question', async () => {
+    let sentPrompt = '';
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sentPrompt = prompt;
+      publishBridgeMessage(done(provider, 'continued answer'));
+    });
+
+    await expect(
+      runWorkflow({
+        text: 'What should we improve next?',
+        context: 'User:\nReview this repository.\n\nClaude:\nStart with session continuity.',
+        mode: 'free',
+        targets: ['claude'],
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(sentPrompt).toContain('Prior multi-AI conversation context from this same app conversation:');
+    expect(sentPrompt).toContain('Claude:\nStart with session continuity.');
+    expect(sentPrompt).toContain('Current user question:\nWhat should we improve next?');
+    expect(getLastSnapshot()?.userQuestion.text).toBe('What should we improve next?');
+  });
+
   it('send failures tear down their waiter and polling for serial and free-mode sends', async () => {
     vi.mocked(host.provider.send).mockRejectedValueOnce(new Error('send failed'));
     const serial = runStep('chatgpt', 'serial');

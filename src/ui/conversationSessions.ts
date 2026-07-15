@@ -32,6 +32,13 @@ export interface ConversationSessionStorage {
   setItem(key: string, value: string): void;
 }
 
+export interface ConversationSessionSaveResult {
+  saved: boolean;
+  sessions: ConversationSession[];
+  evictedSessionIds: string[];
+  reason?: 'quota' | 'write-error' | 'storage-unavailable';
+}
+
 export interface CreateConversationSessionInput {
   id?: string;
   title?: string;
@@ -181,6 +188,41 @@ export function saveConversationSessions(
   }
 }
 
+export function saveConversationSessionsWithQuotaRecovery(
+  sessions: readonly ConversationSession[],
+  storage?: ConversationSessionStorage,
+): ConversationSessionSaveResult {
+  const normalized = normalizeConversationSessions(sessions);
+  const target = storage ?? defaultStorage();
+  if (!target) {
+    return { saved: false, sessions: normalized, evictedSessionIds: [], reason: 'storage-unavailable' };
+  }
+
+  let candidate = normalized;
+  const evictedSessionIds: string[] = [];
+  for (;;) {
+    try {
+      target.setItem(CONVERSATION_SESSIONS_STORAGE_KEY, JSON.stringify(candidate));
+      return {
+        saved: true,
+        sessions: candidate,
+        evictedSessionIds,
+        ...(evictedSessionIds.length > 0 ? { reason: 'quota' as const } : {}),
+      };
+    } catch (error) {
+      if (!isQuotaExceededError(error)) {
+        return { saved: false, sessions: normalized, evictedSessionIds: [], reason: 'write-error' };
+      }
+      if (candidate.length <= 1) {
+        return { saved: false, sessions: normalized, evictedSessionIds: [], reason: 'quota' };
+      }
+      const evicted = candidate[candidate.length - 1];
+      evictedSessionIds.push(evicted.id);
+      candidate = candidate.slice(0, -1);
+    }
+  }
+}
+
 function normalizeConversationMessages(value: unknown): ConversationSessionMessage[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -242,6 +284,17 @@ function isChatMode(value: unknown): value is ChatMode {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function isQuotaExceededError(error: unknown): boolean {
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    return error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22 || error.code === 1014;
+  }
+  if (!isRecord(error)) return false;
+  const name = typeof error.name === 'string' ? error.name : '';
+  const message = typeof error.message === 'string' ? error.message : '';
+  const code = typeof error.code === 'number' ? error.code : undefined;
+  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED' || code === 22 || code === 1014 || /quota/i.test(message);
 }
 
 function defaultStorage(): ConversationSessionStorage | undefined {

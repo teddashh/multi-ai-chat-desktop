@@ -33,12 +33,18 @@ import {
   createConversationSession,
   loadConversationSessions,
   removeConversationSession,
-  saveConversationSessions,
+  saveConversationSessionsWithQuotaRecovery,
   titleFromFirstUserMessage,
   upsertConversationSession,
   type ConversationSession,
   type ConversationSessionMessage,
 } from './ui/conversationSessions';
+import {
+  buildConversationReplayContext,
+  createActiveProviderResponse,
+  createConversationMessageId,
+  type ActiveProviderResponse,
+} from './ui/conversationContinuity';
 import { FocusPane, type CenterSurface } from './ui/FocusPane';
 import { InputBar } from './ui/InputBar';
 import { MarkdownText } from './ui/MarkdownText';
@@ -50,6 +56,7 @@ import { ReplayPanel, type ReplaySource } from './ui/ReplayPanel';
 import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
+import { isTranscriptNearEnd, scrollTranscriptToEnd } from './ui/transcriptScroll';
 import {
   DEFAULT_FOCUS_LAYOUT_CONSTRAINTS,
   clampFocusPaneWidth,
@@ -144,6 +151,26 @@ function conversationMessages(messages: readonly Bubble[]): ConversationSessionM
     ...(typeof message.final === 'boolean' ? { final: message.final } : {}),
     ...(typeof message.truncated === 'boolean' ? { truncated: message.truncated } : {}),
   }));
+}
+
+function persistConversationSessions(sessions: readonly ConversationSession[]): ConversationSession[] {
+  const result = saveConversationSessionsWithQuotaRecovery(sessions);
+  if (!result.saved) {
+    recordEventLog({
+      kind: 'workflow-error',
+      summary: 'Conversation history save failed; recent messages may be lost on restart',
+      detail: { sessions: sessions.length, reason: result.reason ?? 'unknown' },
+    });
+    return [...sessions];
+  }
+  if (result.evictedSessionIds.length > 0) {
+    recordEventLog({
+      kind: 'workflow-error',
+      summary: 'Oldest conversation history was removed to stay within local storage quota',
+      detail: { evictedSessionIds: result.evictedSessionIds.join(',') },
+    });
+  }
+  return result.sessions;
 }
 
 function bubblesFromSession(session: ConversationSession): Bubble[] {
@@ -291,6 +318,10 @@ export default function App() {
   const paneRefs = useRef<Record<string, HTMLElement | null>>({});
   const centerStageRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const transcriptStickToEndRef = useRef(true);
+  const transcriptSessionRef = useRef<string>();
+  const transcriptLastMessageIdRef = useRef<string>();
   const statesRef = useRef(states);
   const userHiddenRef = useRef<Set<AIProvider>>(userHidden);
   const settingsRef = useRef<AppSettings>(appSettings);
@@ -313,8 +344,10 @@ export default function App() {
   const overlayGuardOpenRef = useRef(false);
   const pendingRestore = useRef<Set<AIProvider>>(new Set());
   const dragStartFocusPaneWidth = useRef(defaultSettings().focusPaneWidth);
-  const turnRef = useRef(0);
-  const activeTurns = useRef(new Map<AIProvider, { turn: number; label?: string }>());
+  const activeResponses = useRef(new Map<AIProvider, ActiveProviderResponse>());
+  const replayContextSessionRef = useRef<string | undefined>(
+    initialConversation.active.messages.length > 0 ? initialConversation.active.id : undefined,
+  );
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
   const targets = targetSelection.targets;
@@ -429,8 +462,7 @@ export default function App() {
           mode,
           messages: storedMessages,
         });
-        saveConversationSessions(next);
-        return next;
+        return persistConversationSessions(next);
       });
     }, 300);
     return () => window.clearTimeout(timer);
@@ -609,13 +641,11 @@ export default function App() {
       if (message.action === 'ROLE_ASSIGNMENT') {
         const provider = providerFromRoleAssignment(message);
         if (!provider) return;
-        const payload = message.payload as { turn?: unknown; label?: unknown } | undefined;
-        if (typeof payload?.turn === 'number') {
-          activeTurns.current.set(provider, {
-            turn: payload.turn,
-            label: typeof payload.label === 'string' ? payload.label : undefined,
-          });
-        }
+        const payload = message.payload as { label?: unknown } | undefined;
+        activeResponses.current.set(
+          provider,
+          createActiveProviderResponse(provider, typeof payload?.label === 'string' ? payload.label : undefined),
+        );
         setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message, localeRef.current) : current));
         const now = Date.now();
         const refreshedLock = refreshManualLockOnRoleAssignment(manualFocusLockRef.current, now, {
@@ -637,10 +667,10 @@ export default function App() {
       }
       if (!isRenderableResponseMessage(message) || !message.provider) return;
       setProcessTrace((current) => (current ? reduceProcessTraceEvent(current, message, localeRef.current) : current));
-      let active = activeTurns.current.get(message.provider);
+      let active = activeResponses.current.get(message.provider);
       if (!active) {
-        active = { turn: ++turnRef.current };
-        activeTurns.current.set(message.provider, active);
+        active = createActiveProviderResponse(message.provider);
+        activeResponses.current.set(message.provider, active);
       }
       const { content, truncated } = renderablePayload(message.payload);
       if (
@@ -651,7 +681,7 @@ export default function App() {
         setCenterSurfaceMode('native');
       }
       setMessages((current) => {
-        const id = `ai-${message.provider}-${active.turn}`;
+        const id = active.id;
         const existing = current.find((bubble) => bubble.id === id);
         if (existing) {
           return current.map((bubble) =>
@@ -674,7 +704,7 @@ export default function App() {
         ];
       });
       if (message.action === 'RESPONSE_DONE') {
-        activeTurns.current.delete(message.provider);
+        activeResponses.current.delete(message.provider);
       }
     };
 
@@ -1284,6 +1314,19 @@ export default function App() {
     syncAllBounds();
   }, [focusPaneWidth, presentation, syncAllBounds]);
 
+  useEffect(() => {
+    const container = transcriptRef.current;
+    if (!container) return;
+    const sessionChanged = transcriptSessionRef.current !== activeSessionId;
+    const latestMessage = messages[messages.length - 1];
+    const userSentMessage =
+      latestMessage?.role === 'user' && transcriptLastMessageIdRef.current !== latestMessage.id;
+    transcriptSessionRef.current = activeSessionId;
+    transcriptLastMessageIdRef.current = latestMessage?.id;
+    if (sessionChanged || userSentMessage) transcriptStickToEndRef.current = true;
+    if (transcriptStickToEndRef.current) scrollTranscriptToEnd(container);
+  }, [activeSessionId, messages]);
+
   // overlay 關閉後立即把置中的 webview 推回舞台，不等 2.5 秒的定時同步。
   useEffect(() => {
     if (overlayGuardOpen) return;
@@ -1295,8 +1338,12 @@ export default function App() {
     const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
     if (workflowTargets?.length === 0) return;
     if (mode === 'free') autoFocusRunCandidate(workflowTargets?.[0]);
-    const turnId = ++turnRef.current;
-    setMessages((current) => [...current, { id: `user-${turnId}`, role: 'user', content: trimmed, final: true }]);
+    const replayContext =
+      replayContextSessionRef.current === activeSessionId ? buildConversationReplayContext(messages) : undefined;
+    setMessages((current) => [
+      ...current,
+      { id: createConversationMessageId('user'), role: 'user', content: trimmed, final: true },
+    ]);
     setIsProcessing(processingAfterSend());
     setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current));
     const workflowStartedAt = Date.now();
@@ -1305,6 +1352,7 @@ export default function App() {
     recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
     const result = await runWorkflow({
       text: trimmed,
+      context: replayContext,
       mode,
       roles: workflowRoles,
       targets: workflowTargets,
@@ -1313,6 +1361,7 @@ export default function App() {
       responseLanguagePolicy: createResponseLanguagePolicy(snapshotSettings.responseLanguage, localeRef.current),
     });
     const blockedPreflight = preflightFromResult(mode, result);
+    if (result.ok) replayContextSessionRef.current = undefined;
     if (blockedPreflight && isSerialMode(mode)) {
       recordEventLog(
         eventFromWorkflowPreflightBlocked(blockedPreflight.mode, blockedPreflight.result.unavailable.length + blockedPreflight.result.aliased.length),
@@ -1324,7 +1373,7 @@ export default function App() {
     setStepTimeout(undefined);
     setCheckpoint(undefined);
     setCheckpointDraft('');
-    activeTurns.current.clear();
+    activeResponses.current.clear();
     setIsProcessing(processingAfterSettle());
   };
 
@@ -1380,7 +1429,7 @@ export default function App() {
     setStepTimeout(undefined);
     setCheckpoint(undefined);
     setCheckpointDraft('');
-    activeTurns.current.clear();
+    activeResponses.current.clear();
     setProcessTrace((current) => (current ? settleProcessTrace(current) : current));
   };
 
@@ -1400,10 +1449,10 @@ export default function App() {
           })
         : current;
       const next = upsertConversationSession(archived, nextSession);
-      saveConversationSessions(next);
-      return next;
+      return persistConversationSessions(next);
     });
     setActiveSessionId(nextSession.id);
+    replayContextSessionRef.current = undefined;
     setMessages([]);
     setMode('free');
     setPresetDetailsMode(undefined);
@@ -1411,7 +1460,7 @@ export default function App() {
     setProcessTrace(undefined);
     setReplayDrawerOpen(false);
     setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
-    activeTurns.current.clear();
+    activeResponses.current.clear();
     for (const provider of PROVIDERS) {
       if (statesRef.current[provider].webview !== 'loaded') continue;
       resetProviderBootState(provider);
@@ -1430,6 +1479,7 @@ export default function App() {
     (session: ConversationSession) => {
       if (isProcessing || session.id === activeSessionId) return;
       setActiveSessionId(session.id);
+      replayContextSessionRef.current = session.messages.length > 0 ? session.id : undefined;
       setMessages(bubblesFromSession(session));
       setMode(session.mode);
       setPresetDetailsMode(undefined);
@@ -1437,7 +1487,19 @@ export default function App() {
       setProcessTrace(undefined);
       setReplayDrawerOpen(false);
       setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
-      activeTurns.current.clear();
+      activeResponses.current.clear();
+      for (const provider of PROVIDERS) {
+        if (statesRef.current[provider].webview !== 'loaded') continue;
+        resetProviderBootState(provider);
+        void host.provider.newSession(provider).catch((reason) => {
+          recordEventLog({
+            kind: 'workflow-error',
+            provider,
+            summary: `${AI_PROVIDERS[provider].name} session restore reset failed`,
+            detail: { failure: reason instanceof Error ? reason.message : String(reason) },
+          });
+        });
+      }
     },
     [activeSessionId, isProcessing],
   );
@@ -1447,15 +1509,13 @@ export default function App() {
       if (isProcessing) return;
       const remaining = removeConversationSession(sessions, session.id);
       if (session.id !== activeSessionId) {
-        setSessions(remaining);
-        saveConversationSessions(remaining);
+        setSessions(persistConversationSessions(remaining));
         return;
       }
 
       const nextActive = remaining[0] ?? createConversationSession();
       const next = upsertConversationSession(remaining, nextActive);
-      setSessions(next);
-      saveConversationSessions(next);
+      setSessions(persistConversationSessions(next));
       selectConversationSession(nextActive);
     },
     [activeSessionId, isProcessing, selectConversationSession, sessions],
@@ -1812,7 +1872,13 @@ export default function App() {
               {adapterNoticeText(adapterNotice)}
             </div>
           ) : null}
-          <div className="ai-sister-conversation-transcript mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3">
+          <div
+            ref={transcriptRef}
+            className="ai-sister-conversation-transcript mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3"
+            onScroll={(event) => {
+              transcriptStickToEndRef.current = isTranscriptNearEnd(event.currentTarget);
+            }}
+          >
             <ChatArea messages={messages} locale={locale} states={states} />
             {import.meta.env.DEV ? <EchoPanel /> : null}
           </div>
@@ -1955,12 +2021,6 @@ export function ChatArea({
   locale: Locale;
   states: Record<AIProvider, ProviderState>;
 }) {
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
   if (messages.length === 0) {
     const anyReady = (Object.keys(states) as AIProvider[]).some((provider) => isSendable(states[provider]));
     return (
@@ -2008,7 +2068,6 @@ export function ChatArea({
           </article>
         );
       })}
-      <div ref={bottomRef} />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   normalizeConversationSessions,
   removeConversationSession,
   saveConversationSessions,
+  saveConversationSessionsWithQuotaRecovery,
   titleFromFirstUserMessage,
   upsertConversationSession,
   type ConversationSession,
@@ -164,6 +165,47 @@ describe('conversation sessions', () => {
     expect(saveConversationSessions(sessions, storage)).toBe(true);
     expect(loadConversationSessions(storage)).toEqual(normalizeConversationSessions(sessions));
     expect(JSON.parse(storage.value ?? '[]')).toHaveLength(MAX_CONVERSATION_SESSIONS);
+  });
+
+  it('recovers only from quota errors and reports the exact sessions that were persisted', () => {
+    const storage = memoryStorage();
+    const sessions = [session('newest', 30), session('middle', 20), session('oldest', 10)];
+    const twoSessionLength = JSON.stringify(normalizeConversationSessions(sessions.slice(0, 2))).length;
+    const quotaStorage: ConversationSessionStorage = {
+      getItem: (key) => storage.getItem(key),
+      setItem: (key, value) => {
+        if (value.length > twoSessionLength) throw new DOMException('Storage quota exceeded', 'QuotaExceededError');
+        storage.setItem(key, value);
+      },
+    };
+
+    expect(saveConversationSessionsWithQuotaRecovery(sessions, quotaStorage)).toEqual({
+      saved: true,
+      sessions: normalizeConversationSessions(sessions.slice(0, 2)),
+      evictedSessionIds: ['oldest'],
+      reason: 'quota',
+    });
+    expect(loadConversationSessions(storage).map((entry) => entry.id)).toEqual(['newest', 'middle']);
+  });
+
+  it('does not evict history for non-quota storage failures', () => {
+    let attempts = 0;
+    const storage: ConversationSessionStorage = {
+      getItem: () => null,
+      setItem: () => {
+        attempts += 1;
+        throw new Error('storage permission denied');
+      },
+    };
+    const sessions = [session('newest', 20), session('oldest', 10)];
+
+    expect(saveConversationSessionsWithQuotaRecovery(sessions, storage)).toEqual({
+      saved: false,
+      sessions: normalizeConversationSessions(sessions),
+      evictedSessionIds: [],
+      reason: 'write-error',
+    });
+    expect(attempts).toBe(1);
   });
 
   it('does not crash on broken JSON or storage failures', () => {
