@@ -55,6 +55,7 @@ import { PresetCatalog } from './ui/PresetCatalog';
 import { createProcessTrace, reduceProcessTraceEvent, settleProcessTrace, type ProcessTraceState } from './ui/processTraceModel';
 import { ReplayPanel, type ReplaySource } from './ui/ReplayPanel';
 import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
+import { loadSessionSidebarCollapsed, saveSessionSidebarCollapsed } from './ui/sessionSidebarPreference';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
 import { isTranscriptNearEnd, scrollTranscriptToEnd, scrollTranscriptToProviderMessage } from './ui/transcriptScroll';
@@ -127,6 +128,7 @@ import { ModalDialog } from './ui/ModalDialog';
 interface Bubble {
   id: string;
   provider?: AIProvider | 'system' | (string & {});
+  authorLabel?: string;
   role: 'user' | 'ai';
   content: string;
   final?: boolean;
@@ -135,7 +137,6 @@ interface Bubble {
 }
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
-const SESSION_SIDEBAR_COLLAPSED_STORAGE_KEY = 'multi-ai-chat:session-sidebar-collapsed:v1';
 
 function initialConversationState(): { sessions: ConversationSession[]; active: ConversationSession } {
   const loaded = loadConversationSessions();
@@ -149,6 +150,7 @@ function conversationMessages(messages: readonly Bubble[]): ConversationSessionM
     role: message.role,
     content: message.content,
     ...(message.provider ? { provider: message.provider } : {}),
+    ...(message.authorLabel ? { authorLabel: message.authorLabel } : {}),
     ...(message.modeRole ? { modeRole: message.modeRole } : {}),
     ...(typeof message.final === 'boolean' ? { final: message.final } : {}),
     ...(typeof message.truncated === 'boolean' ? { truncated: message.truncated } : {}),
@@ -181,6 +183,7 @@ function bubblesFromSession(session: ConversationSession): Bubble[] {
     role: message.role,
     content: message.content,
     ...(message.provider ? { provider: message.provider } : {}),
+    ...(message.authorLabel ? { authorLabel: message.authorLabel } : {}),
     ...(message.modeRole ? { modeRole: message.modeRole } : {}),
     ...(typeof message.final === 'boolean' ? { final: message.final } : {}),
     ...(typeof message.truncated === 'boolean' ? { truncated: message.truncated } : {}),
@@ -281,13 +284,7 @@ export default function App() {
   );
   const [sessions, setSessions] = useState<ConversationSession[]>(initialConversation.sessions);
   const [activeSessionId, setActiveSessionId] = useState(initialConversation.active.id);
-  const [sessionSidebarCollapsed, setSessionSidebarCollapsed] = useState(() => {
-    try {
-      return window.localStorage.getItem(SESSION_SIDEBAR_COLLAPSED_STORAGE_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [sessionSidebarCollapsed, setSessionSidebarCollapsed] = useState(loadSessionSidebarCollapsed);
   const [messages, setMessages] = useState<Bubble[]>(() => bubblesFromSession(initialConversation.active));
   const [workflowStatus, setWorkflowStatus] = useState('');
   const [mode, setMode] = useState<ChatMode>(initialConversation.active.mode);
@@ -457,6 +454,10 @@ export default function App() {
   useEffect(() => {
     localeRef.current = locale;
   }, [locale]);
+
+  useEffect(() => {
+    saveSessionSidebarCollapsed(sessionSidebarCollapsed);
+  }, [sessionSidebarCollapsed]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1716,17 +1717,7 @@ export default function App() {
               deleteConversation: translate('conversation.delete'),
               confirmDeleteConversation: translate('conversation.deleteConfirm'),
             }}
-            onToggle={() =>
-              setSessionSidebarCollapsed((current) => {
-                const next = !current;
-                try {
-                  window.localStorage.setItem(SESSION_SIDEBAR_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
-                } catch {
-                  // 儲存失敗只影響下次啟動的預設值，收合本身照常運作
-                }
-                return next;
-              })
-            }
+            onToggle={() => setSessionSidebarCollapsed((current) => !current)}
             onNewConversation={startNewConversation}
             onSelectSession={selectConversationSession}
             onDeleteSession={deleteConversationSession}

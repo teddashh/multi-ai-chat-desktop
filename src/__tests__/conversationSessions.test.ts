@@ -151,12 +151,13 @@ describe('conversation sessions', () => {
   });
 
   it('treats re-opening a conversation as unchanged so its sidebar date stays put', () => {
-    const messages = [{ id: 'user-1', role: 'user' as const, content: 'Hello', final: true }];
+    const messages = [{ id: 'user-1', role: 'user' as const, content: 'Hello', authorLabel: 'Person', final: true }];
     const existing = session('s-1', 10, { mode: 'free', messages });
 
     expect(sessionContentChanged(existing, [...messages], 'free')).toBe(false);
     expect(sessionContentChanged(existing, [...messages, { id: 'ai-1', role: 'ai', content: 'Reply' }], 'free')).toBe(true);
     expect(sessionContentChanged(existing, [...messages], 'debate')).toBe(true);
+    expect(sessionContentChanged(existing, [{ ...messages[0], authorLabel: 'Someone else' }], 'free')).toBe(true);
   });
 
   it('removes only the named session and leaves the others intact', () => {

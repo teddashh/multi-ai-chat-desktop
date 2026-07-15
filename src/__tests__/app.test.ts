@@ -53,6 +53,7 @@ describe('App bubble author labels', () => {
     expect(bubbleAuthorLabel({ role: 'ai', provider: 'system' })).toBe('System');
     expect(bubbleAuthorLabel({ role: 'ai', provider: 'unknown-provider' })).toBe('System');
     expect(bubbleAuthorLabel({ role: 'ai' })).toBe('System');
+    expect(bubbleAuthorLabel({ role: 'ai', provider: 'chatgpt', authorLabel: ' Reviewer ' })).toBe('Reviewer');
   });
 });
 

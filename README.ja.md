@@ -10,16 +10,16 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeを追加しました。今後はprovider互換性、セキュリティ、build障害のみを保守します。既存のsnapshot／replayは現状のまま残し、拡張しません。
 
-## v1.4.0 の更新点
+## v1.5.0 の更新点
 
-- **復元した会話を本当に継続。** Sessionを開き直す、または切り替えた後の最初の追質問では、そのsessionだけの制限付き履歴を一度だけ渡し、新しい会話とは混在させません。
-- **履歴の上書きを防止。** 安定したresponse identityにより、新しいserial workflowの回答が復元済みbubbleを置き換えなくなりました。
-- **回答形式を忠実に保持。** Provider DOMを安全なsemantic Markdownへ変換し、段落、ネストしたlist、link、fenced code、GFM tableを保持します。
-- **落ち着いた自動スクロール。** Transcriptだけを追従し、過去を読むため上へスクロールした場合は、新しいmessageまたはsessionまで追従を停止します。
-- **安全なローカル保存。** 確認済みのstorage quotaエラーの場合だけ古いsessionを削除し、sidebarを実際に保存された内容と一致させます。
-- **ChatGPT入力の信頼性向上。** Adapter v5が送信前に古い、または不一致のrich-editor draftを修復し、既存のadapter hot-updateからも配信されます。
+- **ChatGPT送信の信頼性向上。** ProviderがEnterを受理して既定動作を止めた場合も送信成功として扱い、消えたpromptを注入失敗と誤判定しません。
+- **実際の回答だけを取得。** Promptの反響やworkflow用言語指示の露出を除外し、複数候補が描画された場合は最新の実回答を採用します。
+- **回答へ素早く移動。** AI接続chipを選ぶと、そのproviderの最新messageへ移動して短時間強調表示します。
+- **UI設定を保持。** 会話sidebarの開閉状態を再起動後も記憶します。
+- **履歴日時を安定化。** 内容が変わっていないsessionを開くだけでは日時を更新せず、author labelも保存・復元します。
+- **Session分離を維持。** 履歴切替後はcleanなprovider sessionを準備してから同一sessionの制限付き履歴を再生し、別のremote chat contextが次のturnへ混ざるのを防ぎます。
 
-検証内容と既知のplatform制限は、日英併記の [`v1.4.0 release notes`](./docs/RELEASE_NOTES_v1.4.0.md) を参照してください。
+検証内容と既知のplatform制限は、日英併記の [`v1.5.0 release notes`](./docs/RELEASE_NOTES_v1.5.0.md) を参照してください。
 
 ## エディション
 
