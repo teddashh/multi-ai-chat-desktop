@@ -83,7 +83,8 @@ export function FocusPane({
   const openingProvider = providerAction?.status === 'opening' ? providerAction.provider : undefined;
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col bg-white dark:bg-zinc-950 p-3">
+    // ponytail: overflow-y-auto 是極端小視窗的逃生口；捲動時原生 webview 位置靠既有 2.5s 定時 syncBounds 自癒
+    <aside className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white dark:bg-zinc-950 p-3">
       {centeredProvider ? (
         <FocusStage
           provider={centeredProvider}
@@ -154,7 +155,7 @@ function FirstRunPanel({
     <section
       ref={setCenterStageRef}
       aria-labelledby="first-run-title"
-      className="ai-sister-first-run grid min-h-[280px] flex-1 place-items-center overflow-auto rounded-lg border border-zinc-200 bg-gradient-to-b from-sky-50 to-white p-4 dark:border-zinc-800 dark:from-sky-950/30 dark:to-zinc-950"
+      className="ai-sister-first-run grid min-h-40 flex-1 place-items-center overflow-auto rounded-lg border border-zinc-200 bg-gradient-to-b from-sky-50 to-white p-4 dark:border-zinc-800 dark:from-sky-950/30 dark:to-zinc-950"
     >
       <div className="w-full max-w-2xl text-center">
         <div className="ai-sister-onboarding-star mx-auto grid h-12 w-12 place-items-center rounded-full bg-sky-100 text-2xl dark:bg-sky-950" aria-hidden="true">
@@ -254,7 +255,7 @@ function FocusStage({
 
   return (
     <section
-      className="ai-sister-focus-stage flex min-h-[280px] flex-1 flex-col overflow-hidden border border-sky-300 dark:border-sky-900 bg-zinc-50 dark:bg-zinc-900"
+      className="ai-sister-focus-stage flex min-h-40 flex-1 flex-col overflow-hidden border border-sky-300 dark:border-sky-900 bg-zinc-50 dark:bg-zinc-900"
       onPointerDownCapture={() => onManualFocusControl(provider)}
     >
       <div className="flex items-center justify-between gap-2 border-b border-sky-300 dark:border-sky-900 px-3 py-2 text-sm">
