@@ -56,7 +56,7 @@ import { ReplayPanel, type ReplaySource } from './ui/ReplayPanel';
 import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
-import { isTranscriptNearEnd, scrollTranscriptToEnd } from './ui/transcriptScroll';
+import { isTranscriptNearEnd, scrollTranscriptToEnd, scrollTranscriptToProviderMessage } from './ui/transcriptScroll';
 import {
   DEFAULT_FOCUS_LAYOUT_CONSTRAINTS,
   clampFocusPaneWidth,
@@ -1777,6 +1777,10 @@ export default function App() {
               reportBusy={reportBusy}
               processTrace={processTrace}
               onTraceDetailOpenChange={setProcessTraceDetailOpen}
+              onChipClick={(provider) => {
+                const container = transcriptRef.current;
+                if (container) scrollTranscriptToProviderMessage(container, provider);
+              }}
             />
           </div>
         </div>
