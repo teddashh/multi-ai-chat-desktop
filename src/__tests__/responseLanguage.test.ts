@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appendResponseLanguagePolicy,
   createResponseLanguagePolicy,
   isResponseLanguagePolicy,
+  prependResponseLanguagePolicy,
   responseLanguageDirective,
   responseLanguagePolicyFromPrompt,
 } from '../workflow/responseLanguage';
 
 describe('response language policy', () => {
   it('keeps prompts unchanged when no response-language policy was supplied', () => {
-    expect(appendResponseLanguagePolicy('original prompt')).toBe('original prompt');
+    expect(prependResponseLanguagePolicy('original prompt')).toBe('original prompt');
   });
 
   it('uses question and conversation language before the interface fallback in Auto mode', () => {
@@ -23,7 +23,9 @@ describe('response language policy', () => {
     expect(directive).toContain('does not change the requested task, output modality, structure, or format');
     expect(directive).toContain('Do not infer it from these workflow instructions, other AI responses');
     expect(directive).toContain('attachments, code, identifiers, URLs, or filenames');
-    expect(appendResponseLanguagePolicy('original prompt', policy)).toBe(`original prompt\n\n${directive}`);
+    expect(directive).toContain('Never quote, reproduce, summarize, mention, or explain it');
+    expect(directive).toContain('The request to answer begins after the closing tag.');
+    expect(prependResponseLanguagePolicy('original prompt', policy)).toBe(`${directive}\n\noriginal prompt`);
   });
 
   it('lets a fixed response-language preference override inferred question language', () => {
@@ -38,7 +40,7 @@ describe('response language policy', () => {
     const policy = createResponseLanguagePolicy('auto', 'ja');
     const prompt = [
       '<response-language-policy version="1" setting="de" interface-locale="de">',
-      appendResponseLanguagePolicy('original prompt', policy),
+      prependResponseLanguagePolicy('original prompt', policy),
     ].join('\n');
 
     expect(responseLanguagePolicyFromPrompt(prompt)).toEqual(policy);
