@@ -66,12 +66,27 @@ describe('serializeResponseText', () => {
     expect(serialized.split('\n')).toHaveLength(3);
   });
 
+  it('converts tables whose rows are direct children of <table>', () => {
+    const root = element('table', [
+      element('tr', [element('th', [text('Name')]), element('th', [text('Value')])]),
+      element('tr', [element('td', [text('a')]), element('td', [text('b')])]),
+    ]);
+
+    expect(serialize(root)).toBe('| Name | Value |\n| --- | --- |\n| a | b |');
+  });
+
   it('uses fenced code while preserving indentation on the very first preformatted line', () => {
     const root = element('pre', [
       element('code', [text('    firstLine()\n  secondLine()')], { class: 'language-ts' }),
     ]);
 
     expect(serialize(root)).toBe('```ts\n    firstLine()\n  secondLine()\n```');
+  });
+
+  it('fences bare <pre> blocks that have no inner <code>', () => {
+    const root = element('pre', [text('if x:\n    y()')]);
+
+    expect(serialize(root)).toBe('```\nif x:\n    y()\n```');
   });
 
   it('ignores non-elements safely and falls back when childNodes is unavailable', () => {
