@@ -22,6 +22,12 @@ interface MarkdownLinkMatch {
   raw: string;
 }
 
+interface MarkdownTableMatch {
+  header: string[];
+  rows: string[][];
+  nextCursor: number;
+}
+
 const headingClasses = [
   'mb-3 mt-5 text-2xl font-bold first:mt-0',
   'mb-2 mt-4 text-xl font-bold first:mt-0',
@@ -341,6 +347,47 @@ function matchBlockquote(line: string): string | null {
   return match ? match[1] : null;
 }
 
+function splitTableRow(line: string): string[] | null {
+  let source = line.trim();
+  if (!source.includes('|')) return null;
+  if (source.startsWith('|')) source = source.slice(1);
+  if (source.endsWith('|') && !isEscaped(source, source.length - 1)) source = source.slice(0, -1);
+
+  const cells: string[] = [];
+  let cell = '';
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === '\\' && source[index + 1] === '|') {
+      cell += '|';
+      index += 1;
+    } else if (source[index] === '|') {
+      cells.push(cell.trim());
+      cell = '';
+    } else {
+      cell += source[index];
+    }
+  }
+  cells.push(cell.trim());
+  return cells.length >= 2 ? cells : null;
+}
+
+function matchTable(lines: readonly string[], cursor: number): MarkdownTableMatch | null {
+  if (cursor + 1 >= lines.length) return null;
+  const header = splitTableRow(lines[cursor]);
+  const delimiter = splitTableRow(lines[cursor + 1]);
+  if (!header || !delimiter || delimiter.length !== header.length) return null;
+  if (!delimiter.every((cell) => /^:?-{3,}:?$/.test(cell))) return null;
+
+  const rows: string[][] = [];
+  let nextCursor = cursor + 2;
+  while (nextCursor < lines.length && lines[nextCursor].trim()) {
+    const row = splitTableRow(lines[nextCursor]);
+    if (!row) break;
+    rows.push([...row, ...Array.from({ length: Math.max(0, header.length - row.length) }, () => '')].slice(0, header.length));
+    nextCursor += 1;
+  }
+  return { header, rows, nextCursor };
+}
+
 function startsBlock(line: string): boolean {
   return Boolean(
     matchFence(line) || matchHeading(line) || isHorizontalRule(line) || matchListItem(line) || matchBlockquote(line) !== null,
@@ -402,6 +449,39 @@ function renderBlocks(text: string): ReactNode[] {
     if (isHorizontalRule(lines[cursor])) {
       blocks.push(<hr key={nextKey('rule')} className="my-4 border-0 border-t border-zinc-300 dark:border-zinc-700" />);
       cursor += 1;
+      continue;
+    }
+
+    const table = matchTable(lines, cursor);
+    if (table) {
+      const key = nextKey('table');
+      blocks.push(
+        <div key={key} className="my-3 overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
+          <table className="min-w-full border-collapse text-left text-sm">
+            <thead className="bg-zinc-100 dark:bg-zinc-900">
+              <tr>
+                {table.header.map((cell, index) => (
+                  <th key={`${key}-head-${index}`} className="border-b border-zinc-200 px-3 py-2 font-semibold dark:border-zinc-800">
+                    {renderInline(cell, `${key}-head-${index}-inline`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row, rowIndex) => (
+                <tr key={`${key}-row-${rowIndex}`} className="border-b border-zinc-100 last:border-b-0 dark:border-zinc-900">
+                  {row.map((cell, cellIndex) => (
+                    <td key={`${key}-cell-${rowIndex}-${cellIndex}`} className="px-3 py-2 align-top">
+                      {renderInline(cell, `${key}-cell-${rowIndex}-${cellIndex}-inline`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      cursor = table.nextCursor;
       continue;
     }
 

@@ -152,6 +152,7 @@ export type TextCondition =
 
 export interface ExecuteGraphParams {
   text: string;
+  context?: string;
   roles?: ModeRoles | Partial<Record<RoleKey, AIProvider>>;
   targets?: AIProvider[];
   checkpoints?: boolean;

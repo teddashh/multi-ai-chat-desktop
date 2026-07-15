@@ -15,6 +15,7 @@ import { tearDownWaiters } from './teardown';
 
 export interface RunWorkflowParams {
   text: string;
+  context?: string;
   mode: ChatMode;
   roles?: ModeRoles;
   targets?: AIProvider[];
@@ -28,6 +29,7 @@ export type RunWorkflowResult = { ok: true } | { ok: false; preflight: Preflight
 
 export async function runWorkflow({
   text,
+  context,
   mode,
   roles,
   targets,
@@ -55,7 +57,7 @@ export async function runWorkflow({
         targets === undefined
           ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
           : targets.filter((provider) => sendable.includes(provider));
-      await executeGraph(workflowGraphs.free, { text, targets: targetSet, checkpoints, responseLanguagePolicy }, graphOptions);
+      await executeGraph(workflowGraphs.free, { text, context, targets: targetSet, checkpoints, responseLanguagePolicy }, graphOptions);
       return { ok: true };
     }
 
@@ -64,7 +66,7 @@ export async function runWorkflow({
     const preflight = await preflightGraph(graph, roles);
     if (!preflight.ok) return { ok: false, preflight };
 
-    await executeGraph(graph, { text, roles, checkpoints, responseLanguagePolicy }, graphOptions);
+    await executeGraph(graph, { text, context, roles, checkpoints, responseLanguagePolicy }, graphOptions);
 
     return { ok: true };
   } catch (error) {

@@ -62,6 +62,16 @@ second line
     expect(html).not.toContain('<strong');
   });
 
+  it('renders serialized GFM tables with escaped cell pipes', () => {
+    const html = renderMarkdown('| Name | Value |\n| --- | --- |\n| alpha | a\\|b |');
+
+    expect(html).toContain('<table');
+    expect(html).toContain('<th');
+    expect(html.match(/<td/g)).toHaveLength(2);
+    expect(html).toContain('a|b');
+    expect(html).not.toContain('a\\|b');
+  });
+
   it('escapes plain text and refuses non-http link protocols', () => {
     const html = renderMarkdown(
       '<img src=x onerror=alert(1)>\n<script>alert("x")</script>\n[bad](javascript:alert(1)) [also bad](data:text/html,boom)',
