@@ -170,6 +170,23 @@ describe('injected engine input hardening', () => {
     expect(env.input.textContent).toBe('fallback prompt');
   });
 
+  it('replaces mismatched stale editor text before sending with the ProseMirror strategy', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    env.input.setVisibleText('stale editor draft');
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt', inputStrategy: 'prosemirror-paste' });
+
+    send(handler, 'fresh ChatGPT prompt', 'chatgpt');
+    await flushMicrotasks();
+
+    expect(env.input.textContent).toBe('fresh ChatGPT prompt');
+    expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+  });
+
   it('falls back from a missing send button to one Enter target on the shortened budget', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea', sendButton: null });
@@ -521,8 +538,8 @@ function dispatchAdapter(handler: (message: BridgeMessage) => void, overrides: P
   handler({ v: 1, action: 'ADAPTER_UPDATE', payload: adapter } as BridgeMessage);
 }
 
-function send(handler: (message: BridgeMessage) => void, text: string) {
-  handler({ v: 1, action: 'SEND_MESSAGE', provider: 'grok', payload: { text } });
+function send(handler: (message: BridgeMessage) => void, text: string, provider: AIProvider = 'grok') {
+  handler({ v: 1, action: 'SEND_MESSAGE', provider, payload: { text } });
 }
 
 function fill(handler: (message: BridgeMessage) => void, text: string) {
