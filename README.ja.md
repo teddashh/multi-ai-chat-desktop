@@ -10,6 +10,17 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeを追加しました。今後はprovider互換性、セキュリティ、build障害のみを保守します。既存のsnapshot／replayは現状のまま残し、拡張しません。
 
+## v1.4.0 の更新点
+
+- **復元した会話を本当に継続。** Sessionを開き直す、または切り替えた後の最初の追質問では、そのsessionだけの制限付き履歴を一度だけ渡し、新しい会話とは混在させません。
+- **履歴の上書きを防止。** 安定したresponse identityにより、新しいserial workflowの回答が復元済みbubbleを置き換えなくなりました。
+- **回答形式を忠実に保持。** Provider DOMを安全なsemantic Markdownへ変換し、段落、ネストしたlist、link、fenced code、GFM tableを保持します。
+- **落ち着いた自動スクロール。** Transcriptだけを追従し、過去を読むため上へスクロールした場合は、新しいmessageまたはsessionまで追従を停止します。
+- **安全なローカル保存。** 確認済みのstorage quotaエラーの場合だけ古いsessionを削除し、sidebarを実際に保存された内容と一致させます。
+- **ChatGPT入力の信頼性向上。** Adapter v5が送信前に古い、または不一致のrich-editor draftを修復し、既存のadapter hot-updateからも配信されます。
+
+検証内容と既知のplatform制限は、日英併記の [`v1.4.0 release notes`](./docs/RELEASE_NOTES_v1.4.0.md) を参照してください。
+
 ## エディション
 
 | エディション | 用途 | 実行方法 |
@@ -22,8 +33,8 @@
 - 非表示のプロバイダーにも安定して送信し、失敗時は再試行または明確なエラーを表示。
 - workflow コントロールを左側 WebView の上へ移動し、右側の会話と入力欄を広く確保。
 - 自由送信、四者討論、多角相談、Coding、5ラウンド円卓討論。
-- 最大30件のローカル会話履歴と「新しい会話」。
-- 安全な Markdown、画像のみの回答完了判定、snapshot／replay、2,000件の診断ログ。
+- 最大30件のローカル会話履歴と「新しい会話」。復元後の追質問には同一sessionだけの制限付きcontextを渡します。
+- 見出し、ネストしたlist、link、fenced code、scroll可能なtableを安全に表示するMarkdown、画像のみの回答完了判定、snapshot／replay、2,000件の診断ログ。
 - English、繁體中文、日本語、Deutsch。
 - 応答言語はインターフェース言語から独立。自動では、明示的な指定、質問、会話の言語を優先し、インターフェース言語は最後のフォールバックとして使用。固定の応答言語も選択可能。
 - 4人のキャラクターをproviderカード、発言状態、process row、app shellに表示する唯一のオプションTheme「AI-Sister 記念版」。第三者ページ自体は変更しません。
@@ -147,5 +158,11 @@ pnpm tauri dev
 APIキー、独自アカウント、telemetry、会話backendはありません。promptは選択したproviderページへ直接送信され、cookieとprofileはローカルに残ります。adapter更新は任意のデータ専用JSONで、schema検証され、同梱URL範囲を拡張できません。debug bundle、export、shareは利用者が明示的に実行した場合だけ動作します。
 
 脆弱性は [`SECURITY.md`](./SECURITY.md) に従って非公開で報告してください。Provider自動化の不具合は、アプリ内診断を確認してからGitHubの **Adapter broken** フォームで報告できます。
+
+### コントリビューターと謝辞
+
+[Dave Tseng（`@DaveTseng2019`）](https://github.com/DaveTseng2019) に特別な感謝を表します。`v1.3.1` のoverlay信頼性修正、[#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10)・[#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11)・[#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12)での詳細な再現と初期案、そして [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) でmergeされたserializer regression testに貢献しました。
+
+再現可能な報告とsanitized debug logを共有したWindows／macOSユーザーにも感謝します。これらの報告が初回起動package、provider自動化、session継続、release検証を直接改善しました。
 
 Sponsored by [AI-Sister.com](https://ai-sister.com)。作者 Ted Huang（[TED@TED-H.com](mailto:TED@TED-H.com)、[ted-h.com](https://ted-h.com)）。MIT License。

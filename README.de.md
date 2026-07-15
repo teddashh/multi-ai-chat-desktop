@@ -10,6 +10,17 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren ist enthalten; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Die vorhandenen Snapshot-/Replay-Funktionen bleiben unverändert und werden nicht erweitert.
 
+## Neuerungen in v1.4.0
+
+- **Wiederhergestellte Gespräche werden wirklich fortgesetzt.** Die erste Nachfrage nach dem Öffnen oder Wechseln einer Sitzung erhält einmalig einen begrenzten Verlauf nur aus dieser Sitzung; neue Gespräche bleiben getrennt.
+- **Kein Überschreiben alter Nachrichten.** Stabile Response-Identitäten verhindern, dass neue Antworten serieller Workflows wiederhergestellte Bubbles ersetzen.
+- **Antwortformat mit höherer Treue.** Provider-DOM wird in sicheres semantisches Markdown mit Absätzen, verschachtelten Listen, Links, Codeblöcken und GFM-Tabellen umgewandelt.
+- **Ruhigeres Scrollen.** Nur das Transkript folgt neuen Ausgaben. Wer nach oben scrollt, behält seine Position, bis eine neue Nachricht oder Sitzung die Nachführung wieder aktiviert.
+- **Sicherere lokale Speicherung.** Alte Sitzungen werden nur bei erkannten Speicherquota-Fehlern entfernt; die Seitenleiste entspricht den tatsächlich gespeicherten Daten.
+- **Zuverlässigere ChatGPT-Eingabe.** Adapter v5 repariert veraltete oder abweichende Rich-Editor-Entwürfe vor dem Senden und wird auch über den vorhandenen Adapter-Hot-Update-Kanal verteilt.
+
+Validierung und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.4.0 Release Notes`](./docs/RELEASE_NOTES_v1.4.0.md).
+
 ## Edition wählen
 
 | Edition | Geeignet für | Ausführung |
@@ -22,8 +33,8 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 - Zuverlässige Automatisierung im Hintergrund; abgelehnte Sendungen werden erneut versucht oder klar als Fehler gemeldet.
 - Workflow-Steuerung links über dem weniger wichtigen WebView; mehr Platz für Transkript und Eingabe rechts.
 - Freie Verteilung, Debatte, Beratung, Coding und fünf Runden Wahrheitssuche.
-- Bis zu 30 lokale Sitzungen plus **Neuer Chat**.
-- Sicher gerendertes Markdown, Abschluss von reinen Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
+- Bis zu 30 lokale Sitzungen plus **Neuer Chat**; wiederhergestellte Nachfragen erhalten begrenzten Kontext nur aus derselben Sitzung.
+- Sicher gerendertes Markdown mit Überschriften, verschachtelten Listen, Links, Codeblöcken und scrollbaren Tabellen; außerdem Abschluss reiner Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
 - English, 繁體中文, 日本語 und Deutsch.
 - Die Antwortsprache ist von der Oberflächensprache getrennt. Automatisch gelten zuerst ausdrückliche Vorgaben, dann Frage und Gespräch; die Oberfläche ist nur der Rückfall. Eine feste Antwortsprache ist ebenfalls wählbar.
 - Die optionale **AI-Sister Gedenkausgabe** zeigt alle vier Figuren in Anbieterkarten, Sprecherstatus, Prozesszeilen und App-Oberfläche; Drittanbieter-Seiten bleiben unverändert.
@@ -147,5 +158,11 @@ Vertrag: [`docs/SPEC.md`](./docs/SPEC.md) · Architektur: [`docs/ARCHITECTURE.md
 Keine API-Schlüssel, kein Projektkonto, keine Telemetrie und kein eigener Gesprächsserver. Prompts gehen direkt an die ausgewählten Anbieter-Seiten; Cookies und Profile bleiben lokal. Adapter-Updates sind optionale reine JSON-Daten, werden gegen das Schema geprüft und können die mitgelieferten URL-Grenzen nicht erweitern. Debug-Bundles, Exporte und Freigaben werden nur nach einer ausdrücklichen Benutzeraktion erstellt.
 
 Schwachstellen bitte gemäß [`SECURITY.md`](./SECURITY.md) privat melden. Regressionen der Provider-Automatisierung können nach Prüfung der App-Diagnose über das GitHub-Formular **Adapter broken** gemeldet werden.
+
+### Mitwirkende und Danksagung
+
+Besonderer Dank gilt [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) für die Overlay-Zuverlässigkeitskorrektur in `v1.3.1`, die sorgfältigen Reproduktionen und ursprünglichen Lösungsansätze in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11) und [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12) sowie die in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) zusammengeführten Serializer-Regressionstests.
+
+Danke auch an die Windows- und macOS-Nutzer, die reproduzierbare Berichte und bereinigte Debug-Logs geteilt haben. Diese Hinweise verbesserten unmittelbar die Erststart-Pakete, Provider-Automatisierung, Sitzungsfortsetzung und Release-Prüfung.
 
 Sponsored by [AI-Sister.com](https://ai-sister.com). Erstellt von Ted Huang ([TED@TED-H.com](mailto:TED@TED-H.com), [ted-h.com](https://ted-h.com)). MIT License.

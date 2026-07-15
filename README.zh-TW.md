@@ -10,6 +10,17 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。現有 snapshot／replay 會原樣保留，但不再擴充。
 
+## v1.4.0 更新重點
+
+- **重新開啟的對話真的能延續。** 切換或恢復 session 後的第一個追問，只會有限度地帶入同一 session 的舊對話；新對話仍保持完全隔離。
+- **舊訊息不再被覆寫。** 穩定的 response identity 可避免新的序列 workflow 回答蓋掉已恢復的對話泡泡。
+- **回答格式更完整。** Provider DOM 會轉成安全的語意化 Markdown，保留段落、巢狀清單、連結、fenced code 與 GFM 表格，不再全部攤平成純文字。
+- **捲動不再搶畫面。** 只捲動 transcript；使用者往上閱讀時會暫停跟隨，送出新訊息或切換 session 才恢復。
+- **本機儲存更安全。** 只有確認為 storage quota 問題時才淘汰最舊 session，側邊欄也會與真正存入的資料一致。
+- **ChatGPT 輸入更可靠。** Adapter v5 會在送出前修復殘留或不一致的 rich-editor 草稿，並可透過既有 adapter hot-update 通道下發。
+
+完整驗證與已知平台限制請見雙語版 [`v1.4.0 發布說明`](./docs/RELEASE_NOTES_v1.4.0.md)。
+
 ## 選擇適合的版本
 
 | 版本 | 適合情境 | 執行方式 |
@@ -22,8 +33,8 @@
 - **可靠的離屏自動化。** 不必逐家點進「真實頁面」；送出未被接受時會重試，真的失敗就明確回報，不再無限等待。
 - **以對話為主的版面。** 模式卡片、說明與等待狀態移到左側 provider WebView 上方；右側保留更大的逐字稿與輸入區。
 - **五種引導模式。** 自由分送、四方辯證、多方諮詢、Coding、五輪道理辯證。
-- **本機 session。** 可新增對話，或開啟最多 30 個只保存在這台電腦的近期 transcript。
-- **Markdown 結果。** 安全顯示標題、清單、連結、引用與程式碼區塊。
+- **本機 session。** 可新增對話，或開啟最多 30 個只保存在這台電腦的近期 transcript；恢復後的追問只帶入同一 session 的有限上下文。
+- **Markdown 結果。** 安全顯示標題、巢狀清單、連結、引用、fenced code 與可橫向捲動的表格。
 - **圖片完成判定。** ChatGPT 只產生圖片、沒有文字時也能結束流程。
 - **可重現執行。** 可選 snapshot、隱私分級、replay、provider 診斷與 2,000 筆去重 log。
 - **四種 UI 語言。** English、繁體中文、日本語、Deutsch。
@@ -158,6 +169,12 @@ pnpm tauri dev
 ## 專案資訊
 
 安全漏洞請依 [`SECURITY.md`](./SECURITY.md) 私下回報。Provider 自動化失效時，請先檢查 app 產生的診斷預覽，再使用 GitHub 的 **Adapter broken** 表單。
+
+### 貢獻者與致謝
+
+特別感謝 [Dave Tseng（`@DaveTseng2019`）](https://github.com/DaveTseng2019)：他貢獻了 `v1.3.1` 的 overlay 可靠性修正，在 [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10)、[#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11)、[#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12) 提供仔細的重現與原始修法，並在 [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) 補上已合併的 serializer regression tests。
+
+也感謝提供可重現回報與已清理 debug log 的 Windows、macOS 使用者；這些資料直接改善了第一次啟動封裝、provider 自動化、session 延續與 release 驗證。
 
 Sponsored by [AI-Sister.com](https://ai-sister.com)。作者 Ted Huang（[TED@TED-H.com](mailto:TED@TED-H.com)、[ted-h.com](https://ted-h.com)）。
 

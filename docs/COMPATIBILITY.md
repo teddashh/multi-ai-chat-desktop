@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-12. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-07-15. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -23,8 +23,8 @@ macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Sil
 
 | Evidence | Windows | macOS / Linux | Status |
 |---|---|---|---|
-| Manifest/schema and Skill drift tests | 20 focused tests pass locally | Cross-platform CI job configured; awaiting the first merged run of this contract | Windows **Verified**; others **Pending** |
-| Doctor/audit/dry-run JSON | Exercised locally; dry-run preserves runtime state | Same Node entrypoints covered by the platform matrix after merge | Windows **Verified**; others **Pending** |
+| Manifest/schema and Skill drift tests | 20 focused tests pass locally | The same 20 tests pass in Windows, macOS, and Linux CI jobs | **Verified** as a source contract; GUI launch remains separate |
+| Doctor/audit/dry-run JSON | Exercised locally; dry-run preserves runtime state | Node contract paths pass on all three CI operating systems | Windows **Verified**; others **CI-only** |
 | App-level READY wait | Three live source-launch smokes reached the same-run, identity-verified control-pane READY marker on 2026-07-12; stale/replacement/missing-state tests also pass | No real-device source-launch report | Windows **Verified**; others **Pending** |
 | Launch/stop race safety | Live smokes released the fail-closed launch mutex; audit probes detected generated/target/runtime changes; stop re-verified before kill and before same-run state deletion; foreign/EPERM tests pass | Same code path, not manually exercised | Windows **Verified**; others **Pending** |
 | Corrupt state recovery | Default stop refused malformed state and preserved it; explicit `--clear-invalid-state` removed only the state file, then a normal launch/stop completed | Not manually exercised | Windows **Verified**; others **Pending** |
@@ -35,7 +35,7 @@ The Agent contract does not claim that CI displayed a window. It also does not i
 
 | Provider | Bundled adapter | Windows text workflow evidence | Image-only completion |
 |---|---:|---|---|
-| ChatGPT | v4 | **Verified** | Partial manual coverage; recheck after provider UI changes |
+| ChatGPT | v5 | v4 text workflow **Verified**; v5 mismatch recovery has automated coverage and awaits live retest | Partial manual coverage; recheck after provider UI changes |
 | Claude | v3 | **Verified** | Not a compatibility claim |
 | Gemini | v1 | **Verified** | Not a compatibility claim |
 | Grok | v6 | **Verified** | Not a compatibility claim |
@@ -52,6 +52,10 @@ macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but 
 | Debate / consultation / coding | Golden graph ordering and prompt-threading tests | Complete one run; verify role labels and final summary |
 | Roundtable | Five-round, four-speaker history tests | Complete one run; verify prior same-session speeches remain available |
 | Session isolation | Conversation persistence and latest-snapshot matching tests | Create two sessions; confirm no messages or export provenance cross over |
+| Restored-session continuity | Stable response-identity and bounded same-session replay tests | Reopen a session, ask a follow-up, and confirm old context is available without cross-session leakage |
+| Response fidelity | DOM-to-Markdown tests for paragraphs, nested lists, links, fenced code, direct/nested tables, and image-only fallback | Compare a provider answer containing code and a table with the captured transcript |
+| Transcript scrolling | Near-bottom and user-scroll intent tests | Stream a long answer, scroll upward, and confirm the app shell and reading position remain stable |
+| Session quota recovery | Quota-only eviction, transient-failure preservation, and persisted-state result tests | Fill local history near quota and confirm only the oldest sessions are removed |
 | Snapshot / replay | Schema, redaction, version mismatch, replay, and app-version tests | Save/replay once when local snapshot persistence is enabled |
 | Markdown export | Formatting and provenance tests | Confirm UTC time, app version, latest matching workflow/snapshot, and adapter versions |
 | Adapter hot update | Rust validation, version gate, cache, and URL-scope tests | Use a higher-version test adapter on an allowed host scope |
