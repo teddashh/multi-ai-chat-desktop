@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 4,
+  "adapterVersion": 5,
   "provider": "chatgpt",
   "displayName": "ChatGPT",
   "urls": {
@@ -17,7 +17,7 @@
   "loggedOutDetectors": [],
   "thinkingDetectors": ["[data-testid=\"stop-button\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop streaming\"]", "button[aria-label=\"Stop\"]"],
   "stopButtonSelectors": ["[data-testid=\"stop-button\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop streaming\"]", "button[aria-label=\"Stop\"]"],
-  "inputStrategy": "default",
+  "inputStrategy": "prosemirror-paste",
   "sendStrategy": "click",
   "timing": { "doneDelayMs": 3000, "chunkDebounceMs": 800, "statusIntervalMs": 10000, "backupPollMs": 3000 }
 }

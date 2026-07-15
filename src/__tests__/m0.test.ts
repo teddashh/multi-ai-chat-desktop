@@ -42,7 +42,8 @@ describe('M0 shared constants and adapter seeds', () => {
   });
 
   it('matches SPEC section 5.1 strategy and timing seed values', () => {
-    expect(chatgpt.inputStrategy).toBe('default');
+    expect(chatgpt.adapterVersion).toBe(5);
+    expect(chatgpt.inputStrategy).toBe('prosemirror-paste');
     expect(chatgpt.timing.doneDelayMs).toBe(3000);
     expect(chatgpt.timing.chunkDebounceMs).toBe(800);
 

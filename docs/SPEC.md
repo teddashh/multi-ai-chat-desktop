@@ -334,7 +334,7 @@ Source of truth: `docs/study/multi-ai-chat.md` §2 + §7 (line-referenced to the
 | loginDetectors | `#prompt-textarea` · `[data-testid="send-button"]` | `.ProseMirror[contenteditable="true"]` · `[contenteditable="true"].ProseMirror` | `.ql-editor[contenteditable="true"]` · `rich-textarea [contenteditable="true"]` · `div[contenteditable="true"][aria-label="Enter a prompt here"]` | `[data-testid="chat-input"] .ProseMirror[contenteditable="true"]` · `.ProseMirror[contenteditable="true"]` · `[data-testid="chat-submit"]` |
 | thinkingDetectors | `[data-testid="stop-button"]` · `button[aria-label="Stop generating"]` · `button[aria-label="Stop streaming"]` · `button[aria-label="Stop"]` | `[data-is-streaming="true"]` · `button[aria-label="Stop Response"]` · `button[aria-label="Stop response"]` · `button[aria-label="Stop"]` | `.loading-indicator` · `.thinking-indicator` · `mat-progress-bar` · stop buttons (en + zh-TW per original gemini.ts:53-65) · `.response-streaming` · `[data-test-id="response-loading"]` | stop buttons (grok.ts:38-43) · `[data-streaming="true"]` · `{selector: ".thinking-container", textIncludes: "Thinking", textExcludes: "Thought for"}` |
 | stopButtonSelectors | the 4 stop-button selectors above | the 3 `button[aria-label*=Stop]` selectors | stop buttons subset (en + zh-TW) | stop buttons subset |
-| inputStrategy | `default` | `prosemirror-paste` | `quill-angular` | `prosemirror-paste` |
+| inputStrategy | `prosemirror-paste` | `prosemirror-paste` | `quill-angular` | `prosemirror-paste` |
 | doneDelayMs | 3000 | 5000 | 4000 | **8000** — do not reduce: roundtable round 5 carries 4 rounds × 4 speakers of history; Grok finalizes prematurely with shorter delays (original grok.ts:92-94) |
 | chunkDebounceMs | 800 | 500 | 600 | 600 |
 

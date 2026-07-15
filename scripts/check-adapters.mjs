@@ -11,14 +11,14 @@ const validate = ajv.compile(schema);
 
 const expected = {
   chatgpt: {
-    adapterVersion: 4,
+    adapterVersion: 5,
     urls: {
       app: 'https://chatgpt.com',
       login: 'https://chatgpt.com/auth/login',
       match: ['chatgpt.com/*', 'chat.openai.com/*'],
       ssoMatch: ['auth.openai.com/*', 'auth0.openai.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'accounts.google.com.tw/*'],
     },
-    inputStrategy: 'default',
+    inputStrategy: 'prosemirror-paste',
     doneDelayMs: 3000,
     chunkDebounceMs: 800,
     inputSelectors: ['#prompt-textarea', '[id="prompt-textarea"]', 'div[contenteditable="true"][data-placeholder]'],
