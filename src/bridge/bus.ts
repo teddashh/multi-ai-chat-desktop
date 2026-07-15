@@ -1,11 +1,13 @@
 import type { BridgeMessage } from '../../shared/types';
+import { sanitizeResponseLanguagePolicyEcho } from './responseSanitizer';
 
 type Handler = (message: BridgeMessage) => void;
 
 const handlers = new Set<Handler>();
 
 export function publishBridgeMessage(message: BridgeMessage): void {
-  for (const handler of [...handlers]) handler(message);
+  const sanitized = sanitizeResponseLanguagePolicyEcho(message);
+  for (const handler of [...handlers]) handler(sanitized);
 }
 
 export function onBridgeMessage(handler: Handler): () => void {

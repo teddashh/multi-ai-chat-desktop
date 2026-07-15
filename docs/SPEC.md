@@ -1,9 +1,9 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2.4 feature-frozen** (four-provider web edition; `v1.3.0` maintenance baseline)
-> Date: 2026-07-13
+> Status: **v2.2.5 feature-frozen** (four-provider web edition; `v1.4.0` maintenance baseline)
+> Date: 2026-07-15
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
-> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.4 records the response-language compatibility repair without reopening feature development.
+> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo without reopening feature development.
 > Audience: maintenance contributors. Existing snapshot/replay/checkpoint behavior is compatibility-maintained but has no vNext roadmap.
 
 ## 0. One-paragraph summary
@@ -27,7 +27,7 @@ A Tauri 2 desktop app with one main window: a React control pane and child webvi
 2. **Step timeout UI** — 600s timeout surfaced with countdown + retry + skip (ARCH D5 #2), plus serial-mode preflight (§9.5).
 3. **Explicit bus routing** — replaces Chrome implicit broadcast (ARCH D5 #3).
 4. **Functional free-mode `targets`** — user may deselect providers for free mode; default (nothing deselected) = all sendable = original fan-out parity (golden-tested).
-5. **Response-language routing repair** — interface language controls app chrome, not provider output. The separate response-language preference defaults to `auto`: an explicit request wins, followed by current-question language, established user conversation language, then resolved interface locale. The resulting policy is appended centrally to every provider-bound workflow prompt and must ignore workflow copy, relayed AI text, quotations, attachments, code, URLs, and filenames as language evidence. A fixed response language may be selected, while an explicit per-question request remains authoritative.
+5. **Response-language routing repair** — interface language controls app chrome, not provider output. The separate response-language preference defaults to `auto`: an explicit request wins, followed by current-question language, established user conversation language, then resolved interface locale. The resulting policy is prepended centrally to every provider-bound workflow prompt so the actual request remains the final text, and it must ignore workflow copy, relayed AI text, quotations, attachments, code, URLs, and filenames as language evidence. A fixed response language may be selected, while an explicit per-question request remains authoritative. The bridge strips an exact or partially streamed internal policy echo before it can enter the transcript, snapshots, or downstream prompts; a policy-only final response becomes an explicit retryable provider error.
 
 Everything else must match the original extension's observable behavior. Any other deviation found in review is a bug.
 
@@ -688,6 +688,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 ## 16. Changelog
 
+- **v2.2.5 (2026-07-15)** — response-language echo hardening: moves the internal routing policy before the provider request, marks it as non-user-visible metadata, and sanitizes complete, fenced, or partially streamed policy echoes before workflow/UI consumption.
 - **v2.2.4 (2026-07-13)** — response-language compatibility repair: separates interface and response language, applies a question-aware policy to every provider-bound workflow prompt, versions the changed built-in graphs, and preserves retained replay policy without expanding the snapshot schema.
 - **v2.2.3 (2026-07-12)** — Apple Silicon compatibility follow-up: records the first successful real-Mac `v1.0.1` launch and three-provider login report, while treating Grok's Cloudflare verification loop as a release blocker. Grok and its challenge frames no longer receive permission Web-API monkey-patches, and only Cloudflare-required `about:blank` / `about:srcdoc` auxiliary navigation is added. Final success remains pending an Apple Silicon retest.
 - **v2.2.2 (2026-07-12)** — formalizes the Codex/Claude source-launch path as Agent-Ready Source Release contract 1.0.0: strict manifest/schema, explicit trust and permission boundaries, deterministic JSON lifecycle commands, read-only dry-run, local before/after receipts, current-run control-pane READY evidence, identity-safe stop, Skill drift tests, and cross-platform CI self-tests. Explicitly rejects Docker, silent host installation, automatic rollback, and readiness claims based only on process creation.

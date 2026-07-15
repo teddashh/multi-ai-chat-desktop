@@ -7,7 +7,7 @@ import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
 import { executeGraph, workflowGraphs } from '../workflow/graph';
 import { resetWorkflowRuntimeForTests } from '../workflow/runtime';
-import { appendResponseLanguagePolicy, createResponseLanguagePolicy } from '../workflow/responseLanguage';
+import { createResponseLanguagePolicy, prependResponseLanguagePolicy } from '../workflow/responseLanguage';
 import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { getLastSnapshot, resetSnapshotRecorderForTests } from '../workflow/snapshot/recorder';
 import {
@@ -233,7 +233,7 @@ describe('snapshot replay', () => {
     const snapshot = buildSnapshot({
       steps: [
         step('pro', {
-          input: inlineRef(appendResponseLanguagePolicy(PROMPTS.debate.pro('clean replay question'), retainedPolicy)),
+          input: inlineRef(prependResponseLanguagePolicy(PROMPTS.debate.pro('clean replay question'), retainedPolicy)),
         }),
       ],
     });

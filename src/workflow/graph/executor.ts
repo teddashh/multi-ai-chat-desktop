@@ -5,7 +5,7 @@ import { awaitCheckpoint } from '../checkpoint';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
 import { fillAndAwaitNativeSend } from '../nativeEdit';
 import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
-import { appendResponseLanguagePolicy, type ResponseLanguagePolicy } from '../responseLanguage';
+import { prependResponseLanguagePolicy, type ResponseLanguagePolicy } from '../responseLanguage';
 import { runStep } from '../stepRunner';
 import { clearActiveTurn, SKIP_RESPONSE } from '../state';
 import { questionWithConversationContext } from '../../ui/conversationContinuity';
@@ -441,7 +441,7 @@ function renderBatchStatus(batch: NodeId[], context: ExecutionContext): string |
 function renderPromptSpec(prompt: PromptSpec, context: ExecutionContext, nodeId: NodeId, provider?: AIProvider): string {
   const args = prompt.args.map((promptArg) => renderPromptArg(promptArg, context));
   const rendered = renderRegisteredPrompt(prompt, args, { graph: context.graph, nodeId, provider, targets: context.targets });
-  return appendResponseLanguagePolicy(rendered, context.responseLanguagePolicy);
+  return prependResponseLanguagePolicy(rendered, context.responseLanguagePolicy);
 }
 
 function renderTextTemplate(template: TextTemplate, context: ExecutionContext, nodeId: NodeId, provider?: AIProvider): string {
