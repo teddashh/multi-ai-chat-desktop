@@ -10,6 +10,17 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme is included; future changes are limited to provider compatibility, security, and build breakage. The shipped snapshot/replay tools remain available as-is but have no further roadmap.
 
+## v1.4.0 highlights
+
+- **Restored conversations truly continue.** The first follow-up after reopening or switching a session replays a bounded transcript from that session only, while new conversations remain isolated.
+- **History is no longer overwritten.** Stable response identities keep new serial workflow answers from replacing restored bubbles.
+- **Higher-fidelity answers.** Provider DOM is converted into safe semantic Markdown with paragraphs, nested lists, links, fenced code, and GFM tables instead of flattened text.
+- **Calmer transcript scrolling.** Only the transcript pane follows new output; scrolling upward pauses auto-follow until a new message or session resumes it.
+- **Safer local persistence.** Old sessions are evicted only for recognized storage-quota failures, and the sidebar reflects what was actually saved.
+- **More reliable ChatGPT input.** Adapter v5 repairs stale or mismatched rich-editor drafts before sending and is also delivered through the existing adapter hot-update channel.
+
+See the bilingual [`v1.4.0 release notes`](./docs/RELEASE_NOTES_v1.4.0.md) for validation and known platform limits.
+
 ## Choose the right edition
 
 | Edition | Best for | How it runs |
@@ -22,8 +33,8 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 - **Reliable offscreen automation.** Providers keep working without manually opening each “live page”; rejected sends retry and fail clearly instead of waiting forever.
 - **Conversation-first layout.** Workflow controls sit above the less-important provider WebView on the left; the transcript and composer keep the larger right pane.
 - **Five guided modes.** Free distribution, debate, consultation, coding, and five-round truth-seeking roundtable.
-- **Local sessions.** Create a new conversation or reopen up to 30 recent transcripts stored on this computer.
-- **Readable results.** Safe Markdown rendering for headings, lists, links, quotes, and code blocks.
+- **Local sessions.** Create a new conversation or reopen up to 30 recent transcripts stored on this computer; restored follow-ups receive bounded context from the same session.
+- **Readable results.** Safe semantic Markdown rendering for headings, nested lists, links, quotes, fenced code, and scrollable tables.
 - **Image completion.** Image-only ChatGPT responses complete the workflow instead of hanging.
 - **Reproducible work.** Optional snapshots, privacy tiers, replay, provider diagnostics, and a 2,000-event deduplicated log.
 - **Four UI languages.** English, Traditional Chinese, Japanese, and German.
@@ -158,6 +169,12 @@ pnpm tauri dev
 ## Project
 
 Report vulnerabilities privately through [`SECURITY.md`](./SECURITY.md). Report provider automation regressions with the GitHub **Adapter broken** issue form after reviewing the in-app diagnostic preview.
+
+### Contributors and acknowledgements
+
+Special thanks to [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) for the `v1.3.1` overlay reliability fix, the careful reproductions and original proposals in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11), and [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12), and the serializer regression tests merged in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14).
+
+Thank you to the Windows and macOS users who shared reproducible reports and sanitized debug logs. Those reports directly improved first-launch packaging, provider automation, session continuity, and release verification.
 
 Sponsored by [AI-Sister.com](https://ai-sister.com). Created by Ted Huang ([TED@TED-H.com](mailto:TED@TED-H.com), [ted-h.com](https://ted-h.com)).
 
