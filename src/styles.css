@@ -33,6 +33,11 @@ textarea,
   display: none;
 }
 
+/* 靜態高亮 + JS 定時移除：不用 animation，避免 prefers-reduced-motion 把時長壓成 0 而看不到 */
+.transcript-provider-highlight {
+  box-shadow: 0 0 0 2px #0284c7;
+}
+
 html.ai-sister {
   color-scheme: dark;
   --ai-sister-ink: #f8f7ff;
