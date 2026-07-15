@@ -134,6 +134,7 @@ interface Bubble {
 }
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
+const SESSION_SIDEBAR_COLLAPSED_STORAGE_KEY = 'multi-ai-chat:session-sidebar-collapsed:v1';
 
 function initialConversationState(): { sessions: ConversationSession[]; active: ConversationSession } {
   const loaded = loadConversationSessions();
@@ -279,7 +280,13 @@ export default function App() {
   );
   const [sessions, setSessions] = useState<ConversationSession[]>(initialConversation.sessions);
   const [activeSessionId, setActiveSessionId] = useState(initialConversation.active.id);
-  const [sessionSidebarCollapsed, setSessionSidebarCollapsed] = useState(false);
+  const [sessionSidebarCollapsed, setSessionSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem(SESSION_SIDEBAR_COLLAPSED_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [messages, setMessages] = useState<Bubble[]>(() => bubblesFromSession(initialConversation.active));
   const [workflowStatus, setWorkflowStatus] = useState('');
   const [mode, setMode] = useState<ChatMode>(initialConversation.active.mode);
@@ -1705,7 +1712,17 @@ export default function App() {
               deleteConversation: translate('conversation.delete'),
               confirmDeleteConversation: translate('conversation.deleteConfirm'),
             }}
-            onToggle={() => setSessionSidebarCollapsed((current) => !current)}
+            onToggle={() =>
+              setSessionSidebarCollapsed((current) => {
+                const next = !current;
+                try {
+                  window.localStorage.setItem(SESSION_SIDEBAR_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
+                } catch {
+                  // 儲存失敗只影響下次啟動的預設值，收合本身照常運作
+                }
+                return next;
+              })
+            }
             onNewConversation={startNewConversation}
             onSelectSession={selectConversationSession}
             onDeleteSession={deleteConversationSession}
