@@ -10,16 +10,16 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren ist enthalten; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Die vorhandenen Snapshot-/Replay-Funktionen bleiben unverändert und werden nicht erweitert.
 
-## Neuerungen in v1.4.0
+## Neuerungen in v1.5.0
 
-- **Wiederhergestellte Gespräche werden wirklich fortgesetzt.** Die erste Nachfrage nach dem Öffnen oder Wechseln einer Sitzung erhält einmalig einen begrenzten Verlauf nur aus dieser Sitzung; neue Gespräche bleiben getrennt.
-- **Kein Überschreiben alter Nachrichten.** Stabile Response-Identitäten verhindern, dass neue Antworten serieller Workflows wiederhergestellte Bubbles ersetzen.
-- **Antwortformat mit höherer Treue.** Provider-DOM wird in sicheres semantisches Markdown mit Absätzen, verschachtelten Listen, Links, Codeblöcken und GFM-Tabellen umgewandelt.
-- **Ruhigeres Scrollen.** Nur das Transkript folgt neuen Ausgaben. Wer nach oben scrollt, behält seine Position, bis eine neue Nachricht oder Sitzung die Nachführung wieder aktiviert.
-- **Sicherere lokale Speicherung.** Alte Sitzungen werden nur bei erkannten Speicherquota-Fehlern entfernt; die Seitenleiste entspricht den tatsächlich gespeicherten Daten.
-- **Zuverlässigere ChatGPT-Eingabe.** Adapter v5 repariert veraltete oder abweichende Rich-Editor-Entwürfe vor dem Senden und wird auch über den vorhandenen Adapter-Hot-Update-Kanal verteilt.
+- **Zuverlässigeres Senden an ChatGPT.** Wenn der Provider Enter verarbeitet und die Standardaktion verhindert, gilt dies nun als erfolgreicher Versand statt als fehlgeschlagene Eingabeinjektion.
+- **Sauber erfasste Antworten.** Prompt-Echos und offengelegte Workflow-Sprachanweisungen werden verworfen; bei mehreren Kandidaten zählt die neueste echte Provider-Antwort.
+- **Schnellere Navigation im Transkript.** Ein Klick auf einen Provider-Chip springt zur neuesten Antwort dieses Providers und hebt sie kurz hervor.
+- **Dauerhafte UI-Einstellung.** Der ein- oder ausgeklappte Zustand der Gesprächsseitenleiste bleibt nach einem Neustart erhalten.
+- **Stabile Verlaufsdaten.** Das bloße Öffnen einer unveränderten Sitzung ändert ihr Datum nicht mehr; Autorenbezeichnungen bleiben beim Speichern und Wiederherstellen erhalten.
+- **Strikte Sitzungstrennung.** Nach einem Verlaufswechsel wird weiterhin eine saubere Provider-Sitzung vorbereitet, bevor ein begrenzter Verlauf derselben Sitzung eingespielt wird. Fremder Remote-Chat-Kontext gelangt so nicht in die nächste Runde.
 
-Validierung und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.4.0 Release Notes`](./docs/RELEASE_NOTES_v1.4.0.md).
+Validierung und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.5.0 Release Notes`](./docs/RELEASE_NOTES_v1.5.0.md).
 
 ## Edition wählen
 

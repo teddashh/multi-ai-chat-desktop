@@ -1,7 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isTranscriptNearEnd, scrollTranscriptToEnd, scrollTranscriptToProviderMessage } from '../ui/transcriptScroll';
 
 describe('transcript scrolling', () => {
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
   it('distinguishes reading older content from following the latest response', () => {
     expect(isTranscriptNearEnd({ scrollHeight: 1_000, scrollTop: 804, clientHeight: 100 })).toBe(true);
     expect(isTranscriptNearEnd({ scrollHeight: 1_000, scrollTop: 500, clientHeight: 100 })).toBe(false);
@@ -20,6 +25,7 @@ describe('transcript scrolling', () => {
   });
 
   it('jumps to the latest message of the clicked provider so the user sees its part of the conversation', () => {
+    vi.useFakeTimers();
     const older = fakeBubble();
     const latest = fakeBubble();
     const container = {
@@ -33,22 +39,34 @@ describe('transcript scrolling', () => {
 
   it('flashes a temporary highlight on the target message so the user can spot it', () => {
     vi.useFakeTimers();
-    try {
-      const bubble = fakeBubble();
-      const container = { querySelectorAll: () => [bubble] };
+    const bubble = fakeBubble();
+    const container = { querySelectorAll: () => [bubble] };
 
-      scrollTranscriptToProviderMessage(container, 'chatgpt');
+    scrollTranscriptToProviderMessage(container, 'chatgpt');
 
-      expect(bubble.classList.add).toHaveBeenCalledWith('transcript-provider-highlight');
-      expect(bubble.classList.remove).not.toHaveBeenCalled();
-      vi.runAllTimers();
-      expect(bubble.classList.remove).toHaveBeenCalledWith('transcript-provider-highlight');
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(bubble.classList.add).toHaveBeenCalledWith('transcript-provider-highlight');
+    expect(bubble.classList.remove).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(bubble.classList.remove).toHaveBeenCalledWith('transcript-provider-highlight');
+  });
+
+  it('restarts the full highlight duration when the same provider is clicked again', () => {
+    vi.useFakeTimers();
+    const bubble = fakeBubble();
+    const container = { querySelectorAll: () => [bubble] };
+
+    scrollTranscriptToProviderMessage(container, 'chatgpt');
+    vi.advanceTimersByTime(1_000);
+    scrollTranscriptToProviderMessage(container, 'chatgpt');
+    vi.advanceTimersByTime(600);
+
+    expect(bubble.classList.remove).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1_000);
+    expect(bubble.classList.remove).toHaveBeenCalledTimes(1);
   });
 
   it('leaves the transcript alone when the provider never joined the conversation', () => {
+    vi.useFakeTimers();
     const container = { querySelectorAll: () => [] };
 
     expect(scrollTranscriptToProviderMessage(container, 'gemini')).toBe(false);

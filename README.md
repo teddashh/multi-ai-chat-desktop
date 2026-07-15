@@ -10,16 +10,16 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme is included; future changes are limited to provider compatibility, security, and build breakage. The shipped snapshot/replay tools remain available as-is but have no further roadmap.
 
-## v1.4.0 highlights
+## v1.5.0 highlights
 
-- **Restored conversations truly continue.** The first follow-up after reopening or switching a session replays a bounded transcript from that session only, while new conversations remain isolated.
-- **History is no longer overwritten.** Stable response identities keep new serial workflow answers from replacing restored bubbles.
-- **Higher-fidelity answers.** Provider DOM is converted into safe semantic Markdown with paragraphs, nested lists, links, fenced code, and GFM tables instead of flattened text.
-- **Calmer transcript scrolling.** Only the transcript pane follows new output; scrolling upward pauses auto-follow until a new message or session resumes it.
-- **Safer local persistence.** Old sessions are evicted only for recognized storage-quota failures, and the sidebar reflects what was actually saved.
-- **More reliable ChatGPT input.** Adapter v5 repairs stale or mismatched rich-editor drafts before sending and is also delivered through the existing adapter hot-update channel.
+- **Reliable ChatGPT sends.** A provider-consumed Enter event is now treated as a successful send, preventing cleared prompts from being reported as injection failures.
+- **Cleaner captured answers.** Prompt echoes and leaked workflow language instructions are rejected, and the newest real provider answer wins when a page renders multiple candidates.
+- **Faster transcript navigation.** Selecting a provider connection chip jumps to and briefly highlights that provider's latest answer.
+- **Preferences that stay put.** The conversation sidebar remembers whether it was collapsed, including across restarts.
+- **Stable conversation history.** Merely reopening an unchanged session no longer changes its date, while author labels survive save and restore.
+- **Strict session isolation.** Switching history still prepares a clean provider session before bounded same-session replay, preventing unrelated remote chat context from leaking into the next turn.
 
-See the bilingual [`v1.4.0 release notes`](./docs/RELEASE_NOTES_v1.4.0.md) for validation and known platform limits.
+See the bilingual [`v1.5.0 release notes`](./docs/RELEASE_NOTES_v1.5.0.md) for validation and known platform limits.
 
 ## Choose the right edition
 
