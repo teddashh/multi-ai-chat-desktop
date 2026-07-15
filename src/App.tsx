@@ -34,6 +34,7 @@ import {
   loadConversationSessions,
   removeConversationSession,
   saveConversationSessionsWithQuotaRecovery,
+  sessionContentChanged,
   titleFromFirstUserMessage,
   upsertConversationSession,
   type ConversationSession,
@@ -460,10 +461,12 @@ export default function App() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setSessions((current) => {
-        const existing = current.find((session) => session.id === activeSessionId) ?? createConversationSession({ id: activeSessionId, mode });
+        const existing = current.find((session) => session.id === activeSessionId);
         const storedMessages = conversationMessages(messages);
+        if (existing && !sessionContentChanged(existing, storedMessages, mode)) return current;
+        const base = existing ?? createConversationSession({ id: activeSessionId, mode });
         const next = upsertConversationSession(current, {
-          ...existing,
+          ...base,
           title: titleFromFirstUserMessage(storedMessages),
           updatedAt: Date.now(),
           mode,
@@ -1446,13 +1449,14 @@ export default function App() {
     const nextSession = createConversationSession({ now });
     setSessions((current) => {
       const existing = current.find((session) => session.id === activeSessionId);
-      const archived = existing
+      const storedMessages = conversationMessages(messages);
+      const archived = existing && sessionContentChanged(existing, storedMessages, mode)
         ? upsertConversationSession(current, {
             ...existing,
-            title: titleFromFirstUserMessage(conversationMessages(messages)),
+            title: titleFromFirstUserMessage(storedMessages),
             updatedAt: now,
             mode,
-            messages: conversationMessages(messages),
+            messages: storedMessages,
           })
         : current;
       const next = upsertConversationSession(archived, nextSession);

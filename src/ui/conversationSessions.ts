@@ -137,6 +137,16 @@ export function normalizeConversationSessions(value: unknown): ConversationSessi
     .slice(0, MAX_CONVERSATION_SESSIONS);
 }
 
+/** 內容（訊息與模式）是否有實質變更。沒有變更就不該更新 updatedAt——
+ * 單純切換到舊對話或重新啟動不算「新的對話內容」，側欄日期不應跳動。 */
+export function sessionContentChanged(
+  existing: Pick<ConversationSession, 'mode' | 'messages'>,
+  messages: readonly ConversationSessionMessage[],
+  mode: ChatMode,
+): boolean {
+  return existing.mode !== mode || JSON.stringify(existing.messages) !== JSON.stringify(messages);
+}
+
 export function upsertConversationSession(
   sessions: readonly ConversationSession[],
   session: ConversationSession,
