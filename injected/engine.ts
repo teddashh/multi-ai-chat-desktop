@@ -58,6 +58,41 @@ const SEND_BUTTON_SELECTOR_TIMEOUT_MS = 800;
 const PRE_SEND_DELAY_MS = 800;
 const SEND_RETRY_DELAY_MS = 1500;
 const SEND_FINAL_VERIFY_DELAY_MS = 1500;
+const USER_MESSAGE_ANCESTOR_SELECTOR = [
+  '[data-message-author-role="user"]',
+  '[data-testid="user-message"]',
+  'div[id^="response-"].items-end',
+  '.message-bubble.user',
+].join(', ');
+
+export function isLikelyPromptEcho(responseText: string, promptText: string): boolean {
+  const trimmedResponse = responseText.trim();
+  const trimmedPrompt = promptText.trim();
+  if (trimmedResponse && trimmedResponse === trimmedPrompt) return true;
+
+  const responseKey = promptEchoComparisonKey(responseText);
+  const promptKey = promptEchoComparisonKey(promptText);
+  if (!responseKey || !promptKey) return false;
+  if (responseKey === promptKey) return true;
+
+  const shorterLength = Math.min(responseKey.length, promptKey.length);
+  const longerLength = Math.max(responseKey.length, promptKey.length);
+  if (shorterLength < 40 || shorterLength / longerLength < 0.9) return false;
+  if (responseKey.includes(promptKey) || promptKey.includes(responseKey)) return true;
+
+  const sampleLength = Math.min(80, Math.floor(shorterLength / 3));
+  return (
+    responseKey.slice(0, sampleLength) === promptKey.slice(0, sampleLength) &&
+    responseKey.slice(-sampleLength) === promptKey.slice(-sampleLength)
+  );
+}
+
+function promptEchoComparisonKey(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}\s]+/gu, '');
+}
 
 export async function retryLookup<T>(lookup: () => T | null | undefined, options: RetryLookupOptions = {}): Promise<T | null> {
   const intervalMs = Math.max(1, options.intervalMs ?? SELECTOR_RETRY_INTERVAL_MS);
@@ -106,6 +141,7 @@ class InputInjectionError extends Error {
   let responseBaselineEls = new Set<Element>();
   let waitingForResponse = false;
   let lastResponseText = '';
+  let pendingPromptText = '';
   let lastChunkTime = 0;
 
   window.__MAC_ENGINE__ = {
@@ -246,6 +282,7 @@ class InputInjectionError extends Error {
     responseBaselineEls = new Set(existingResponses);
     waitingForResponse = true;
     lastResponseText = '';
+    pendingPromptText = text;
     startResponsePolling();
 
     const injectionStartedAt = Date.now();
@@ -488,10 +525,21 @@ class InputInjectionError extends Error {
     for (let index = responseEls.length - 1; index >= 0; index -= 1) {
       const response = responseEls[index];
       if (waitingForResponse && responseBaselineEls.has(response)) continue;
+      if (isUserMessageElement(response)) continue;
       const text = extractResponseText(response);
-      if (text) return text;
+      if (text && !isLikelyPromptEcho(text, pendingPromptText)) return text;
     }
     return null;
+  }
+
+  function isUserMessageElement(response: Element): boolean {
+    const closest = (response as Element & { closest?: (selector: string) => Element | null }).closest;
+    if (typeof closest !== 'function') return false;
+    try {
+      return Boolean(closest.call(response, USER_MESSAGE_ANCESTOR_SELECTOR));
+    } catch {
+      return false;
+    }
   }
 
   function extractResponseText(response: Element): string | null {
@@ -539,7 +587,9 @@ class InputInjectionError extends Error {
     waitingForResponse = false;
     clearTimersForResponse();
     responseBaselineEls.clear();
-    bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider: adapter.provider, payload: lastResponseText });
+    const payload = lastResponseText;
+    pendingPromptText = '';
+    bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider: adapter.provider, payload });
   }
 
   function doneWithError(reason: string, providerHint?: AIProvider) {
@@ -548,6 +598,7 @@ class InputInjectionError extends Error {
     waitingForResponse = false;
     clearTimersForResponse();
     responseBaselineEls.clear();
+    pendingPromptText = '';
     bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider, payload: `[Error: ${reason}]` });
   }
 
