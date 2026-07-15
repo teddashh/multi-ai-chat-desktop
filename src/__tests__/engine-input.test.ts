@@ -223,7 +223,7 @@ describe('injected engine input hardening', () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea', sendButton: null });
     const activeChild = new FakeElement(env.document, 'span');
-    activeChild.dispatchReturn = false;
+    activeChild.dispatchThrowTypes.add('keydown');
     env.input.focusTarget = activeChild;
     const handler = await installEngine(env);
     dispatchAdapter(handler);
@@ -231,8 +231,34 @@ describe('injected engine input hardening', () => {
     send(handler, 'hello');
     await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_BUTTON_SELECTOR_TIMEOUT_MS);
 
-    expect(keyEventCount(activeChild)).toBe(3);
+    expect(keyEventCount(activeChild)).toBe(1);
     expect(keyEventCount(env.input)).toBe(3);
+  });
+
+  it('keeps waiting when ChatGPT consumes the final Enter fallback and starts sending', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    let sendStarted = false;
+    env.input.dispatchReturn = false;
+    env.input.onDispatch = (event) => {
+      if (event.type !== 'keydown' || sendStarted) return;
+      sendStarted = true;
+      env.input.setVisibleText('');
+      env.responses = [new FakeElement(env.document, 'div', 'answer started')];
+    };
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, 'long ChatGPT prompt', 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_RETRY_DELAY_MS + SEND_FINAL_VERIFY_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(2);
+    expect(keyEventCount(env.input)).toBe(3);
+    expect(env.input.textContent).toBe('');
+    expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(SEND_FINAL_VERIFY_DELAY_MS);
+    expect(errorDone(env)).toBeUndefined();
   });
 
   it('skips retry when the composer has cleared', async () => {
@@ -305,7 +331,7 @@ describe('injected engine input hardening', () => {
   it('surfaces send failure only after the first failed attempt and failed retry', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea', sendButton: null });
-    env.input.dispatchReturn = false;
+    env.input.dispatchThrowTypes.add('keydown');
     const handler = await installEngine(env);
     dispatchAdapter(handler);
 
@@ -654,13 +680,13 @@ class FakeElement {
   textContent: string;
   disabled = false;
   dispatchReturn = true;
-  dispatchThrows = false;
   clickThrows = false;
   clickCount = 0;
   focusTarget?: FakeElement;
   onClick?: () => void;
   onDispatch?: (event: Event) => void;
   readonly events: string[] = [];
+  readonly dispatchThrowTypes = new Set<string>();
   readonly children: FakeElement[] = [];
   private parent: FakeElement | null = null;
   private readonly attrs = new Map<string, string>();
@@ -684,8 +710,8 @@ class FakeElement {
   }
 
   dispatchEvent(event: Event): boolean {
-    if (this.dispatchThrows) throw new Error('dispatch failed');
     this.events.push(event.type);
+    if (this.dispatchThrowTypes.has(event.type)) throw new Error('dispatch failed');
     this.onDispatch?.(event);
     return this.dispatchReturn;
   }

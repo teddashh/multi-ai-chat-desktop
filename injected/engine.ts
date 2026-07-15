@@ -755,7 +755,8 @@ class InputInjectionError extends Error {
       const keydown = target.dispatchEvent(new KeyboardEvent('keydown', opts));
       const keypress = target.dispatchEvent(new KeyboardEvent('keypress', opts));
       const keyup = target.dispatchEvent(new KeyboardEvent('keyup', opts));
-      return keydown !== false && keypress !== false && keyup !== false;
+      if (!keydown || !keypress || !keyup) logEngine('enter event consumed by provider');
+      return true;
     } catch (error) {
       logEngine(`enter dispatch failed: ${errorMessage(error)}`);
       return false;
