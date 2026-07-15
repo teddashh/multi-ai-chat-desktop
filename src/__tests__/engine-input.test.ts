@@ -84,6 +84,20 @@ describe('injected engine input hardening', () => {
     expect(attempts).toBeGreaterThan(1);
   });
 
+  it('recognizes a rendered copy of the pending prompt without hiding a substantive answer', async () => {
+    vi.resetModules();
+    const { isLikelyPromptEcho } = await import('../../injected/engine');
+
+    expect(
+      isLikelyPromptEcho(
+        '請比較 A 與 B。\n\n完整內容',
+        '請比較 **A** 與 `B`。\n\n---\n\n完整內容',
+      ),
+    ).toBe(true);
+    expect(isLikelyPromptEcho('你好', '你好')).toBe(true);
+    expect(isLikelyPromptEcho('結論：A 較適合，原因是成本較低。', '請比較 A 與 B。')).toBe(false);
+  });
+
   it('lets assertInputLanded pass when the injected text is visible', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -343,6 +357,83 @@ describe('injected engine input hardening', () => {
 
     expect(env.emitted).toContainEqual({ v: 1, action: 'RESPONSE_CHUNK', provider: 'grok', payload: 'native answer' });
     expect(env.emitted).toContainEqual({ v: 1, action: 'RESPONSE_DONE', provider: 'grok', payload: 'native answer' });
+  });
+
+  it('ignores a newly rendered user prompt until the provider answer starts', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+    const prompt = '請比較 **A** 與 `B`。\n\n---\n\n完整內容';
+
+    send(handler, prompt);
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    env.input.setVisibleText('');
+    const promptBubble = new FakeElement(env.document, 'div', '請比較 A 與 B。\n\n完整內容');
+    env.responses = [promptBubble];
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(env.emitted.some((message) => message.action === 'RESPONSE_CHUNK')).toBe(false);
+    expect(env.emitted.some((message) => message.action === 'RESPONSE_DONE')).toBe(false);
+
+    env.responses = [promptBubble, new FakeElement(env.document, 'div', 'A 較適合，原因是成本較低。')];
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'grok',
+      payload: 'A 較適合，原因是成本較低。',
+    });
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: 'A 較適合，原因是成本較低。',
+    });
+    expect(env.emitted.some((message) => message.payload === '請比較 A 與 B。\n\n完整內容')).toBe(false);
+  });
+
+  it('captures only the latest response when a provider renders two candidates', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, '請直接回答');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    env.input.setVisibleText('');
+    env.responses = [
+      new FakeElement(env.document, 'div', '候選回答 A'),
+      new FakeElement(env.document, 'div', '候選回答 B'),
+    ];
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: '候選回答 B',
+    });
+    expect(env.emitted.some((message) => String(message.payload).includes('候選回答 A'))).toBe(false);
   });
 
   it('finishes an image-only response when the provider emits no markdown text', async () => {
