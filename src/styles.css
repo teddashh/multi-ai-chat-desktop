@@ -6,6 +6,7 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color-scheme: light;
+  --transcript-provider-highlight: #0284c7;
 }
 
 html.dark {
@@ -33,6 +34,10 @@ textarea,
   display: none;
 }
 
+.transcript-provider-highlight {
+  box-shadow: 0 0 0 2px var(--transcript-provider-highlight);
+}
+
 html.ai-sister {
   color-scheme: dark;
   --ai-sister-ink: #f8f7ff;
@@ -42,6 +47,7 @@ html.ai-sister {
   --ai-sister-border: rgba(167, 139, 250, 0.34);
   --ai-sister-violet: #a78bfa;
   --ai-sister-gold: #f6b94b;
+  --transcript-provider-highlight: var(--ai-sister-gold);
 }
 
 html.ai-sister body {

@@ -10,16 +10,15 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme is included; future changes are limited to provider compatibility, security, and build breakage. The shipped snapshot/replay tools remain available as-is but have no further roadmap.
 
-## v1.4.0 highlights
+## v1.5.1 highlights
 
-- **Restored conversations truly continue.** The first follow-up after reopening or switching a session replays a bounded transcript from that session only, while new conversations remain isolated.
-- **History is no longer overwritten.** Stable response identities keep new serial workflow answers from replacing restored bubbles.
-- **Higher-fidelity answers.** Provider DOM is converted into safe semantic Markdown with paragraphs, nested lists, links, fenced code, and GFM tables instead of flattened text.
-- **Calmer transcript scrolling.** Only the transcript pane follows new output; scrolling upward pauses auto-follow until a new message or session resumes it.
-- **Safer local persistence.** Old sessions are evicted only for recognized storage-quota failures, and the sidebar reflects what was actually saved.
-- **More reliable ChatGPT input.** Adapter v5 repairs stale or mismatched rich-editor drafts before sending and is also delivered through the existing adapter hot-update channel.
+- **Security-scanned runtime paths.** Gemini status detection now requires the exact provider hostname, while conversation and message identities use Web Crypto with a collision-safe local fallback.
+- **Safer Windows source-agent launch.** Agent-Ready Source Release commands accept only the fixed shell-safe tokens required by the launcher and reject shell metacharacters.
+- **Clean development dependency graph.** Vitest and esbuild were upgraded to remove all actionable npm advisories without changing the application feature set.
+- **Hardened release automation.** JavaScript-based GitHub Actions use Node 24-compatible releases pinned to immutable commits with least-privilege workflow permissions.
+- **Continuous repository protection.** Dependabot security updates, weekly CodeQL analysis, and protected `main` checks now guard future maintenance work.
 
-See the bilingual [`v1.4.0 release notes`](./docs/RELEASE_NOTES_v1.4.0.md) for validation and known platform limits.
+See the bilingual [`v1.5.1 release notes`](./docs/RELEASE_NOTES_v1.5.1.md) for validation, the documented upstream GTK risk, and known platform limits.
 
 ## Choose the right edition
 

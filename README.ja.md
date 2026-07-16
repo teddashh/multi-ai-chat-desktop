@@ -10,16 +10,15 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeを追加しました。今後はprovider互換性、セキュリティ、build障害のみを保守します。既存のsnapshot／replayは現状のまま残し、拡張しません。
 
-## v1.4.0 の更新点
+## v1.5.1 の更新点
 
-- **復元した会話を本当に継続。** Sessionを開き直す、または切り替えた後の最初の追質問では、そのsessionだけの制限付き履歴を一度だけ渡し、新しい会話とは混在させません。
-- **履歴の上書きを防止。** 安定したresponse identityにより、新しいserial workflowの回答が復元済みbubbleを置き換えなくなりました。
-- **回答形式を忠実に保持。** Provider DOMを安全なsemantic Markdownへ変換し、段落、ネストしたlist、link、fenced code、GFM tableを保持します。
-- **落ち着いた自動スクロール。** Transcriptだけを追従し、過去を読むため上へスクロールした場合は、新しいmessageまたはsessionまで追従を停止します。
-- **安全なローカル保存。** 確認済みのstorage quotaエラーの場合だけ古いsessionを削除し、sidebarを実際に保存された内容と一致させます。
-- **ChatGPT入力の信頼性向上。** Adapter v5が送信前に古い、または不一致のrich-editor draftを修復し、既存のadapter hot-updateからも配信されます。
+- **Runtime経路をセキュリティ検査。** Geminiの状態判定はprovider hostnameの完全一致を要求し、会話とmessageのIDはWeb Cryptoと衝突しないローカルfallbackを使用します。
+- **Windows source agentを安全化。** Agent-Ready Source Releaseはlauncherに必要な固定のshell-safe tokenだけを受け付け、shellの特殊文字を拒否します。
+- **開発依存関係を整理。** Vitestとesbuildを更新し、既存機能を変えずに対応可能なnpm advisoryをすべて解消しました。
+- **Release automationを強化。** JavaScript製GitHub ActionsをNode 24対応版へ移行し、immutable commitへの固定と最小workflow権限を採用しました。
+- **継続的なrepo保護。** Dependabot security updates、週次CodeQL、保護された`main` checksが今後の保守変更を監視します。
 
-検証内容と既知のplatform制限は、日英併記の [`v1.4.0 release notes`](./docs/RELEASE_NOTES_v1.4.0.md) を参照してください。
+検証内容、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.5.1 release notes`](./docs/RELEASE_NOTES_v1.5.1.md) を参照してください。
 
 ## エディション
 

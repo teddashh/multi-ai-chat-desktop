@@ -1,4 +1,5 @@
 import type { ChatMode } from '../../shared/types';
+import { createUniqueSuffix } from './uniqueId';
 
 export const CONVERSATION_SESSIONS_STORAGE_KEY = 'multi-ai-chat:conversation-sessions:v1';
 export const MAX_CONVERSATION_SESSIONS = 30;
@@ -137,6 +138,28 @@ export function normalizeConversationSessions(value: unknown): ConversationSessi
     .slice(0, MAX_CONVERSATION_SESSIONS);
 }
 
+export function sessionContentChanged(
+  existing: Pick<ConversationSession, 'mode' | 'messages'>,
+  messages: readonly ConversationSessionMessage[],
+  mode: ChatMode,
+): boolean {
+  if (existing.mode !== mode || existing.messages.length !== messages.length) return true;
+  return existing.messages.some((message, index) => !conversationMessageEquals(message, messages[index]));
+}
+
+function conversationMessageEquals(left: ConversationSessionMessage, right: ConversationSessionMessage): boolean {
+  return (
+    left.id === right.id &&
+    left.role === right.role &&
+    left.content === right.content &&
+    left.provider === right.provider &&
+    left.authorLabel === right.authorLabel &&
+    left.modeRole === right.modeRole &&
+    left.final === right.final &&
+    left.truncated === right.truncated
+  );
+}
+
 export function upsertConversationSession(
   sessions: readonly ConversationSession[],
   session: ConversationSession,
@@ -246,17 +269,7 @@ function shortTitle(value: string): string | undefined {
 }
 
 function createSessionId(timestamp: number): string {
-  const uuid = randomUuid();
-  if (uuid) return uuid;
-  return `session-${timestamp.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function randomUuid(): string | undefined {
-  try {
-    return globalThis.crypto?.randomUUID?.();
-  } catch {
-    return undefined;
-  }
+  return `session-${timestamp.toString(36)}-${createUniqueSuffix()}`;
 }
 
 function isMoreRecent(candidate: ConversationSession, current: ConversationSession): boolean {

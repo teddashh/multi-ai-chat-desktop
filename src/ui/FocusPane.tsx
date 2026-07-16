@@ -41,6 +41,7 @@ export function FocusPane({
   reportBusy,
   processTrace,
   onTraceDetailOpenChange,
+  onChipClick,
 }: {
   centeredProvider?: AIProvider;
   states: Record<AIProvider, ProviderState>;
@@ -62,6 +63,7 @@ export function FocusPane({
   reportBusy: boolean;
   processTrace?: ProcessTraceState;
   onTraceDetailOpenChange?: (open: boolean) => void;
+  onChipClick?: (provider: AIProvider) => void;
 }) {
   const { locale, t } = useI18n();
   const [providerAction, setProviderAction] = useState<ProviderActionState | undefined>();
@@ -132,6 +134,7 @@ export function FocusPane({
         setPaneRef={setPaneRef}
         activateProvider={activateProvider}
         openingProvider={openingProvider}
+        onChipClick={onChipClick}
       />
     </aside>
   );
@@ -420,6 +423,7 @@ function StatusStrip({
   setPaneRef,
   activateProvider,
   openingProvider,
+  onChipClick,
 }: {
   centeredProvider?: AIProvider;
   states: Record<AIProvider, ProviderState>;
@@ -427,6 +431,7 @@ function StatusStrip({
   setPaneRef: (provider: AIProvider, el: HTMLElement | null) => void;
   activateProvider: (provider: AIProvider) => Promise<void>;
   openingProvider?: AIProvider;
+  onChipClick?: (provider: AIProvider) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -446,6 +451,7 @@ function StatusStrip({
             setPaneRef={setPaneRef}
             activateProvider={activateProvider}
             openingProvider={openingProvider}
+            onChipClick={onChipClick}
           />
         ))}
       </div>
@@ -461,6 +467,7 @@ function StatusStripItem({
   setPaneRef,
   activateProvider,
   openingProvider,
+  onChipClick,
 }: {
   provider: AIProvider;
   state: ProviderState;
@@ -469,10 +476,12 @@ function StatusStripItem({
   setPaneRef: (provider: AIProvider, el: HTMLElement | null) => void;
   activateProvider: (provider: AIProvider) => Promise<void>;
   openingProvider?: AIProvider;
+  onChipClick?: (provider: AIProvider) => void;
 }) {
   const { t } = useI18n();
   const status = chipState(state, presentation, t);
   const focusProvider = () => {
+    onChipClick?.(provider);
     if (centered && state.webview === 'loaded') return;
     void activateProvider(provider);
   };

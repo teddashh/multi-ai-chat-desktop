@@ -34,6 +34,7 @@ import {
   loadConversationSessions,
   removeConversationSession,
   saveConversationSessionsWithQuotaRecovery,
+  sessionContentChanged,
   titleFromFirstUserMessage,
   upsertConversationSession,
   type ConversationSession,
@@ -54,9 +55,10 @@ import { PresetCatalog } from './ui/PresetCatalog';
 import { createProcessTrace, reduceProcessTraceEvent, settleProcessTrace, type ProcessTraceState } from './ui/processTraceModel';
 import { ReplayPanel, type ReplaySource } from './ui/ReplayPanel';
 import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
+import { loadSessionSidebarCollapsed, saveSessionSidebarCollapsed } from './ui/sessionSidebarPreference';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
-import { isTranscriptNearEnd, scrollTranscriptToEnd } from './ui/transcriptScroll';
+import { isTranscriptNearEnd, scrollTranscriptToEnd, scrollTranscriptToProviderMessage } from './ui/transcriptScroll';
 import {
   DEFAULT_FOCUS_LAYOUT_CONSTRAINTS,
   clampFocusPaneWidth,
@@ -126,6 +128,7 @@ import { ModalDialog } from './ui/ModalDialog';
 interface Bubble {
   id: string;
   provider?: AIProvider | 'system' | (string & {});
+  authorLabel?: string;
   role: 'user' | 'ai';
   content: string;
   final?: boolean;
@@ -147,6 +150,7 @@ function conversationMessages(messages: readonly Bubble[]): ConversationSessionM
     role: message.role,
     content: message.content,
     ...(message.provider ? { provider: message.provider } : {}),
+    ...(message.authorLabel ? { authorLabel: message.authorLabel } : {}),
     ...(message.modeRole ? { modeRole: message.modeRole } : {}),
     ...(typeof message.final === 'boolean' ? { final: message.final } : {}),
     ...(typeof message.truncated === 'boolean' ? { truncated: message.truncated } : {}),
@@ -179,6 +183,7 @@ function bubblesFromSession(session: ConversationSession): Bubble[] {
     role: message.role,
     content: message.content,
     ...(message.provider ? { provider: message.provider } : {}),
+    ...(message.authorLabel ? { authorLabel: message.authorLabel } : {}),
     ...(message.modeRole ? { modeRole: message.modeRole } : {}),
     ...(typeof message.final === 'boolean' ? { final: message.final } : {}),
     ...(typeof message.truncated === 'boolean' ? { truncated: message.truncated } : {}),
@@ -279,7 +284,7 @@ export default function App() {
   );
   const [sessions, setSessions] = useState<ConversationSession[]>(initialConversation.sessions);
   const [activeSessionId, setActiveSessionId] = useState(initialConversation.active.id);
-  const [sessionSidebarCollapsed, setSessionSidebarCollapsed] = useState(false);
+  const [sessionSidebarCollapsed, setSessionSidebarCollapsed] = useState(loadSessionSidebarCollapsed);
   const [messages, setMessages] = useState<Bubble[]>(() => bubblesFromSession(initialConversation.active));
   const [workflowStatus, setWorkflowStatus] = useState('');
   const [mode, setMode] = useState<ChatMode>(initialConversation.active.mode);
@@ -451,12 +456,18 @@ export default function App() {
   }, [locale]);
 
   useEffect(() => {
+    saveSessionSidebarCollapsed(sessionSidebarCollapsed);
+  }, [sessionSidebarCollapsed]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       setSessions((current) => {
-        const existing = current.find((session) => session.id === activeSessionId) ?? createConversationSession({ id: activeSessionId, mode });
+        const existing = current.find((session) => session.id === activeSessionId);
         const storedMessages = conversationMessages(messages);
+        if (existing && !sessionContentChanged(existing, storedMessages, mode)) return current;
+        const base = existing ?? createConversationSession({ id: activeSessionId, mode });
         const next = upsertConversationSession(current, {
-          ...existing,
+          ...base,
           title: titleFromFirstUserMessage(storedMessages),
           updatedAt: Date.now(),
           mode,
@@ -1439,13 +1450,14 @@ export default function App() {
     const nextSession = createConversationSession({ now });
     setSessions((current) => {
       const existing = current.find((session) => session.id === activeSessionId);
-      const archived = existing
+      const storedMessages = conversationMessages(messages);
+      const archived = existing && sessionContentChanged(existing, storedMessages, mode)
         ? upsertConversationSession(current, {
             ...existing,
-            title: titleFromFirstUserMessage(conversationMessages(messages)),
+            title: titleFromFirstUserMessage(storedMessages),
             updatedAt: now,
             mode,
-            messages: conversationMessages(messages),
+            messages: storedMessages,
           })
         : current;
       const next = upsertConversationSession(archived, nextSession);
@@ -1766,6 +1778,10 @@ export default function App() {
               reportBusy={reportBusy}
               processTrace={processTrace}
               onTraceDetailOpenChange={setProcessTraceDetailOpen}
+              onChipClick={(provider) => {
+                const container = transcriptRef.current;
+                if (container) scrollTranscriptToProviderMessage(container, provider);
+              }}
             />
           </div>
         </div>

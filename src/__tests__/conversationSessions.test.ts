@@ -11,6 +11,7 @@ import {
   removeConversationSession,
   saveConversationSessions,
   saveConversationSessionsWithQuotaRecovery,
+  sessionContentChanged,
   titleFromFirstUserMessage,
   upsertConversationSession,
   type ConversationSession,
@@ -147,6 +148,16 @@ describe('conversation sessions', () => {
     expect(normalized).toHaveLength(MAX_CONVERSATION_SESSIONS);
     expect(normalized[0]).toMatchObject({ id: 's-34', title: 'newest duplicate', updatedAt: 50 });
     expect(normalized.at(-1)?.id).toBe('s-5');
+  });
+
+  it('treats re-opening a conversation as unchanged so its sidebar date stays put', () => {
+    const messages = [{ id: 'user-1', role: 'user' as const, content: 'Hello', authorLabel: 'Person', final: true }];
+    const existing = session('s-1', 10, { mode: 'free', messages });
+
+    expect(sessionContentChanged(existing, [...messages], 'free')).toBe(false);
+    expect(sessionContentChanged(existing, [...messages, { id: 'ai-1', role: 'ai', content: 'Reply' }], 'free')).toBe(true);
+    expect(sessionContentChanged(existing, [...messages], 'debate')).toBe(true);
+    expect(sessionContentChanged(existing, [{ ...messages[0], authorLabel: 'Someone else' }], 'free')).toBe(true);
   });
 
   it('removes only the named session and leaves the others intact', () => {
