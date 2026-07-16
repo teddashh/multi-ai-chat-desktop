@@ -1,5 +1,18 @@
 import { DEFAULT_CONSULT_ROLES } from '../../../shared/constants';
-import type { WorkflowGraph } from './types';
+import { SKIP_RESPONSE } from '../state';
+import type { NodeId, TextCondition, WorkflowGraph } from './types';
+
+const ERROR_RESPONSE_PATTERN = '^\\[Error:\\s*[\\s\\S]*?\\]$';
+
+function notReady(node: NodeId): TextCondition {
+  return {
+    type: 'any',
+    conditions: [
+      { type: 'regex', ref: { kind: 'output', node }, pattern: ERROR_RESPONSE_PATTERN },
+      { type: 'equals', left: { kind: 'output', node }, right: { kind: 'literal', text: SKIP_RESPONSE } },
+    ],
+  };
+}
 
 export const consultGraph: WorkflowGraph = {
   schemaVersion: 1,
@@ -95,8 +108,11 @@ export const consultGraph: WorkflowGraph = {
     },
   },
   edges: [
-    { from: 'first', to: 'reviewer' },
-    { from: 'second', to: 'reviewer' },
+    {
+      from: ['first', 'second'],
+      to: 'reviewer',
+      when: { type: 'not', condition: { type: 'all', conditions: [notReady('first'), notReady('second')] } },
+    },
     { from: 'reviewer', to: 'summary' },
   ],
   onComplete: { status: '' },
