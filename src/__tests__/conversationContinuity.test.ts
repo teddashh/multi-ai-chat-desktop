@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildConversationReplayContext,
   createActiveProviderResponse,
   createConversationMessageId,
+  ensureFreshProviderSessions,
   questionWithConversationContext,
+  type ProviderSessionResetHost,
 } from '../ui/conversationContinuity';
 
 describe('conversation continuity', () => {
@@ -42,5 +44,44 @@ describe('conversation continuity', () => {
     expect(prompt).toContain('Claude:\nPrevious answer');
     expect(prompt.endsWith('Current user question:\nWhat changed?')).toBe(true);
     expect(questionWithConversationContext('Standalone', undefined)).toBe('Standalone');
+  });
+
+  it('forces a clean remote provider session and waits for dom-ready before a switched-session send proceeds', async () => {
+    const domReadyAfter: Record<string, number> = { claude: 2, gemini: 0 };
+    const attemptsSeen: Record<string, number> = {};
+    const host: ProviderSessionResetHost = {
+      resetBootState: vi.fn(),
+      newSession: vi.fn().mockResolvedValue(undefined),
+      isDomReady: (provider) => {
+        attemptsSeen[provider] = (attemptsSeen[provider] ?? 0) + 1;
+        return attemptsSeen[provider] > domReadyAfter[provider];
+      },
+      wait: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await ensureFreshProviderSessions(['claude', 'gemini'], host);
+
+    // A stale remote thread from the previous local session must be discarded, not reused,
+    // before the switched-to session's own replay context is ever injected into it.
+    expect(host.resetBootState).toHaveBeenCalledWith('claude');
+    expect(host.resetBootState).toHaveBeenCalledWith('gemini');
+    expect(host.newSession).toHaveBeenCalledWith('claude');
+    expect(host.newSession).toHaveBeenCalledWith('gemini');
+    // Each provider is polled independently until its own bridge/dom reports ready.
+    expect(attemptsSeen.claude).toBeGreaterThan(domReadyAfter.claude);
+    expect(host.wait).toHaveBeenCalled();
+  });
+
+  it('gives up waiting for a provider that never reports dom-ready, without blocking the others', async () => {
+    const host: ProviderSessionResetHost = {
+      resetBootState: vi.fn(),
+      newSession: vi.fn().mockResolvedValue(undefined),
+      isDomReady: (provider) => provider === 'gemini',
+      wait: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await ensureFreshProviderSessions(['claude', 'gemini'], host, 3);
+
+    expect(host.wait).toHaveBeenCalledTimes(3);
   });
 });

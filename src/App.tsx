@@ -44,6 +44,7 @@ import {
   buildConversationReplayContext,
   createActiveProviderResponse,
   createConversationMessageId,
+  ensureFreshProviderSessions,
   type ActiveProviderResponse,
 } from './ui/conversationContinuity';
 import { FocusPane, type CenterSurface } from './ui/FocusPane';
@@ -355,6 +356,7 @@ export default function App() {
   const replayContextSessionRef = useRef<string | undefined>(
     initialConversation.active.messages.length > 0 ? initialConversation.active.id : undefined,
   );
+  const pendingProviderResetRef = useRef<Set<AIProvider>>(new Set());
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
   const targets = targetSelection.targets;
@@ -1369,6 +1371,28 @@ export default function App() {
     ]);
     setIsProcessing(processingAfterSend());
     setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current));
+    if (pendingProviderResetRef.current.size > 0) {
+      const providersToFreshen = [...pendingProviderResetRef.current].filter(
+        (provider) => statesRef.current[provider].webview === 'loaded',
+      );
+      pendingProviderResetRef.current.clear();
+      if (providersToFreshen.length > 0) {
+        await ensureFreshProviderSessions(providersToFreshen, {
+          resetBootState: resetProviderBootState,
+          newSession: (provider) =>
+            host.provider.newSession(provider).catch((reason) => {
+              recordEventLog({
+                kind: 'workflow-error',
+                provider,
+                summary: `${AI_PROVIDERS[provider].name} session restore reset failed`,
+                detail: { failure: reason instanceof Error ? reason.message : String(reason) },
+              });
+            }),
+          isDomReady: (provider) => statesRef.current[provider].dom === 'ready',
+          wait: () => new Promise((resolve) => setTimeout(resolve, 150)),
+        });
+      }
+    }
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
     const workflowRoles = defaultRolesForPreset(mode);
@@ -1499,6 +1523,7 @@ export default function App() {
     setReplayDrawerOpen(false);
     setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
     activeResponses.current.clear();
+    pendingProviderResetRef.current.clear();
     for (const provider of PROVIDERS) {
       if (statesRef.current[provider].webview !== 'loaded') continue;
       resetProviderBootState(provider);
@@ -1527,18 +1552,9 @@ export default function App() {
       setReplayDrawerOpen(false);
       setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
       activeResponses.current.clear();
-      for (const provider of PROVIDERS) {
-        if (statesRef.current[provider].webview !== 'loaded') continue;
-        resetProviderBootState(provider);
-        void host.provider.newSession(provider).catch((reason) => {
-          recordEventLog({
-            kind: 'workflow-error',
-            provider,
-            summary: `${AI_PROVIDERS[provider].name} session restore reset failed`,
-            detail: { failure: reason instanceof Error ? reason.message : String(reason) },
-          });
-        });
-      }
+      // 切換歷史只換本地畫面，保留 provider webview 原連線（不重連）讓使用者能繼續瀏覽；
+      // 遠端 thread 仍屬於前一個 session，真正送出前 executeSend 會先建立乾淨 provider session。
+      pendingProviderResetRef.current = new Set(PROVIDERS.filter((provider) => statesRef.current[provider].webview === 'loaded'));
     },
     [activeSessionId, isProcessing],
   );
