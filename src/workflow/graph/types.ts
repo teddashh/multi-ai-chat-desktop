@@ -1,4 +1,5 @@
 import type { AIProvider, ChatMode, ModeRoles } from '../../../shared/types';
+import type { Locale } from '../../i18n/resolve';
 import type { ResponseLanguagePolicy } from '../responseLanguage';
 
 export type NodeId = string;
@@ -22,7 +23,6 @@ export interface WorkflowGraph {
 export interface GraphRole {
   defaultProvider?: AIProvider;
   uiLabel?: string;
-  runtimeLabel?: string;
 }
 
 export interface GraphPreflight {
@@ -156,6 +156,7 @@ export interface ExecuteGraphParams {
   roles?: ModeRoles | Partial<Record<RoleKey, AIProvider>>;
   targets?: AIProvider[];
   checkpoints?: boolean;
+  locale?: Locale;
   responseLanguagePolicy?: ResponseLanguagePolicy;
 }
 

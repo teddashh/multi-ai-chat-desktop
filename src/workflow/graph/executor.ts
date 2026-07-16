@@ -1,5 +1,7 @@
 import { AI_PROVIDERS, CHAT_MODES } from '../../../shared/constants';
 import type { AIProvider, ChatMode } from '../../../shared/types';
+import type { Locale } from '../../i18n/resolve';
+import { formatI18n, t } from '../../i18n/t';
 import { checkAborted } from '../cancel';
 import { awaitCheckpoint } from '../checkpoint';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
@@ -50,6 +52,7 @@ interface ExecutionContext {
   loopValues: Map<string, unknown>;
   loopIterations: Map<string, number>;
   checkpoints: boolean;
+  locale: Locale;
   responseLanguagePolicy?: ResponseLanguagePolicy;
   completed: Set<NodeId>;
   ready: Set<NodeId>;
@@ -148,6 +151,7 @@ function createExecutionContext(graph: WorkflowGraph, params: ExecuteGraphParams
     loopValues: new Map(),
     loopIterations: new Map(),
     checkpoints: params.checkpoints === true,
+    locale: params.locale ?? 'en',
     responseLanguagePolicy: params.responseLanguagePolicy,
     completed: new Set(),
     ready: new Set(),
@@ -283,7 +287,11 @@ function prepareStepNode(
         }
 
         if (checkpointAction === 'native-edit') {
-          sendWorkflowStatus(`已填入 ${AI_PROVIDERS[provider].name}，請在 provider 內編輯並按原生送出（10 分鐘內）`);
+          sendWorkflowStatus(
+            formatI18n(t('workflowStatus.nativeEdit', context.locale), {
+              provider: AI_PROVIDERS[provider].name,
+            }),
+          );
         }
         const result =
           checkpointAction === 'native-edit' ? await fillAndAwaitNativeSend(provider, input, turn) : await runStep(provider, input, turn);
@@ -440,7 +448,13 @@ function renderBatchStatus(batch: NodeId[], context: ExecutionContext): string |
 
 function renderPromptSpec(prompt: PromptSpec, context: ExecutionContext, nodeId: NodeId, provider?: AIProvider): string {
   const args = prompt.args.map((promptArg) => renderPromptArg(promptArg, context));
-  const rendered = renderRegisteredPrompt(prompt, args, { graph: context.graph, nodeId, provider, targets: context.targets });
+  const rendered = renderRegisteredPrompt(prompt, args, {
+    graph: context.graph,
+    nodeId,
+    provider,
+    targets: context.targets,
+    locale: context.locale,
+  });
   return prependResponseLanguagePolicy(rendered, context.responseLanguagePolicy);
 }
 
@@ -452,6 +466,7 @@ function renderTextTemplate(template: TextTemplate, context: ExecutionContext, n
     nodeId,
     provider,
     targets: context.targets,
+    locale: context.locale,
   });
 }
 

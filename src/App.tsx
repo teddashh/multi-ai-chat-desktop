@@ -1380,6 +1380,7 @@ export default function App() {
       presetId,
       roles: workflowRoles,
       targets: workflowTargets,
+      locale: localeRef.current,
       snapshotPersistence: snapshotSettings.snapshotPersistence,
       snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
       responseLanguagePolicy: createResponseLanguagePolicy(snapshotSettings.responseLanguage, localeRef.current),

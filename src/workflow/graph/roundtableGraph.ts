@@ -1,8 +1,6 @@
 import { DEFAULT_ROUNDTABLE_ROLES } from '../../../shared/constants';
 import type { GraphEdge, StepNode, WorkflowGraph } from './types';
 
-export const ROUND_LABELS = ['開場立論', '交叉質疑', '攻防深化', '核心收斂', '真理浮現'];
-
 const ROUND_COUNT = 5;
 const SPEAKERS = ['first', 'second', 'third', 'fourth'] as const;
 type RoundtableRole = (typeof SPEAKERS)[number];
@@ -16,13 +14,13 @@ function makeRoundtableNode(round: number, role: RoundtableRole): StepNode {
     kind: 'step',
     provider: { type: 'role', role },
     role: `R${round}`,
-    label: `第${round}輪`,
+    label: {
+      builder: 'label.roundtable.round',
+      args: [{ kind: 'literal', value: round }],
+    },
     status: {
       builder: 'status.roundtable.speaker',
-      args: [
-        { kind: 'literal', value: round },
-        { kind: 'literal', value: ROUND_LABELS[round - 1] },
-      ],
+      args: [{ kind: 'literal', value: round }],
     },
     prompt: {
       builder: 'roundtable.buildPrompt',

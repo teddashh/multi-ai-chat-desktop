@@ -8,10 +8,10 @@ export const consultGraph: WorkflowGraph = {
   mode: 'consult',
   start: 'first',
   roles: {
-    first: { defaultProvider: DEFAULT_CONSULT_ROLES.first, uiLabel: 'First', runtimeLabel: '先答 A' },
-    second: { defaultProvider: DEFAULT_CONSULT_ROLES.second, uiLabel: 'Second', runtimeLabel: '先答 B' },
-    reviewer: { defaultProvider: DEFAULT_CONSULT_ROLES.reviewer, uiLabel: 'Reviewer', runtimeLabel: '審查' },
-    summary: { defaultProvider: DEFAULT_CONSULT_ROLES.summary, uiLabel: 'Summary', runtimeLabel: '總結' },
+    first: { defaultProvider: DEFAULT_CONSULT_ROLES.first, uiLabel: 'First' },
+    second: { defaultProvider: DEFAULT_CONSULT_ROLES.second, uiLabel: 'Second' },
+    reviewer: { defaultProvider: DEFAULT_CONSULT_ROLES.reviewer, uiLabel: 'Reviewer' },
+    summary: { defaultProvider: DEFAULT_CONSULT_ROLES.summary, uiLabel: 'Summary' },
   },
   preflight: {
     kind: 'serial',
@@ -23,7 +23,7 @@ export const consultGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'first' },
       role: 'first',
-      label: '先答 A',
+      label: { builder: 'label.consult.first' },
       status: {
         builder: 'status.consult.initial',
         args: [
@@ -40,7 +40,7 @@ export const consultGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'second' },
       role: 'second',
-      label: '先答 B',
+      label: { builder: 'label.consult.second' },
       status: {
         builder: 'status.consult.initial',
         args: [
@@ -57,7 +57,7 @@ export const consultGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'reviewer' },
       role: 'reviewer',
-      label: '審查',
+      label: { builder: 'label.consult.reviewer' },
       status: { builder: 'status.consult.reviewer' },
       prompt: {
         builder: 'consult.reviewer',
@@ -76,7 +76,7 @@ export const consultGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'summary' },
       role: 'summary',
-      label: '總結',
+      label: { builder: 'label.consult.summary' },
       status: { builder: 'status.consult.summary' },
       prompt: {
         builder: 'consult.summary',

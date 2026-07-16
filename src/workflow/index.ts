@@ -2,6 +2,7 @@ import type { AIProvider, ChatMode, ModeRoles, WorkflowPresetId } from '../../sh
 import { CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
 import { getRuntimeAppVersion } from '../appVersion';
 import { host } from '../host';
+import type { Locale } from '../i18n/resolve';
 import { getInFlightProviders } from './cancel';
 import { emitSystemError, sendWorkflowStatus } from './events';
 import { executeGraph, preflightGraph, workflowGraphs } from './graph';
@@ -21,6 +22,7 @@ export interface RunWorkflowParams {
   roles?: ModeRoles;
   targets?: AIProvider[];
   checkpoints?: boolean;
+  locale?: Locale;
   snapshotPersistence?: boolean;
   snapshotRedactionTier?: SnapshotRedactionTier;
   responseLanguagePolicy?: ResponseLanguagePolicy;
@@ -36,6 +38,7 @@ export async function runWorkflow({
   roles,
   targets,
   checkpoints,
+  locale,
   snapshotPersistence,
   snapshotRedactionTier,
   responseLanguagePolicy,
@@ -60,7 +63,7 @@ export async function runWorkflow({
           ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
           : targets.filter((provider) => sendable.includes(provider));
       const graph = presetId === 'brainstorm' ? workflowGraphs.brainstorm : workflowGraphs.free;
-      await executeGraph(graph, { text, context, targets: targetSet, checkpoints, responseLanguagePolicy }, graphOptions);
+      await executeGraph(graph, { text, context, targets: targetSet, checkpoints, locale, responseLanguagePolicy }, graphOptions);
       return { ok: true };
     }
 
@@ -69,7 +72,7 @@ export async function runWorkflow({
     const preflight = await preflightGraph(graph, roles);
     if (!preflight.ok) return { ok: false, preflight };
 
-    await executeGraph(graph, { text, context, roles, checkpoints, responseLanguagePolicy }, graphOptions);
+    await executeGraph(graph, { text, context, roles, checkpoints, locale, responseLanguagePolicy }, graphOptions);
 
     return { ok: true };
   } catch (error) {

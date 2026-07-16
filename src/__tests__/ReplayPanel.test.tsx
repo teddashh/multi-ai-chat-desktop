@@ -100,7 +100,7 @@ describe('ReplayPanel', () => {
     await vi.waitFor(() =>
       expect(replaySnapshot).toHaveBeenCalledWith(
         { snapshot },
-        { replayWithCurrentGraph: undefined, onSnapshotComplete: undefined },
+        { replayWithCurrentGraph: undefined, onSnapshotComplete: undefined, locale: 'en', responseLanguagePolicy: undefined },
       ),
     );
   });
@@ -123,7 +123,7 @@ describe('ReplayPanel', () => {
     await vi.waitFor(() =>
       expect(replaySnapshot).toHaveBeenCalledWith(
         { snapshotId: 'snapshot-new' },
-        { replayWithCurrentGraph: undefined, onSnapshotComplete: undefined },
+        { replayWithCurrentGraph: undefined, onSnapshotComplete: undefined, locale: 'en', responseLanguagePolicy: undefined },
       ),
     );
 
@@ -160,7 +160,7 @@ describe('ReplayPanel', () => {
     await vi.waitFor(() =>
       expect(replaySnapshot).toHaveBeenLastCalledWith(
         { snapshot, question: 'original question' },
-        { replayWithCurrentGraph: undefined, onSnapshotComplete: undefined },
+        { replayWithCurrentGraph: undefined, onSnapshotComplete: undefined, locale: 'en', responseLanguagePolicy: undefined },
       ),
     );
   });
@@ -194,7 +194,7 @@ describe('ReplayPanel', () => {
     await vi.waitFor(() =>
       expect(replaySnapshot).toHaveBeenLastCalledWith(
         { snapshot },
-        { replayWithCurrentGraph: true, onSnapshotComplete: undefined },
+        { replayWithCurrentGraph: true, onSnapshotComplete: undefined, locale: 'en', responseLanguagePolicy: undefined },
       ),
     );
   });

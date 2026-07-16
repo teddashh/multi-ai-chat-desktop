@@ -15,7 +15,6 @@ import { host } from '../host';
 import { getInFlightProviders, resetCancelState } from '../workflow/cancel';
 import { hasPendingCheckpoint, onCheckpoint, resetCheckpointForTests, resolveCheckpoint, type PendingCheckpoint } from '../workflow/checkpoint';
 import { emitSystemError } from '../workflow/events';
-import { ROUND_LABELS } from '../workflow/graph';
 import { preflightSerialMode } from '../workflow/preflight';
 import { isSendable } from '../workflow/sendability';
 import { sendAndWait } from '../workflow/sendAndWait';
@@ -199,7 +198,7 @@ describe('workflow engine', () => {
     await expect(run).resolves.toEqual({ ok: true });
     expect(host.provider.send).toHaveBeenCalledTimes(1);
     expect(host.provider.send).toHaveBeenCalledWith('chatgpt', 'q');
-    expect(statuses).toEqual([`⚡ ${providerName('chatgpt')} 同時作答中...`, '']);
+    expect(statuses).toEqual([`⚡ ${providerName('chatgpt')} answering in parallel…`, '']);
 
     vi.mocked(host.provider.send).mockClear();
     statuses.length = 0;
@@ -211,6 +210,10 @@ describe('workflow engine', () => {
 
   it('routes the brainstorm preset through provider-specific free fan-out and records its graph id', async () => {
     const prompts = new Map<AIProvider, string>();
+    const statuses: string[] = [];
+    const unsubscribe = onBridgeMessage((message) => {
+      if (message.action === 'WORKFLOW_STATUS' && typeof message.payload === 'string') statuses.push(message.payload);
+    });
     vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
       prompts.set(provider, prompt);
       publishBridgeMessage(done(provider, `${provider}-ideas`));
@@ -222,12 +225,15 @@ describe('workflow engine', () => {
         mode: 'free',
         presetId: 'brainstorm',
         targets: providers,
+        locale: 'de',
       }),
     ).resolves.toEqual({ ok: true });
+    unsubscribe();
 
     for (const provider of providers) {
       expect(prompts.get(provider)).toBe(PROMPTS.brainstorm.buildPrompt('Invent a better new-user tutorial', provider));
     }
+    expect(statuses[0]).toBe('✨ ChatGPT, Claude, Gemini und Grok sammeln Ideen…');
     expect(getLastSnapshot()?.graphId).toBe('brainstorm');
     expect(getLastSnapshot()?.userQuestion).toMatchObject({ kind: 'inline', text: 'Invent a better new-user tutorial' });
   });
@@ -492,11 +498,39 @@ describe('workflow engine', () => {
     unsubscribe();
     expect(order.slice(0, 4)).toEqual(['role:chatgpt', 'role:grok', 'send:chatgpt', 'send:grok']);
     expect(statuses).toEqual([
-      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.first)} 與 ${providerName(DEFAULT_CONSULT_ROLES.second)} 同時回答中...`,
-      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.reviewer)} 審查中...`,
-      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.summary)} 總結中...`,
+      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.first)} and ${providerName(DEFAULT_CONSULT_ROLES.second)} answering in parallel…`,
+      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.reviewer)} — Review in progress…`,
+      `🔍 ${providerName(DEFAULT_CONSULT_ROLES.summary)} — Summary in progress…`,
       '',
     ]);
+  });
+
+  it.each([
+    ['en', 'Pro argument'],
+    ['zh-TW', '正方論述'],
+    ['ja', '賛成側の論述'],
+    ['de', 'Pro-Argument'],
+  ] as const)('localizes serial workflow status and role labels in %s', async (locale, expectedLabel) => {
+    const statuses: string[] = [];
+    const labels: string[] = [];
+    const unsubscribe = onBridgeMessage((message) => {
+      if (message.action === 'WORKFLOW_STATUS' && typeof message.payload === 'string') statuses.push(message.payload);
+      if (message.action === 'ROLE_ASSIGNMENT') {
+        const payload = message.payload as { label?: unknown };
+        if (typeof payload.label === 'string') labels.push(payload.label);
+      }
+    });
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(
+      runWorkflow({ text: 'localized debate', mode: 'debate', roles: DEFAULT_DEBATE_ROLES, locale }),
+    ).resolves.toEqual({ ok: true });
+    unsubscribe();
+
+    expect(labels[0]).toBe(expectedLabel);
+    expect(statuses[0]).toContain(expectedLabel);
   });
 
   it('debate preserves pro to con to judge to summary ordering and threaded prompts', async () => {
@@ -612,7 +646,9 @@ describe('workflow engine', () => {
     unsubscribeCheckpoint();
     unsubscribeStatus();
     expect(host.provider.send).not.toHaveBeenCalledWith(DEFAULT_DEBATE_ROLES.pro, expect.any(String));
-    expect(statuses).toContain(`已填入 ${providerName(DEFAULT_DEBATE_ROLES.pro)}，請在 provider 內編輯並按原生送出（10 分鐘內）`);
+    expect(statuses).toContain(
+      `Draft inserted for ${providerName(DEFAULT_DEBATE_ROLES.pro)}. Edit and send it in the provider within 10 minutes.`,
+    );
     expect(sent[0]).toEqual({
       provider: DEFAULT_DEBATE_ROLES.con,
       prompt: PROMPTS.debate.con('native checkpoint question', 'native pro answer'),
@@ -779,6 +815,7 @@ describe('workflow engine', () => {
   it('roundtable runs 5x4 with exact history growth and round labels', async () => {
     const historyLengths: number[] = [];
     const statuses: string[] = [];
+    const roleLabels: string[] = [];
     let terminalHistory: { name: string; round: number; text: string }[] | undefined;
     const originalBuildPrompt = PROMPTS.roundtable.buildPrompt;
     const buildPromptSpy = vi.spyOn(PROMPTS.roundtable, 'buildPrompt').mockImplementation((question, round, speakerName, history) => {
@@ -788,22 +825,27 @@ describe('workflow engine', () => {
     });
     const unsubscribe = onBridgeMessage((message) => {
       if (message.action === 'WORKFLOW_STATUS' && typeof message.payload === 'string') statuses.push(message.payload);
+      if (message.action === 'ROLE_ASSIGNMENT') {
+        const payload = message.payload as { label?: unknown };
+        if (typeof payload.label === 'string') roleLabels.push(payload.label);
+      }
     });
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       publishBridgeMessage(done(provider, `round-answer-${vi.mocked(host.provider.send).mock.calls.length}`));
     });
-    await expect(runWorkflow({ text: 'roundtable question', mode: 'roundtable', roles: DEFAULT_ROUNDTABLE_ROLES })).resolves.toEqual({
-      ok: true,
-    });
+    await expect(
+      runWorkflow({ text: 'roundtable question', mode: 'roundtable', roles: DEFAULT_ROUNDTABLE_ROLES, locale: 'en' }),
+    ).resolves.toEqual({ ok: true });
     unsubscribe();
     buildPromptSpy.mockRestore();
     expect(host.provider.send).toHaveBeenCalledTimes(20);
     expect(historyLengths).toEqual(Array.from({ length: 20 }, (_, index) => index));
     expect(terminalHistory).toHaveLength(20);
-    expect(ROUND_LABELS).toEqual(['開場立論', '交叉質疑', '攻防深化', '核心收斂', '真理浮現']);
-    for (const label of ROUND_LABELS) {
+    expect(roleLabels.slice(0, 5)).toEqual(['Round 1', 'Round 1', 'Round 1', 'Round 1', 'Round 2']);
+    for (const label of ['Opening positions', 'Cross-examination', 'Deepening the debate', 'Core convergence', 'Final synthesis']) {
       expect(statuses.some((status) => status.includes(label))).toBe(true);
     }
+    expect(statuses.join('\n')).not.toMatch(/第\d+輪|開場立論|交叉質疑|攻防深化|核心收斂|真理浮現/);
   });
 
   it('coding runs the eight ported steps with distinct turns for repeated providers', async () => {
@@ -843,25 +885,25 @@ describe('workflow engine', () => {
     expect(sends[0]).toContain('需求：feature');
     expect(new Set(coderTurns).size).toBe(3);
     expect(statuses).toEqual([
-      `💻 Step 1/8 — ${providerName(DEFAULT_CODING_ROLES.planner)} 撰寫規格中...`,
-      `💻 Step 2/8 — ${providerName(DEFAULT_CODING_ROLES.reviewer)} 審查規格中...`,
-      `💻 Step 3/8 — ${providerName(DEFAULT_CODING_ROLES.coder)} 撰寫 v1 中...`,
-      `💻 Step 4/8 — ${providerName(DEFAULT_CODING_ROLES.reviewer)} Code Review 中...`,
-      `💻 Step 5/8 — ${providerName(DEFAULT_CODING_ROLES.tester)} 測試分析中...`,
-      `💻 Step 6/8 — ${providerName(DEFAULT_CODING_ROLES.coder)} 修正 → v2 中...`,
-      `💻 Step 7/8 — ${providerName(DEFAULT_CODING_ROLES.planner)} 驗收中...`,
-      `💻 Step 8/8 — ${providerName(DEFAULT_CODING_ROLES.coder)} 最終修正中...`,
+      `💻 Step 1/8 — ${providerName(DEFAULT_CODING_ROLES.planner)}: Write specification…`,
+      `💻 Step 2/8 — ${providerName(DEFAULT_CODING_ROLES.reviewer)}: Review specification…`,
+      `💻 Step 3/8 — ${providerName(DEFAULT_CODING_ROLES.coder)}: Write v1…`,
+      `💻 Step 4/8 — ${providerName(DEFAULT_CODING_ROLES.reviewer)}: Code review…`,
+      `💻 Step 5/8 — ${providerName(DEFAULT_CODING_ROLES.tester)}: Test analysis…`,
+      `💻 Step 6/8 — ${providerName(DEFAULT_CODING_ROLES.coder)}: Revise to v2…`,
+      `💻 Step 7/8 — ${providerName(DEFAULT_CODING_ROLES.planner)}: Acceptance review…`,
+      `💻 Step 8/8 — ${providerName(DEFAULT_CODING_ROLES.coder)}: Final revision…`,
       '',
     ]);
     expect(roleAssignments).toEqual([
-      { role: 'planner', label: '規劃師' },
-      { role: 'reviewer', label: '審查者' },
-      { role: 'coder', label: 'Coder' },
-      { role: 'reviewer', label: 'Code Review' },
-      { role: 'tester', label: 'Tester' },
-      { role: 'coder', label: 'v2 修正' },
-      { role: 'planner', label: '驗收' },
-      { role: 'coder', label: '最終版' },
+      { role: 'planner', label: 'Write specification' },
+      { role: 'reviewer', label: 'Review specification' },
+      { role: 'coder', label: 'Write v1' },
+      { role: 'reviewer', label: 'Code review' },
+      { role: 'tester', label: 'Test analysis' },
+      { role: 'coder', label: 'Revise to v2' },
+      { role: 'planner', label: 'Acceptance review' },
+      { role: 'coder', label: 'Final revision' },
     ]);
     expect(sent.map((item) => item.prompt)).toEqual([
       PROMPTS.coding.plannerSpec('feature'),
