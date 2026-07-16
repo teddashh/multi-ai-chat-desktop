@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildConversationReplayContext,
   createActiveProviderResponse,
   createConversationMessageId,
+  ensureFreshProviderSessions,
+  pendingProviderSessionResets,
+  ProviderSessionResetError,
   questionWithConversationContext,
+  type ProviderSessionResetHost,
 } from '../ui/conversationContinuity';
 
 describe('conversation continuity', () => {
@@ -42,5 +46,50 @@ describe('conversation continuity', () => {
     expect(prompt).toContain('Claude:\nPrevious answer');
     expect(prompt.endsWith('Current user question:\nWhat changed?')).toBe(true);
     expect(questionWithConversationContext('Standalone', undefined)).toBe('Standalone');
+  });
+
+  it('forces a clean remote provider session before a switched-session send proceeds', async () => {
+    const host: ProviderSessionResetHost = {
+      resetBootState: vi.fn(),
+      newSession: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await ensureFreshProviderSessions(['claude', 'gemini'], host);
+
+    // A stale remote thread from the previous local session must be discarded, not reused,
+    // before the switched-to session's own replay context is ever injected into it.
+    expect(host.resetBootState).toHaveBeenCalledWith('claude');
+    expect(host.resetBootState).toHaveBeenCalledWith('gemini');
+    expect(host.newSession).toHaveBeenCalledWith('claude');
+    expect(host.newSession).toHaveBeenCalledWith('gemini');
+  });
+
+  it('rejects failed resets while reporting providers that completed successfully', async () => {
+    const host: ProviderSessionResetHost = {
+      resetBootState: vi.fn(),
+      newSession: vi.fn().mockImplementation(async (provider) => {
+        if (provider === 'claude') throw new Error('fresh boot timed out');
+      }),
+    };
+
+    const reset = ensureFreshProviderSessions(['claude', 'gemini'], host);
+
+    await expect(reset).rejects.toMatchObject({
+      name: 'ProviderSessionResetError',
+      completedProviders: ['gemini'],
+      failures: [{ provider: 'claude', reason: expect.any(Error) }],
+    } satisfies Partial<ProviderSessionResetError>);
+  });
+
+  it('resets only loaded providers that participate in the next workflow', () => {
+    const pending = new Set(['chatgpt', 'claude', 'gemini', 'grok'] as const);
+
+    expect(
+      pendingProviderSessionResets(
+        pending,
+        ['grok', 'chatgpt', 'grok'],
+        (provider) => provider !== 'chatgpt',
+      ),
+    ).toEqual(['grok']);
   });
 });

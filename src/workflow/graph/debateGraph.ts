@@ -8,10 +8,10 @@ export const debateGraph: WorkflowGraph = {
   mode: 'debate',
   start: 'pro',
   roles: {
-    pro: { defaultProvider: DEFAULT_DEBATE_ROLES.pro, uiLabel: 'Pro', runtimeLabel: '正方' },
-    con: { defaultProvider: DEFAULT_DEBATE_ROLES.con, uiLabel: 'Con', runtimeLabel: '反方' },
-    judge: { defaultProvider: DEFAULT_DEBATE_ROLES.judge, uiLabel: 'Judge', runtimeLabel: '判官' },
-    summary: { defaultProvider: DEFAULT_DEBATE_ROLES.summary, uiLabel: 'Summary', runtimeLabel: '總結' },
+    pro: { defaultProvider: DEFAULT_DEBATE_ROLES.pro, uiLabel: 'Pro' },
+    con: { defaultProvider: DEFAULT_DEBATE_ROLES.con, uiLabel: 'Con' },
+    judge: { defaultProvider: DEFAULT_DEBATE_ROLES.judge, uiLabel: 'Judge' },
+    summary: { defaultProvider: DEFAULT_DEBATE_ROLES.summary, uiLabel: 'Summary' },
   },
   preflight: { kind: 'serial', requiredRoles: ['pro', 'con', 'judge', 'summary'] },
   nodes: {
@@ -19,7 +19,7 @@ export const debateGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'pro' },
       role: 'pro',
-      label: '正方',
+      label: { builder: 'label.debate.pro' },
       status: { builder: 'status.debate.pro' },
       prompt: { builder: 'debate.pro', args: [{ kind: 'input', name: 'question' }] },
       output: 'proResponse',
@@ -29,7 +29,7 @@ export const debateGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'con' },
       role: 'con',
-      label: '反方',
+      label: { builder: 'label.debate.con' },
       status: { builder: 'status.debate.con' },
       prompt: {
         builder: 'debate.con',
@@ -45,7 +45,7 @@ export const debateGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'judge' },
       role: 'judge',
-      label: '判官',
+      label: { builder: 'label.debate.judge' },
       status: { builder: 'status.debate.judge' },
       prompt: {
         builder: 'debate.judge',
@@ -62,7 +62,7 @@ export const debateGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'summary' },
       role: 'summary',
-      label: '總結',
+      label: { builder: 'label.debate.summary' },
       status: { builder: 'status.debate.summary' },
       prompt: {
         builder: 'debate.summary',

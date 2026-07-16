@@ -4,6 +4,7 @@ import {
   DEFAULT_CONVERSATION_SESSION_TITLE,
   MAX_CONVERSATION_SESSIONS,
   MAX_CONVERSATION_SESSION_TITLE_LENGTH,
+  beginNewConversationSession,
   createConversationSession,
   loadConversationSessions,
   normalizeConversationSession,
@@ -124,6 +125,57 @@ describe('conversation sessions', () => {
     });
     expect(normalizeConversationSession({ id: ' ' })).toBeUndefined();
     expect(normalizeConversationSessions({ sessions: [] })).toEqual([]);
+  });
+
+  it('reuses and fully resets an already-empty conversation instead of creating a duplicate', () => {
+    const existing = session('blank', 10, {
+      title: 'Old blank draft',
+      mode: 'free',
+      presetId: 'brainstorm',
+      messages: [],
+    });
+
+    const result = beginNewConversationSession({
+      sessions: [existing],
+      activeSessionId: existing.id,
+      messages: [],
+      mode: 'free',
+      presetId: 'brainstorm',
+      now: 20,
+    });
+
+    expect(result.sessions).toHaveLength(1);
+    expect(result.active).toEqual({
+      id: 'blank',
+      title: DEFAULT_CONVERSATION_SESSION_TITLE,
+      createdAt: 10,
+      updatedAt: 20,
+      mode: 'free',
+      messages: [],
+    });
+  });
+
+  it('archives a non-empty conversation and creates one fresh active session', () => {
+    const existing = session('current', 10);
+    const messages = [{ id: 'question', role: 'user' as const, content: 'How should this be fixed?' }];
+
+    const result = beginNewConversationSession({
+      sessions: [existing],
+      activeSessionId: existing.id,
+      messages,
+      mode: 'consult',
+      now: 20,
+    });
+
+    expect(result.sessions).toHaveLength(2);
+    expect(result.active).toMatchObject({ mode: 'free', messages: [] });
+    expect(result.active.id).not.toBe(existing.id);
+    expect(result.sessions.find((entry) => entry.id === existing.id)).toMatchObject({
+      title: 'How should this be fixed?',
+      updatedAt: 20,
+      mode: 'consult',
+      messages,
+    });
   });
 
   it('persists the brainstorm preset only when it is backed by free mode', () => {

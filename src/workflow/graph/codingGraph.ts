@@ -8,10 +8,10 @@ export const codingGraph: WorkflowGraph = {
   mode: 'coding',
   start: 'plannerSpec',
   roles: {
-    planner: { defaultProvider: DEFAULT_CODING_ROLES.planner, uiLabel: 'Planner', runtimeLabel: '規劃師' },
-    reviewer: { defaultProvider: DEFAULT_CODING_ROLES.reviewer, uiLabel: 'Reviewer', runtimeLabel: '審查者' },
-    coder: { defaultProvider: DEFAULT_CODING_ROLES.coder, uiLabel: 'Coder', runtimeLabel: 'Coder' },
-    tester: { defaultProvider: DEFAULT_CODING_ROLES.tester, uiLabel: 'Tester', runtimeLabel: 'Tester' },
+    planner: { defaultProvider: DEFAULT_CODING_ROLES.planner, uiLabel: 'Planner' },
+    reviewer: { defaultProvider: DEFAULT_CODING_ROLES.reviewer, uiLabel: 'Reviewer' },
+    coder: { defaultProvider: DEFAULT_CODING_ROLES.coder, uiLabel: 'Coder' },
+    tester: { defaultProvider: DEFAULT_CODING_ROLES.tester, uiLabel: 'Tester' },
   },
   preflight: { kind: 'serial', requiredRoles: ['planner', 'reviewer', 'coder', 'tester'] },
   nodes: {
@@ -19,7 +19,7 @@ export const codingGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'planner' },
       role: 'planner',
-      label: '規劃師',
+      label: { builder: 'label.coding.plannerSpec' },
       status: { builder: 'status.coding.plannerSpec' },
       prompt: { builder: 'coding.plannerSpec', args: [{ kind: 'input', name: 'question' }] },
       output: 'spec',
@@ -29,7 +29,7 @@ export const codingGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'reviewer' },
       role: 'reviewer',
-      label: '審查者',
+      label: { builder: 'label.coding.reviewerSpec' },
       status: { builder: 'status.coding.reviewerSpec' },
       prompt: {
         builder: 'coding.reviewerSpec',
@@ -46,7 +46,7 @@ export const codingGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'coder' },
       role: 'coder',
-      label: 'Coder',
+      label: { builder: 'label.coding.coderV1' },
       status: { builder: 'status.coding.coderV1' },
       prompt: {
         builder: 'coding.coderV1',
@@ -65,7 +65,7 @@ export const codingGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'reviewer' },
       role: 'reviewer',
-      label: 'Code Review',
+      label: { builder: 'label.coding.reviewerCode' },
       status: { builder: 'status.coding.reviewerCode' },
       prompt: {
         builder: 'coding.reviewerCode',
@@ -82,7 +82,7 @@ export const codingGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'tester' },
       role: 'tester',
-      label: 'Tester',
+      label: { builder: 'label.coding.testerCases' },
       status: { builder: 'status.coding.testerCases' },
       prompt: {
         builder: 'coding.testerCases',
@@ -99,7 +99,7 @@ export const codingGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'coder' },
       role: 'coder',
-      label: 'v2 修正',
+      label: { builder: 'label.coding.coderV2' },
       status: { builder: 'status.coding.coderV2' },
       prompt: {
         builder: 'coding.coderV2',
@@ -119,7 +119,7 @@ export const codingGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'planner' },
       role: 'planner',
-      label: '驗收',
+      label: { builder: 'label.coding.plannerAcceptance' },
       status: { builder: 'status.coding.plannerAcceptance' },
       prompt: {
         builder: 'coding.plannerAcceptance',
@@ -137,7 +137,7 @@ export const codingGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'coder' },
       role: 'coder',
-      label: '最終版',
+      label: { builder: 'label.coding.coderFinal' },
       status: { builder: 'status.coding.coderFinal' },
       prompt: {
         builder: 'coding.coderFinal',

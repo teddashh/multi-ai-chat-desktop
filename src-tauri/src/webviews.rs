@@ -26,6 +26,8 @@ const ENGINE_JS: &str = include_str!(concat!(
     "/gen/injected/engine.js"
 ));
 const PROVIDER_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows";
+const NEW_SESSION_READY_TIMEOUT_SECS: u64 = 30;
+const NEW_SESSION_READY_POLL_MS: u64 = 150;
 /// Auto-deny site permission prompts that otherwise pop a blocking native dialog.
 /// SCOPE: Notifications + Geolocation ONLY. We intentionally leave microphone/camera alone so the
 /// providers' voice-input buttons keep working. Runs at document-start, before site scripts.
@@ -94,6 +96,8 @@ struct ProviderRuntime {
     states: HashMap<String, ProviderState>,
     engine_boot: HashMap<String, String>,
     bridge_boot: HashMap<String, String>,
+    status_boot: HashMap<String, String>,
+    pending_session_boot: HashMap<String, Option<String>>,
     last_push_ms: HashMap<String, u64>,
     stale_check_sent: HashMap<String, u64>,
     watchdog_started: bool,
@@ -325,6 +329,8 @@ pub async fn provider_close(
     if let Ok(mut guard) = runtime().lock() {
         guard.engine_boot.remove(&provider);
         guard.bridge_boot.remove(&provider);
+        guard.status_boot.remove(&provider);
+        guard.pending_session_boot.remove(&provider);
         guard.last_push_ms.remove(&provider);
     }
     set_state(
@@ -402,7 +408,15 @@ pub async fn provider_eval_with_callback(
     js: String,
 ) -> Result<String, String> {
     ensure_control_webview(&webview)?;
-    let label = provider_label(&provider);
+    eval_provider_with_callback(&app, &provider, &js).await
+}
+
+async fn eval_provider_with_callback(
+    app: &AppHandle,
+    provider: &str,
+    js: &str,
+) -> Result<String, String> {
+    let label = provider_label(provider);
     let webview = app
         .get_webview(&label)
         .ok_or_else(|| format!("webview not found: {label}"))?;
@@ -481,15 +495,46 @@ pub async fn provider_new_session(
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
     if app.get_webview(&provider_label(&provider)).is_none() {
-        return Ok(());
+        return Err(format!("provider webview is not open: {provider}"));
     }
     let adapter = adapters::get_adapter(&provider)?;
-    reset_bridge_state(&app, &provider);
+    begin_session_reset(&app, &provider)?;
     let js = format!(
         "location.href = {};",
         serde_json::to_string(&adapter.urls.app).map_err(|error| error.to_string())?
     );
-    eval_provider(&app, &provider, &js)
+    if let Err(error) = eval_provider(&app, &provider, &js) {
+        cancel_session_reset(&provider);
+        return Err(error);
+    }
+
+    let deadline =
+        tokio::time::Instant::now() + Duration::from_secs(NEW_SESSION_READY_TIMEOUT_SECS);
+    while tokio::time::Instant::now() < deadline {
+        if let Some(status_boot) = session_reset_ready_boot(&provider) {
+            let expected_boot =
+                serde_json::to_string(&status_boot).map_err(|error| error.to_string())?;
+            let matches_current_document = eval_provider_with_callback(
+                &app,
+                &provider,
+                &format!(
+                    "Boolean(window.__MAC_BRIDGE__ && window.__MAC_BRIDGE__.bootId === {expected_boot})"
+                ),
+            )
+            .await
+            .ok()
+            .is_some_and(|raw| eval_callback_reports_true(&raw));
+            if matches_current_document {
+                return Ok(());
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(NEW_SESSION_READY_POLL_MS)).await;
+    }
+
+    Err(format!(
+        "provider new session did not become ready within {} seconds: {provider}",
+        NEW_SESSION_READY_TIMEOUT_SECS
+    ))
 }
 
 #[tauri::command]
@@ -539,6 +584,9 @@ pub(crate) fn handle_bridge_title(
     msg: &BridgeMessage,
 ) -> Result<(), String> {
     if msg.action != "STATUS_REPORT" {
+        return Ok(());
+    }
+    if !accept_status_for_session_reset(provider, msg.boot_id.as_deref()) {
         return Ok(());
     }
     if should_reset_bridge_on_boot_rotation(provider, msg.boot_id.as_deref()) {
@@ -769,9 +817,78 @@ fn reset_bridge_state(app: &AppHandle, provider: &str) {
         guard.stale_check_sent.remove(provider);
     }
     let mut state = current_state(provider);
+    state.dom = "unknown".into();
+    state.thinking = false;
+    state.last_status_at = now_ms();
     state.bridge = "ok".into();
     state.bridge_reason = None;
     set_state(app, state);
+}
+
+fn begin_session_reset(app: &AppHandle, provider: &str) -> Result<(), String> {
+    {
+        let mut guard = runtime()
+            .lock()
+            .map_err(|_| "provider state poisoned".to_string())?;
+        let previous_boot = guard.status_boot.get(provider).cloned();
+        guard
+            .pending_session_boot
+            .insert(provider.to_string(), previous_boot);
+    }
+    reset_bridge_state(app, provider);
+    Ok(())
+}
+
+fn cancel_session_reset(provider: &str) {
+    if let Ok(mut guard) = runtime().lock() {
+        guard.pending_session_boot.remove(provider);
+    }
+}
+
+fn accept_status_for_session_reset(provider: &str, incoming_boot: Option<&str>) -> bool {
+    let Ok(mut guard) = runtime().lock() else {
+        return false;
+    };
+    if let Some(previous_boot) = guard.pending_session_boot.get(provider).cloned() {
+        if !fresh_session_boot(previous_boot.as_deref(), incoming_boot) {
+            return false;
+        }
+        guard.pending_session_boot.remove(provider);
+    }
+    if let Some(incoming_boot) = incoming_boot {
+        guard
+            .status_boot
+            .insert(provider.to_string(), incoming_boot.to_string());
+    }
+    true
+}
+
+fn fresh_session_boot(previous_boot: Option<&str>, incoming_boot: Option<&str>) -> bool {
+    incoming_boot.is_some_and(|incoming| previous_boot != Some(incoming))
+}
+
+fn eval_callback_reports_true(raw: &str) -> bool {
+    match serde_json::from_str::<serde_json::Value>(raw) {
+        Ok(serde_json::Value::Bool(value)) => value,
+        Ok(serde_json::Value::String(value)) => {
+            serde_json::from_str::<bool>(&value).unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
+fn session_reset_ready_boot(provider: &str) -> Option<String> {
+    runtime().lock().ok().and_then(|guard| {
+        if guard.pending_session_boot.contains_key(provider)
+            || !guard
+                .states
+                .get(provider)
+                .is_some_and(|state| state.webview == "loaded" && state.dom == "ready")
+        {
+            return None;
+        }
+        guard.status_boot.get(provider).cloned()
+    })
 }
 
 fn start_staleness_watchdog(app: &AppHandle) {
@@ -871,10 +988,10 @@ mod tests {
 
     use super::{
         bridge_resets_on_boot_rotation, challenge_auxiliary_navigation_allowed,
-        decide_new_window_action, physical_bounds, popup_initial_title, provider_show_should_focus,
-        provider_uses_permission_shim, runtime, should_reset_bridge_on_boot_rotation,
-        staleness_action, state_with, Bounds, NewWindowAction, StalenessAction,
-        PROVIDER_BROWSER_ARGS,
+        decide_new_window_action, eval_callback_reports_true, fresh_session_boot, physical_bounds,
+        popup_initial_title, provider_show_should_focus, provider_uses_permission_shim, runtime,
+        should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
+        NewWindowAction, StalenessAction, PROVIDER_BROWSER_ARGS,
     };
 
     fn url(input: &str) -> tauri::Url {
@@ -1157,6 +1274,24 @@ mod tests {
     }
 
     #[test]
+    fn session_reset_accepts_only_a_new_document_boot() {
+        assert!(!fresh_session_boot(Some("boot-a"), Some("boot-a")));
+        assert!(fresh_session_boot(Some("boot-a"), Some("boot-b")));
+        assert!(fresh_session_boot(None, Some("boot-a")));
+        assert!(!fresh_session_boot(Some("boot-a"), None));
+        assert!(!fresh_session_boot(None, None));
+    }
+
+    #[test]
+    fn session_reset_parses_native_and_wrapped_eval_booleans() {
+        assert!(eval_callback_reports_true("true"));
+        assert!(eval_callback_reports_true(r#""true""#));
+        assert!(!eval_callback_reports_true("false"));
+        assert!(!eval_callback_reports_true(r#""false""#));
+        assert!(!eval_callback_reports_true("null"));
+    }
+
+    #[test]
     fn degraded_bridge_reset_uses_bridge_boot_reference() {
         let provider = "test-bridge-boot-reference";
         {
@@ -1182,6 +1317,8 @@ mod tests {
             guard.states.remove(provider);
             guard.bridge_boot.remove(provider);
             guard.engine_boot.remove(provider);
+            guard.status_boot.remove(provider);
+            guard.pending_session_boot.remove(provider);
         }
     }
 }

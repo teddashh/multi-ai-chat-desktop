@@ -13,7 +13,7 @@ export {
   promptBuilders,
   textConditionEvaluators,
 } from './registries';
-export { ROUND_LABELS, roundtableGraph } from './roundtableGraph';
+export { roundtableGraph } from './roundtableGraph';
 export { assertValidGraph, validateGraph } from './validator';
 export type {
   AggregateNode,

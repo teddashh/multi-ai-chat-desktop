@@ -210,6 +210,7 @@ describe('snapshot replay', () => {
   it('uses the raw prompt-text userQuestion instead of rendered step inputs', () => {
     const snapshot = buildSnapshot({
       graphId: 'consult',
+      graphVersion: 3,
       redactionTier: 'prompt-text',
       roleMap: { first: 'chatgpt', second: 'grok', reviewer: 'claude', summary: 'gemini' },
       userQuestion: inlineRef('prompt text question', 'prompt-text'),
@@ -407,7 +408,7 @@ describe('snapshot replay', () => {
     const messages: BridgeMessage[] = [];
     const unsubscribe = onBridgeMessage((message) => messages.push(message));
 
-    const result = await replaySnapshot({ snapshotId: 'snapshot-source' }, { onSnapshotComplete });
+    const result = await replaySnapshot({ snapshotId: 'snapshot-source' }, { onSnapshotComplete, locale: 'ja' });
 
     unsubscribe();
     expect(result).toMatchObject({ ok: true });
@@ -418,7 +419,7 @@ describe('snapshot replay', () => {
     expect(executeGraph).toHaveBeenCalledTimes(1);
     expect(executeGraph).toHaveBeenCalledWith(
       workflowGraphs.debate,
-      { text: 'clean replay question', roles: DEFAULT_DEBATE_ROLES, targets: undefined },
+      { text: 'clean replay question', roles: DEFAULT_DEBATE_ROLES, targets: undefined, locale: 'ja' },
       { onSnapshotComplete, appVersion: '1.0.2-test' },
     );
     expect(getLastSnapshot()?.appVersion).toBe('1.0.2-test');

@@ -45,6 +45,61 @@ export function buildConversationReplayContext(messages: readonly ReplayableConv
     : context.slice(context.length - MAX_REPLAY_CONTEXT_LENGTH);
 }
 
+export interface ProviderSessionResetHost {
+  resetBootState: (provider: AIProvider) => void;
+  newSession: (provider: AIProvider) => Promise<void>;
+}
+
+export interface ProviderSessionResetFailure {
+  provider: AIProvider;
+  reason: unknown;
+}
+
+export class ProviderSessionResetError extends Error {
+  readonly completedProviders: AIProvider[];
+  readonly failures: ProviderSessionResetFailure[];
+
+  constructor(completedProviders: AIProvider[], failures: ProviderSessionResetFailure[]) {
+    super(`Failed to start fresh provider sessions: ${failures.map(({ provider }) => provider).join(', ')}`);
+    this.name = 'ProviderSessionResetError';
+    this.completedProviders = completedProviders;
+    this.failures = failures;
+  }
+}
+
+// Desktop webviews keep a real, persistent remote conversation per provider (unlike the
+// website, which scopes each request to activeSessionId server-side). Switching local
+// conversation history does not touch that remote thread, so the first send after a
+// switch must force a clean provider session before any same-session replay context is
+// injected — otherwise two unrelated local sessions end up sharing one remote thread.
+export async function ensureFreshProviderSessions(
+  providers: readonly AIProvider[],
+  host: ProviderSessionResetHost,
+): Promise<void> {
+  const completedProviders: AIProvider[] = [];
+  const failures: ProviderSessionResetFailure[] = [];
+  await Promise.all(
+    [...new Set(providers)].map(async (provider) => {
+      try {
+        host.resetBootState(provider);
+        await host.newSession(provider);
+        completedProviders.push(provider);
+      } catch (reason) {
+        failures.push({ provider, reason });
+      }
+    }),
+  );
+  if (failures.length > 0) throw new ProviderSessionResetError(completedProviders, failures);
+}
+
+export function pendingProviderSessionResets(
+  pending: ReadonlySet<AIProvider>,
+  participants: readonly AIProvider[],
+  isLoaded: (provider: AIProvider) => boolean,
+): AIProvider[] {
+  return [...new Set(participants)].filter((provider) => pending.has(provider) && isLoaded(provider));
+}
+
 export function questionWithConversationContext(question: string, context?: string): string {
   const normalizedContext = context?.trim();
   if (!normalizedContext) return question;

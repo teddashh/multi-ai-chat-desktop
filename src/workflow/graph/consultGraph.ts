@@ -1,17 +1,30 @@
 import { DEFAULT_CONSULT_ROLES } from '../../../shared/constants';
-import type { WorkflowGraph } from './types';
+import { SKIP_RESPONSE } from '../state';
+import type { NodeId, TextCondition, WorkflowGraph } from './types';
+
+const ERROR_RESPONSE_PATTERN = '^\\[Error:\\s*[\\s\\S]*?\\]$';
+
+function notReady(node: NodeId): TextCondition {
+  return {
+    type: 'any',
+    conditions: [
+      { type: 'regex', ref: { kind: 'output', node }, pattern: ERROR_RESPONSE_PATTERN },
+      { type: 'equals', left: { kind: 'output', node }, right: { kind: 'literal', text: SKIP_RESPONSE } },
+    ],
+  };
+}
 
 export const consultGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'consult',
-  version: 2,
+  version: 3,
   mode: 'consult',
   start: 'first',
   roles: {
-    first: { defaultProvider: DEFAULT_CONSULT_ROLES.first, uiLabel: 'First', runtimeLabel: '先答 A' },
-    second: { defaultProvider: DEFAULT_CONSULT_ROLES.second, uiLabel: 'Second', runtimeLabel: '先答 B' },
-    reviewer: { defaultProvider: DEFAULT_CONSULT_ROLES.reviewer, uiLabel: 'Reviewer', runtimeLabel: '審查' },
-    summary: { defaultProvider: DEFAULT_CONSULT_ROLES.summary, uiLabel: 'Summary', runtimeLabel: '總結' },
+    first: { defaultProvider: DEFAULT_CONSULT_ROLES.first, uiLabel: 'First' },
+    second: { defaultProvider: DEFAULT_CONSULT_ROLES.second, uiLabel: 'Second' },
+    reviewer: { defaultProvider: DEFAULT_CONSULT_ROLES.reviewer, uiLabel: 'Reviewer' },
+    summary: { defaultProvider: DEFAULT_CONSULT_ROLES.summary, uiLabel: 'Summary' },
   },
   preflight: {
     kind: 'serial',
@@ -23,7 +36,7 @@ export const consultGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'first' },
       role: 'first',
-      label: '先答 A',
+      label: { builder: 'label.consult.first' },
       status: {
         builder: 'status.consult.initial',
         args: [
@@ -40,7 +53,7 @@ export const consultGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'second' },
       role: 'second',
-      label: '先答 B',
+      label: { builder: 'label.consult.second' },
       status: {
         builder: 'status.consult.initial',
         args: [
@@ -57,7 +70,7 @@ export const consultGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'reviewer' },
       role: 'reviewer',
-      label: '審查',
+      label: { builder: 'label.consult.reviewer' },
       status: { builder: 'status.consult.reviewer' },
       prompt: {
         builder: 'consult.reviewer',
@@ -76,7 +89,7 @@ export const consultGraph: WorkflowGraph = {
       kind: 'step',
       provider: { type: 'role', role: 'summary' },
       role: 'summary',
-      label: '總結',
+      label: { builder: 'label.consult.summary' },
       status: { builder: 'status.consult.summary' },
       prompt: {
         builder: 'consult.summary',
@@ -95,8 +108,11 @@ export const consultGraph: WorkflowGraph = {
     },
   },
   edges: [
-    { from: 'first', to: 'reviewer' },
-    { from: 'second', to: 'reviewer' },
+    {
+      from: ['first', 'second'],
+      to: 'reviewer',
+      when: { type: 'not', condition: { type: 'all', conditions: [notReady('first'), notReady('second')] } },
+    },
     { from: 'reviewer', to: 'summary' },
   ],
   onComplete: { status: '' },

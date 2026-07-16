@@ -10,15 +10,15 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its lightweight Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. The preset reuses the stable Free fan-out engine, while the shipped snapshot/replay tools remain available as-is with no further roadmap.
 
-## v1.6.0 highlights
+## v1.6.1 highlights
 
-- **Dedicated Brainstorm preset.** ChatGPT, Claude, Gemini, and Grok explore complementary creative lenses in parallel, with all available providers selected by default.
-- **Restorable ideation runs.** Local sessions, snapshots, replay, and Markdown export preserve the Brainstorm identity and its provider-specific instructions.
-- **Large-text accessibility.** The provider connection strip stays reachable at very large font sizes and in short windows instead of being pushed below the viewport.
-- **Native WebView alignment.** Scroll-driven bounds updates are animation-frame throttled so the focused provider page stays aligned without excessive native repositioning.
-- **Stable core scope.** Brainstorm reuses the proven Free fan-out graph; the five frozen workflow engines remain unchanged.
+- **Fully localized workflow progress.** Mode status, round/phase text, role labels, process traces, and Replay now follow English, Traditional Chinese, Japanese, or German without leaking Chinese labels into another UI language.
+- **Verified conversation boundaries.** Reopening local history keeps provider pages connected, but the first follow-up starts a clean remote thread and verifies the new WebView boot before any same-session context is sent. A failed reset sends nothing and leaves the draft available for retry.
+- **Predictable New conversation.** Repeated clicks reuse the current blank session instead of creating duplicates, while still resetting mode, preset, transcript state, and the next remote send.
+- **Resilient Consult mode.** When both initial AIs return only errors or skips, Consult stops instead of asking another AI to review unusable text; one usable initial answer still continues through review and summary.
+- **Contributor-integrated maintenance.** Dave Tseng’s PRs #23, #31, and #32 are preserved with original authorship and completed with maintainer boot-gating, graph-versioning, localization, and regression coverage.
 
-See the bilingual [`v1.6.0 release notes`](./docs/RELEASE_NOTES_v1.6.0.md) for validation, contributor credit, the documented upstream GTK risk, and known platform limits.
+See the bilingual [`v1.6.1 release notes`](./docs/RELEASE_NOTES_v1.6.1.md) for validation, contributor credit, the documented upstream GTK risk, and known platform limits.
 
 ## Choose the right edition
 

@@ -10,15 +10,15 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das schlanke Brainstorming-Preset sind enthalten. Das Preset nutzt die stabile freie Fan-out-Engine; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Snapshot und Replay bleiben unverändert und werden nicht erweitert.
 
-## Neuerungen in v1.6.0
+## Neuerungen in v1.6.1
 
-- **Eigenes Brainstorming-Preset.** ChatGPT, Claude, Gemini und Grok untersuchen parallel ergänzende kreative Blickwinkel; alle verfügbaren Anbieter sind standardmäßig ausgewählt.
-- **Wiederherstellbare Ideenläufe.** Lokale Sitzungen, Snapshots, Replay und Markdown-Export bewahren die Brainstorming-Kennung und anbieterspezifischen Anweisungen.
-- **Barrierefreiheit bei großer Schrift.** Der Anbieter-Verbindungsbereich bleibt auch bei sehr großer Schrift oder niedrigen Fenstern durch Scrollen erreichbar.
-- **Ausrichtung des nativen WebViews.** Scrollbedingte Bounds-Updates werden pro Animationsframe gedrosselt, damit die aktive Seite ohne unnötige native Neupositionierung ausgerichtet bleibt.
-- **Stabiler Kernumfang.** Brainstorming nutzt den bewährten freien Fan-out-Graphen; die fünf eingefrorenen Workflow-Engines bleiben unverändert.
+- **Vollständig lokalisierter Workflow-Fortschritt.** Modusstatus, Runden und Phasen, Rollenbezeichnungen, Prozessverlauf und Replay folgen English, 繁體中文, 日本語 oder Deutsch, ohne chinesische Texte in einer anderssprachigen Oberfläche.
+- **Verifizierte Gesprächsgrenzen.** Beim Öffnen lokaler Verläufe bleiben Anbieterseiten verbunden. Vor der ersten Folgefrage startet die App jedoch einen sauberen Remote-Thread und prüft den neuen WebView-Boot, bevor Kontext derselben Sitzung gesendet wird. Schlägt der Reset fehl, wird nichts gesendet und der Entwurf bleibt erhalten.
+- **Vorhersehbarer neuer Chat.** Wiederholtes Klicken in einer leeren Sitzung erzeugt keine Duplikate; Modus, Preset, Transkriptzustand und der nächste Remote-Versand werden trotzdem vollständig zurückgesetzt.
+- **Robuster Beratungsmodus.** Liefern beide ersten KIs nur Fehler oder übersprungene Antworten, endet der Ablauf, statt unbrauchbaren Text prüfen zu lassen. Eine einzige brauchbare Antwort reicht weiterhin für Prüfung und Zusammenfassung.
+- **Contributor-Fixes vollständig integriert.** Die ursprüngliche Autorenschaft von Dave Tsengs PRs #23, #31 und #32 bleibt erhalten; ergänzt wurden Boot-Gate, Graph-Versionierung, Lokalisierung und Regressionstests.
 
-Validierung, Danksagung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.0 Release Notes`](./docs/RELEASE_NOTES_v1.6.0.md).
+Validierung, Danksagung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.1 Release Notes`](./docs/RELEASE_NOTES_v1.6.1.md).
 
 ## Edition wählen
 

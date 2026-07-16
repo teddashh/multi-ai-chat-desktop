@@ -2,6 +2,7 @@ import { AI_PROVIDERS, DEFAULT_FREE_TARGET_PROVIDERS } from '../../../shared/con
 import type { AIProvider } from '../../../shared/types';
 import { getRuntimeAppVersion } from '../../appVersion';
 import { host } from '../../host';
+import type { Locale } from '../../i18n/resolve';
 import { executeGraph, preflightGraph, workflowGraphs } from '../graph';
 import type { WorkflowGraph } from '../graph';
 import type { PreflightResult } from '../preflight';
@@ -52,6 +53,7 @@ export type ReplayResult =
 interface ReplayOptions {
   replayWithCurrentGraph?: boolean;
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
+  locale?: Locale;
   responseLanguagePolicy?: ResponseLanguagePolicy;
 }
 
@@ -155,6 +157,7 @@ export async function replaySnapshot(input: ReplayInput, options: ReplayOptions 
       text: question,
       roles: plan.roles,
       targets,
+      locale: options.locale,
       ...(responseLanguagePolicy ? { responseLanguagePolicy } : {}),
     },
     {

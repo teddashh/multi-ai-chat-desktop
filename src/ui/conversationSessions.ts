@@ -50,6 +50,20 @@ export interface CreateConversationSessionInput {
   now?: number;
 }
 
+export interface BeginNewConversationSessionInput {
+  sessions: readonly ConversationSession[];
+  activeSessionId: string;
+  messages: readonly ConversationSessionMessage[];
+  mode: ChatMode;
+  presetId?: WorkflowPresetId;
+  now?: number;
+}
+
+export interface BeginNewConversationSessionResult {
+  sessions: ConversationSession[];
+  active: ConversationSession;
+}
+
 export function createConversationSession({
   id,
   title,
@@ -73,6 +87,52 @@ export function createConversationSession({
     ...(normalizedPresetId ? { presetId: normalizedPresetId } : {}),
     messages: normalizedMessages,
   };
+}
+
+export function beginNewConversationSession({
+  sessions,
+  activeSessionId,
+  messages,
+  mode,
+  presetId,
+  now = Date.now(),
+}: BeginNewConversationSessionInput): BeginNewConversationSessionResult {
+  const timestamp = normalizeTimestamp(now) ?? Date.now();
+  const normalizedSessions = normalizeConversationSessions(sessions);
+  const normalizedMessages = normalizeConversationMessages(messages);
+  const existing = normalizedSessions.find((session) => session.id === activeSessionId);
+
+  if (normalizedMessages.length === 0) {
+    const active = existing
+      ? {
+          id: existing.id,
+          title: DEFAULT_CONVERSATION_SESSION_TITLE,
+          createdAt: existing.createdAt,
+          updatedAt: Math.max(existing.createdAt, timestamp),
+          mode: 'free' as const,
+          messages: [],
+        }
+      : createConversationSession({ now: timestamp });
+    return { sessions: upsertConversationSession(normalizedSessions, active), active };
+  }
+
+  const normalizedPresetId = normalizePresetId(presetId, mode);
+  const base = existing ?? createConversationSession({ id: activeSessionId, now: timestamp });
+  let archived = normalizedSessions;
+  if (sessionContentChanged(base, normalizedMessages, mode, normalizedPresetId)) {
+    const archivedSession: ConversationSession = {
+      ...base,
+      title: titleFromFirstUserMessage(normalizedMessages),
+      updatedAt: timestamp,
+      mode,
+      messages: normalizedMessages,
+    };
+    if (normalizedPresetId) archivedSession.presetId = normalizedPresetId;
+    else delete archivedSession.presetId;
+    archived = upsertConversationSession(normalizedSessions, archivedSession);
+  }
+  const active = createConversationSession({ now: timestamp });
+  return { sessions: upsertConversationSession(archived, active), active };
 }
 
 export function titleFromFirstUserMessage(messages: unknown): string {

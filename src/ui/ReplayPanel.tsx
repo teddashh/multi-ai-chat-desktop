@@ -113,6 +113,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
       const result = await replaySnapshot(this.inputForSource(source, question), {
         replayWithCurrentGraph: options.replayWithCurrentGraph,
         onSnapshotComplete: this.props.onSnapshotComplete,
+        locale: this.locale(),
         responseLanguagePolicy: this.props.responseLanguagePolicy,
       });
 
