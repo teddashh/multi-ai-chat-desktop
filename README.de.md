@@ -10,16 +10,15 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren ist enthalten; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Die vorhandenen Snapshot-/Replay-Funktionen bleiben unverändert und werden nicht erweitert.
 
-## Neuerungen in v1.5.0
+## Neuerungen in v1.5.1
 
-- **Zuverlässigeres Senden an ChatGPT.** Wenn der Provider Enter verarbeitet und die Standardaktion verhindert, gilt dies nun als erfolgreicher Versand statt als fehlgeschlagene Eingabeinjektion.
-- **Sauber erfasste Antworten.** Prompt-Echos und offengelegte Workflow-Sprachanweisungen werden verworfen; bei mehreren Kandidaten zählt die neueste echte Provider-Antwort.
-- **Schnellere Navigation im Transkript.** Ein Klick auf einen Provider-Chip springt zur neuesten Antwort dieses Providers und hebt sie kurz hervor.
-- **Dauerhafte UI-Einstellung.** Der ein- oder ausgeklappte Zustand der Gesprächsseitenleiste bleibt nach einem Neustart erhalten.
-- **Stabile Verlaufsdaten.** Das bloße Öffnen einer unveränderten Sitzung ändert ihr Datum nicht mehr; Autorenbezeichnungen bleiben beim Speichern und Wiederherstellen erhalten.
-- **Strikte Sitzungstrennung.** Nach einem Verlaufswechsel wird weiterhin eine saubere Provider-Sitzung vorbereitet, bevor ein begrenzter Verlauf derselben Sitzung eingespielt wird. Fremder Remote-Chat-Kontext gelangt so nicht in die nächste Runde.
+- **Sicherheitsgeprüfte Runtime-Pfade.** Die Gemini-Statusprüfung verlangt nun den exakten Provider-Hostnamen; Gesprächs- und Nachrichten-IDs verwenden Web Crypto mit einer kollisionssicheren lokalen Rückfalllösung.
+- **Sichererer Windows-Source-Agent.** Das Agent-Ready Source Release akzeptiert nur die festen, shell-sicheren Tokens des Launchers und weist Shell-Sonderzeichen zurück.
+- **Bereinigte Entwicklungsabhängigkeiten.** Vitest und esbuild wurden aktualisiert, sodass alle behebbaren npm-Warnungen ohne Änderung des Funktionsumfangs entfernt sind.
+- **Gehärtete Release-Automatisierung.** JavaScript-basierte GitHub Actions nutzen Node-24-kompatible, auf unveränderliche Commits fixierte Versionen und minimale Workflow-Rechte.
+- **Kontinuierlicher Repository-Schutz.** Dependabot-Sicherheitsupdates, wöchentliche CodeQL-Analysen und geschützte `main`-Prüfungen sichern künftige Wartungsänderungen ab.
 
-Validierung und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.5.0 Release Notes`](./docs/RELEASE_NOTES_v1.5.0.md).
+Validierung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.5.1 Release Notes`](./docs/RELEASE_NOTES_v1.5.1.md).
 
 ## Edition wählen
 

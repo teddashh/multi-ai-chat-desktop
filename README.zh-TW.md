@@ -10,16 +10,15 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。現有 snapshot／replay 會原樣保留，但不再擴充。
 
-## v1.5.0 更新重點
+## v1.5.1 更新重點
 
-- **ChatGPT 送出更可靠。** Provider 已接收並攔截 Enter 時，現在會視為成功送出，不再把已清空的 prompt 誤報為注入失敗。
-- **擷取到真正的回答。** 會排除 prompt 回音與外洩的 workflow 語言指令；頁面同時出現多個候選回答時，以最新的真實回答為準。
-- **更快找到各家回答。** 點 AI 連線 chip 會跳到該 provider 最新一則訊息，並短暫醒目標示。
-- **介面偏好會記住。** 對話側邊欄的展開／收合狀態會跨重啟保留。
-- **對話歷史日期穩定。** 只開啟未變更的 session 不再更新日期，作者標籤也能完整保存與還原。
-- **維持嚴格 session 隔離。** 切換歷史後仍會先準備乾淨的 provider session，再有限度重播同一段對話，避免其他遠端聊天內容混入下一輪。
+- **Runtime 路徑通過安全掃描。** Gemini 狀態判斷改為精確比對 provider hostname；對話與訊息識別碼改用 Web Crypto，並保留不碰撞的本機備援。
+- **Windows source agent 啟動更安全。** Agent-Ready Source Release 只接受啟動器真正需要的固定安全 token，會拒絕 shell 特殊字元。
+- **開發依賴已清理。** 升級 Vitest 與 esbuild，排除所有可處理的 npm 安全警示，不改變既有 app 功能範圍。
+- **Release automation 更穩固。** JavaScript GitHub Actions 改用 Node 24 相容版本、固定 immutable commit，並採最小 workflow 權限。
+- **持續保護維護流程。** Dependabot security updates、每週 CodeQL 與受保護的 `main` checks 會守住後續維護變更。
 
-完整驗證與已知平台限制請見雙語版 [`v1.5.0 發布說明`](./docs/RELEASE_NOTES_v1.5.0.md)。
+完整驗證、已記錄的 GTK 上游風險與平台限制請見雙語版 [`v1.5.1 發布說明`](./docs/RELEASE_NOTES_v1.5.1.md)。
 
 ## 選擇適合的版本
 

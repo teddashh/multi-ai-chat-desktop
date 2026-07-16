@@ -1,5 +1,6 @@
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider } from '../../shared/types';
+import { createUniqueSuffix } from './uniqueId';
 
 const MAX_REPLAY_MESSAGES = 16;
 const MAX_REPLAY_MESSAGE_LENGTH = 2_500;
@@ -19,7 +20,7 @@ export interface ActiveProviderResponse {
 }
 
 export function createConversationMessageId(prefix: string): string {
-  return `${prefix}-${randomSuffix()}`;
+  return `${prefix}-${createUniqueSuffix()}`;
 }
 
 export function createActiveProviderResponse(provider: AIProvider, label?: string): ActiveProviderResponse {
@@ -78,14 +79,4 @@ function truncateMessage(content: string): string {
   if (content.length <= MAX_REPLAY_MESSAGE_LENGTH) return content;
   const half = Math.floor((MAX_REPLAY_MESSAGE_LENGTH - 5) / 2);
   return `${content.slice(0, half)}\n…\n${content.slice(-half)}`;
-}
-
-function randomSuffix(): string {
-  try {
-    const uuid = globalThis.crypto?.randomUUID?.();
-    if (uuid) return uuid;
-  } catch {
-    // Fall through to a local uniqueness suffix.
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
