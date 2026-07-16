@@ -6,6 +6,7 @@ import {
   driveCenteredProviderToStage,
   focusGridTemplateColumns,
   nonEmptyRect,
+  throttleWithFrame,
 } from '../ui/focusLayout';
 import { applyPresentationTransitionCommand, waitForPresentationTargetBounds, type PresentationCommandHost } from '../ui/presentationCommands';
 import { DEFAULT_FONT_SIZE, MIN_FONT_SIZE, normalizeSettings } from '../ui/settingsModel';
@@ -124,6 +125,25 @@ describe('focus layout helpers', () => {
     expect(normalizeSettings({ layoutMode: 'quadrant', focusPaneWidth: 700 }).layoutMode).toBe('focus');
     expect(normalizeSettings({ focusPaneWidth: 250 }).focusPaneWidth).toBe(420);
     expect(normalizeSettings({ columnWidths: { left: 500, right: 320 } }).focusPaneWidth).toBe(500);
+  });
+
+  it('collapses bursts of scroll-driven bounds syncs into one call per frame', () => {
+    const fn = vi.fn();
+    const frameCallbacks: Array<() => void> = [];
+    const scheduleFrame = vi.fn((cb: () => void) => frameCallbacks.push(cb));
+    const throttled = throttleWithFrame(fn, scheduleFrame);
+
+    throttled();
+    throttled();
+    throttled();
+    expect(scheduleFrame).toHaveBeenCalledTimes(1);
+    expect(fn).not.toHaveBeenCalled();
+
+    frameCallbacks.shift()?.();
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    throttled();
+    expect(scheduleFrame).toHaveBeenCalledTimes(2);
   });
 
   it('normalizes font size: configured minimum, no upper limit, invalid falls back to default', () => {

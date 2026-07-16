@@ -39,6 +39,21 @@ export function nonEmptyRect(rect: DOMRectReadOnly | null | undefined): DOMRectR
 export type CenterStagePresentationState = 'chip' | 'side' | 'center';
 export type CenterStageWebviewState = 'none' | 'creating' | 'loaded';
 
+export function throttleWithFrame(fn: () => void, scheduleFrame?: (cb: () => void) => number): () => void {
+  let scheduled = false;
+  return () => {
+    if (scheduled) return;
+    scheduled = true;
+    // Resolved lazily (only once the returned handler actually fires) so constructing
+    // this wrapper during SSR/tests, where requestAnimationFrame is undefined, is safe.
+    const schedule = scheduleFrame ?? requestAnimationFrame;
+    schedule(() => {
+      scheduled = false;
+      fn();
+    });
+  };
+}
+
 export async function driveCenteredProviderToStage<TProvider extends string>({
   provider,
   presentation,
