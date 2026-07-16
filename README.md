@@ -8,7 +8,7 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > This project automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider’s terms. Use accounts and content you are authorized to use.
 
-> **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme is included; future changes are limited to provider compatibility, security, and build breakage. The shipped snapshot/replay tools remain available as-is but have no further roadmap.
+> **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its lightweight Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. The preset reuses the stable Free fan-out engine, while the shipped snapshot/replay tools remain available as-is with no further roadmap.
 
 ## v1.5.1 highlights
 
@@ -31,7 +31,7 @@ See the bilingual [`v1.5.1 release notes`](./docs/RELEASE_NOTES_v1.5.1.md) for v
 
 - **Reliable offscreen automation.** Providers keep working without manually opening each “live page”; rejected sends retry and fail clearly instead of waiting forever.
 - **Conversation-first layout.** Workflow controls sit above the less-important provider WebView on the left; the transcript and composer keep the larger right pane.
-- **Five guided modes.** Free distribution, debate, consultation, coding, and five-round truth-seeking roundtable.
+- **Six guided presets, five stable engines.** Free distribution, debate, consultation, coding, five-round truth-seeking roundtable, and a provider-lens Brainstorm preset built on the Free engine.
 - **Local sessions.** Create a new conversation or reopen up to 30 recent transcripts stored on this computer; restored follow-ups receive bounded context from the same session.
 - **Readable results.** Safe semantic Markdown rendering for headings, nested lists, links, quotes, fenced code, and scrollable tables.
 - **Image completion.** Image-only ChatGPT responses complete the workflow instead of hanging.
@@ -42,15 +42,16 @@ See the bilingual [`v1.5.1 release notes`](./docs/RELEASE_NOTES_v1.5.1.md) for v
 - **Repository Skills.** Codex and Claude Code can validate prerequisites and launch the source app without an installer.
 - **Safer macOS packaging.** Apple Silicon DMGs are ad-hoc signed, and release CI verifies the embedded app signature before upload.
 
-## Workflow modes
+## Workflow presets
 
-| Mode | Flow | Typical use |
+| Preset | Flow | Typical use |
 |---|---|---|
-| **Free** | Selected providers answer in parallel | Quick comparison, brainstorming, image prompts |
+| **Free** | Selected providers answer in parallel | Quick comparison and image prompts |
 | **Debate** | Pro → Con → Judge → Synthesis | Stress-test a decision or argument |
 | **Consult** | Two independent answers → Review → Final answer | Research and second opinions |
 | **Coding** | Specification → Reviews → v1 → Tests → v2 → Acceptance → Final | Structured software planning and review |
 | **Roundtable** | 5 rounds × 4 AIs = 20 turns | Slow, adversarial convergence on difficult questions |
+| **Brainstorm** | Selected providers explore distinct creative lenses in parallel | Divergent ideas, unconventional options, and concrete next steps |
 
 After a workflow finishes, use the bottom composer to continue the same conversation. Use **New conversation** when you want a clean session.
 

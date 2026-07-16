@@ -53,6 +53,15 @@ describe('M4c share export helpers', () => {
     expect(content.split('\n')).toHaveLength(6);
   });
 
+  it('labels brainstorm exports without changing their underlying free mode', () => {
+    const preset = { id: 'brainstorm', icon: '✨', name: 'Brainstorm' };
+    const { content, title } = buildMarkdown([], 'free', fixedDate, { preset });
+
+    expect(title).toBe('Multi-AI Chat — ✨ Brainstorm');
+    expect(content.split('\n')[0]).toBe('# Multi-AI Chat — ✨ Brainstorm');
+    expect(exportFilename('free', fixedDate, preset.id)).toBe('multi-ai-chat-brainstorm-2026-07-04-13-45-07.md');
+  });
+
   it('renders app, workflow, snapshot, timing, and adapter provenance', () => {
     const snapshot = buildSnapshot();
     const { content } = buildMarkdown([{ role: 'user', content: 'question' }], 'roundtable', fixedDate, {

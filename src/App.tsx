@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AI_PROVIDERS, CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../shared/constants';
-import type { AIProvider, BridgeMessage, ChatMode, ProviderState } from '../shared/types';
+import type { AIProvider, BridgeMessage, ChatMode, ProviderState, WorkflowPresetId } from '../shared/types';
 import { startBridgePull, resetProviderBootState } from './bridge/pull';
 import { isRenderableResponseMessage } from './bridge/render';
 import { publishBridgeMessage } from './bridge/bus';
@@ -85,7 +85,7 @@ import {
   waitForPresentationTargetBounds,
 } from './ui/presentationCommands';
 import { preflightGraph, workflowGraphs } from './workflow/graph';
-import { defaultRolesForPreset, PRESET_CATALOG } from './ui/presetCatalogData';
+import { defaultRolesForPreset, presetForId } from './ui/presetCatalogData';
 import { buildPreflightDialogModel } from './ui/preflightModel';
 import { preflightFromResult } from './ui/preflightFromResult';
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from './ui/processing';
@@ -288,7 +288,8 @@ export default function App() {
   const [messages, setMessages] = useState<Bubble[]>(() => bubblesFromSession(initialConversation.active));
   const [workflowStatus, setWorkflowStatus] = useState('');
   const [mode, setMode] = useState<ChatMode>(initialConversation.active.mode);
-  const [presetDetailsMode, setPresetDetailsMode] = useState<ChatMode | undefined>();
+  const [presetId, setPresetId] = useState<WorkflowPresetId>(initialConversation.active.presetId ?? initialConversation.active.mode);
+  const [presetDetailsId, setPresetDetailsId] = useState<WorkflowPresetId | undefined>();
   const [replayDrawerOpen, setReplayDrawerOpen] = useState(false);
   const [processTrace, setProcessTrace] = useState<ProcessTraceState | undefined>();
   const [processTraceDetailOpen, setProcessTraceDetailOpen] = useState(false);
@@ -376,8 +377,8 @@ export default function App() {
   const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
   const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
   const requiredModeProviders = useMemo(
-    () => PRESET_CATALOG.find((preset) => preset.graphId === mode)?.requiredProviders ?? [],
-    [mode],
+    () => presetForId(presetId).requiredProviders,
+    [presetId],
   );
   const readyModeProviders = useMemo(
     () => requiredModeProviders.filter((provider) => isSendable(states[provider])),
@@ -464,20 +465,22 @@ export default function App() {
       setSessions((current) => {
         const existing = current.find((session) => session.id === activeSessionId);
         const storedMessages = conversationMessages(messages);
-        if (existing && !sessionContentChanged(existing, storedMessages, mode)) return current;
-        const base = existing ?? createConversationSession({ id: activeSessionId, mode });
+        const storedPresetId = conversationPresetId(presetId, mode);
+        if (existing && !sessionContentChanged(existing, storedMessages, mode, storedPresetId)) return current;
+        const base = existing ?? createConversationSession({ id: activeSessionId, mode, presetId: storedPresetId });
         const next = upsertConversationSession(current, {
           ...base,
           title: titleFromFirstUserMessage(storedMessages),
           updatedAt: Date.now(),
           mode,
+          presetId: storedPresetId,
           messages: storedMessages,
         });
         return persistConversationSessions(next);
       });
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [activeSessionId, messages, mode]);
+  }, [activeSessionId, messages, mode, presetId]);
 
   const setManualFocusLock = useCallback((lock: ManualFocusLock | undefined) => {
     manualFocusLockRef.current = lock;
@@ -1365,6 +1368,7 @@ export default function App() {
       text: trimmed,
       context: replayContext,
       mode,
+      presetId,
       roles: workflowRoles,
       targets: workflowTargets,
       snapshotPersistence: snapshotSettings.snapshotPersistence,
@@ -1451,12 +1455,14 @@ export default function App() {
     setSessions((current) => {
       const existing = current.find((session) => session.id === activeSessionId);
       const storedMessages = conversationMessages(messages);
-      const archived = existing && sessionContentChanged(existing, storedMessages, mode)
+      const storedPresetId = conversationPresetId(presetId, mode);
+      const archived = existing && sessionContentChanged(existing, storedMessages, mode, storedPresetId)
         ? upsertConversationSession(current, {
             ...existing,
             title: titleFromFirstUserMessage(storedMessages),
             updatedAt: now,
             mode,
+            presetId: storedPresetId,
             messages: storedMessages,
           })
         : current;
@@ -1467,7 +1473,8 @@ export default function App() {
     replayContextSessionRef.current = undefined;
     setMessages([]);
     setMode('free');
-    setPresetDetailsMode(undefined);
+    setPresetId('free');
+    setPresetDetailsId(undefined);
     setWorkflowStatus('');
     setProcessTrace(undefined);
     setReplayDrawerOpen(false);
@@ -1485,7 +1492,7 @@ export default function App() {
         });
       });
     }
-  }, [activeSessionId, isProcessing, messages, mode]);
+  }, [activeSessionId, isProcessing, messages, mode, presetId]);
 
   const selectConversationSession = useCallback(
     (session: ConversationSession) => {
@@ -1494,7 +1501,8 @@ export default function App() {
       replayContextSessionRef.current = session.messages.length > 0 ? session.id : undefined;
       setMessages(bubblesFromSession(session));
       setMode(session.mode);
-      setPresetDetailsMode(undefined);
+      setPresetId(session.presetId ?? session.mode);
+      setPresetDetailsId(undefined);
       setWorkflowStatus('');
       setProcessTrace(undefined);
       setReplayDrawerOpen(false);
@@ -1540,8 +1548,16 @@ export default function App() {
       const now = new Date();
       const appVersion = await getRuntimeAppVersion();
       const snapshot = matchingSnapshotForConversation(messages, getLastSnapshot());
-      const { content } = buildMarkdown(messages, mode, now, { appVersion, snapshot });
-      const saved = await host.share.exportMarkdown(exportFilename(mode, now), content);
+      const exportPreset =
+        presetId === 'brainstorm'
+          ? {
+              id: presetId,
+              icon: '✨',
+              name: translateKey('preset.brainstorm.displayName', localeRef.current),
+            }
+          : undefined;
+      const { content } = buildMarkdown(messages, mode, now, { appVersion, snapshot, preset: exportPreset });
+      const saved = await host.share.exportMarkdown(exportFilename(mode, now, exportPreset?.id), content);
       if (saved) setShareNotice({ kind: 'ok', text: formatI18n(translateKey('share.exported', localeRef.current), { path: saved }) });
     } catch (reason) {
       recordEventLog({
@@ -1659,10 +1675,15 @@ export default function App() {
   };
 
   const selectPreset = useCallback(
-    (nextMode: ChatMode) => {
+    (nextPresetId: WorkflowPresetId) => {
       if (isProcessing) return;
-      setMode(nextMode);
-      setPresetDetailsMode((current) => (current === nextMode ? undefined : nextMode));
+      const nextPreset = presetForId(nextPresetId);
+      setMode(nextPreset.graphId);
+      setPresetId(nextPreset.id);
+      setPresetDetailsId((current) => (current === nextPreset.id ? undefined : nextPreset.id));
+      if (nextPreset.id === 'brainstorm') {
+        setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
+      }
     },
     [isProcessing],
   );
@@ -1731,11 +1752,12 @@ export default function App() {
               <AiSisterEnsembleCard />
               <PresetCatalog
                 mode={mode}
+                selectedPresetId={presetId}
                 onSelectPreset={selectPreset}
                 locale={locale}
                 states={states}
                 disabled={isProcessing}
-                detailsMode={presetDetailsMode}
+                detailsPresetId={presetDetailsId}
                 layout="sidebar"
               />
               {mode === 'free' ? (
@@ -1811,8 +1833,8 @@ export default function App() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="ai-sister-mode-badge shrink-0 border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-100">
-                    <span className="mr-1">{CHAT_MODES[mode].icon}</span>
-                    {translate(MODE_NAME_KEYS[mode])}
+                    <span className="mr-1">{presetId === 'brainstorm' ? '✨' : CHAT_MODES[mode].icon}</span>
+                    {presetId === 'brainstorm' ? translate(presetForId(presetId).displayNameKey) : translate(MODE_NAME_KEYS[mode])}
                   </span>
                   <span className="min-w-0 truncate text-xs text-zinc-600 dark:text-zinc-400">{workflowStatus || translate('processTrace.settled')}</span>
                 </div>
@@ -1918,6 +1940,7 @@ export default function App() {
           onClose={() => setPreflight(undefined)}
           onSwitchMode={() => {
             setMode('free');
+            setPresetId('free');
             setPreflight(undefined);
           }}
           locale={locale}
@@ -2091,4 +2114,8 @@ export function ChatArea({
 function modeFromReplayPlan(plan: ReplayPlan): ChatMode | undefined {
   const candidate = plan.graph?.mode ?? plan.graph?.id;
   return typeof candidate === 'string' && candidate in CHAT_MODES ? (candidate as ChatMode) : undefined;
+}
+
+function conversationPresetId(presetId: WorkflowPresetId, mode: ChatMode): WorkflowPresetId | undefined {
+  return presetId === 'brainstorm' && mode === 'free' ? presetId : undefined;
 }

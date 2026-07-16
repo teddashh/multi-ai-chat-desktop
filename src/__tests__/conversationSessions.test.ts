@@ -126,6 +126,25 @@ describe('conversation sessions', () => {
     expect(normalizeConversationSessions({ sessions: [] })).toEqual([]);
   });
 
+  it('persists the brainstorm preset only when it is backed by free mode', () => {
+    expect(
+      normalizeConversationSession({
+        id: 'brainstorm',
+        mode: 'free',
+        presetId: 'brainstorm',
+        messages: [],
+      }),
+    ).toMatchObject({ mode: 'free', presetId: 'brainstorm' });
+    expect(
+      normalizeConversationSession({
+        id: 'invalid-preset',
+        mode: 'debate',
+        presetId: 'brainstorm',
+        messages: [],
+      }),
+    ).not.toHaveProperty('presetId');
+  });
+
   it('upserts immutably, replaces matching ids, sorts by recency, and caps at 30', () => {
     const original = [session('same', 1, { title: DEFAULT_CONVERSATION_SESSION_TITLE })];
     const replacement = session('same', 40, {
@@ -157,6 +176,8 @@ describe('conversation sessions', () => {
     expect(sessionContentChanged(existing, [...messages], 'free')).toBe(false);
     expect(sessionContentChanged(existing, [...messages, { id: 'ai-1', role: 'ai', content: 'Reply' }], 'free')).toBe(true);
     expect(sessionContentChanged(existing, [...messages], 'debate')).toBe(true);
+    expect(sessionContentChanged(existing, [...messages], 'free', 'brainstorm')).toBe(true);
+    expect(sessionContentChanged({ ...existing, presetId: 'brainstorm' }, [...messages], 'free', 'brainstorm')).toBe(false);
     expect(sessionContentChanged(existing, [{ ...messages[0], authorLabel: 'Someone else' }], 'free')).toBe(true);
   });
 

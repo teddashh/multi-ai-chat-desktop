@@ -8,7 +8,7 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > Das Projekt automatisiert die Webseiten der Anbieter. Änderungen an deren Oberfläche können einen Adapter vorübergehend beschädigen. Beachte die Bedingungen der Anbieter und verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist.
 
-> **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren ist enthalten; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Die vorhandenen Snapshot-/Replay-Funktionen bleiben unverändert und werden nicht erweitert.
+> **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das schlanke Brainstorming-Preset sind enthalten. Das Preset nutzt die stabile freie Fan-out-Engine; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Snapshot und Replay bleiben unverändert und werden nicht erweitert.
 
 ## Neuerungen in v1.5.1
 
@@ -31,7 +31,7 @@ Validierung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen
 
 - Zuverlässige Automatisierung im Hintergrund; abgelehnte Sendungen werden erneut versucht oder klar als Fehler gemeldet.
 - Workflow-Steuerung links über dem weniger wichtigen WebView; mehr Platz für Transkript und Eingabe rechts.
-- Freie Verteilung, Debatte, Beratung, Coding und fünf Runden Wahrheitssuche.
+- Sechs geführte Presets auf fünf stabilen Engines: freie Verteilung, Debatte, Beratung, Coding, fünf Runden Wahrheitssuche sowie Brainstorming über die freie Engine.
 - Bis zu 30 lokale Sitzungen plus **Neuer Chat**; wiederhergestellte Nachfragen erhalten begrenzten Kontext nur aus derselben Sitzung.
 - Sicher gerendertes Markdown mit Überschriften, verschachtelten Listen, Links, Codeblöcken und scrollbaren Tabellen; außerdem Abschluss reiner Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
 - English, 繁體中文, 日本語 und Deutsch.
@@ -40,15 +40,16 @@ Validierung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen
 - Repo-Skills für Codex und Claude Code starten die Quellversion ohne Installer.
 - Apple-Silicon-DMGs sind ad-hoc signiert; die Release-CI prüft die eingebettete App-Signatur vor dem Upload.
 
-## Workflow-Modi
+## Workflow-Presets
 
-| Modus | Ablauf | Einsatz |
+| Preset | Ablauf | Einsatz |
 |---|---|---|
-| **Frei** | Ausgewählte KIs antworten parallel | Vergleich, Brainstorming, Bilder |
+| **Frei** | Ausgewählte KIs antworten parallel | Vergleich und Bilder |
 | **Debatte** | Pro → Contra → Urteil → Synthese | Argumente und Entscheidungen prüfen |
 | **Beratung** | Zwei unabhängige Antworten → Prüfung → Ergebnis | Recherche und zweite Meinung |
 | **Coding** | Spezifikation → Reviews → v1 → Tests → v2 → Abnahme → Final | Strukturierte Softwareplanung |
 | **Rundtisch** | 5 Runden × 4 KIs = 20 Beiträge | Schwierige Fragen kontrovers konvergieren lassen |
+| **Brainstorming** | Ausgewählte KIs erkunden parallel unterschiedliche kreative Blickwinkel | Vielfältige Ideen, unkonventionelle Optionen und konkrete nächste Schritte |
 
 Nach einem Workflow kann die Unterhaltung unten rechts fortgesetzt werden. **Neuer Chat** beginnt mit sauberem Kontext.
 

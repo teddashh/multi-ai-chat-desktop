@@ -8,7 +8,7 @@ import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../brid
 import { resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
-import { debateGraph, executeGraph, freeGraph, preflightGraph, validateGraph, type StepNode, type WorkflowGraph } from '../workflow/graph';
+import { brainstormGraph, debateGraph, executeGraph, freeGraph, preflightGraph, validateGraph, type StepNode, type WorkflowGraph } from '../workflow/graph';
 import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { resetWorkflowStateForTests } from '../workflow/state';
 import { resetStepTimeoutForTests } from '../workflow/stepTimeout';
@@ -121,6 +121,22 @@ describe('workflow graph foundation', () => {
     expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', 'chatgpt-answer', 'claude-answer'));
     expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', 'chatgpt-answer', 'claude-answer', 'grok-answer'));
     expect(statuses[statuses.length - 1]).toBe('');
+  });
+
+  it('executes brainstormGraph as free fan-out with a distinct lens for every provider', async () => {
+    const prompts = new Map<AIProvider, string>();
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      prompts.set(provider, prompt);
+      publishBridgeMessage(done(provider, `${provider}-idea`));
+    });
+
+    await expect(executeGraph(brainstormGraph, { text: 'Design a calmer onboarding flow', targets: providers })).resolves.toBeUndefined();
+
+    expect(prompts.size).toBe(4);
+    for (const provider of providers) {
+      expect(prompts.get(provider)).toBe(PROMPTS.brainstorm.buildPrompt('Design a calmer onboarding flow', provider));
+    }
+    expect(new Set(prompts.values()).size).toBe(4);
   });
 
   it('preflights serial graphs with the existing sendable predicate', async () => {

@@ -209,6 +209,29 @@ describe('workflow engine', () => {
     expect(statuses).toEqual(['']);
   });
 
+  it('routes the brainstorm preset through provider-specific free fan-out and records its graph id', async () => {
+    const prompts = new Map<AIProvider, string>();
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      prompts.set(provider, prompt);
+      publishBridgeMessage(done(provider, `${provider}-ideas`));
+    });
+
+    await expect(
+      runWorkflow({
+        text: 'Invent a better new-user tutorial',
+        mode: 'free',
+        presetId: 'brainstorm',
+        targets: providers,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    for (const provider of providers) {
+      expect(prompts.get(provider)).toBe(PROMPTS.brainstorm.buildPrompt('Invent a better new-user tutorial', provider));
+    }
+    expect(getLastSnapshot()?.graphId).toBe('brainstorm');
+    expect(getLastSnapshot()?.userQuestion).toMatchObject({ kind: 'inline', text: 'Invent a better new-user tutorial' });
+  });
+
   it('applies the same Auto response-language policy to every free and serial provider prompt', async () => {
     const policy = createResponseLanguagePolicy('auto', 'zh-TW');
     const freePrompts: string[] = [];

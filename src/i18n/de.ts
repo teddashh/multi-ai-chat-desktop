@@ -10,7 +10,7 @@ export const de: Record<I18nKey, string> = {
   'preset.free.displayName': 'Parallele Antworten',
   'preset.free.meta': '< 1 Min.',
   'preset.free.description':
-    'Für schnelle, unabhängige Antworten der ausgewählten KIs. Gut zum Vergleichen, Brainstormen oder für eine schnelle zweite Meinung.',
+    'Für schnelle, unabhängige Antworten der ausgewählten KIs. Gut zum Vergleichen oder für eine schnelle zweite Meinung.',
   'preset.free.costLabel': 'Ausgewählte KIs · < 1 Min. · Geringer RAM-Bedarf',
   'preset.debate.displayName': 'Debatte',
   'preset.debate.meta': 'ca. 4 Min.',
@@ -32,6 +32,11 @@ export const de: Record<I18nKey, string> = {
   'preset.roundtable.description':
     'Für langsamere Diskussionen über mehrere Runden. Vier KIs prüfen die Frage in fünf Runden erneut und einigen sich auf Kernaussagen.',
   'preset.roundtable.costLabel': '4 KIs · 4 Anmeldungen · 10–15 Min. · Hoher RAM-Bedarf',
+  'preset.brainstorm.displayName': 'Brainstorming',
+  'preset.brainstorm.meta': 'ca. 2 Min.',
+  'preset.brainstorm.description':
+    'Vier KIs erkunden dasselbe Thema bewusst aus unterschiedlichen kreativen Blickwinkeln und empfehlen ihre stärksten Ideen mit konkreten nächsten Schritten.',
+  'preset.brainstorm.costLabel': 'Ausgewählte KIs · 1–2 Min. · Geringer RAM-Bedarf',
   'preset.readinessAny': '{ready} verbunden',
   'preset.readinessRequired': '{ready}/{total} bereit',
   'connection.sessionReady': 'Im Hintergrund bereit',

@@ -10,6 +10,10 @@ AI-Sister Commemorative Edition is one four-character theme for Multi-AI Chat De
 
 The supplied ensemble image is intentionally used as a compact hero and brand mark rather than a full-window background so its low-resolution detail remains readable. The four provider portraits appear only where they improve speaker recognition.
 
+## Companion Brainstorm preset
+
+The final **Brainstorm** preset is available in every visual theme, including Light and AI-Sister. It is intentionally separate from the commemorative artwork: selecting it keeps the stable Free fan-out engine but gives each selected provider a distinct creative lens, then asks for diverse ideas, bold alternatives, priorities, and a concrete next step. Sessions and snapshots retain the `brainstorm` preset identity so the run can be restored or replayed without adding a sixth workflow engine.
+
 ## Character mapping
 
 | Provider | Character treatment | Asset |
@@ -37,4 +41,4 @@ The five character images were supplied by the project owner for this commemorat
 
 ## Maintenance policy
 
-The theme is feature-complete. Future work is limited to regressions that affect readability, accessibility, packaging, or provider compatibility; no additional character themes or snapshot-related theme features are planned.
+The theme and its companion preset are feature-complete. Future work is limited to regressions that affect readability, accessibility, packaging, or provider compatibility; no additional character themes, workflow engines, or snapshot-related theme features are planned.

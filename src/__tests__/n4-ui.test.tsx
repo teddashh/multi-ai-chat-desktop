@@ -20,6 +20,7 @@ interface ElementProps {
   id?: string;
   hidden?: boolean;
   onClick?: () => void;
+  'aria-pressed'?: boolean;
 }
 
 function propsOf(element: ReactElement): ElementProps {
@@ -60,7 +61,7 @@ function response(provider: AIProvider, action: 'RESPONSE_CHUNK' | 'RESPONSE_DON
 }
 
 describe('N4 preset catalog', () => {
-  it.each(['en', 'zh-TW'] as const)('renders the five built-in cards with %s time meta only', (locale) => {
+  it.each(['en', 'zh-TW', 'ja', 'de'] as const)('renders the six built-in cards with %s time meta only', (locale) => {
     const tree = PresetCatalog({
       mode: 'free',
       onSelectPreset: vi.fn(),
@@ -71,8 +72,8 @@ describe('N4 preset catalog', () => {
       (element) => element.type === 'button' && PRESET_CATALOG.some((preset) => textOf(element).includes(t(preset.displayNameKey, locale))),
     );
 
-    expect(PRESET_CATALOG).toHaveLength(5);
-    expect(cardButtons).toHaveLength(5);
+    expect(PRESET_CATALOG).toHaveLength(6);
+    expect(cardButtons).toHaveLength(6);
     for (const preset of PRESET_CATALOG) {
       const card = cardButtons.find((button) => textOf(button).includes(t(preset.displayNameKey, locale)));
       expect(card).toBeTruthy();
@@ -82,7 +83,7 @@ describe('N4 preset catalog', () => {
       expect(textOf(card)).not.toContain(t(preset.costLabelKey, locale));
       expect(textOf(card)).not.toContain('RAM');
     }
-    expect(PRESET_CATALOG.filter((preset) => preset.id !== 'free').map((preset) => preset.requiredProviders)).toEqual(
+    expect(PRESET_CATALOG.filter((preset) => preset.graphId !== 'free').map((preset) => preset.requiredProviders)).toEqual(
       Array.from({ length: 4 }, () => [...DEFAULT_FREE_TARGET_PROVIDERS]),
     );
   });
@@ -104,6 +105,25 @@ describe('N4 preset catalog', () => {
     expect(defaultRolesForPreset('coding')).toEqual(DEFAULT_CODING_ROLES);
     expect(defaultRolesForPreset('roundtable')).toEqual(DEFAULT_ROUNDTABLE_ROLES);
     expect(defaultRolesForPreset('free')).toBeUndefined();
+  });
+
+  it('keeps brainstorm visually distinct while routing it through the free graph', () => {
+    const onSelectPreset = vi.fn();
+    const tree = PresetCatalog({
+      mode: 'free',
+      selectedPresetId: 'brainstorm',
+      onSelectPreset,
+      locale: 'en',
+    });
+    const brainstormCard = firstElement(
+      tree,
+      (element) => element.type === 'button' && textOf(element).includes(t('preset.brainstorm.displayName', 'en')),
+    );
+
+    expect(propsOf(brainstormCard)['aria-pressed']).toBe(true);
+    propsOf(brainstormCard).onClick?.();
+    expect(onSelectPreset).toHaveBeenCalledWith('brainstorm');
+    expect(PRESET_CATALOG.find((preset) => preset.id === 'brainstorm')?.graphId).toBe('free');
   });
 
   it('renders the catalog as cards only without an advanced raw-controls drawer', () => {
