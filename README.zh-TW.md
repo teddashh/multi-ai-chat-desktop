@@ -10,15 +10,15 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 與輕量「腦力激盪」預設已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。新預設沿用穩定的自由分送引擎，現有 snapshot／replay 會原樣保留且不再擴充。
 
-## v1.6.0 更新重點
+## v1.6.1 更新重點
 
-- **專用腦力激盪預設。** ChatGPT、Claude、Gemini 與 Grok 會以互補的創意視角平行發想，預設選取所有可用 provider。
-- **可還原的發想流程。** 本機 session、snapshot、replay 與 Markdown 匯出都會保留 Brainstorm 身分及各 provider 的專屬指示。
-- **大字體無障礙改善。** 即使字體放得很大或視窗高度較短，provider 連線區仍可捲動到達，不會被推出可視範圍。
-- **原生 WebView 對齊。** 捲動造成的邊界更新改以 animation frame 節流，讓聚焦頁面保持對齊，同時避免過度重定位原生視窗。
-- **核心範圍維持穩定。** Brainstorm 沿用已驗證的自由分送 graph；既有五套凍結 workflow 引擎不變。
+- **Workflow 進度完整在地化。** 模式狀態、輪次／階段、角色名稱、流程追蹤與 Replay 都會跟隨 English、繁體中文、日本語或 Deutsch，不再於英文介面混入「第一輪」等中文標籤。
+- **可驗證的對話邊界。** 開啟本機歷史記錄時會保留 provider 頁面連線；第一次追問前才建立乾淨的遠端 thread，並確認 WebView 已切到新的 boot，才送入同一 session 的上下文。Reset 失敗時不會送出任何內容，草稿也會保留供重試。
+- **可預期的新對話。** 連按「新對話」會沿用目前的空白 session，不再製造重複項目；模式、preset、逐字稿狀態與下一次遠端送出仍會完整重設。
+- **Consult 容錯改善。** 兩個首輪 AI 都只回傳錯誤或略過時，流程會直接停止，不再要求第三家審查無效文字；只要仍有一份可用回答，就會照常進入審查與總結。
+- **完整整合貢獻者修正。** Dave Tseng 的 PR #23、#31、#32 均保留原作者 commit，並由 maintainer 補上 boot gate、graph version、語系與 regression coverage。
 
-完整驗證、貢獻者致謝、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.6.0 發布說明`](./docs/RELEASE_NOTES_v1.6.0.md)。
+完整驗證、貢獻者致謝、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.6.1 發布說明`](./docs/RELEASE_NOTES_v1.6.1.md)。
 
 ## 選擇適合的版本
 

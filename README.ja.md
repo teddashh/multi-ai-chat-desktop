@@ -10,15 +10,15 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと軽量なブレインストーミングpresetを追加しました。presetは安定した自由送信engineを再利用します。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
 
-## v1.6.0 の更新点
+## v1.6.1 の更新点
 
-- **専用ブレインストーミングpreset。** ChatGPT、Claude、Gemini、Grokが相互補完的な創造的視点を並列に探索し、利用可能なproviderを初期状態ですべて選択します。
-- **復元可能な発想workflow。** ローカルsession、snapshot、replay、Markdown exportでBrainstormの種類とprovider固有の指示を保持します。
-- **大きな文字へのアクセシビリティ。** 文字を大幅に拡大した場合や高さの低いwindowでも、provider接続欄までscrollして操作できます。
-- **Native WebViewの位置合わせ。** scroll時のbounds更新をanimation frame単位に制限し、過剰なnative再配置を避けながら表示を揃えます。
-- **安定したcore scope。** Brainstormは実績のある自由送信fan-out graphを再利用し、凍結済みの5つのworkflow engineは変更しません。
+- **Workflow進行表示を完全にローカライズ。** mode status、round／phase、role label、process trace、ReplayがEnglish、繁體中文、日本語、Deutschに従い、別言語のUIへ中国語ラベルが混ざりません。
+- **検証済みの会話境界。** ローカル履歴へ切り替えてもproviderページの接続は維持しますが、最初の追質問前に新しいremote threadを作り、WebViewの新しいbootを確認してから同一sessionのcontextを送ります。Resetに失敗した場合は何も送信せず、draftを再試行用に残します。
+- **予測可能な「新しい会話」。** 空の会話で繰り返し押しても重複sessionを作らず、mode、preset、transcript状態、次回のremote送信は完全にリセットします。
+- **Consultの障害耐性。** 最初の2 AIがerrorまたはskipだけを返した場合、無効な文章をreviewさせず停止します。少なくとも1件が有効ならreviewとsummaryを続行します。
+- **Contributor修正を完全統合。** Dave TsengのPR #23、#31、#32は元のauthor commitを保持し、maintainerがboot gate、graph version、localization、regression coverageを補完しました。
 
-検証内容、contributorへの謝辞、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.6.0 release notes`](./docs/RELEASE_NOTES_v1.6.0.md) を参照してください。
+検証内容、contributorへの謝辞、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.6.1 release notes`](./docs/RELEASE_NOTES_v1.6.1.md) を参照してください。
 
 ## エディション
 
