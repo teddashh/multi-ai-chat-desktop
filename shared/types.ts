@@ -14,6 +14,8 @@ export interface AIConnection {
 
 export type ChatMode = 'free' | 'debate' | 'consult' | 'coding' | 'roundtable';
 
+export type WorkflowPresetId = ChatMode | 'brainstorm';
+
 export interface DebateRoles {
   pro: AIProvider;
   con: AIProvider;

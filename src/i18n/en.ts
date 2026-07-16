@@ -10,7 +10,7 @@ export const en: Record<I18nKey, string> = {
   'preset.free.displayName': 'Free fan-out',
   'preset.free.meta': '< 1 min',
   'preset.free.description':
-    'Use this when you want quick independent answers from the AI you pick. Good for comparison, brainstorming, or a fast second opinion.',
+    'Use this when you want quick independent answers from the AI you pick. Good for comparison or a fast second opinion.',
   'preset.free.costLabel': 'Selected AIs · <1 min · Low RAM',
   'preset.debate.displayName': 'Debate',
   'preset.debate.meta': '~ 4 min',
@@ -32,6 +32,11 @@ export const en: Record<I18nKey, string> = {
   'preset.roundtable.description':
     'Use this when you want a slower multi-round discussion. Four AIs revisit the question across five rounds and converge on takeaways.',
   'preset.roundtable.costLabel': '4 AIs · 4 logins · 10-15 min · High RAM',
+  'preset.brainstorm.displayName': 'Brainstorm',
+  'preset.brainstorm.meta': '~ 2 min',
+  'preset.brainstorm.description':
+    'Four AIs explore the same topic through deliberately different creative lenses, then recommend their strongest ideas and concrete next steps.',
+  'preset.brainstorm.costLabel': 'Selected AIs · 1-2 min · Low RAM',
   'preset.readinessAny': '{ready} connected',
   'preset.readinessRequired': '{ready}/{total} ready',
   'connection.sessionReady': 'Ready in background',

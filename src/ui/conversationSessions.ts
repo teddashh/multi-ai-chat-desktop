@@ -1,4 +1,4 @@
-import type { ChatMode } from '../../shared/types';
+import type { ChatMode, WorkflowPresetId } from '../../shared/types';
 import { createUniqueSuffix } from './uniqueId';
 
 export const CONVERSATION_SESSIONS_STORAGE_KEY = 'multi-ai-chat:conversation-sessions:v1';
@@ -25,6 +25,7 @@ export interface ConversationSession {
   createdAt: number;
   updatedAt: number;
   mode: ChatMode;
+  presetId?: WorkflowPresetId;
   messages: ConversationSessionMessage[];
 }
 
@@ -44,6 +45,7 @@ export interface CreateConversationSessionInput {
   id?: string;
   title?: string;
   mode?: ChatMode;
+  presetId?: WorkflowPresetId;
   messages?: readonly ConversationSessionMessage[];
   now?: number;
 }
@@ -52,18 +54,23 @@ export function createConversationSession({
   id,
   title,
   mode = 'free',
+  presetId,
   messages = [],
   now = Date.now(),
 }: CreateConversationSessionInput = {}): ConversationSession {
   const timestamp = normalizeTimestamp(now) ?? Date.now();
   const normalizedMessages = normalizeConversationMessages(messages);
 
+  const normalizedMode = isChatMode(mode) ? mode : 'free';
+  const normalizedPresetId = normalizePresetId(presetId, normalizedMode);
+
   return {
     id: nonEmptyString(id) ?? createSessionId(timestamp),
     title: normalizeSessionTitle(title, normalizedMessages),
     createdAt: timestamp,
     updatedAt: timestamp,
-    mode: isChatMode(mode) ? mode : 'free',
+    mode: normalizedMode,
+    ...(normalizedPresetId ? { presetId: normalizedPresetId } : {}),
     messages: normalizedMessages,
   };
 }
@@ -112,12 +119,16 @@ export function normalizeConversationSession(value: unknown): ConversationSessio
   const createdAt = normalizeTimestamp(value.createdAt) ?? normalizeTimestamp(value.updatedAt) ?? 0;
   const updatedAt = Math.max(createdAt, normalizeTimestamp(value.updatedAt) ?? createdAt);
 
+  const mode = isChatMode(value.mode) ? value.mode : 'free';
+  const presetId = normalizePresetId(value.presetId, mode);
+
   return {
     id,
     title: normalizeSessionTitle(value.title, messages),
     createdAt,
     updatedAt,
-    mode: isChatMode(value.mode) ? value.mode : 'free',
+    mode,
+    ...(presetId ? { presetId } : {}),
     messages,
   };
 }
@@ -139,11 +150,18 @@ export function normalizeConversationSessions(value: unknown): ConversationSessi
 }
 
 export function sessionContentChanged(
-  existing: Pick<ConversationSession, 'mode' | 'messages'>,
+  existing: Pick<ConversationSession, 'mode' | 'presetId' | 'messages'>,
   messages: readonly ConversationSessionMessage[],
   mode: ChatMode,
+  presetId?: WorkflowPresetId,
 ): boolean {
-  if (existing.mode !== mode || existing.messages.length !== messages.length) return true;
+  if (
+    existing.mode !== mode ||
+    existing.presetId !== normalizePresetId(presetId, mode) ||
+    existing.messages.length !== messages.length
+  ) {
+    return true;
+  }
   return existing.messages.some((message, index) => !conversationMessageEquals(message, messages[index]));
 }
 
@@ -293,6 +311,10 @@ function nonEmptyString(value: unknown): string | undefined {
 
 function isChatMode(value: unknown): value is ChatMode {
   return typeof value === 'string' && CHAT_MODES.has(value as ChatMode);
+}
+
+function normalizePresetId(value: unknown, mode: ChatMode): WorkflowPresetId | undefined {
+  return value === 'brainstorm' && mode === 'free' ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

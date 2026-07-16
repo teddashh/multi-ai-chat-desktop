@@ -10,7 +10,7 @@ export const ja: Record<I18nKey, string> = {
   'preset.free.displayName': '並列回答',
   'preset.free.meta': '1分未満',
   'preset.free.description':
-    '選択したAIから、すばやく独立した回答を得たい場合に使います。比較、アイデア出し、セカンドオピニオンに適しています。',
+    '選択したAIから、すばやく独立した回答を得たい場合に使います。比較やセカンドオピニオンに適しています。',
   'preset.free.costLabel': '選択したAI · 1分未満 · RAM使用量：少',
   'preset.debate.displayName': 'ディベート',
   'preset.debate.meta': '約4分',
@@ -32,6 +32,11 @@ export const ja: Record<I18nKey, string> = {
   'preset.roundtable.description':
     '時間をかけた複数ラウンドの議論に使います。4つのAIが5ラウンドにわたり質問を再検討し、要点をまとめます。',
   'preset.roundtable.costLabel': 'AI 4件 · ログイン4件 · 10～15分 · RAM使用量：多',
+  'preset.brainstorm.displayName': 'ブレインストーミング',
+  'preset.brainstorm.meta': '約2分',
+  'preset.brainstorm.description':
+    '4つのAIが意図的に異なる創造的視点から同じテーマを広げ、有力なアイデアと具体的な次の一歩を提案します。',
+  'preset.brainstorm.costLabel': '選択したAI · 1～2分 · RAM使用量：少',
   'preset.readinessAny': '{ready}件接続済み',
   'preset.readinessRequired': '{ready}/{total}件準備完了',
   'connection.sessionReady': 'バックグラウンドで準備完了',

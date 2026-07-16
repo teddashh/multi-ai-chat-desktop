@@ -5,11 +5,11 @@ import {
   DEFAULT_FREE_TARGET_PROVIDERS,
   DEFAULT_ROUNDTABLE_ROLES,
 } from '../../shared/constants';
-import type { AIProvider, ChatMode, ModeRoles } from '../../shared/types';
+import type { AIProvider, ChatMode, ModeRoles, WorkflowPresetId } from '../../shared/types';
 import type { I18nKey } from '../i18n/keys';
 
 export interface PresetCatalogEntry {
-  id: ChatMode;
+  id: WorkflowPresetId;
   graphId: ChatMode;
   displayNameKey: I18nKey;
   metaKey?: I18nKey;
@@ -84,7 +84,23 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     ramHint: 'high',
     source: 'builtin',
   },
+  {
+    id: 'brainstorm',
+    graphId: 'free',
+    displayNameKey: 'preset.brainstorm.displayName',
+    metaKey: 'preset.brainstorm.meta',
+    descriptionKey: 'preset.brainstorm.description',
+    costLabelKey: 'preset.brainstorm.costLabel',
+    requiredProviders: [],
+    estMinutes: 2,
+    ramHint: 'low',
+    source: 'builtin',
+  },
 ];
+
+export function presetForId(presetId: WorkflowPresetId): PresetCatalogEntry {
+  return PRESET_CATALOG.find((preset) => preset.id === presetId) ?? PRESET_CATALOG[0];
+}
 
 export function defaultRolesForPreset(mode: ChatMode): ModeRoles | undefined {
   if (mode === 'free') return undefined;

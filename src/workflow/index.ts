@@ -1,4 +1,4 @@
-import type { AIProvider, ChatMode, ModeRoles } from '../../shared/types';
+import type { AIProvider, ChatMode, ModeRoles, WorkflowPresetId } from '../../shared/types';
 import { CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
 import { getRuntimeAppVersion } from '../appVersion';
 import { host } from '../host';
@@ -17,6 +17,7 @@ export interface RunWorkflowParams {
   text: string;
   context?: string;
   mode: ChatMode;
+  presetId?: WorkflowPresetId;
   roles?: ModeRoles;
   targets?: AIProvider[];
   checkpoints?: boolean;
@@ -31,6 +32,7 @@ export async function runWorkflow({
   text,
   context,
   mode,
+  presetId,
   roles,
   targets,
   checkpoints,
@@ -57,7 +59,8 @@ export async function runWorkflow({
         targets === undefined
           ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
           : targets.filter((provider) => sendable.includes(provider));
-      await executeGraph(workflowGraphs.free, { text, context, targets: targetSet, checkpoints, responseLanguagePolicy }, graphOptions);
+      const graph = presetId === 'brainstorm' ? workflowGraphs.brainstorm : workflowGraphs.free;
+      await executeGraph(graph, { text, context, targets: targetSet, checkpoints, responseLanguagePolicy }, graphOptions);
       return { ok: true };
     }
 

@@ -1,4 +1,5 @@
 export { workflowGraphs } from './builtinGraphs';
+export { brainstormGraph } from './brainstormGraph';
 export { codingGraph } from './codingGraph';
 export { consultGraph } from './consultGraph';
 export { debateGraph } from './debateGraph';
