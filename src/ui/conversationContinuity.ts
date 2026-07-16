@@ -45,6 +45,34 @@ export function buildConversationReplayContext(messages: readonly ReplayableConv
     : context.slice(context.length - MAX_REPLAY_CONTEXT_LENGTH);
 }
 
+export interface ProviderSessionResetHost {
+  resetBootState: (provider: AIProvider) => void;
+  newSession: (provider: AIProvider) => Promise<void>;
+  isDomReady: (provider: AIProvider) => boolean;
+  wait: () => Promise<void>;
+}
+
+// Desktop webviews keep a real, persistent remote conversation per provider (unlike the
+// website, which scopes each request to activeSessionId server-side). Switching local
+// conversation history does not touch that remote thread, so the first send after a
+// switch must force a clean provider session before any same-session replay context is
+// injected — otherwise two unrelated local sessions end up sharing one remote thread.
+export async function ensureFreshProviderSessions(
+  providers: readonly AIProvider[],
+  host: ProviderSessionResetHost,
+  maxWaitAttempts = 40,
+): Promise<void> {
+  await Promise.all(
+    providers.map(async (provider) => {
+      host.resetBootState(provider);
+      await host.newSession(provider);
+      for (let attempt = 0; attempt < maxWaitAttempts && !host.isDomReady(provider); attempt += 1) {
+        await host.wait();
+      }
+    }),
+  );
+}
+
 export function questionWithConversationContext(question: string, context?: string): string {
   const normalizedContext = context?.trim();
   if (!normalizedContext) return question;
