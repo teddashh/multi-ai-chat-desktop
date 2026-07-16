@@ -66,6 +66,7 @@ import {
   driveCenteredProviderToStage as driveCenteredProviderToStageCommand,
   focusGridTemplateColumns,
   nonEmptyRect,
+  throttleWithFrame,
 } from './ui/focusLayout';
 import { isSerialMode } from './ui/modeRoles';
 import {
@@ -944,6 +945,15 @@ export default function App() {
     [restoreProvider, syncBounds],
   );
 
+  const resyncNativeBounds = useCallback(() => {
+    syncAllBounds();
+    if (centeredProvider && centerSurfaceRef.current === 'native') void driveCenteredProviderToStage(centeredProvider);
+  }, [centeredProvider, driveCenteredProviderToStage, syncAllBounds]);
+
+  // FocusPane 面板在極端小視窗下允許捲動；捲動不會觸發 ResizeObserver（尺寸沒變，只是位置變了），
+  // 靠這個 onScroll 立即重新同步原生 webview 座標，而不是只依賴既有的 2.5s 輪詢 fallback。
+  const handleFocusPaneScroll = useMemo(() => throttleWithFrame(resyncNativeBounds), [resyncNativeBounds]);
+
   const setCenterStageRef = useCallback(
     (el: HTMLDivElement | null) => {
       centerStageRef.current = el;
@@ -1290,8 +1300,7 @@ export default function App() {
     const onResize = () => {
       const containerWidth = gridRef.current?.getBoundingClientRect().width ?? window.innerWidth;
       setFocusPaneWidth((current) => clampFocusPaneWidth(current, containerWidth));
-      syncAllBounds();
-      if (centeredProvider && centerSurfaceRef.current === 'native') void driveCenteredProviderToStage(centeredProvider);
+      resyncNativeBounds();
     };
     window.addEventListener('resize', onResize);
 
@@ -1322,7 +1331,7 @@ export default function App() {
       window.clearInterval(timer);
       for (const observer of observers) observer.disconnect();
     };
-  }, [centerSurface, centeredProvider, driveCenteredProviderToStage, syncAllBounds, syncBounds]);
+  }, [centerSurface, centeredProvider, driveCenteredProviderToStage, resyncNativeBounds, syncBounds]);
 
   useEffect(() => {
     syncAllBounds();
@@ -1807,6 +1816,7 @@ export default function App() {
               onCollapseCenter={collapseCenter}
               onOpenLogin={openProviderLogin}
               syncBounds={syncBounds}
+              onFocusScroll={handleFocusPaneScroll}
               reportProvider={reportProvider}
               reportBusy={reportBusy}
               processTrace={processTrace}

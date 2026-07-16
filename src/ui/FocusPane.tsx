@@ -37,6 +37,7 @@ export function FocusPane({
   onCollapseCenter,
   onOpenLogin,
   syncBounds,
+  onFocusScroll,
   reportProvider,
   reportBusy,
   processTrace,
@@ -59,6 +60,7 @@ export function FocusPane({
   onCollapseCenter: () => void;
   onOpenLogin: (provider: AIProvider) => Promise<void>;
   syncBounds: (provider: AIProvider) => Promise<void>;
+  onFocusScroll?: () => void;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
   processTrace?: ProcessTraceState;
@@ -83,7 +85,10 @@ export function FocusPane({
   const openingProvider = providerAction?.status === 'opening' ? providerAction.provider : undefined;
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col bg-white dark:bg-zinc-950 p-3">
+    // overflow-y-auto 是極端小視窗下的逃生口，讓連線列在被擠壓時仍可捲到；
+    // 捲動時原生 webview 的錨點只是換位置、尺寸不變，ResizeObserver 不會觸發，
+    // 故用 onScroll（見 onFocusScroll）即時重新同步 webview 座標。
+    <aside className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white dark:bg-zinc-950 p-3" onScroll={onFocusScroll}>
       {centeredProvider ? (
         <FocusStage
           provider={centeredProvider}
@@ -151,10 +156,12 @@ function FirstRunPanel({
 }) {
   const { t } = useI18n();
   return (
+    // 固定 px 高度而非 rem：app 的字體大小設定可無上限放大 document root font-size，
+    // rem-based min-h 會跟著放大並吃掉下方連線列可用的空間，px 才是真正的 bounded floor。
     <section
       ref={setCenterStageRef}
       aria-labelledby="first-run-title"
-      className="ai-sister-first-run grid min-h-[280px] flex-1 place-items-center overflow-auto rounded-lg border border-zinc-200 bg-gradient-to-b from-sky-50 to-white p-4 dark:border-zinc-800 dark:from-sky-950/30 dark:to-zinc-950"
+      className="ai-sister-first-run grid min-h-[160px] flex-1 place-items-center overflow-auto rounded-lg border border-zinc-200 bg-gradient-to-b from-sky-50 to-white p-4 dark:border-zinc-800 dark:from-sky-950/30 dark:to-zinc-950"
     >
       <div className="w-full max-w-2xl text-center">
         <div className="ai-sister-onboarding-star mx-auto grid h-12 w-12 place-items-center rounded-full bg-sky-100 text-2xl dark:bg-sky-950" aria-hidden="true">
@@ -254,7 +261,7 @@ function FocusStage({
 
   return (
     <section
-      className="ai-sister-focus-stage flex min-h-[280px] flex-1 flex-col overflow-hidden border border-sky-300 dark:border-sky-900 bg-zinc-50 dark:bg-zinc-900"
+      className="ai-sister-focus-stage flex min-h-[160px] flex-1 flex-col overflow-hidden border border-sky-300 dark:border-sky-900 bg-zinc-50 dark:bg-zinc-900"
       onPointerDownCapture={() => onManualFocusControl(provider)}
     >
       <div className="flex items-center justify-between gap-2 border-b border-sky-300 dark:border-sky-900 px-3 py-2 text-sm">

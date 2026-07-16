@@ -97,4 +97,21 @@ describe('FocusPane provider header', () => {
     expect(html).toContain('Open ChatGPT');
     expect(html).toContain('Open Grok');
   });
+
+  it('uses a fixed-px stage floor that cannot out-grow the connection strip at large font sizes', () => {
+    // min-h-40 (10rem) would scale with the user-configurable, unbounded root font-size
+    // and eventually exceed the old 280px floor, pushing the connection strip off-screen again.
+    const centered = renderFocusPane({ centeredProvider: 'chatgpt' });
+    const firstRun = renderFocusPane({
+      centeredProvider: null,
+      stateOverrides: Object.fromEntries(providers.map((provider) => [provider, { webview: 'none' }])) as Partial<
+        Record<AIProvider, Partial<ProviderState>>
+      >,
+    });
+
+    for (const html of [centered, firstRun]) {
+      expect(html).toContain('min-h-[160px]');
+      expect(html).not.toMatch(/min-h-40(?!\d)/);
+    }
+  });
 });
