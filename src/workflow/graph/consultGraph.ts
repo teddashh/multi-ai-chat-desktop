@@ -17,7 +17,7 @@ function notReady(node: NodeId): TextCondition {
 export const consultGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'consult',
-  version: 2,
+  version: 3,
   mode: 'consult',
   start: 'first',
   roles: {

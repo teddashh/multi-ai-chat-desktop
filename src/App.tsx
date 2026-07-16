@@ -30,6 +30,7 @@ import { CheckpointCard } from './ui/CheckpointCard';
 import { AiSisterAvatar, AiSisterEnsembleCard } from './ui/AiSisterTheme';
 import { ConversationSidebar } from './ui/ConversationSidebar';
 import {
+  beginNewConversationSession,
   createConversationSession,
   loadConversationSessions,
   removeConversationSession,
@@ -45,6 +46,8 @@ import {
   createActiveProviderResponse,
   createConversationMessageId,
   ensureFreshProviderSessions,
+  pendingProviderSessionResets,
+  ProviderSessionResetError,
   type ActiveProviderResponse,
 } from './ui/conversationContinuity';
 import { FocusPane, type CenterSurface } from './ui/FocusPane';
@@ -357,6 +360,7 @@ export default function App() {
     initialConversation.active.messages.length > 0 ? initialConversation.active.id : undefined,
   );
   const pendingProviderResetRef = useRef<Set<AIProvider>>(new Set());
+  const providerSessionResetAttemptRef = useRef(0);
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
   const targets = targetSelection.targets;
@@ -1358,9 +1362,11 @@ export default function App() {
     if (centeredProvider && centerSurfaceRef.current === 'native') void driveCenteredProviderToStage(centeredProvider);
   }, [overlayGuardOpen, centeredProvider, driveCenteredProviderToStage]);
 
-  const executeSend = async (trimmed: string) => {
+  const executeSend = async (trimmed: string, preparedWorkflowTargets?: AIProvider[]) => {
     if (!trimmed) return;
-    const workflowTargets = mode === 'free' ? freeModeTargets(targets, statesRef.current) : undefined;
+    const workflowTargets = mode === 'free'
+      ? preparedWorkflowTargets ?? freeModeTargets(targets, statesRef.current)
+      : undefined;
     if (workflowTargets?.length === 0) return;
     if (mode === 'free') autoFocusRunCandidate(workflowTargets?.[0]);
     const replayContext =
@@ -1371,28 +1377,6 @@ export default function App() {
     ]);
     setIsProcessing(processingAfterSend());
     setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current));
-    if (pendingProviderResetRef.current.size > 0) {
-      const providersToFreshen = [...pendingProviderResetRef.current].filter(
-        (provider) => statesRef.current[provider].webview === 'loaded',
-      );
-      pendingProviderResetRef.current.clear();
-      if (providersToFreshen.length > 0) {
-        await ensureFreshProviderSessions(providersToFreshen, {
-          resetBootState: resetProviderBootState,
-          newSession: (provider) =>
-            host.provider.newSession(provider).catch((reason) => {
-              recordEventLog({
-                kind: 'workflow-error',
-                provider,
-                summary: `${AI_PROVIDERS[provider].name} session restore reset failed`,
-                detail: { failure: reason instanceof Error ? reason.message : String(reason) },
-              });
-            }),
-          isDomReady: (provider) => statesRef.current[provider].dom === 'ready',
-          wait: () => new Promise((resolve) => setTimeout(resolve, 150)),
-        });
-      }
-    }
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
     const workflowRoles = defaultRolesForPreset(mode);
@@ -1428,23 +1412,73 @@ export default function App() {
 
   const send = async (trimmed: string): Promise<boolean> => {
     if (!trimmed) return false;
-    if (isSerialMode(mode)) {
-      const serialMode = mode as Exclude<ChatMode, 'free'>;
-      const roles = defaultRolesForPreset(serialMode);
+    const serialMode = isSerialMode(mode) ? mode as Exclude<ChatMode, 'free'> : undefined;
+    const serialRoles = serialMode ? defaultRolesForPreset(serialMode) : undefined;
+    const participants = serialRoles
+      ? [...new Set(Object.values(serialRoles))]
+      : freeModeTargets(targets, statesRef.current);
+
+    const providersToFreshen = pendingProviderSessionResets(
+      pendingProviderResetRef.current,
+      participants,
+      (provider) => statesRef.current[provider].webview === 'loaded',
+    );
+    if (providersToFreshen.length > 0) {
+      const resetAttempt = ++providerSessionResetAttemptRef.current;
+      setIsProcessing(processingAfterSend());
+      setWorkflowStatus(translate('input.preparingSession'));
       try {
-        const result = await preflightGraph(workflowGraphs[serialMode], roles);
-        if (!result.ok) {
-          recordEventLog(eventFromWorkflowPreflightBlocked(serialMode, result.unavailable.length + result.aliased.length));
-          setPreflight({ mode: serialMode, result });
-          return false;
+        await ensureFreshProviderSessions(providersToFreshen, {
+          resetBootState: resetProviderBootState,
+          newSession: (provider) => host.provider.newSession(provider),
+        });
+        if (providerSessionResetAttemptRef.current !== resetAttempt) return false;
+        for (const provider of providersToFreshen) pendingProviderResetRef.current.delete(provider);
+        setWorkflowStatus('');
+      } catch (reason) {
+        const resetError = reason instanceof ProviderSessionResetError ? reason : undefined;
+        for (const provider of resetError?.completedProviders ?? []) pendingProviderResetRef.current.delete(provider);
+        const failures = resetError?.failures ?? providersToFreshen.map((provider) => ({ provider, reason }));
+        for (const failure of failures) {
+          recordEventLog({
+            kind: 'workflow-error',
+            provider: failure.provider,
+            summary: `${AI_PROVIDERS[failure.provider].name} session restore reset failed`,
+            detail: { failure: failure.reason instanceof Error ? failure.reason.message : String(failure.reason) },
+          });
         }
-      } catch {
-        setWorkflowStatus(translate('input.sendFailed'));
+        if (providerSessionResetAttemptRef.current === resetAttempt) {
+          setWorkflowStatus(translate('input.sessionResetFailed'));
+          setIsProcessing(false);
+        }
         return false;
       }
     }
 
-    void executeSend(trimmed);
+    if (serialMode) {
+      try {
+        const result = await preflightGraph(workflowGraphs[serialMode], serialRoles);
+        if (!result.ok) {
+          recordEventLog(eventFromWorkflowPreflightBlocked(serialMode, result.unavailable.length + result.aliased.length));
+          setPreflight({ mode: serialMode, result });
+          setIsProcessing(false);
+          return false;
+        }
+      } catch {
+        setWorkflowStatus(translate('input.sendFailed'));
+        setIsProcessing(false);
+        return false;
+      }
+    }
+
+    const workflowTargets = serialMode ? undefined : freeModeTargets(targets, statesRef.current);
+    if (workflowTargets?.length === 0) {
+      setWorkflowStatus(translate('input.sendFailed'));
+      setIsProcessing(false);
+      return false;
+    }
+
+    void executeSend(trimmed, workflowTargets);
     return true;
   };
 
@@ -1471,6 +1505,7 @@ export default function App() {
   }, [sessionCheckpointNotice]);
 
   const cancelWorkflow = () => {
+    providerSessionResetAttemptRef.current += 1;
     publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
     setManualFocusLock(undefined);
     setIsProcessing(false);
@@ -1485,34 +1520,16 @@ export default function App() {
   const startNewConversation = useCallback(() => {
     if (isProcessing) return;
     const now = Date.now();
-    if (conversationMessages(messages).length === 0) {
-      setSessions((current) => {
-        const existing = current.find((session) => session.id === activeSessionId);
-        if (!existing) return current;
-        const next = upsertConversationSession(current, { ...existing, updatedAt: now });
-        return persistConversationSessions(next);
-      });
-      return;
-    }
-    const nextSession = createConversationSession({ now });
-    setSessions((current) => {
-      const existing = current.find((session) => session.id === activeSessionId);
-      const storedMessages = conversationMessages(messages);
-      const storedPresetId = conversationPresetId(presetId, mode);
-      const archived = existing && sessionContentChanged(existing, storedMessages, mode, storedPresetId)
-        ? upsertConversationSession(current, {
-            ...existing,
-            title: titleFromFirstUserMessage(storedMessages),
-            updatedAt: now,
-            mode,
-            presetId: storedPresetId,
-            messages: storedMessages,
-          })
-        : current;
-      const next = upsertConversationSession(archived, nextSession);
-      return persistConversationSessions(next);
+    const transition = beginNewConversationSession({
+      sessions,
+      activeSessionId,
+      messages: conversationMessages(messages),
+      mode,
+      presetId: conversationPresetId(presetId, mode),
+      now,
     });
-    setActiveSessionId(nextSession.id);
+    setSessions(persistConversationSessions(transition.sessions));
+    setActiveSessionId(transition.active.id);
     replayContextSessionRef.current = undefined;
     setMessages([]);
     setMode('free');
@@ -1523,20 +1540,10 @@ export default function App() {
     setReplayDrawerOpen(false);
     setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
     activeResponses.current.clear();
-    pendingProviderResetRef.current.clear();
-    for (const provider of PROVIDERS) {
-      if (statesRef.current[provider].webview !== 'loaded') continue;
-      resetProviderBootState(provider);
-      void host.provider.newSession(provider).catch((reason) => {
-        recordEventLog({
-          kind: 'workflow-error',
-          provider,
-          summary: `${AI_PROVIDERS[provider].name} new session failed`,
-          detail: { failure: reason instanceof Error ? reason.message : String(reason) },
-        });
-      });
-    }
-  }, [activeSessionId, isProcessing, messages, mode, presetId]);
+    pendingProviderResetRef.current = new Set(
+      PROVIDERS.filter((provider) => statesRef.current[provider].webview === 'loaded'),
+    );
+  }, [activeSessionId, isProcessing, messages, mode, presetId, sessions]);
 
   const selectConversationSession = useCallback(
     (session: ConversationSession) => {
@@ -1554,7 +1561,9 @@ export default function App() {
       activeResponses.current.clear();
       // 切換歷史只換本地畫面，保留 provider webview 原連線（不重連）讓使用者能繼續瀏覽；
       // 遠端 thread 仍屬於前一個 session，真正送出前 executeSend 會先建立乾淨 provider session。
-      pendingProviderResetRef.current = new Set(PROVIDERS.filter((provider) => statesRef.current[provider].webview === 'loaded'));
+      pendingProviderResetRef.current = new Set(
+        PROVIDERS.filter((provider) => statesRef.current[provider].webview === 'loaded'),
+      );
     },
     [activeSessionId, isProcessing],
   );

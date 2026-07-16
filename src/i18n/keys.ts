@@ -118,6 +118,8 @@ export const I18N_KEYS = [
   'input.messagePlaceholder',
   'input.modeNotReady',
   'input.preparing',
+  'input.preparingSession',
+  'input.sessionResetFailed',
   'input.sendFailed',
   'input.reading',
   'input.insertFile',

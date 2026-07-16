@@ -137,6 +137,8 @@ export const de: Record<I18nKey, string> = {
   'input.messagePlaceholder': 'Nachricht eingeben… (Enter zum Senden, Shift+Enter für eine neue Zeile)',
   'input.modeNotReady': 'Für diesen Modus fehlen noch {remaining} KI-Verbindungen',
   'input.preparing': 'Wird geprüft…',
+  'input.preparingSession': 'Neue KI-Sitzungen werden vorbereitet…',
+  'input.sessionResetFailed': 'Es konnte keine neue KI-Sitzung gestartet werden. Es wurde nichts gesendet; bitte erneut versuchen.',
   'input.sendFailed': 'Die Nachricht konnte nicht gestartet werden. Bitte erneut versuchen.',
   'input.reading': 'Wird gelesen...',
   'input.insertFile': 'Datei einfügen',

@@ -137,6 +137,8 @@ export const ja: Record<I18nKey, string> = {
   'input.messagePlaceholder': 'メッセージを入力…（Enterで送信、Shift+Enterで改行）',
   'input.modeNotReady': 'このモードを使うには、あと{remaining}件のAI接続が必要です',
   'input.preparing': '確認中…',
+  'input.preparingSession': '新しいAIセッションを準備しています…',
+  'input.sessionResetFailed': '新しいAIセッションを開始できませんでした。メッセージは送信されていません。もう一度お試しください。',
   'input.sendFailed': 'メッセージを開始できませんでした。もう一度お試しください。',
   'input.reading': '読み取り中...',
   'input.insertFile': 'ファイルを挿入',

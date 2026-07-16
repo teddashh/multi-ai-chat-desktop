@@ -135,6 +135,8 @@ export const en: Record<I18nKey, string> = {
   'input.messagePlaceholder': 'Type a message… (Enter to send, Shift+Enter for a new line)',
   'input.modeNotReady': 'Connect {remaining} more AI(s) to use this mode',
   'input.preparing': 'Checking…',
+  'input.preparingSession': 'Preparing fresh AI sessions…',
+  'input.sessionResetFailed': "Couldn't start a clean AI session. Nothing was sent; please try again.",
   'input.sendFailed': "Couldn't start this message. Please try again.",
   'input.reading': 'Reading...',
   'input.insertFile': 'Insert file',

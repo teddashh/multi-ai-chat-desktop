@@ -506,6 +506,42 @@ describe('workflow engine', () => {
   });
 
   it.each([
+    ['two errors', '[Error: adapter not installed]', '[Error: bridge degraded]'],
+    ['an error and a skipped answer', '[Error: adapter not installed]', SKIP_RESPONSE],
+  ])('consult stops before review when its first answers are %s', async (_case, firstResponse, secondResponse) => {
+    const sent: AIProvider[] = [];
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      sent.push(provider);
+      const response = provider === DEFAULT_CONSULT_ROLES.first ? firstResponse : secondResponse;
+      publishBridgeMessage(done(provider, response));
+    });
+
+    await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
+
+    expect(sent).toEqual([DEFAULT_CONSULT_ROLES.first, DEFAULT_CONSULT_ROLES.second]);
+  });
+
+  it('consult continues to review when either first answer remains usable', async () => {
+    const sent: AIProvider[] = [];
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      sent.push(provider);
+      const response = provider === DEFAULT_CONSULT_ROLES.second
+        ? '[Error: bridge degraded]'
+        : `${provider}-usable`;
+      publishBridgeMessage(done(provider, response));
+    });
+
+    await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
+
+    expect(sent).toEqual([
+      DEFAULT_CONSULT_ROLES.first,
+      DEFAULT_CONSULT_ROLES.second,
+      DEFAULT_CONSULT_ROLES.reviewer,
+      DEFAULT_CONSULT_ROLES.summary,
+    ]);
+  });
+
+  it.each([
     ['en', 'Pro argument'],
     ['zh-TW', '正方論述'],
     ['ja', '賛成側の論述'],

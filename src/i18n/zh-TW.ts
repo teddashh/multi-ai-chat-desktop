@@ -125,6 +125,8 @@ export const zhTW: Record<I18nKey, string> = {
   'input.messagePlaceholder': '輸入訊息…（Enter 傳送，Shift+Enter 換行）',
   'input.modeNotReady': '此模式還需要連線 {remaining} 個 AI',
   'input.preparing': '檢查中…',
+  'input.preparingSession': '正在準備全新的 AI 對話…',
+  'input.sessionResetFailed': '無法建立乾淨的 AI 對話；訊息尚未送出，請再試一次。',
   'input.sendFailed': '無法開始傳送，請再試一次。',
   'input.reading': '讀取中...',
   'input.insertFile': '插入檔案',

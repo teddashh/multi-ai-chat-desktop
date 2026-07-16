@@ -4,6 +4,8 @@ import {
   createActiveProviderResponse,
   createConversationMessageId,
   ensureFreshProviderSessions,
+  pendingProviderSessionResets,
+  ProviderSessionResetError,
   questionWithConversationContext,
   type ProviderSessionResetHost,
 } from '../ui/conversationContinuity';
@@ -46,17 +48,10 @@ describe('conversation continuity', () => {
     expect(questionWithConversationContext('Standalone', undefined)).toBe('Standalone');
   });
 
-  it('forces a clean remote provider session and waits for dom-ready before a switched-session send proceeds', async () => {
-    const domReadyAfter: Record<string, number> = { claude: 2, gemini: 0 };
-    const attemptsSeen: Record<string, number> = {};
+  it('forces a clean remote provider session before a switched-session send proceeds', async () => {
     const host: ProviderSessionResetHost = {
       resetBootState: vi.fn(),
       newSession: vi.fn().mockResolvedValue(undefined),
-      isDomReady: (provider) => {
-        attemptsSeen[provider] = (attemptsSeen[provider] ?? 0) + 1;
-        return attemptsSeen[provider] > domReadyAfter[provider];
-      },
-      wait: vi.fn().mockResolvedValue(undefined),
     };
 
     await ensureFreshProviderSessions(['claude', 'gemini'], host);
@@ -67,21 +62,34 @@ describe('conversation continuity', () => {
     expect(host.resetBootState).toHaveBeenCalledWith('gemini');
     expect(host.newSession).toHaveBeenCalledWith('claude');
     expect(host.newSession).toHaveBeenCalledWith('gemini');
-    // Each provider is polled independently until its own bridge/dom reports ready.
-    expect(attemptsSeen.claude).toBeGreaterThan(domReadyAfter.claude);
-    expect(host.wait).toHaveBeenCalled();
   });
 
-  it('gives up waiting for a provider that never reports dom-ready, without blocking the others', async () => {
+  it('rejects failed resets while reporting providers that completed successfully', async () => {
     const host: ProviderSessionResetHost = {
       resetBootState: vi.fn(),
-      newSession: vi.fn().mockResolvedValue(undefined),
-      isDomReady: (provider) => provider === 'gemini',
-      wait: vi.fn().mockResolvedValue(undefined),
+      newSession: vi.fn().mockImplementation(async (provider) => {
+        if (provider === 'claude') throw new Error('fresh boot timed out');
+      }),
     };
 
-    await ensureFreshProviderSessions(['claude', 'gemini'], host, 3);
+    const reset = ensureFreshProviderSessions(['claude', 'gemini'], host);
 
-    expect(host.wait).toHaveBeenCalledTimes(3);
+    await expect(reset).rejects.toMatchObject({
+      name: 'ProviderSessionResetError',
+      completedProviders: ['gemini'],
+      failures: [{ provider: 'claude', reason: expect.any(Error) }],
+    } satisfies Partial<ProviderSessionResetError>);
+  });
+
+  it('resets only loaded providers that participate in the next workflow', () => {
+    const pending = new Set(['chatgpt', 'claude', 'gemini', 'grok'] as const);
+
+    expect(
+      pendingProviderSessionResets(
+        pending,
+        ['grok', 'chatgpt', 'grok'],
+        (provider) => provider !== 'chatgpt',
+      ),
+    ).toEqual(['grok']);
   });
 });

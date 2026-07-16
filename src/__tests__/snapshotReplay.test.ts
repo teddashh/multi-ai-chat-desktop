@@ -210,6 +210,7 @@ describe('snapshot replay', () => {
   it('uses the raw prompt-text userQuestion instead of rendered step inputs', () => {
     const snapshot = buildSnapshot({
       graphId: 'consult',
+      graphVersion: 3,
       redactionTier: 'prompt-text',
       roleMap: { first: 'chatgpt', second: 'grok', reviewer: 'claude', summary: 'gemini' },
       userQuestion: inlineRef('prompt text question', 'prompt-text'),
