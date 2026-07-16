@@ -13,6 +13,11 @@ export interface ExportMessage {
 export interface ExportProvenance {
   appVersion?: string;
   snapshot?: ExecutionSnapshot;
+  preset?: {
+    id: string;
+    icon: string;
+    name: string;
+  };
 }
 
 export function matchingSnapshotForConversation(
@@ -33,7 +38,7 @@ export function buildMarkdown(
   exportedAt: Date,
   provenance: ExportProvenance = {},
 ): { title: string; content: string } {
-  const modeInfo = CHAT_MODES[mode];
+  const modeInfo = provenance.preset ?? CHAT_MODES[mode];
   const title = `Multi-AI Chat — ${modeInfo.icon} ${modeInfo.name}`;
   const lines: string[] = [
     `# ${title}`,
@@ -72,7 +77,7 @@ function appendSnapshotProvenance(lines: string[], snapshot: ExecutionSnapshot):
 }
 
 /** `multi-ai-chat-<mode>-YYYY-MM-DD-HH-mm-ss.md` */
-export function exportFilename(mode: ChatMode, exportedAt: Date): string {
+export function exportFilename(mode: ChatMode, exportedAt: Date, presetId?: string): string {
   const ts = exportedAt.toISOString().slice(0, 19).replace(/[T:]/g, '-');
-  return `multi-ai-chat-${mode}-${ts}.md`;
+  return `multi-ai-chat-${presetId ?? mode}-${ts}.md`;
 }

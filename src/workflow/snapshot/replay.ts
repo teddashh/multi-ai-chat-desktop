@@ -1,5 +1,5 @@
 import { AI_PROVIDERS, DEFAULT_FREE_TARGET_PROVIDERS } from '../../../shared/constants';
-import type { AIProvider, ChatMode } from '../../../shared/types';
+import type { AIProvider } from '../../../shared/types';
 import { getRuntimeAppVersion } from '../../appVersion';
 import { host } from '../../host';
 import { executeGraph, preflightGraph, workflowGraphs } from '../graph';
@@ -106,7 +106,7 @@ export function planReplay(snapshot: ExecutionSnapshot, opts: { replayWithCurren
     responseLanguagePolicy: retainedResponseLanguagePolicy(snapshot),
   };
 
-  const liveGraph = (workflowGraphs as Partial<Record<string, WorkflowGraph>>)[snapshot.graphId as ChatMode];
+  const liveGraph = (workflowGraphs as Partial<Record<string, WorkflowGraph>>)[snapshot.graphId];
   if (!liveGraph) {
     return { ...basePlan, blocked: 'unknown-graph', detail: { graphId: snapshot.graphId } };
   }

@@ -110,9 +110,30 @@ export const DEFAULT_ROUNDTABLE_ROLES: RoundtableRoles = {
   fourth: 'chatgpt',
 };
 
+const BRAINSTORM_LENSES: Record<AIProvider, string> = {
+  chatgpt: 'practical user value, executable options, and a clear path from idea to action',
+  claude: 'systems thinking, human impact, hidden constraints, and long-term consequences',
+  gemini: 'cross-domain connections, visual or multimodal possibilities, and unexpected combinations',
+  grok: 'contrarian angles, bold experiments, overlooked edge cases, and non-obvious opportunities',
+};
+
 // === Prompt Templates for Serial Modes ===
 
 export const PROMPTS = {
+  brainstorm: {
+    buildPrompt: (question: string, provider: AIProvider) =>
+      [
+        `You are ${AI_PROVIDERS[provider].name}, one of four independent collaborators in a brainstorming sprint.`,
+        `Your assigned lens is: ${BRAINSTORM_LENSES[provider]}.`,
+        'Work from the original request below. If details are missing, state a reasonable assumption and proceed instead of asking the user to choose among options.',
+        '1. Reframe the opportunity in one sentence.',
+        '2. Generate 6-10 concrete ideas with meaningful variety, not cosmetic variations.',
+        '3. Mark at least two bold or unconventional ideas.',
+        '4. Recommend the strongest three ideas and give each one a practical next step.',
+        "Use the user's requested language. Avoid generic filler, do not imitate the other collaborators, and do not mention this internal collaboration brief.",
+        `Original request:\n\n${question}`,
+      ].join('\n\n'),
+  },
   debate: {
     pro: (question: string) =>
       `請從支持、贊同的角度回答以下問題，提出你最強的論點：\n\n${question}`,

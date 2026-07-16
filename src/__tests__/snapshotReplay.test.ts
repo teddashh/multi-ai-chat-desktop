@@ -138,6 +138,27 @@ describe('snapshot replay', () => {
     expect(plan.textComparable).toBe(true);
   });
 
+  it('replays brainstorm snapshots with the brainstorm graph while retaining free targets', () => {
+    const snapshot = buildSnapshot({
+      graphId: 'brainstorm',
+      graphVersion: 1,
+      roleMap: {},
+      userQuestion: inlineRef('brainstorm question'),
+      steps: [
+        step('fanout:0', { provider: 'chatgpt', input: inlineRef('brainstorm prompt'), output: inlineRef('one') }),
+        step('fanout:1', { provider: 'claude', input: inlineRef('brainstorm prompt'), output: inlineRef('two') }),
+      ],
+    });
+
+    const plan = planReplay(snapshot);
+
+    expect(plan.blocked).toBeUndefined();
+    expect(plan.graph).toBe(workflowGraphs.brainstorm);
+    expect(plan.graph?.mode).toBe('free');
+    expect(plan.targets).toEqual(['chatgpt', 'claude']);
+    expect(plan.question).toBe('brainstorm question');
+  });
+
   it('blocks graph version mismatches unless the caller opts into the current graph', async () => {
     const snapshot = buildSnapshot({ graphVersion: 1 });
 

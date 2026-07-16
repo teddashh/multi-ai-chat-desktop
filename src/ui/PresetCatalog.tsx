@@ -1,4 +1,4 @@
-import type { AIProvider, ChatMode, ProviderState } from '../../shared/types';
+import type { AIProvider, ChatMode, ProviderState, WorkflowPresetId } from '../../shared/types';
 import { formatI18n, t } from '../i18n/t';
 import type { Locale } from '../i18n/resolve';
 import { isSendable } from '../workflow/sendability';
@@ -6,31 +6,33 @@ import { PRESET_CATALOG, type PresetCatalogEntry } from './presetCatalogData';
 
 export function PresetCatalog({
   mode,
+  selectedPresetId,
   onSelectPreset,
   locale = 'en',
   visiblePresetCount = PRESET_CATALOG.length,
   states,
   disabled = false,
-  detailsMode,
+  detailsPresetId,
   layout = 'wide',
 }: {
   mode: ChatMode;
-  onSelectPreset: (mode: ChatMode) => void;
+  selectedPresetId?: WorkflowPresetId;
+  onSelectPreset: (presetId: WorkflowPresetId) => void;
   locale?: Locale;
   visiblePresetCount?: number;
   states?: Record<AIProvider, ProviderState>;
   disabled?: boolean;
-  detailsMode?: ChatMode;
+  detailsPresetId?: WorkflowPresetId;
   layout?: 'wide' | 'sidebar';
 }) {
   const visiblePresets = PRESET_CATALOG.slice(0, visiblePresetCount);
   const quickMode = visiblePresetCount < PRESET_CATALOG.length;
-  const detailPreset = PRESET_CATALOG.find((preset) => preset.graphId === detailsMode);
+  const activePresetId = selectedPresetId ?? mode;
+  const detailPreset = PRESET_CATALOG.find((preset) => preset.id === detailsPresetId);
   return (
     <section aria-label={t('preset.catalog.aria', locale)} className="space-y-2">
       {renderPresetGrid({
         presets: visiblePresets,
-        mode,
         onSelectPreset,
         locale,
         states,
@@ -41,7 +43,8 @@ export function PresetCatalog({
             ? 'grid grid-cols-2 gap-1.5'
             : quickMode
               ? 'grid gap-2 lg:grid-cols-3'
-              : 'grid gap-2 md:grid-cols-2 xl:grid-cols-5',
+              : 'grid gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6',
+        activePresetId,
       })}
       {detailPreset ? (
         <div className="ai-sister-preset-detail flex flex-wrap items-start justify-between gap-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs dark:border-sky-900 dark:bg-sky-950/30">
@@ -60,36 +63,36 @@ export function PresetCatalog({
 
 function renderPresetGrid({
   presets,
-  mode,
   onSelectPreset,
   locale,
   states,
   disabled,
   className,
   compact = false,
+  activePresetId,
   keyPrefix = 'preset',
 }: {
   presets: PresetCatalogEntry[];
-  mode: ChatMode;
-  onSelectPreset: (mode: ChatMode) => void;
+  onSelectPreset: (presetId: WorkflowPresetId) => void;
   locale: Locale;
   states?: Record<AIProvider, ProviderState>;
   disabled: boolean;
   className: string;
   compact?: boolean;
+  activePresetId: WorkflowPresetId;
   keyPrefix?: string;
 }) {
   return (
     <div className={className}>
       {presets.map((preset) => {
-        const selected = mode === preset.graphId;
+        const selected = activePresetId === preset.id;
         const displayName = t(preset.displayNameKey, locale);
         const readiness = states ? presetReadiness(preset, states, locale) : undefined;
         return (
           <button
             key={`${keyPrefix}-${preset.id}`}
             type="button"
-            onClick={() => onSelectPreset(preset.graphId)}
+            onClick={() => onSelectPreset(preset.id)}
             disabled={disabled}
             className={`ai-sister-preset-card flex ${compact ? 'min-h-12 px-2 py-1.5' : 'min-h-14 px-3 py-2'} flex-col justify-center rounded border text-left transition ${
               selected ? 'border-sky-500 bg-sky-50 dark:bg-sky-950 text-sky-900 dark:text-zinc-50' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:border-zinc-400 dark:hover:border-zinc-600'

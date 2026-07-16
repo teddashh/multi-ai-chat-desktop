@@ -42,6 +42,13 @@ function historyArg(args: PromptBuilderArg[], index: number): { name: string; ro
 }
 
 export const promptBuilders: Record<string, PromptBuilder> = {
+  'brainstorm.input': (args, context) =>
+    PROMPTS.brainstorm.buildPrompt(arg(args, 0), context.provider ?? 'chatgpt'),
+  'status.brainstorm.targets': (_args, context) => {
+    const targets = context.targets ?? [];
+    const names = targets.map((provider) => AI_PROVIDERS[provider].name).join('、');
+    return targets.length > 0 ? `✨ ${names} 腦力激盪中...` : '';
+  },
   'free.input': (args) => arg(args, 0),
   'status.free.targets': (_args, context) => {
     const targets = context.targets ?? [];
