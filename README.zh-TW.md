@@ -10,15 +10,15 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 與輕量「腦力激盪」預設已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。新預設沿用穩定的自由分送引擎，現有 snapshot／replay 會原樣保留且不再擴充。
 
-## v1.5.1 更新重點
+## v1.6.0 更新重點
 
-- **Runtime 路徑通過安全掃描。** Gemini 狀態判斷改為精確比對 provider hostname；對話與訊息識別碼改用 Web Crypto，並保留不碰撞的本機備援。
-- **Windows source agent 啟動更安全。** Agent-Ready Source Release 只接受啟動器真正需要的固定安全 token，會拒絕 shell 特殊字元。
-- **開發依賴已清理。** 升級 Vitest 與 esbuild，排除所有可處理的 npm 安全警示，不改變既有 app 功能範圍。
-- **Release automation 更穩固。** JavaScript GitHub Actions 改用 Node 24 相容版本、固定 immutable commit，並採最小 workflow 權限。
-- **持續保護維護流程。** Dependabot security updates、每週 CodeQL 與受保護的 `main` checks 會守住後續維護變更。
+- **專用腦力激盪預設。** ChatGPT、Claude、Gemini 與 Grok 會以互補的創意視角平行發想，預設選取所有可用 provider。
+- **可還原的發想流程。** 本機 session、snapshot、replay 與 Markdown 匯出都會保留 Brainstorm 身分及各 provider 的專屬指示。
+- **大字體無障礙改善。** 即使字體放得很大或視窗高度較短，provider 連線區仍可捲動到達，不會被推出可視範圍。
+- **原生 WebView 對齊。** 捲動造成的邊界更新改以 animation frame 節流，讓聚焦頁面保持對齊，同時避免過度重定位原生視窗。
+- **核心範圍維持穩定。** Brainstorm 沿用已驗證的自由分送 graph；既有五套凍結 workflow 引擎不變。
 
-完整驗證、已記錄的 GTK 上游風險與平台限制請見雙語版 [`v1.5.1 發布說明`](./docs/RELEASE_NOTES_v1.5.1.md)。
+完整驗證、貢獻者致謝、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.6.0 發布說明`](./docs/RELEASE_NOTES_v1.6.0.md)。
 
 ## 選擇適合的版本
 

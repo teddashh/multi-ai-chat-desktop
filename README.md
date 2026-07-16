@@ -10,15 +10,15 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its lightweight Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. The preset reuses the stable Free fan-out engine, while the shipped snapshot/replay tools remain available as-is with no further roadmap.
 
-## v1.5.1 highlights
+## v1.6.0 highlights
 
-- **Security-scanned runtime paths.** Gemini status detection now requires the exact provider hostname, while conversation and message identities use Web Crypto with a collision-safe local fallback.
-- **Safer Windows source-agent launch.** Agent-Ready Source Release commands accept only the fixed shell-safe tokens required by the launcher and reject shell metacharacters.
-- **Clean development dependency graph.** Vitest and esbuild were upgraded to remove all actionable npm advisories without changing the application feature set.
-- **Hardened release automation.** JavaScript-based GitHub Actions use Node 24-compatible releases pinned to immutable commits with least-privilege workflow permissions.
-- **Continuous repository protection.** Dependabot security updates, weekly CodeQL analysis, and protected `main` checks now guard future maintenance work.
+- **Dedicated Brainstorm preset.** ChatGPT, Claude, Gemini, and Grok explore complementary creative lenses in parallel, with all available providers selected by default.
+- **Restorable ideation runs.** Local sessions, snapshots, replay, and Markdown export preserve the Brainstorm identity and its provider-specific instructions.
+- **Large-text accessibility.** The provider connection strip stays reachable at very large font sizes and in short windows instead of being pushed below the viewport.
+- **Native WebView alignment.** Scroll-driven bounds updates are animation-frame throttled so the focused provider page stays aligned without excessive native repositioning.
+- **Stable core scope.** Brainstorm reuses the proven Free fan-out graph; the five frozen workflow engines remain unchanged.
 
-See the bilingual [`v1.5.1 release notes`](./docs/RELEASE_NOTES_v1.5.1.md) for validation, the documented upstream GTK risk, and known platform limits.
+See the bilingual [`v1.6.0 release notes`](./docs/RELEASE_NOTES_v1.6.0.md) for validation, contributor credit, the documented upstream GTK risk, and known platform limits.
 
 ## Choose the right edition
 
