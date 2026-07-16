@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { windowsShellCommand } from './windows-command.mjs';
 
 const [, , runnerToken, command, ...commandArgs] = process.argv;
 if (!runnerToken || !command) {
@@ -6,9 +7,15 @@ if (!runnerToken || !command) {
   process.exit(2);
 }
 
+const windowsCommand = process.platform === 'win32' ? windowsShellCommand(command, commandArgs) : undefined;
+if (process.platform === 'win32' && !windowsCommand) {
+  process.stderr.write('Runner rejected an unsafe Windows command token.\n');
+  process.exit(2);
+}
+
 const executable = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : command;
 const args = process.platform === 'win32'
-  ? ['/d', '/s', '/c', [command, ...commandArgs].map(quoteWindowsArgument).join(' ')]
+  ? ['/d', '/v:off', '/s', '/c', windowsCommand]
   : commandArgs;
 const child = spawn(executable, args, {
   stdio: 'inherit',
@@ -25,7 +32,3 @@ child.on('exit', (code, signal) => {
   if (signal) process.kill(process.pid, signal);
   else process.exit(code ?? 1);
 });
-
-function quoteWindowsArgument(value) {
-  return /[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
-}

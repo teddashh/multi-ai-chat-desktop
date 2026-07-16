@@ -1,4 +1,5 @@
 import type { ChatMode } from '../../shared/types';
+import { createUniqueSuffix } from './uniqueId';
 
 export const CONVERSATION_SESSIONS_STORAGE_KEY = 'multi-ai-chat:conversation-sessions:v1';
 export const MAX_CONVERSATION_SESSIONS = 30;
@@ -268,17 +269,7 @@ function shortTitle(value: string): string | undefined {
 }
 
 function createSessionId(timestamp: number): string {
-  const uuid = randomUuid();
-  if (uuid) return uuid;
-  return `session-${timestamp.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function randomUuid(): string | undefined {
-  try {
-    return globalThis.crypto?.randomUUID?.();
-  } catch {
-    return undefined;
-  }
+  return `session-${timestamp.toString(36)}-${createUniqueSuffix()}`;
 }
 
 function isMoreRecent(candidate: ConversationSession, current: ConversationSession): boolean {

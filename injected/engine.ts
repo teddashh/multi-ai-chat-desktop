@@ -248,7 +248,7 @@ class InputInjectionError extends Error {
       login = 'logged_out';
     } else if (hasDetector(adapter.loginDetectors)) {
       login = 'logged_in';
-    } else if (adapter.provider === 'gemini' && location.hostname.includes('gemini.google.com')) {
+    } else if (adapter.provider === 'gemini' && location.hostname === 'gemini.google.com') {
       login = 'blocked';
     }
     bridge.emit({
