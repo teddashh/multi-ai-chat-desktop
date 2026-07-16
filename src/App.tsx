@@ -1461,6 +1461,15 @@ export default function App() {
   const startNewConversation = useCallback(() => {
     if (isProcessing) return;
     const now = Date.now();
+    if (conversationMessages(messages).length === 0) {
+      setSessions((current) => {
+        const existing = current.find((session) => session.id === activeSessionId);
+        if (!existing) return current;
+        const next = upsertConversationSession(current, { ...existing, updatedAt: now });
+        return persistConversationSessions(next);
+      });
+      return;
+    }
     const nextSession = createConversationSession({ now });
     setSessions((current) => {
       const existing = current.find((session) => session.id === activeSessionId);
