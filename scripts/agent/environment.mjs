@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { root } from './contract.mjs';
+import { windowsShellCommand } from './windows-command.mjs';
 
 export function collectEnvironmentChecks() {
   const checks = [
@@ -44,9 +45,13 @@ export function resolvePnpmCommand() {
 }
 
 export function commandCheck(command, args, name = command) {
+  const windowsCommand = process.platform === 'win32' ? windowsShellCommand(command, args) : undefined;
+  if (process.platform === 'win32' && !windowsCommand) {
+    return { name, ok: false, detail: 'unsafe Windows command token' };
+  }
   const executable = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : command;
   const executableArgs = process.platform === 'win32'
-    ? ['/d', '/s', '/c', [command, ...args].map(quoteWindowsArgument).join(' ')]
+    ? ['/d', '/v:off', '/s', '/c', windowsCommand]
     : args;
   const result = spawnSync(executable, executableArgs, {
     cwd: root,
@@ -103,8 +108,4 @@ function windowsMsvcCheck() {
     ok: false,
     detail: 'Install Visual Studio Build Tools with Desktop development with C++',
   };
-}
-
-function quoteWindowsArgument(value) {
-  return /[\s"&|<>^]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }

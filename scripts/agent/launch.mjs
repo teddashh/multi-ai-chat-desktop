@@ -17,6 +17,7 @@ import {
 import { collectEnvironmentChecks, resolvePnpmCommand } from './environment.mjs';
 import { processAlive, processMatchesAgentScript } from './process-identity.mjs';
 import { inspectRuntime, readinessWaitDecision } from './runtime-status.mjs';
+import { windowsShellCommand } from './windows-command.mjs';
 
 const parsed = parseArgs(process.argv.slice(2));
 if (!parsed.ok) {
@@ -395,9 +396,11 @@ function commandFailure(stage, status, error = `Command failed with exit code ${
 
 function runCommand(command, args, jsonOutput) {
   const useCommandShell = process.platform === 'win32' && command !== process.execPath;
+  const windowsCommand = useCommandShell ? windowsShellCommand(command, args) : undefined;
+  if (useCommandShell && !windowsCommand) return { ok: false, status: 2 };
   const executable = useCommandShell ? process.env.ComSpec || 'cmd.exe' : command;
   const executableArgs = useCommandShell
-    ? ['/d', '/s', '/c', [command, ...args].map(quoteWindowsArgument).join(' ')]
+    ? ['/d', '/v:off', '/s', '/c', windowsCommand]
     : args;
   const result = spawnSync(executable, executableArgs, {
     cwd: root,
@@ -469,8 +472,4 @@ function parseArgs(args) {
     return { ok: false, jsonOutput: options.jsonOutput, error: '--dry-run and --wait cannot be used together.' };
   }
   return options;
-}
-
-function quoteWindowsArgument(value) {
-  return /[\s"&|<>^]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
