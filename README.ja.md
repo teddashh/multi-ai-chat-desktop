@@ -10,15 +10,15 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと軽量なブレインストーミングpresetを追加しました。presetは安定した自由送信engineを再利用します。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
 
-## v1.5.1 の更新点
+## v1.6.0 の更新点
 
-- **Runtime経路をセキュリティ検査。** Geminiの状態判定はprovider hostnameの完全一致を要求し、会話とmessageのIDはWeb Cryptoと衝突しないローカルfallbackを使用します。
-- **Windows source agentを安全化。** Agent-Ready Source Releaseはlauncherに必要な固定のshell-safe tokenだけを受け付け、shellの特殊文字を拒否します。
-- **開発依存関係を整理。** Vitestとesbuildを更新し、既存機能を変えずに対応可能なnpm advisoryをすべて解消しました。
-- **Release automationを強化。** JavaScript製GitHub ActionsをNode 24対応版へ移行し、immutable commitへの固定と最小workflow権限を採用しました。
-- **継続的なrepo保護。** Dependabot security updates、週次CodeQL、保護された`main` checksが今後の保守変更を監視します。
+- **専用ブレインストーミングpreset。** ChatGPT、Claude、Gemini、Grokが相互補完的な創造的視点を並列に探索し、利用可能なproviderを初期状態ですべて選択します。
+- **復元可能な発想workflow。** ローカルsession、snapshot、replay、Markdown exportでBrainstormの種類とprovider固有の指示を保持します。
+- **大きな文字へのアクセシビリティ。** 文字を大幅に拡大した場合や高さの低いwindowでも、provider接続欄までscrollして操作できます。
+- **Native WebViewの位置合わせ。** scroll時のbounds更新をanimation frame単位に制限し、過剰なnative再配置を避けながら表示を揃えます。
+- **安定したcore scope。** Brainstormは実績のある自由送信fan-out graphを再利用し、凍結済みの5つのworkflow engineは変更しません。
 
-検証内容、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.5.1 release notes`](./docs/RELEASE_NOTES_v1.5.1.md) を参照してください。
+検証内容、contributorへの謝辞、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.6.0 release notes`](./docs/RELEASE_NOTES_v1.6.0.md) を参照してください。
 
 ## エディション
 

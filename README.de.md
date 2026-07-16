@@ -10,15 +10,15 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das schlanke Brainstorming-Preset sind enthalten. Das Preset nutzt die stabile freie Fan-out-Engine; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Snapshot und Replay bleiben unverändert und werden nicht erweitert.
 
-## Neuerungen in v1.5.1
+## Neuerungen in v1.6.0
 
-- **Sicherheitsgeprüfte Runtime-Pfade.** Die Gemini-Statusprüfung verlangt nun den exakten Provider-Hostnamen; Gesprächs- und Nachrichten-IDs verwenden Web Crypto mit einer kollisionssicheren lokalen Rückfalllösung.
-- **Sichererer Windows-Source-Agent.** Das Agent-Ready Source Release akzeptiert nur die festen, shell-sicheren Tokens des Launchers und weist Shell-Sonderzeichen zurück.
-- **Bereinigte Entwicklungsabhängigkeiten.** Vitest und esbuild wurden aktualisiert, sodass alle behebbaren npm-Warnungen ohne Änderung des Funktionsumfangs entfernt sind.
-- **Gehärtete Release-Automatisierung.** JavaScript-basierte GitHub Actions nutzen Node-24-kompatible, auf unveränderliche Commits fixierte Versionen und minimale Workflow-Rechte.
-- **Kontinuierlicher Repository-Schutz.** Dependabot-Sicherheitsupdates, wöchentliche CodeQL-Analysen und geschützte `main`-Prüfungen sichern künftige Wartungsänderungen ab.
+- **Eigenes Brainstorming-Preset.** ChatGPT, Claude, Gemini und Grok untersuchen parallel ergänzende kreative Blickwinkel; alle verfügbaren Anbieter sind standardmäßig ausgewählt.
+- **Wiederherstellbare Ideenläufe.** Lokale Sitzungen, Snapshots, Replay und Markdown-Export bewahren die Brainstorming-Kennung und anbieterspezifischen Anweisungen.
+- **Barrierefreiheit bei großer Schrift.** Der Anbieter-Verbindungsbereich bleibt auch bei sehr großer Schrift oder niedrigen Fenstern durch Scrollen erreichbar.
+- **Ausrichtung des nativen WebViews.** Scrollbedingte Bounds-Updates werden pro Animationsframe gedrosselt, damit die aktive Seite ohne unnötige native Neupositionierung ausgerichtet bleibt.
+- **Stabiler Kernumfang.** Brainstorming nutzt den bewährten freien Fan-out-Graphen; die fünf eingefrorenen Workflow-Engines bleiben unverändert.
 
-Validierung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.5.1 Release Notes`](./docs/RELEASE_NOTES_v1.5.1.md).
+Validierung, Danksagung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.0 Release Notes`](./docs/RELEASE_NOTES_v1.6.0.md).
 
 ## Edition wählen
 
