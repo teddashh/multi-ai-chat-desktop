@@ -10,15 +10,15 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. In jeder Runde antworten alle vier Anbieter einmal: insgesamt 48 Beiträge mit wechselnder Reihenfolge und vollständigem Verlauf derselben Sitzung. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
 
-## Neuerungen in v1.6.1
+## Neuerungen in v1.6.2
 
-- **Vollständig lokalisierter Workflow-Fortschritt.** Modusstatus, Runden und Phasen, Rollenbezeichnungen, Prozessverlauf und Replay folgen English, 繁體中文, 日本語 oder Deutsch, ohne chinesische Texte in einer anderssprachigen Oberfläche.
-- **Verifizierte Gesprächsgrenzen.** Beim Öffnen lokaler Verläufe bleiben Anbieterseiten verbunden. Vor der ersten Folgefrage startet die App jedoch einen sauberen Remote-Thread und prüft den neuen WebView-Boot, bevor Kontext derselben Sitzung gesendet wird. Schlägt der Reset fehl, wird nichts gesendet und der Entwurf bleibt erhalten.
-- **Vorhersehbarer neuer Chat.** Wiederholtes Klicken in einer leeren Sitzung erzeugt keine Duplikate; Modus, Preset, Transkriptzustand und der nächste Remote-Versand werden trotzdem vollständig zurückgesetzt.
-- **Robuster Beratungsmodus.** Liefern beide ersten KIs nur Fehler oder übersprungene Antworten, endet der Ablauf, statt unbrauchbaren Text prüfen zu lassen. Eine einzige brauchbare Antwort reicht weiterhin für Prüfung und Zusammenfassung.
-- **Contributor-Fixes vollständig integriert.** Die ursprüngliche Autorenschaft von Dave Tsengs PRs #23, #31 und #32 bleibt erhalten; ergänzt wurden Boot-Gate, Graph-Versionierung, Lokalisierung und Regressionstests.
+- **Vollständiger Brainstorm-Workflow.** Alle vier Anbieter antworten in jeder der 12 Runden einmal: insgesamt 48 Beiträge, mit wechselnder Reihenfolge, vollständigem Kontext derselben Sitzung und fünf Phasen vom Problemrahmen bis zu testbaren Konzepten.
+- **Keepalive für lange Aufgaben.** Thinking-Status, Stream-Chunks, Bulk-Antworten, Abschlusssignale und ein neuer Document-Boot erneuern das Inaktivitätsfenster. Eine separate 60-Minuten-Grenze verhindert endloses Warten auf veraltete Anbieterzustände.
+- **Sichererer Provider-Einstieg.** Claude-Login und Google-SSO-Erkennung sind aktualisiert. Bei Cloudflare oder hCaptcha wartet die Bridge, ohne Sicherheitsprüfungen des Anbieters zu umgehen.
+- **Robuster Grok-Challenge-Ablauf.** Automation startet erst nach Abschluss des Challenge-Frames; Grok-Seiten erhalten keinen History-API-Monkey-Patch mehr, der den Login stören könnte.
+- **Contributor-Fix vollständig integriert.** Dave Tsengs Ursachenanalyse aus PR #34 bleibt als Co-Autor erhalten und wurde um alle Aktivitätssignale, eine absolute Zeitgrenze und Regressionstests ergänzt.
 
-Validierung, Danksagung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.1 Release Notes`](./docs/RELEASE_NOTES_v1.6.1.md).
+Validierung, Danksagung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.2 Release Notes`](./docs/RELEASE_NOTES_v1.6.2.md).
 
 ## Edition wählen
 
