@@ -10,15 +10,15 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. In jeder Runde antworten alle vier Anbieter einmal: insgesamt 48 Beiträge mit wechselnder Reihenfolge und vollständigem Verlauf derselben Sitzung. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
 
-## Neuerungen in v1.6.2
+## Neuerungen in v1.6.3
 
-- **Vollständiger Brainstorm-Workflow.** Alle vier Anbieter antworten in jeder der 12 Runden einmal: insgesamt 48 Beiträge, mit wechselnder Reihenfolge, vollständigem Kontext derselben Sitzung und fünf Phasen vom Problemrahmen bis zu testbaren Konzepten.
-- **Keepalive für lange Aufgaben.** Thinking-Status, Stream-Chunks, Bulk-Antworten, Abschlusssignale und ein neuer Document-Boot erneuern das Inaktivitätsfenster. Eine separate 60-Minuten-Grenze verhindert endloses Warten auf veraltete Anbieterzustände.
-- **Sichererer Provider-Einstieg.** Claude-Login und Google-SSO-Erkennung sind aktualisiert. Bei Cloudflare oder hCaptcha wartet die Bridge, ohne Sicherheitsprüfungen des Anbieters zu umgehen.
-- **Robuster Grok-Challenge-Ablauf.** Automation startet erst nach Abschluss des Challenge-Frames; Grok-Seiten erhalten keinen History-API-Monkey-Patch mehr, der den Login stören könnte.
-- **Contributor-Fix vollständig integriert.** Dave Tsengs Ursachenanalyse aus PR #34 bleibt als Co-Autor erhalten und wurde um alle Aktivitätssignale, eine absolute Zeitgrenze und Regressionstests ergänzt.
+- **Zuverlässige WebView-Wiederherstellung.** Hide- und Show-Befehle der Provider-WebViews laufen geordnet, damit ein schnell geschlossenes Modal keine echte Anbieter-Seite dauerhaft verborgen lässt.
+- **Sichere UI-Lebenszyklen.** Spät abgeschlossene Adapter-Listener und Update-Prüfungen aktualisieren keine bereits verworfene App- oder geschlossene Settings-Sitzung mehr.
+- **Ruhiger Hintergrundbetrieb.** Das Wiederherstellen eines vorhandenen Providers übernimmt den Tastaturfokus nur noch auf ausdrückliche Anforderung.
+- **Wiederherstellbarer Session-Reset.** Nach einem Timeout wird der temporäre Boot-Filter entfernt, sodass die aktuelle Provider-Seite wieder normal Status melden kann.
+- **Saubere Release-Kette.** Rust-Setup-Actions sind an einen unveränderlichen Commit gebunden; standardisierter MIT-Text und eine separate NOTICE-Datei verbessern maschinenlesbare Lizenz- und Herkunftsangaben.
 
-Validierung, Danksagung, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.2 Release Notes`](./docs/RELEASE_NOTES_v1.6.2.md).
+Validierung, Audit-Umfang, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.3 Release Notes`](./docs/RELEASE_NOTES_v1.6.3.md).
 
 ## Edition wählen
 

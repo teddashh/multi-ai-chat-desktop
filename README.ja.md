@@ -10,15 +10,15 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと12ラウンドのブレインストーミングpresetを追加しました。各ラウンドで4つのproviderが1回ずつ回答し、合計48発言になります。発言順をラウンドごとに交代し、同一sessionの全履歴を引き継ぎます。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
 
-## v1.6.2 の更新点
+## v1.6.3 の更新点
 
-- **完全なBrainstorm workflow。** 12ラウンドすべてで4 providerが1回ずつ回答し、合計48発言になります。順番を毎ラウンド交代し、同一sessionの全contextと、課題設定から検証可能なconceptまでの5段階を使用します。
-- **長時間taskのkeepalive。** thinking、stream chunk、bulk response、完了signal、新しいdocument bootがinactivity windowを更新します。別の60分hard capにより、古いprovider状態で永久に待機しません。
-- **より安全なprovider entry。** Claude loginとGoogle SSO検出を更新し、CloudflareまたはhCaptchaではbridge開始を延期します。providerのsecurity checkを迂回しません。
-- **Grok challengeへの耐性。** challenge frameが完了するまでautomationを開始せず、loginを妨げる可能性のあるHistory API monkey-patchをGrokページへ適用しません。
-- **Contributor修正を完全統合。** Dave TsengがPR #34で特定したroot causeをco-authorとして保持し、全activity signal、absolute timeout、regression coverageを追加しました。
+- **確実なWebView復元。** Provider WebViewのhide/show commandを順番に実行し、modalを素早く閉じたときに実ページが非表示のまま残る競合を防ぎます。
+- **安全なUI lifecycle。** 遅れて完了したadapter listenerの購読やupdate checkが、破棄済みappまたは閉じたSettings sessionを更新しません。
+- **静かなバックグラウンド動作。** 既存providerの復元では、明示的に要求されない限りkeyboard focusを奪いません。
+- **復旧可能なsession reset。** New sessionがtimeoutした場合、一時boot filterを解除し、現在のproviderページが再び通常どおりstatusを報告できます。
+- **Release hygiene。** Rust setup actionをimmutable commitへ固定し、標準MIT本文と独立NOTICEによりlicenseとprovenanceを機械判読しやすくしました。
 
-検証内容、contributorへの謝辞、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.6.2 release notes`](./docs/RELEASE_NOTES_v1.6.2.md) を参照してください。
+検証内容、audit範囲、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.6.3 release notes`](./docs/RELEASE_NOTES_v1.6.3.md) を参照してください。
 
 ## エディション
 

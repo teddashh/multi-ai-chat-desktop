@@ -10,15 +10,15 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Every Brainstorm round includes all four providers—48 contributions total—with a rotating speaking order and full same-session history. The shipped snapshot/replay tools remain available as-is with no further roadmap.
 
-## v1.6.2 highlights
+## v1.6.3 highlights
 
-- **The complete Brainstorm workflow.** All four providers now contribute in each of 12 rounds—48 responses total—with rotating order, full same-session context, and five phases from framing through testable concepts.
-- **Long-task keepalive.** Thinking state, streamed chunks, bulk responses, completion signals, and a new document boot all refresh the inactivity window; a separate 60-minute cap prevents stale provider state from waiting forever.
-- **Safer provider entry.** Claude login and Google SSO detection are current, while Cloudflare or hCaptcha pages defer bridge startup without attempting to bypass provider security checks.
-- **Grok challenge resilience.** Challenge frames are allowed to complete before automation starts, and Grok pages no longer receive History API monkey-patching that could interfere with login.
-- **Contributor-integrated maintenance.** Dave Tseng’s root-cause fix from PR #34 is preserved through co-authorship and extended with activity-complete timeout semantics and regression coverage.
+- **Reliable overlay restoration.** Provider WebView hide/show commands now run in order, preventing a rapidly closed modal from leaving a live provider hidden.
+- **Safer UI lifecycles.** Late adapter-listener subscriptions and update checks can no longer update an already-disposed app or Settings session.
+- **Calmer background operation.** Restoring an existing provider no longer steals keyboard focus unless focus was explicitly requested.
+- **Recoverable session resets.** A timed-out new-session attempt clears its temporary boot filter so the current provider page can report status normally again.
+- **Release hygiene.** Rust setup actions use an immutable commit, while the standard MIT text and a separate NOTICE file make licensing and provenance machine-readable.
 
-See the bilingual [`v1.6.2 release notes`](./docs/RELEASE_NOTES_v1.6.2.md) for validation, contributor credit, the documented upstream GTK risk, and known platform limits.
+See the bilingual [`v1.6.3 release notes`](./docs/RELEASE_NOTES_v1.6.3.md) for validation, audit scope, the documented upstream GTK risk, and known platform limits.
 
 ## Choose the right edition
 
