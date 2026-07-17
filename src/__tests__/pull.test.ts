@@ -1,17 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeMessage } from '../../shared/types';
-import { OUTBOX_MAX_BYTES, PULL_MAX_DECODED_BYTES } from '../../shared/constants';
+import { OUTBOX_MAX_BYTES, POLL_PULL_MS, PULL_MAX_DECODED_BYTES } from '../../shared/constants';
 import { isRenderableResponseMessage } from '../bridge/render';
 import {
   ackOutbox,
   byteLength,
   capOutboxEntry,
   enforceOutboxOverflow,
+  hasCloudflareChallengeSignals,
   type OutboxEntry,
   peekOutboxBatch,
+  shouldDeferBridgeStart,
+  shouldPatchHistory,
 } from '../../injected/bootstrap';
 import { onBridgeMessage } from '../bridge/bus';
 import {
+  AWAITING_ABSOLUTE_MAX_MS,
+  AWAITING_MAX_MS,
   handleTitleMessage,
   parsePullResult,
   pullProvider,
@@ -192,6 +197,33 @@ describe('pull transport', () => {
     expect(messages.some((msg) => msg.transport === 'local' && msg.action === 'RESPONSE_DONE' && msg.payload === '[Error: bridge degraded]')).toBe(true);
   });
 
+  it('uses provider thinking as activity but still degrades after the absolute cap', async () => {
+    vi.useFakeTimers();
+    const { messages, cleanup } = collectMessages();
+    setProviderAwaiting(provider, true);
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
+
+    const startedAt = Date.now();
+    for (let heartbeat = 1; heartbeat <= 6; heartbeat += 1) {
+      await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS - 1_000);
+      handleTitleMessage({
+        v: 1,
+        action: 'STATUS_REPORT',
+        provider,
+        bootId: 'long-task',
+        seq: heartbeat,
+        payload: { dom: 'ready', thinking: true },
+        transport: 'title',
+      });
+    }
+
+    expect(messages.some((msg) => msg.transport === 'local' && msg.payload === '[Error: bridge degraded]')).toBe(false);
+    const remaining = AWAITING_ABSOLUTE_MAX_MS - (Date.now() - startedAt);
+    await vi.advanceTimersByTimeAsync(remaining + POLL_PULL_MS + 1);
+    cleanup();
+    expect(messages.some((msg) => msg.transport === 'local' && msg.payload === '[Error: bridge degraded]')).toBe(true);
+  });
+
   it('runs a distinct forced pull after an in-flight non-forced pull while still pending', async () => {
     setProviderAwaiting(provider, true);
     let resolveFirst!: (value: string) => void;
@@ -216,6 +248,28 @@ describe('pull transport', () => {
 });
 
 describe('bootstrap outbox helpers', () => {
+  it('keeps every provider passive until a Cloudflare challenge clears', () => {
+    expect(hasCloudflareChallengeSignals('Just a moment...', 'Verifying you are human', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('Grok', 'Please complete the security check', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('Grok', '人間であることを確認しています', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('Grok', 'Ready to chat', true)).toBe(true);
+    expect(hasCloudflareChallengeSignals('Grok', 'Ready to chat', false)).toBe(false);
+    expect(hasCloudflareChallengeSignals('Grok', '回答内容を確認しています', false)).toBe(false);
+    expect(shouldDeferBridgeStart('grok', 'loading', false, false)).toBe(true);
+    expect(shouldDeferBridgeStart('grok', 'complete', false, true)).toBe(true);
+    expect(shouldDeferBridgeStart('grok', 'complete', true, true)).toBe(false);
+    expect(shouldDeferBridgeStart('chatgpt', 'loading', false, true)).toBe(true);
+    expect(shouldDeferBridgeStart('claude', 'complete', false, true)).toBe(true);
+    expect(shouldDeferBridgeStart('claude', 'complete', false, false)).toBe(false);
+  });
+
+  it('does not monkey-patch Grok history during authentication', () => {
+    expect(shouldPatchHistory('grok')).toBe(false);
+    expect(shouldPatchHistory('chatgpt')).toBe(true);
+    expect(shouldPatchHistory('claude')).toBe(true);
+    expect(shouldPatchHistory('gemini')).toBe(true);
+  });
+
   it('peek is non-destructive and respects the 1 MB batch boundary', () => {
     const entries = [message(1), message(2), message(3)];
     const batch = peekOutboxBatch(entries, byteLength(JSON.stringify([entries[0], entries[1]])));

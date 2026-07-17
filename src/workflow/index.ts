@@ -55,6 +55,15 @@ export async function runWorkflow({
         persistSnapshotIfEnabled(snapshot, snapshotOptions),
       ...(appVersion ? { appVersion } : {}),
     };
+    if (presetId === 'brainstorm') {
+      const graph = workflowGraphs.brainstorm;
+      const preflight = await preflightGraph(graph, roles);
+      if (!preflight.ok) return { ok: false, preflight };
+
+      await executeGraph(graph, { text, context, roles, checkpoints, locale, responseLanguagePolicy }, graphOptions);
+      return { ok: true };
+    }
+
     if (!CHAT_MODES[mode].serial) {
       const snapshot = await host.connections.get();
       const sendable = snapshot.filter(isSendable).map((state) => state.provider);
@@ -62,8 +71,11 @@ export async function runWorkflow({
         targets === undefined
           ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
           : targets.filter((provider) => sendable.includes(provider));
-      const graph = presetId === 'brainstorm' ? workflowGraphs.brainstorm : workflowGraphs.free;
-      await executeGraph(graph, { text, context, targets: targetSet, checkpoints, locale, responseLanguagePolicy }, graphOptions);
+      await executeGraph(
+        workflowGraphs.free,
+        { text, context, targets: targetSet, checkpoints, locale, responseLanguagePolicy },
+        graphOptions,
+      );
       return { ok: true };
     }
 

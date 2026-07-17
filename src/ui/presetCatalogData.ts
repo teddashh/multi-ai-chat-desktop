@@ -91,9 +91,9 @@ export const PRESET_CATALOG: PresetCatalogEntry[] = [
     metaKey: 'preset.brainstorm.meta',
     descriptionKey: 'preset.brainstorm.description',
     costLabelKey: 'preset.brainstorm.costLabel',
-    requiredProviders: [],
-    estMinutes: 2,
-    ramHint: 'low',
+    requiredProviders: DEFAULT_REQUIRED_PROVIDERS,
+    estMinutes: 10,
+    ramHint: 'medium',
     source: 'builtin',
   },
 ];
@@ -102,7 +102,8 @@ export function presetForId(presetId: WorkflowPresetId): PresetCatalogEntry {
   return PRESET_CATALOG.find((preset) => preset.id === presetId) ?? PRESET_CATALOG[0];
 }
 
-export function defaultRolesForPreset(mode: ChatMode): ModeRoles | undefined {
+export function defaultRolesForPreset(mode: ChatMode, presetId?: WorkflowPresetId): ModeRoles | undefined {
+  if (presetId === 'brainstorm') return { ...DEFAULT_ROUNDTABLE_ROLES };
   if (mode === 'free') return undefined;
   if (mode === 'debate') return { ...DEFAULT_DEBATE_ROLES };
   if (mode === 'consult') return { ...DEFAULT_CONSULT_ROLES };

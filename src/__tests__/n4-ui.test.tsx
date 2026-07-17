@@ -105,6 +105,7 @@ describe('N4 preset catalog', () => {
     expect(defaultRolesForPreset('coding')).toEqual(DEFAULT_CODING_ROLES);
     expect(defaultRolesForPreset('roundtable')).toEqual(DEFAULT_ROUNDTABLE_ROLES);
     expect(defaultRolesForPreset('free')).toBeUndefined();
+    expect(defaultRolesForPreset('free', 'brainstorm')).toEqual(DEFAULT_ROUNDTABLE_ROLES);
   });
 
   it('keeps brainstorm visually distinct while routing it through the free graph', () => {
@@ -123,7 +124,10 @@ describe('N4 preset catalog', () => {
     expect(propsOf(brainstormCard)['aria-pressed']).toBe(true);
     propsOf(brainstormCard).onClick?.();
     expect(onSelectPreset).toHaveBeenCalledWith('brainstorm');
-    expect(PRESET_CATALOG.find((preset) => preset.id === 'brainstorm')?.graphId).toBe('free');
+    expect(PRESET_CATALOG.find((preset) => preset.id === 'brainstorm')).toMatchObject({
+      graphId: 'free',
+      requiredProviders: [...DEFAULT_FREE_TARGET_PROVIDERS],
+    });
   });
 
   it('renders the catalog as cards only without an advanced raw-controls drawer', () => {
@@ -219,5 +223,13 @@ describe('N4 process trace', () => {
     expect(html).toContain(t('processTrace.fanout', locale));
     expect(html).toContain(`ChatGPT ${t('processTrace.response', locale)}`);
     expect(html).toContain(`Gemini ${t('processTrace.response', locale)}`);
+  });
+
+  it('starts Brainstorm with serial role rows instead of a misleading free fan-out row', () => {
+    let trace = createProcessTrace('free', [...DEFAULT_FREE_TARGET_PROVIDERS], 'en', 'brainstorm');
+
+    expect(trace.steps).toEqual([]);
+    trace = reduceProcessTraceEvent(trace, role('claude', 'B1', 'Brainstorm round 1', 1), 'en');
+    expect(trace.steps.map((step) => [step.label, step.status])).toEqual([['Brainstorm round 1 · Claude', 'active']]);
   });
 });

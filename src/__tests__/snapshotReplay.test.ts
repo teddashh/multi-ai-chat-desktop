@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
-import { DEFAULT_CODING_ROLES, DEFAULT_DEBATE_ROLES, DEFAULT_FREE_TARGET_PROVIDERS, PROMPTS } from '../../shared/constants';
+import {
+  DEFAULT_CODING_ROLES,
+  DEFAULT_DEBATE_ROLES,
+  DEFAULT_FREE_TARGET_PROVIDERS,
+  DEFAULT_ROUNDTABLE_ROLES,
+  PROMPTS,
+} from '../../shared/constants';
 import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../bridge/bus';
 import { resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
@@ -138,15 +144,15 @@ describe('snapshot replay', () => {
     expect(plan.textComparable).toBe(true);
   });
 
-  it('replays brainstorm snapshots with the brainstorm graph while retaining free targets', () => {
+  it('replays Brainstorm snapshots with the fixed four-seat rotation', () => {
     const snapshot = buildSnapshot({
       graphId: 'brainstorm',
-      graphVersion: 1,
-      roleMap: {},
+      graphVersion: 2,
+      roleMap: { ...DEFAULT_ROUNDTABLE_ROLES },
       userQuestion: inlineRef('brainstorm question'),
       steps: [
-        step('fanout:0', { provider: 'chatgpt', input: inlineRef('brainstorm prompt'), output: inlineRef('one') }),
-        step('fanout:1', { provider: 'claude', input: inlineRef('brainstorm prompt'), output: inlineRef('two') }),
+        step('round1_first', { provider: 'claude', input: inlineRef('brainstorm prompt'), output: inlineRef('one') }),
+        step('round1_second', { provider: 'gemini', input: inlineRef('brainstorm prompt'), output: inlineRef('two') }),
       ],
     });
 
@@ -155,7 +161,8 @@ describe('snapshot replay', () => {
     expect(plan.blocked).toBeUndefined();
     expect(plan.graph).toBe(workflowGraphs.brainstorm);
     expect(plan.graph?.mode).toBe('free');
-    expect(plan.targets).toEqual(['chatgpt', 'claude']);
+    expect(plan.roles).toEqual(DEFAULT_ROUNDTABLE_ROLES);
+    expect(plan.targets).toBeUndefined();
     expect(plan.question).toBe('brainstorm question');
   });
 

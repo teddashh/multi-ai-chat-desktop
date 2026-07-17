@@ -1,4 +1,4 @@
-import { AI_PROVIDERS, PROMPTS } from '../../../shared/constants';
+import { AI_PROVIDERS, brainstormPhaseForRound, PROMPTS } from '../../../shared/constants';
 import type { AIProvider } from '../../../shared/types';
 import type { I18nKey } from '../../i18n/keys';
 import type { Locale } from '../../i18n/resolve';
@@ -103,9 +103,25 @@ function historyArg(args: PromptBuilderArg[], index: number): { name: string; ro
 }
 
 export const promptBuilders: Record<string, PromptBuilder> = {
-  'brainstorm.input': (args, context) =>
-    PROMPTS.brainstorm.buildPrompt(arg(args, 0), context.provider ?? 'chatgpt'),
-  'status.brainstorm.targets': (_args, context) => translate('workflowStatus.brainstormTargets', context, { providers: targetNames(context) }),
+  'brainstorm.buildPrompt': (args, context) =>
+    PROMPTS.brainstorm.buildPrompt(
+      arg(args, 0),
+      numberArg(args, 1),
+      numberArg(args, 2),
+      context.provider ?? 'chatgpt',
+      historyArg(args, 3),
+    ),
+  'label.brainstorm.round': (args, context) =>
+    translate('workflowRole.brainstorm.round', context, { round: numberArg(args, 0) }),
+  'status.brainstorm.round': (args, context) => {
+    const round = numberArg(args, 0);
+    return translate('workflowStatus.brainstormRound', context, {
+      round,
+      phase: brainstormPhaseForRound(round),
+      seat: numberArg(args, 1),
+      provider: providerName(context.provider),
+    });
+  },
   'free.input': (args) => arg(args, 0),
   'status.free.targets': (_args, context) => translate('workflowStatus.freeTargets', context, { providers: targetNames(context) }),
   'debate.pro': (args) => PROMPTS.debate.pro(arg(args, 0)),

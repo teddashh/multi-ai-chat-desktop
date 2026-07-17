@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
 import {
   AI_PROVIDERS,
+  BRAINSTORM_ROUND_COUNT,
+  brainstormPhaseForRound,
   DEFAULT_CODING_ROLES,
   DEFAULT_CONSULT_ROLES,
   DEFAULT_DEBATE_ROLES,
@@ -10,7 +12,12 @@ import {
   PROMPTS,
 } from '../../shared/constants';
 import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../bridge/bus';
-import { AWAITING_MAX_MS, pullProvider, resetBridgePullForTests } from '../bridge/pull';
+import {
+  AWAITING_MAX_MS,
+  handleTitleMessage,
+  pullProvider,
+  resetBridgePullForTests,
+} from '../bridge/pull';
 import { host } from '../host';
 import { getInFlightProviders, resetCancelState } from '../workflow/cancel';
 import { hasPendingCheckpoint, onCheckpoint, resetCheckpointForTests, resolveCheckpoint, type PendingCheckpoint } from '../workflow/checkpoint';
@@ -24,7 +31,13 @@ import { runStep } from '../workflow/stepRunner';
 import { getActiveTurn, reserveTurn, resetWorkflowStateForTests, SKIP_RESPONSE } from '../workflow/state';
 import { chooseStepTimeoutAction, onStepTimeoutEvent, resetStepTimeoutForTests } from '../workflow/stepTimeout';
 import { tearDownWaiters } from '../workflow/teardown';
-import { STEP_TIMEOUT_MS, waitForResponse, resetWaitForResponseForTests, hasWaiter } from '../workflow/waitForResponse';
+import {
+  STEP_ABSOLUTE_TIMEOUT_MS,
+  STEP_TIMEOUT_MS,
+  waitForResponse,
+  resetWaitForResponseForTests,
+  hasWaiter,
+} from '../workflow/waitForResponse';
 import { resetWorkflowRuntimeForTests, runWorkflow } from '../workflow';
 import { createResponseLanguagePolicy } from '../workflow/responseLanguage';
 
@@ -161,6 +174,60 @@ describe('workflow engine', () => {
     await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS + 1);
   });
 
+  it('keeps a long task alive while thinking status reports continue', async () => {
+    const promise = sendAndWait('claude', 'long review task');
+    await Promise.resolve();
+
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS - 1_000);
+    handleTitleMessage({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'claude',
+      bootId: 'long-task',
+      seq: 1,
+      payload: { dom: 'ready', thinking: true },
+      transport: 'title',
+    });
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS - 1_000);
+
+    await expect(Promise.race([promise.then(() => 'settled'), Promise.resolve('pending')])).resolves.toBe('pending');
+    publishBridgeMessage(done('claude', 'reviewed'));
+    await expect(promise).resolves.toEqual({ response: 'reviewed', turn: 1 });
+  });
+
+  it('treats pulled response chunks as activity for the workflow timeout', async () => {
+    const promise = waitForResponse('chatgpt', 77);
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS - 1_000);
+    publishBridgeMessage({ v: 1, action: 'RESPONSE_CHUNK', provider: 'chatgpt', payload: 'new partial', transport: 'pull' });
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS - 1_000);
+
+    await expect(Promise.race([promise.then(() => 'settled'), Promise.resolve('pending')])).resolves.toBe('pending');
+    publishBridgeMessage(done('chatgpt', 'finished'));
+    await expect(promise).resolves.toBe('finished');
+  });
+
+  it('enforces an absolute workflow timeout despite regular thinking heartbeats', async () => {
+    const promise = waitForResponse('grok', 78);
+    const rejection = promise.catch((error: unknown) => error);
+    const startedAt = Date.now();
+    let heartbeat = 0;
+    while (Date.now() - startedAt + 9 * 60 * 1000 < STEP_ABSOLUTE_TIMEOUT_MS) {
+      await vi.advanceTimersByTimeAsync(9 * 60 * 1000);
+      heartbeat += 1;
+      publishBridgeMessage({
+        v: 1,
+        action: 'STATUS_REPORT',
+        provider: 'grok',
+        payload: { thinking: true, seq: heartbeat },
+        transport: 'title',
+      });
+    }
+    await vi.advanceTimersByTimeAsync(STEP_ABSOLUTE_TIMEOUT_MS - (Date.now() - startedAt));
+    await expect(rejection).resolves.toEqual(
+      new Error(`Grok response timed out after ${STEP_ABSOLUTE_TIMEOUT_MS / 1000}s`),
+    );
+  });
+
   it('keeps polling armed after a pulled chunk', async () => {
     const promise = sendAndWait('chatgpt', 'chunked');
     await Promise.resolve();
@@ -208,15 +275,18 @@ describe('workflow engine', () => {
     expect(statuses).toEqual(['']);
   });
 
-  it('routes the brainstorm preset through provider-specific free fan-out and records its graph id', async () => {
-    const prompts = new Map<AIProvider, string>();
+  it('routes Brainstorm through twelve rounds of four providers and records graph v2', async () => {
+    const order: AIProvider[] = [];
+    const prompts: string[] = [];
     const statuses: string[] = [];
     const unsubscribe = onBridgeMessage((message) => {
       if (message.action === 'WORKFLOW_STATUS' && typeof message.payload === 'string') statuses.push(message.payload);
     });
     vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
-      prompts.set(provider, prompt);
-      publishBridgeMessage(done(provider, `${provider}-ideas`));
+      const turn = order.length + 1;
+      order.push(provider);
+      prompts.push(prompt);
+      publishBridgeMessage(done(provider, `answer-${turn}`));
     });
 
     await expect(
@@ -224,18 +294,58 @@ describe('workflow engine', () => {
         text: 'Invent a better new-user tutorial',
         mode: 'free',
         presetId: 'brainstorm',
-        targets: providers,
         locale: 'de',
       }),
     ).resolves.toEqual({ ok: true });
     unsubscribe();
 
-    for (const provider of providers) {
-      expect(prompts.get(provider)).toBe(PROMPTS.brainstorm.buildPrompt('Invent a better new-user tutorial', provider));
-    }
-    expect(statuses[0]).toBe('✨ ChatGPT, Claude, Gemini und Grok sammeln Ideen…');
+    const baseOrder = ['claude', 'gemini', 'grok', 'chatgpt'] satisfies AIProvider[];
+    const expectedOrder = Array.from({ length: BRAINSTORM_ROUND_COUNT }, (_, roundIndex) =>
+      Array.from({ length: baseOrder.length }, (_, speakerIndex) => baseOrder[(roundIndex + speakerIndex) % baseOrder.length]),
+    ).flat();
+    expect(order).toEqual(expectedOrder);
+    expectedOrder.forEach((provider, index) => {
+      const round = Math.floor(index / baseOrder.length) + 1;
+      const speakerPosition = (index % baseOrder.length) + 1;
+      const history = expectedOrder.slice(0, index).map((priorProvider, priorIndex) => ({
+        name: AI_PROVIDERS[priorProvider].name,
+        round: Math.floor(priorIndex / baseOrder.length) + 1,
+        text: `answer-${priorIndex + 1}`,
+      }));
+      expect(prompts[index]).toBe(
+        PROMPTS.brainstorm.buildPrompt('Invent a better new-user tutorial', round, speakerPosition, provider, history),
+      );
+    });
+    expect(host.provider.send).toHaveBeenCalledTimes(48);
+    expect(statuses).toEqual([
+      ...expectedOrder.map((provider, index) => {
+        const round = Math.floor(index / baseOrder.length) + 1;
+        const speakerPosition = (index % baseOrder.length) + 1;
+        const phase = brainstormPhaseForRound(round);
+        return `✨ Brainstorming-Runde ${round}/12 · Phase ${phase}/5 · Beitrag ${speakerPosition}/4 — ${AI_PROVIDERS[provider].name} denkt nach…`;
+      }),
+      '',
+    ]);
     expect(getLastSnapshot()?.graphId).toBe('brainstorm');
+    expect(getLastSnapshot()?.graphVersion).toBe(2);
+    expect(getLastSnapshot()?.steps).toHaveLength(48);
     expect(getLastSnapshot()?.userQuestion).toMatchObject({ kind: 'inline', text: 'Invent a better new-user tutorial' });
+  });
+
+  it('blocks Brainstorm before turn one when a required provider is unavailable', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
+
+    await expect(
+      runWorkflow({
+        text: 'Generate launch ideas',
+        mode: 'free',
+        presetId: 'brainstorm',
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      preflight: { ok: false, unavailable: ['grok'], aliased: [] },
+    });
+    expect(host.provider.send).not.toHaveBeenCalled();
   });
 
   it('applies the same Auto response-language policy to every free and serial provider prompt', async () => {
