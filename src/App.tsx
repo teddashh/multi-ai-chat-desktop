@@ -563,14 +563,28 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | undefined;
     void host.adapter
       .onNotice((notice) => {
+        if (disposed) return;
         setAdapterNotice(notice);
         recordEventLog(eventFromAdapterNotice(notice));
       })
-      .then((fn) => (unlisten = fn));
-    return () => unlisten?.();
+      .then((fn) => {
+        if (disposed) {
+          fn();
+          return;
+        }
+        unlisten = fn;
+      })
+      .catch(() => {
+        // Adapter notices are diagnostic-only and must not interrupt startup.
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   useEffect(() => {

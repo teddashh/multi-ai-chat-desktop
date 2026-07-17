@@ -82,6 +82,26 @@ describe('M4a UI helpers', () => {
     expect(show.mock.calls.map(([provider]) => provider)).toEqual(['chatgpt', 'claude']);
   });
 
+  it('serializes a rapid overlay restore behind an in-flight hide', async () => {
+    const guard = new OverlayGuardCounter();
+    let finishHide: (() => void) | undefined;
+    const hidePending = new Promise<void>((resolve) => {
+      finishHide = resolve;
+    });
+    const hide = vi.fn(() => hidePending);
+    const show = vi.fn(async () => {});
+    const host = { hide, show };
+
+    guard.open(['chatgpt'], host);
+    guard.close(host);
+
+    expect(hide).toHaveBeenCalledWith('chatgpt');
+    expect(show).not.toHaveBeenCalled();
+
+    finishHide?.();
+    await vi.waitFor(() => expect(show).toHaveBeenCalledWith('chatgpt'));
+  });
+
   it('maps preflight unavailable and aliased providers to labelled dialog rows with reasons', () => {
     const model = buildPreflightDialogModel(
       'debate',
