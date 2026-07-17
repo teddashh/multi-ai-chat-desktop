@@ -1,8 +1,8 @@
 # PLAN — Multi-AI Chat Desktop
 
 > Status: **feature freeze / final commemorative edition**
-> Date: 2026-07-13
-> Stable maintenance baseline: `v1.3.0`; feature development remains frozen after the response-language compatibility repair. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
+> Date: 2026-07-17
+> Stable maintenance baseline: `v1.6.1`; feature development remains frozen after the final compatibility and Brainstorm hardening. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
 > Working model: the web-session desktop edition is complete. The final source-distribution work formalizes the existing Codex/Claude launch path as a tested Agent-Ready Source Release; it does not add an embedded agent runtime. After this patch, only provider compatibility, security, build-breakage, and release-critical fixes remain in scope.
 
 ## Final scope
@@ -12,7 +12,7 @@
 | Core product | Frozen at four providers and five workflow modes. |
 | Snapshot / replay / checkpoints | Keep the shipped implementation for compatibility. No new schema, comparison UI, sharing format, or reproducibility roadmap. |
 | Final feature | ✅ One optional **AI-Sister Commemorative Edition** theme showing all four characters together, with supplied per-provider portraits and active-speaker treatment. |
-| Final hardening | Correct runtime version provenance, session-safe Markdown export metadata, a main-webview-only Tauri capability, production CSP, non-expanding remote adapter URL scopes, security/compatibility templates, the versioned Agent-Ready Source Release contract, Grok/Cloudflare WebView compatibility without core Web-API monkey-patches, and the response-language routing repair in SPEC §1.1 #5. No workflow sequence changes; prompt-policy changes are limited to that repair. |
+| Final hardening | Correct runtime version provenance, session-safe Markdown export metadata, a main-webview-only Tauri capability, production CSP, non-expanding remote adapter URL scopes, security/compatibility templates, the versioned Agent-Ready Source Release contract, challenge-passive provider/Cloudflare WebView startup, Grok History isolation, Claude login detection, response-language routing, activity-aware long-response timeouts with an absolute safety cap, and the final Brainstorm graph (12 rounds × 4 providers = 48 contributions across five phases). Other shipped workflow sequences remain frozen. |
 | Agent source lane | ✅ Explicit-only Codex/Claude Skills, strict manifest/schema, deterministic doctor/audit/launch/status/stop commands, app-level READY evidence, identity-safe stop, local receipts, dry-run, and cross-platform contract tests. No host-tool installer or automatic rollback. |
 | Maintenance | Fix provider DOM adapters, response-language routing regressions, security issues, data-loss bugs, dependency/build failures, and release blockers. |
 | Closed work | Fifth provider, workflow-pack marketplace, graph editor, dynamic preset promotion, additional snapshot work, in-app auto-updater, Developer ID/notarization program, Docker source lane, host package manager, and an embedded terminal-agent runtime. Ad-hoc macOS bundle signing remains a release-integrity requirement. |

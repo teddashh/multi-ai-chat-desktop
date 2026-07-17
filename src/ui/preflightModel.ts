@@ -1,9 +1,10 @@
 import { AI_PROVIDERS } from '../../shared/constants';
-import type { AIProvider, ChatMode, ProviderState } from '../../shared/types';
+import type { AIProvider, ProviderState } from '../../shared/types';
 import { modeName } from '../i18n/modes';
 import type { Locale } from '../i18n/resolve';
 import { formatI18n, t } from '../i18n/t';
 import type { PreflightResult } from '../workflow/preflight';
+import type { PreflightSubject } from './preflightFromResult';
 
 export interface PreflightDialogModel {
   title: string;
@@ -19,13 +20,14 @@ export function providerUnavailableReason(state: ProviderState | undefined, loca
 }
 
 export function buildPreflightDialogModel(
-  mode: Exclude<ChatMode, 'free'>,
+  mode: PreflightSubject,
   preflight: PreflightResult,
   states: Record<AIProvider, ProviderState>,
   locale: Locale = 'en',
 ): PreflightDialogModel {
+  const displayName = mode === 'brainstorm' ? t('preset.brainstorm.displayName', locale) : modeName(mode, locale);
   return {
-    title: formatI18n(t('preflight.cannotStart', locale), { mode: modeName(mode, locale) }),
+    title: formatI18n(t('preflight.cannotStart', locale), { mode: displayName }),
     unavailable: preflight.unavailable.map((provider) => ({
       provider,
       label: AI_PROVIDERS[provider].name,

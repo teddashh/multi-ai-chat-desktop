@@ -202,7 +202,19 @@ describe('M4a UI helpers', () => {
 
     expect(preflightFromResult('debate', { ok: false, preflight })).toEqual({ mode: 'debate', result: preflight });
     expect(preflightFromResult('free', { ok: false, preflight })).toBeUndefined();
+    expect(preflightFromResult('free', { ok: false, preflight }, 'brainstorm')).toEqual({ mode: 'brainstorm', result: preflight });
     expect(preflightFromResult('debate', { ok: true })).toBeUndefined();
+  });
+
+  it('uses the localized Brainstorm name in preflight', () => {
+    const model = buildPreflightDialogModel(
+      'brainstorm',
+      { ok: false, unavailable: ['grok'], aliased: [] },
+      states({ grok: state('grok', false) }),
+      'zh-TW',
+    );
+
+    expect(model.title).toBe(formatI18n(t('preflight.cannotStart', 'zh-TW'), { mode: t('preset.brainstorm.displayName', 'zh-TW') }));
   });
 
   it('derives processing state from send, empty status, and workflow settle', () => {

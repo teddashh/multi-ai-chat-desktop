@@ -1,5 +1,5 @@
 import { AI_PROVIDERS } from '../../shared/constants';
-import type { AIProvider, BridgeMessage, ChatMode } from '../../shared/types';
+import type { AIProvider, BridgeMessage, ChatMode, WorkflowPresetId } from '../../shared/types';
 import type { Locale } from '../i18n/resolve';
 import { t } from '../i18n/t';
 
@@ -23,8 +23,13 @@ export interface ProcessTraceState {
   steps: ProcessTraceStep[];
 }
 
-export function createProcessTrace(mode: ChatMode, targets: AIProvider[] = [], locale: Locale = 'en'): ProcessTraceState {
-  if (mode !== 'free') return { mode, currentStatus: '', steps: [] };
+export function createProcessTrace(
+  mode: ChatMode,
+  targets: AIProvider[] = [],
+  locale: Locale = 'en',
+  presetId?: WorkflowPresetId,
+): ProcessTraceState {
+  if (mode !== 'free' || presetId === 'brainstorm') return { mode, currentStatus: '', steps: [] };
 
   return {
     mode,

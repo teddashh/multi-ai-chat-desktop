@@ -5,6 +5,7 @@ import { publishBridgeMessage } from './bus';
 
 export const DONE_WATCHDOG_MS = 5000;
 export const AWAITING_MAX_MS = 10 * 60 * 1000;
+export const AWAITING_ABSOLUTE_MAX_MS = 60 * 60 * 1000;
 
 const lastConsumed = new Map<string, { bootId: string; mid: number }>();
 const pending = new Set<AIProvider>();
@@ -14,6 +15,7 @@ const pullInflight = new Map<AIProvider, { promise: Promise<void>; force: boolea
 const activeBoot = new Map<AIProvider, string>();
 const doneTimers = new Map<AIProvider, ReturnType<typeof globalThis.setTimeout>>();
 const awaitingSince = new Map<AIProvider, number>();
+const awaitingStartedAt = new Map<AIProvider, number>();
 let subscriptionPromise: Promise<() => void> | undefined;
 let cleanupSubscription: (() => void) | undefined;
 let refCount = 0;
@@ -56,11 +58,18 @@ export function handleTitleMessage(message: BridgeMessage): void {
       activeBoot.set(message.provider, message.bootId);
       lastConsumed.delete(message.provider);
       recoverProvider(message.provider);
+      if (pending.has(message.provider)) recordAwaitingActivity(message.provider);
     }
   }
   publish(message);
   if (!message.provider) return;
-  const payload = message.payload as { bulkReady?: number; doneReady?: boolean } | undefined;
+  const payload = message.payload as { bulkReady?: number; doneReady?: boolean; thinking?: boolean } | undefined;
+  if (
+    pending.has(message.provider) &&
+    (payload?.thinking === true || (typeof payload?.bulkReady === 'number' && payload.bulkReady > 0) || payload?.doneReady === true)
+  ) {
+    recordAwaitingActivity(message.provider);
+  }
   if (typeof payload?.bulkReady === 'number' && payload.bulkReady > 0) {
     void pullProvider(message.provider);
     if (payload.doneReady === true) armDoneWatchdog(message.provider);
@@ -93,13 +102,16 @@ export function resetProviderBootState(provider: AIProvider): void {
 
 export function setProviderAwaiting(provider: AIProvider, awaiting: boolean): void {
   if (awaiting) {
+    const now = Date.now();
     pending.add(provider);
-    awaitingSince.set(provider, Date.now());
+    awaitingSince.set(provider, now);
+    awaitingStartedAt.set(provider, now);
     ensurePoll(provider);
     return;
   }
   pending.delete(provider);
   awaitingSince.delete(provider);
+  awaitingStartedAt.delete(provider);
   const timer = pollTimers.get(provider);
   if (timer !== undefined) globalThis.clearInterval(timer);
   pollTimers.delete(provider);
@@ -109,8 +121,13 @@ export function setProviderAwaiting(provider: AIProvider, awaiting: boolean): vo
 function ensurePoll(provider: AIProvider): void {
   if (pollTimers.has(provider) || degraded.has(provider)) return;
   const timer = globalThis.setInterval(() => {
-    const started = awaitingSince.get(provider);
-    if (started !== undefined && Date.now() - started > AWAITING_MAX_MS) {
+    const now = Date.now();
+    const lastActivity = awaitingSince.get(provider);
+    const started = awaitingStartedAt.get(provider);
+    if (
+      (lastActivity !== undefined && now - lastActivity > AWAITING_MAX_MS) ||
+      (started !== undefined && now - started > AWAITING_ABSOLUTE_MAX_MS)
+    ) {
       synthesizeDone(provider, '[Error: bridge degraded]');
       return;
     }
@@ -174,6 +191,7 @@ async function pullProviderInner(provider: AIProvider, options: { force?: boolea
     const current = lastConsumed.get(provider);
     if (current && message.mid <= current.mid) continue;
     lastConsumed.set(provider, { bootId: message.bootId, mid: message.mid });
+    if (message.action === 'RESPONSE_CHUNK' && pending.has(provider)) recordAwaitingActivity(provider);
     if (message.action === 'RESPONSE_DONE') sawDone = true;
     publish({ ...message, provider, transport: 'pull' });
   }
@@ -213,6 +231,10 @@ function publish(message: BridgeMessage): void {
   publishBridgeMessage(message);
 }
 
+function recordAwaitingActivity(provider: AIProvider): void {
+  awaitingSince.set(provider, Date.now());
+}
+
 export async function pullWithRetry(provider: AIProvider): Promise<BridgeMessage[] | null> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -245,6 +267,7 @@ export function resetBridgePullForTests(): void {
   degraded.clear();
   activeBoot.clear();
   awaitingSince.clear();
+  awaitingStartedAt.clear();
   pullInflight.clear();
   for (const timer of pollTimers.values()) globalThis.clearInterval(timer);
   pollTimers.clear();

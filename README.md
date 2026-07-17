@@ -8,7 +8,7 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > This project automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider’s terms. Use accounts and content you are authorized to use.
 
-> **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its lightweight Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. The preset reuses the stable Free fan-out engine, while the shipped snapshot/replay tools remain available as-is with no further roadmap.
+> **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Every Brainstorm round includes all four providers—48 contributions total—with a rotating speaking order and full same-session history. The shipped snapshot/replay tools remain available as-is with no further roadmap.
 
 ## v1.6.1 highlights
 
@@ -31,7 +31,7 @@ See the bilingual [`v1.6.1 release notes`](./docs/RELEASE_NOTES_v1.6.1.md) for v
 
 - **Reliable offscreen automation.** Providers keep working without manually opening each “live page”; rejected sends retry and fail clearly instead of waiting forever.
 - **Conversation-first layout.** Workflow controls sit above the less-important provider WebView on the left; the transcript and composer keep the larger right pane.
-- **Six guided presets, five stable engines.** Free distribution, debate, consultation, coding, five-round truth-seeking roundtable, and a provider-lens Brainstorm preset built on the Free engine.
+- **Six guided presets, five stable modes.** Free distribution, debate, consultation, coding, five-round truth-seeking roundtable, and a 12-round × 4-provider Brainstorm workflow with 48 contributions.
 - **Local sessions.** Create a new conversation or reopen up to 30 recent transcripts stored on this computer; restored follow-ups receive bounded context from the same session.
 - **Readable results.** Safe semantic Markdown rendering for headings, nested lists, links, quotes, fenced code, and scrollable tables.
 - **Image completion.** Image-only ChatGPT responses complete the workflow instead of hanging.
@@ -51,7 +51,9 @@ See the bilingual [`v1.6.1 release notes`](./docs/RELEASE_NOTES_v1.6.1.md) for v
 | **Consult** | Two independent answers → Review → Final answer | Research and second opinions |
 | **Coding** | Specification → Reviews → v1 → Tests → v2 → Acceptance → Final | Structured software planning and review |
 | **Roundtable** | 5 rounds × 4 AIs = 20 turns | Slow, adversarial convergence on difficult questions |
-| **Brainstorm** | Selected providers explore distinct creative lenses in parallel | Divergent ideas, unconventional options, and concrete next steps |
+| **Brainstorm** | 12 rounds × 4 AIs = 48 contributions; rotating order across framing → divergence → cross-pollination → harvesting → concept tests | Full-context idea development, a balanced portfolio, and concrete first experiments |
+
+Brainstorm is intentionally the heaviest preset: keep all four web sessions authenticated and allow roughly 45–90 minutes. Claude's current consumer site requires an account login; this app detects and guides that flow but never bypasses provider login or security checks.
 
 After a workflow finishes, use the bottom composer to continue the same conversation. Use **New conversation** when you want a clean session.
 

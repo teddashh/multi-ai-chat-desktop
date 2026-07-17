@@ -91,6 +91,46 @@ export function enforceOutboxOverflow(box: OutboxLike, maxBytes = OUTBOX_MAX_BYT
   return { entries, bytes, degraded, reason };
 }
 
+export function hasCloudflareChallengeSignals(title: string, bodyText: string, challengeMarker: boolean): boolean {
+  if (challengeMarker) return true;
+  const normalizedTitle = title.trim().toLocaleLowerCase();
+  const normalizedBody = bodyText.trim().slice(0, 2_000).toLocaleLowerCase();
+  const titleSignals = [
+    'just a moment',
+    'attention required',
+    'security verification',
+    '安全性驗證',
+    '安全验证',
+    'セキュリティ検証',
+    'sicherheitsüberprüfung',
+  ];
+  const bodySignals = [
+    'verifying you are human',
+    'verify you are human',
+    'performing security verification',
+    'checking if the site connection is secure',
+    'complete the security check',
+    '正在執行安全驗證',
+    '正在执行安全验证',
+    '人間であることを確認しています',
+    'sicherheitsüberprüfung',
+  ];
+  return titleSignals.some((signal) => normalizedTitle.includes(signal)) || bodySignals.some((signal) => normalizedBody.includes(signal));
+}
+
+export function shouldDeferBridgeStart(
+  _provider: string,
+  readyState: DocumentReadyState,
+  hasComposer: boolean,
+  challengeActive: boolean,
+): boolean {
+  return !hasComposer && (readyState === 'loading' || challengeActive);
+}
+
+export function shouldPatchHistory(provider: string): boolean {
+  return provider !== 'grok';
+}
+
 interface MacBridge {
   version: 1;
   bootId: string;
@@ -111,6 +151,27 @@ interface MacBridge {
   if (window.__MAC_BRIDGE__) return;
 
   const provider = providerFromLabel();
+  const hasComposer = Boolean(
+    document.querySelector('[data-testid="chat-input"] [contenteditable="true"], .ProseMirror[contenteditable="true"]'),
+  );
+  const challengeActive = hasCloudflareChallengeSignals(
+    document.title,
+    document.body?.textContent ?? '',
+    Boolean(
+      document.querySelector(
+        '#challenge-running, #challenge-stage, #cf-challenge-running, form#challenge-form, .h-captcha, [data-hcaptcha-widget-id], iframe[src*="hcaptcha.com"]',
+      ),
+    ),
+  );
+  if (shouldDeferBridgeStart(provider, document.readyState, hasComposer, challengeActive)) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
+    } else {
+      window.setTimeout(bootstrap, 500);
+    }
+    return;
+  }
+
   const bootId = randomId();
   const queue: BridgeMessage[] = [];
   const outbox: OutboxEntry[] = [];
@@ -303,19 +364,21 @@ interface MacBridge {
   window.__MAC_BRIDGE__ = bridge;
 
   const notifyRoute = () => emitTitle('STATUS_REPORT', { route: location.pathname, bootId }, { immediate: true });
-  const pushState = history.pushState.bind(history);
-  const replaceState = history.replaceState.bind(history);
+  if (shouldPatchHistory(provider)) {
+    const pushState = history.pushState.bind(history);
+    const replaceState = history.replaceState.bind(history);
 
-  history.pushState = (...args) => {
-    const result = pushState(...args);
-    notifyRoute();
-    return result;
-  };
-  history.replaceState = (...args) => {
-    const result = replaceState(...args);
-    notifyRoute();
-    return result;
-  };
+    history.pushState = (...args) => {
+      const result = pushState(...args);
+      notifyRoute();
+      return result;
+    };
+    history.replaceState = (...args) => {
+      const result = replaceState(...args);
+      notifyRoute();
+      return result;
+    };
+  }
   window.addEventListener('popstate', notifyRoute);
 
   emitTitle('STATUS_REPORT', { dom: 'unknown', bootId }, { immediate: true });

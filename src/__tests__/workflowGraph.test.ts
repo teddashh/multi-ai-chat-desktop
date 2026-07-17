@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/types';
 import {
+  AI_PROVIDERS,
+  BRAINSTORM_ROUND_COUNT,
   DEFAULT_DEBATE_ROLES,
+  DEFAULT_ROUNDTABLE_ROLES,
   PROMPTS,
 } from '../../shared/constants';
 import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../bridge/bus';
@@ -123,20 +126,64 @@ describe('workflow graph foundation', () => {
     expect(statuses[statuses.length - 1]).toBe('');
   });
 
-  it('executes brainstormGraph as free fan-out with a distinct lens for every provider', async () => {
-    const prompts = new Map<AIProvider, string>();
+  it('executes twelve Brainstorm rounds with four rotating speakers and full prior history', async () => {
+    const order: AIProvider[] = [];
+    const prompts: string[] = [];
+    const roleLabels: string[] = [];
+    const unsubscribe = onBridgeMessage((message) => {
+      if (message.action !== 'ROLE_ASSIGNMENT') return;
+      const label = (message.payload as { label?: unknown } | undefined)?.label;
+      if (typeof label === 'string') roleLabels.push(label);
+    });
     vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
-      prompts.set(provider, prompt);
-      publishBridgeMessage(done(provider, `${provider}-idea`));
+      const turn = order.length + 1;
+      order.push(provider);
+      prompts.push(prompt);
+      publishBridgeMessage(done(provider, `answer-${turn}`));
     });
 
-    await expect(executeGraph(brainstormGraph, { text: 'Design a calmer onboarding flow', targets: providers })).resolves.toBeUndefined();
+    await expect(
+      executeGraph(brainstormGraph, {
+        text: 'Design a calmer onboarding flow',
+        roles: DEFAULT_ROUNDTABLE_ROLES,
+        locale: 'en',
+      }),
+    ).resolves.toBeUndefined();
+    unsubscribe();
 
-    expect(prompts.size).toBe(4);
-    for (const provider of providers) {
-      expect(prompts.get(provider)).toBe(PROMPTS.brainstorm.buildPrompt('Design a calmer onboarding flow', provider));
-    }
-    expect(new Set(prompts.values()).size).toBe(4);
+    const baseOrder = ['claude', 'gemini', 'grok', 'chatgpt'] satisfies AIProvider[];
+    const expectedOrder = Array.from({ length: BRAINSTORM_ROUND_COUNT }, (_, roundIndex) =>
+      Array.from({ length: baseOrder.length }, (_, speakerIndex) => baseOrder[(roundIndex + speakerIndex) % baseOrder.length]),
+    ).flat();
+    expect(order).toEqual(expectedOrder);
+    expect(host.provider.send).toHaveBeenCalledTimes(48);
+    expectedOrder.forEach((provider, index) => {
+      const round = Math.floor(index / baseOrder.length) + 1;
+      const speakerPosition = (index % baseOrder.length) + 1;
+      const history = expectedOrder.slice(0, index).map((priorProvider, priorIndex) => ({
+        name: AI_PROVIDERS[priorProvider].name,
+        round: Math.floor(priorIndex / baseOrder.length) + 1,
+        text: `answer-${priorIndex + 1}`,
+      }));
+      expect(prompts[index]).toBe(
+        PROMPTS.brainstorm.buildPrompt('Design a calmer onboarding flow', round, speakerPosition, provider, history),
+      );
+    });
+    expect(roleLabels).toEqual(
+      Array.from({ length: BRAINSTORM_ROUND_COUNT * baseOrder.length }, (_, index) =>
+        `Brainstorm round ${Math.floor(index / baseOrder.length) + 1}`,
+      ),
+    );
+  });
+
+  it('requires all four distinct Brainstorm collaborators before starting', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
+
+    await expect(preflightGraph(brainstormGraph, DEFAULT_ROUNDTABLE_ROLES)).resolves.toMatchObject({
+      ok: false,
+      unavailable: ['grok'],
+      aliased: [],
+    });
   });
 
   it('preflights serial graphs with the existing sendable predicate', async () => {

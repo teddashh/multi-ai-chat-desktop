@@ -8,7 +8,7 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > Das Projekt automatisiert die Webseiten der Anbieter. Änderungen an deren Oberfläche können einen Adapter vorübergehend beschädigen. Beachte die Bedingungen der Anbieter und verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist.
 
-> **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das schlanke Brainstorming-Preset sind enthalten. Das Preset nutzt die stabile freie Fan-out-Engine; danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt. Snapshot und Replay bleiben unverändert und werden nicht erweitert.
+> **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. In jeder Runde antworten alle vier Anbieter einmal: insgesamt 48 Beiträge mit wechselnder Reihenfolge und vollständigem Verlauf derselben Sitzung. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
 
 ## Neuerungen in v1.6.1
 
@@ -31,7 +31,7 @@ Validierung, Danksagung, das dokumentierte GTK-Upstream-Risiko und bekannte Plat
 
 - Zuverlässige Automatisierung im Hintergrund; abgelehnte Sendungen werden erneut versucht oder klar als Fehler gemeldet.
 - Workflow-Steuerung links über dem weniger wichtigen WebView; mehr Platz für Transkript und Eingabe rechts.
-- Sechs geführte Presets auf fünf stabilen Engines: freie Verteilung, Debatte, Beratung, Coding, fünf Runden Wahrheitssuche sowie Brainstorming über die freie Engine.
+- Sechs geführte Presets in fünf stabilen Modi: freie Verteilung, Debatte, Beratung, Coding, fünf Runden Wahrheitssuche sowie Brainstorming mit 12 Runden × 4 KIs und 48 Beiträgen.
 - Bis zu 30 lokale Sitzungen plus **Neuer Chat**; wiederhergestellte Nachfragen erhalten begrenzten Kontext nur aus derselben Sitzung.
 - Sicher gerendertes Markdown mit Überschriften, verschachtelten Listen, Links, Codeblöcken und scrollbaren Tabellen; außerdem Abschluss reiner Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
 - English, 繁體中文, 日本語 und Deutsch.
@@ -49,7 +49,9 @@ Validierung, Danksagung, das dokumentierte GTK-Upstream-Risiko und bekannte Plat
 | **Beratung** | Zwei unabhängige Antworten → Prüfung → Ergebnis | Recherche und zweite Meinung |
 | **Coding** | Spezifikation → Reviews → v1 → Tests → v2 → Abnahme → Final | Strukturierte Softwareplanung |
 | **Rundtisch** | 5 Runden × 4 KIs = 20 Beiträge | Schwierige Fragen kontrovers konvergieren lassen |
-| **Brainstorming** | Ausgewählte KIs erkunden parallel unterschiedliche kreative Blickwinkel | Vielfältige Ideen, unkonventionelle Optionen und konkrete nächste Schritte |
+| **Brainstorming** | 12 Runden × 4 KIs = 48 Beiträge; wechselnde Reihenfolge über Problemrahmen → Divergenz → gegenseitige Anregung → Auswahl → Konzepttests | Ideenentwicklung mit vollständigem Verlauf, ausgewogenes Portfolio und erste Experimente |
+
+Brainstorming ist absichtlich das aufwendigste Preset: Alle vier Web-Sitzungen müssen angemeldet sein, und der Lauf kann etwa 45–90 Minuten dauern. Die aktuelle Claude-Webseite verlangt eine Kontoanmeldung; die App erkennt und begleitet den offiziellen Ablauf, umgeht aber weder Anmeldung noch Sicherheitsprüfung des Anbieters.
 
 Nach einem Workflow kann die Unterhaltung unten rechts fortgesetzt werden. **Neuer Chat** beginnt mit sauberem Kontext.
 

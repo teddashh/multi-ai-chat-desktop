@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-15. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-07-17 after v1.6.1. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -17,7 +17,7 @@
 | macOS Apple Silicon | DMG builds in CI; embedded app is verified as ad-hoc signed | A `v1.0.1` user opened the app and logged into ChatGPT, Claude, and Gemini; Grok looped on Cloudflare verification | **Partially verified** |
 | Linux x86_64 | AppImage builds in CI with WebKitGTK dependencies | No maintainer desktop report yet | **CI-only** |
 
-macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. The current source stops injecting the permission Web-API shim into Grok/Cloudflare frames and permits only Cloudflare's required `about:blank` / `about:srcdoc` auxiliary documents; this fix still requires an Apple Silicon retest before final release publication.
+macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. Current source leaves provider permission APIs untouched, permits Cloudflare's required `about:blank` / `about:srcdoc` documents, defers the automation bridge on any detected Cloudflare or hCaptcha security-check page, and never monkey-patches Grok's History API. Automated tests cover this policy, but a live Apple Silicon retest is still required.
 
 ## Agent-ready source lane
 
@@ -36,13 +36,15 @@ The Agent contract does not claim that CI displayed a window. It also does not i
 | Provider | Bundled adapter | Windows text workflow evidence | Image-only completion |
 |---|---:|---|---|
 | ChatGPT | v5 | v4 text workflow **Verified**; v5 mismatch recovery has automated coverage and awaits live retest | Partial manual coverage; recheck after provider UI changes |
-| Claude | v3 | **Verified** | Not a compatibility claim |
+| Claude | v4 | v3 text workflow **Verified**; v4 login-page detection and explicit Google SSO scope have automated coverage and await live retest | Not a compatibility claim |
 | Gemini | v1 | **Verified** | Not a compatibility claim |
 | Grok | v6 | **Verified** | Not a compatibility claim |
 
 Automated tests validate adapter structure, approved strategies, HTTPS URL parsing, and navigation boundaries. They do not log into live provider accounts. Remote adapter updates cannot expand the URL scopes bundled with the installed app.
 
-macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. The next release candidate leaves Grok's core browser APIs unmodified, following Cloudflare's documented WebView requirements. CI can compile this policy but cannot prove that a live challenge completes.
+Claude's current consumer web experience requires an authenticated account. Adapter v4 recognizes common email-login fields and keeps the official Anthropic and Google sign-in routes within the existing bounded SSO policy. The app does not bypass login, age, subscription, challenge, or other provider-side requirements; guided workflows that assign a Claude seat remain blocked until Claude reports a ready composer.
+
+macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. Current source delays bridge startup for every provider until detected Cloudflare or hCaptcha challenge signals disappear and additionally avoids Grok History API replacement, following anti-bot WebView compatibility requirements. CI can verify the policy but cannot prove that a live challenge completes.
 
 ## Product behavior
 
@@ -51,6 +53,8 @@ macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but 
 | Free mode | Four-provider fan-out tests | Send to all selected providers; verify each final response |
 | Debate / consultation / coding | Golden graph ordering and prompt-threading tests | Complete one run; verify role labels and final summary |
 | Roundtable | Five-round, four-speaker history tests | Complete one run; verify prior same-session speeches remain available |
+| Brainstorm | Twelve rounds × four providers, rotating seat order, 48-step history threading, five phase prompts, preflight, localization, and snapshot tests | Allow 45–90 minutes; verify every provider answers once per round and the final speaker returns a consolidated portfolio |
+| Long provider work | Thinking, pulled chunks, bulk-ready, and done-ready activity refresh a 10-minute inactivity window; tests also enforce a 60-minute bridge hard cap | Run one provider task beyond 10 minutes, then verify a truly stalled task still terminates |
 | Session isolation | Conversation persistence and latest-snapshot matching tests | Create two sessions; confirm no messages or export provenance cross over |
 | Restored-session continuity | Stable response-identity and bounded same-session replay tests | Reopen a session, ask a follow-up, and confirm old context is available without cross-session leakage |
 | Response fidelity | DOM-to-Markdown tests for paragraphs, nested lists, links, fenced code, direct/nested tables, and image-only fallback | Compare a provider answer containing code and a table with the captured transcript |
@@ -64,7 +68,7 @@ macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but 
 ## Release smoke checklist
 
 1. Install or launch the platform artifact on a clean profile.
-2. Open and authenticate each provider using a non-sensitive test account where possible.
+2. Open and authenticate each provider using a non-sensitive test account where possible. Claude requires its official Google or email login flow; do not call Claude ready until the composer appears.
    On macOS, explicitly confirm that Grok exits the Cloudflare verification page before calling the release verified.
 3. Verify prompt insertion, automatic send, thinking state, text completion, and new-session reset.
 4. Run Free mode and one serial mode; cancel one in-progress run.

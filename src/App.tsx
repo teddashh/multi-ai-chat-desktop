@@ -92,7 +92,7 @@ import {
 import { preflightGraph, workflowGraphs } from './workflow/graph';
 import { defaultRolesForPreset, presetForId } from './ui/presetCatalogData';
 import { buildPreflightDialogModel } from './ui/preflightModel';
-import { preflightFromResult } from './ui/preflightFromResult';
+import { preflightFromResult, type PreflightSubject } from './ui/preflightFromResult';
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from './ui/processing';
 import { Resizer } from './ui/Resizer';
 import { SettingsModal } from './ui/SettingsModal';
@@ -306,7 +306,7 @@ export default function App() {
   const [checkpoint, setCheckpoint] = useState<PendingCheckpoint | undefined>();
   const [checkpointDraft, setCheckpointDraft] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [preflight, setPreflight] = useState<{ mode: Exclude<ChatMode, 'free'>; result: PreflightResult } | undefined>();
+  const [preflight, setPreflight] = useState<{ mode: PreflightSubject; result: PreflightResult } | undefined>();
   const [stepTimeout, setStepTimeout] = useState<StepTimeoutDialogState | undefined>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareNotice, setShareNotice] = useState<{ kind: 'ok' | 'error'; text: string } | undefined>();
@@ -392,8 +392,12 @@ export default function App() {
     [requiredModeProviders, states],
   );
   const missingModeProviderCount = Math.max(0, requiredModeProviders.length - readyModeProviders.length);
-  const noSendableProviders = mode === 'free' ? !hasFreeModeTargets : anySendableTargets.length === 0;
-  const modeSendBlocked = mode !== 'free' && missingModeProviderCount > 0;
+  const noSendableProviders = presetId === 'brainstorm'
+    ? readyModeProviders.length === 0
+    : mode === 'free'
+      ? !hasFreeModeTargets
+      : anySendableTargets.length === 0;
+  const modeSendBlocked = (mode !== 'free' || presetId === 'brainstorm') && missingModeProviderCount > 0;
   const openProviders = useMemo(() => PROVIDERS.filter((provider) => states[provider].webview === 'loaded'), [states]);
   const latestCenterBubble = useMemo(() => {
     if (!centeredProvider) return undefined;
@@ -1364,11 +1368,15 @@ export default function App() {
 
   const executeSend = async (trimmed: string, preparedWorkflowTargets?: AIProvider[]) => {
     if (!trimmed) return;
-    const workflowTargets = mode === 'free'
+    const brainstorm = presetId === 'brainstorm';
+    const workflowTargets = mode === 'free' && !brainstorm
       ? preparedWorkflowTargets ?? freeModeTargets(targets, statesRef.current)
       : undefined;
     if (workflowTargets?.length === 0) return;
-    if (mode === 'free') autoFocusRunCandidate(workflowTargets?.[0]);
+    if (mode === 'free') {
+      const brainstormRoles = brainstorm ? defaultRolesForPreset(mode, presetId) : undefined;
+      autoFocusRunCandidate(brainstormRoles ? Object.values(brainstormRoles)[0] : workflowTargets?.[0]);
+    }
     const replayContext =
       replayContextSessionRef.current === activeSessionId ? buildConversationReplayContext(messages) : undefined;
     setMessages((current) => [
@@ -1376,10 +1384,10 @@ export default function App() {
       { id: createConversationMessageId('user'), role: 'user', content: trimmed, final: true },
     ]);
     setIsProcessing(processingAfterSend());
-    setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current));
+    setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current, presetId));
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
-    const workflowRoles = defaultRolesForPreset(mode);
+    const workflowRoles = defaultRolesForPreset(mode, presetId);
     recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
     const result = await runWorkflow({
       text: trimmed,
@@ -1393,11 +1401,11 @@ export default function App() {
       snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
       responseLanguagePolicy: createResponseLanguagePolicy(snapshotSettings.responseLanguage, localeRef.current),
     });
-    const blockedPreflight = preflightFromResult(mode, result);
+    const blockedPreflight = preflightFromResult(mode, result, presetId);
     if (result.ok) replayContextSessionRef.current = undefined;
-    if (blockedPreflight && isSerialMode(mode)) {
+    if (blockedPreflight) {
       recordEventLog(
-        eventFromWorkflowPreflightBlocked(blockedPreflight.mode, blockedPreflight.result.unavailable.length + blockedPreflight.result.aliased.length),
+        eventFromWorkflowPreflightBlocked(mode, blockedPreflight.result.unavailable.length + blockedPreflight.result.aliased.length),
       );
       setPreflight(blockedPreflight);
       setProcessTrace((current) => (current?.steps.length === 0 ? undefined : current));
@@ -1412,10 +1420,15 @@ export default function App() {
 
   const send = async (trimmed: string): Promise<boolean> => {
     if (!trimmed) return false;
+    const brainstorm = presetId === 'brainstorm';
     const serialMode = isSerialMode(mode) ? mode as Exclude<ChatMode, 'free'> : undefined;
-    const serialRoles = serialMode ? defaultRolesForPreset(serialMode) : undefined;
-    const participants = serialRoles
-      ? [...new Set(Object.values(serialRoles))]
+    const workflowRoles = brainstorm
+      ? defaultRolesForPreset(mode, presetId)
+      : serialMode
+        ? defaultRolesForPreset(serialMode)
+        : undefined;
+    const participants = workflowRoles
+      ? [...new Set(Object.values(workflowRoles))]
       : freeModeTargets(targets, statesRef.current);
 
     const providersToFreshen = pendingProviderSessionResets(
@@ -1455,12 +1468,13 @@ export default function App() {
       }
     }
 
-    if (serialMode) {
+    const serialGraph = brainstorm ? workflowGraphs.brainstorm : serialMode ? workflowGraphs[serialMode] : undefined;
+    if (serialGraph) {
       try {
-        const result = await preflightGraph(workflowGraphs[serialMode], serialRoles);
+        const result = await preflightGraph(serialGraph, workflowRoles);
         if (!result.ok) {
-          recordEventLog(eventFromWorkflowPreflightBlocked(serialMode, result.unavailable.length + result.aliased.length));
-          setPreflight({ mode: serialMode, result });
+          recordEventLog(eventFromWorkflowPreflightBlocked(mode, result.unavailable.length + result.aliased.length));
+          setPreflight({ mode: brainstorm ? 'brainstorm' : serialMode!, result });
           setIsProcessing(false);
           return false;
         }
@@ -1471,7 +1485,7 @@ export default function App() {
       }
     }
 
-    const workflowTargets = serialMode ? undefined : freeModeTargets(targets, statesRef.current);
+    const workflowTargets = serialGraph ? undefined : freeModeTargets(targets, statesRef.current);
     if (workflowTargets?.length === 0) {
       setWorkflowStatus(translate('input.sendFailed'));
       setIsProcessing(false);
@@ -1744,7 +1758,8 @@ export default function App() {
     const replayMode = modeFromReplayPlan(plan);
     if (!replayMode) return;
     const replayTargets = replayMode === 'free' ? plan.targets ?? [] : [];
-    setProcessTrace(createProcessTrace(replayMode, replayTargets, localeRef.current));
+    const replayPreset = plan.graph?.id === 'brainstorm' ? 'brainstorm' : undefined;
+    setProcessTrace(createProcessTrace(replayMode, replayTargets, localeRef.current, replayPreset));
     setIsProcessing(processingAfterSend());
     recordEventLog(eventFromWorkflowStart(replayMode, plan.question?.length ?? 0, replayTargets.length || undefined));
   }, []);
@@ -1804,7 +1819,7 @@ export default function App() {
                 detailsPresetId={presetDetailsId}
                 layout="sidebar"
               />
-              {mode === 'free' ? (
+              {mode === 'free' && presetId !== 'brainstorm' ? (
                 <section className="mt-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
                   <div className="mb-2 text-xs font-semibold uppercase text-zinc-600 dark:text-zinc-400">{translate('input.sendSelectedProviders')}</div>
                   <div className="flex flex-wrap gap-1.5">

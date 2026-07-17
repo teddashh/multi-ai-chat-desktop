@@ -25,16 +25,17 @@ const expected = {
     sendButtonSelectors: ['[data-testid="send-button"]', 'button[aria-label="Send prompt"]', 'button[aria-label="Send"]'],
     responseSelectors: ['[data-message-author-role="assistant"] .markdown', '[data-message-author-role="assistant"]'],
     loginDetectors: ['#prompt-textarea', '[data-testid="send-button"]'],
+    loggedOutDetectors: [],
     thinkingDetectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
     stopButtonSelectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
   },
   claude: {
-    adapterVersion: 3,
+    adapterVersion: 4,
     urls: {
       app: 'https://claude.ai',
       login: 'https://claude.ai/login',
       match: ['claude.ai/*'],
-      ssoMatch: ['auth.anthropic.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'accounts.google.com.tw/*'],
+      ssoMatch: ['auth.anthropic.com/*', 'accounts.google.com/*', 'gsi.google.com/*', 'https://www.google.com/accounts', 'accounts.google.com.tw/*'],
     },
     inputStrategy: 'prosemirror-paste',
     doneDelayMs: 5000,
@@ -43,6 +44,7 @@ const expected = {
     sendButtonSelectors: ['button[aria-label="Send Message"]', 'button[aria-label="Send message"]', 'button[aria-label="Send"]', 'fieldset button[type="button"]:last-of-type'],
     responseSelectors: ['.font-claude-response', '[data-is-streaming] .font-claude-response', '.font-claude-message'],
     loginDetectors: ['.ProseMirror[contenteditable="true"]', '[contenteditable="true"].ProseMirror'],
+    loggedOutDetectors: ['input[type="email"]', 'input[autocomplete="email"]'],
     thinkingDetectors: ['[data-is-streaming="true"]', 'button[aria-label="Stop Response"]', 'button[aria-label="Stop response"]', 'button[aria-label="Stop"]'],
     stopButtonSelectors: ['button[aria-label="Stop Response"]', 'button[aria-label="Stop response"]', 'button[aria-label="Stop"]'],
   },
@@ -61,6 +63,7 @@ const expected = {
     sendButtonSelectors: ['button.send-button', 'button[aria-label="Send message"]', 'button[aria-label="Send"]', 'button[aria-label="傳送訊息"]', 'button[aria-label="送出"]', 'button[data-mat-icon-name="send"]', '.send-button-container button', 'button mat-icon[data-mat-icon-name="send"]', '.action-wrapper button[aria-label]', '.input-area-container button.send', 'button.send-message-button'],
     responseSelectors: ['.model-response-text .markdown', '.model-response-text', 'model-response .markdown', 'model-response message-content', '.response-content .markdown', '.message-content[data-message-id]'],
     loginDetectors: ['.ql-editor[contenteditable="true"]', 'rich-textarea [contenteditable="true"]', 'div[contenteditable="true"][aria-label="Enter a prompt here"]'],
+    loggedOutDetectors: [],
     thinkingDetectors: ['.loading-indicator', '.thinking-indicator', 'mat-progress-bar', 'button[aria-label="Stop response"]', 'button[aria-label="Stop"]', 'button[aria-label="停止回應"]', '.response-streaming', '[data-test-id="response-loading"]'],
     stopButtonSelectors: ['button[aria-label="Stop response"]', 'button[aria-label="Stop"]', 'button[aria-label="停止回應"]'],
   },
@@ -79,6 +82,7 @@ const expected = {
     sendButtonSelectors: ['button[data-testid="chat-submit"]', 'button[aria-label="Submit"]', 'form button[type="submit"]', 'button[type="submit"]'],
     responseSelectors: ['[data-testid="assistant-message"] .response-content-markdown', '[data-testid="assistant-message"]', '.response-content-markdown', '.message-bubble.assistant'],
     loginDetectors: ['[data-testid="chat-input"] .ProseMirror[contenteditable="true"]', '.ProseMirror[contenteditable="true"]', '[data-testid="chat-submit"]'],
+    loggedOutDetectors: [],
     thinkingDetectors: ['button[data-testid="chat-stop"]', 'button[aria-label="Stop"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop response"]', '[data-streaming="true"]', { selector: '.thinking-container', textIncludes: 'Thinking', textExcludes: 'Thought for' }],
     stopButtonSelectors: ['button[data-testid="chat-stop"]', 'button[aria-label="Stop"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop response"]'],
   },
@@ -110,6 +114,7 @@ for (const provider of Object.keys(expected)) {
   assertEqual(adapter.sendButtonSelectors, spec.sendButtonSelectors, `${provider}.sendButtonSelectors`);
   assertEqual(adapter.responseSelectors, spec.responseSelectors, `${provider}.responseSelectors`);
   assertEqual(adapter.loginDetectors, spec.loginDetectors, `${provider}.loginDetectors`);
+  assertEqual(adapter.loggedOutDetectors ?? [], spec.loggedOutDetectors, `${provider}.loggedOutDetectors`);
   assertEqual(adapter.thinkingDetectors, spec.thinkingDetectors, `${provider}.thinkingDetectors`);
   assertEqual(adapter.stopButtonSelectors, spec.stopButtonSelectors, `${provider}.stopButtonSelectors`);
 }

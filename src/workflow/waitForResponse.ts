@@ -1,10 +1,11 @@
 import type { AIProvider, BridgeMessage } from '../../shared/types';
 import { AI_PROVIDERS } from '../../shared/constants';
 import { onBridgeMessage } from '../bridge/bus';
-import { AWAITING_MAX_MS, setProviderAwaiting } from '../bridge/pull';
+import { AWAITING_ABSOLUTE_MAX_MS, AWAITING_MAX_MS, setProviderAwaiting } from '../bridge/pull';
 import { clearActiveTurn } from './state';
 
 export const STEP_TIMEOUT_MS = AWAITING_MAX_MS + 30_000;
+export const STEP_ABSOLUTE_TIMEOUT_MS = AWAITING_ABSOLUTE_MAX_MS + 30_000;
 
 interface Waiter {
   provider: AIProvider;
@@ -12,7 +13,9 @@ interface Waiter {
   resolve: (value: string) => void;
   reject: (reason: Error) => void;
   settled: boolean;
-  timer: ReturnType<typeof globalThis.setTimeout>;
+  startedAt: number;
+  lastActivityAt: number;
+  timer: ReturnType<typeof globalThis.setTimeout> | undefined;
 }
 
 const waiters = new Map<string, Waiter>();
@@ -29,9 +32,10 @@ export function ensureWorkflowBusSubscription(): void {
 }
 
 function handleBridgeMessage(message: BridgeMessage): void {
+  if (!message.provider) return;
+  if (reportsProviderActivity(message)) rearmProviderTimers(message.provider);
   if (message.action !== 'RESPONSE_DONE') return;
   if (message.transport !== 'pull' && message.transport !== 'local') return;
-  if (!message.provider) return;
   for (const waiter of [...waiters.values()]) {
     if (waiter.provider !== message.provider) continue;
     settle(waiter, 'resolve', payloadText(message.payload));
@@ -52,19 +56,52 @@ export function waitForResponse(provider: AIProvider, turn: number): Promise<str
   ensureWorkflowBusSubscription();
   rejectExistingProviderWaiters(provider, new Error('superseded by a newer send'));
   return new Promise((resolve, reject) => {
+    const now = Date.now();
     const waiter: Waiter = {
       provider,
       turn,
       resolve,
       reject,
       settled: false,
-      timer: globalThis.setTimeout(() => {
-        const providerName = AI_PROVIDERS[provider]?.name ?? provider;
-        settle(waiter, 'reject', new Error(`${providerName} response timed out after ${STEP_TIMEOUT_MS / 1000}s`));
-      }, STEP_TIMEOUT_MS),
+      startedAt: now,
+      lastActivityAt: now,
+      timer: undefined,
     };
+    armTimeout(waiter);
     waiters.set(key(provider, turn), waiter);
   });
+}
+
+function reportsProviderActivity(message: BridgeMessage): boolean {
+  if (message.action === 'RESPONSE_CHUNK') return message.transport === 'pull' || message.transport === 'local';
+  if (message.action !== 'STATUS_REPORT') return false;
+  const payload = message.payload as { thinking?: boolean; bulkReady?: number; doneReady?: boolean } | undefined;
+  return payload?.thinking === true || (typeof payload?.bulkReady === 'number' && payload.bulkReady > 0) || payload?.doneReady === true;
+}
+
+function armTimeout(waiter: Waiter): void {
+  if (waiter.settled) return;
+  const now = Date.now();
+  const inactivityRemaining = STEP_TIMEOUT_MS - (now - waiter.lastActivityAt);
+  const absoluteRemaining = STEP_ABSOLUTE_TIMEOUT_MS - (now - waiter.startedAt);
+  const remaining = Math.min(inactivityRemaining, absoluteRemaining);
+  if (remaining <= 0) {
+    const providerName = AI_PROVIDERS[waiter.provider]?.name ?? waiter.provider;
+    const timeoutSeconds = absoluteRemaining <= 0 ? STEP_ABSOLUTE_TIMEOUT_MS / 1000 : STEP_TIMEOUT_MS / 1000;
+    settle(waiter, 'reject', new Error(`${providerName} response timed out after ${timeoutSeconds}s`));
+    return;
+  }
+  waiter.timer = globalThis.setTimeout(() => armTimeout(waiter), remaining);
+}
+
+function rearmProviderTimers(provider: AIProvider): void {
+  const now = Date.now();
+  for (const waiter of waiters.values()) {
+    if (waiter.provider !== provider || waiter.settled) continue;
+    waiter.lastActivityAt = now;
+    if (waiter.timer !== undefined) globalThis.clearTimeout(waiter.timer);
+    armTimeout(waiter);
+  }
 }
 
 function rejectExistingProviderWaiters(provider: AIProvider, reason: Error): void {
@@ -78,7 +115,7 @@ function settle(waiter: Waiter, type: 'reject', value: Error): void;
 function settle(waiter: Waiter, type: 'resolve' | 'reject', value: string | Error): void {
   if (waiter.settled) return;
   waiter.settled = true;
-  globalThis.clearTimeout(waiter.timer);
+  if (waiter.timer !== undefined) globalThis.clearTimeout(waiter.timer);
   waiters.delete(key(waiter.provider, waiter.turn));
   clearActiveTurn(waiter.provider, waiter.turn);
   setProviderAwaiting(waiter.provider, false);
@@ -96,7 +133,9 @@ export function hasWaiter(provider: AIProvider, turn: number): boolean {
 }
 
 export function resetWaitForResponseForTests(): void {
-  for (const waiter of waiters.values()) globalThis.clearTimeout(waiter.timer);
+  for (const waiter of waiters.values()) {
+    if (waiter.timer !== undefined) globalThis.clearTimeout(waiter.timer);
+  }
   waiters.clear();
   subscribed = false;
 }
