@@ -10,15 +10,15 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと12ラウンドのブレインストーミングpresetを追加しました。各ラウンドで4つのproviderが1回ずつ回答し、合計48発言になります。発言順をラウンドごとに交代し、同一sessionの全履歴を引き継ぎます。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
 
-## v1.6.1 の更新点
+## v1.6.2 の更新点
 
-- **Workflow進行表示を完全にローカライズ。** mode status、round／phase、role label、process trace、ReplayがEnglish、繁體中文、日本語、Deutschに従い、別言語のUIへ中国語ラベルが混ざりません。
-- **検証済みの会話境界。** ローカル履歴へ切り替えてもproviderページの接続は維持しますが、最初の追質問前に新しいremote threadを作り、WebViewの新しいbootを確認してから同一sessionのcontextを送ります。Resetに失敗した場合は何も送信せず、draftを再試行用に残します。
-- **予測可能な「新しい会話」。** 空の会話で繰り返し押しても重複sessionを作らず、mode、preset、transcript状態、次回のremote送信は完全にリセットします。
-- **Consultの障害耐性。** 最初の2 AIがerrorまたはskipだけを返した場合、無効な文章をreviewさせず停止します。少なくとも1件が有効ならreviewとsummaryを続行します。
-- **Contributor修正を完全統合。** Dave TsengのPR #23、#31、#32は元のauthor commitを保持し、maintainerがboot gate、graph version、localization、regression coverageを補完しました。
+- **完全なBrainstorm workflow。** 12ラウンドすべてで4 providerが1回ずつ回答し、合計48発言になります。順番を毎ラウンド交代し、同一sessionの全contextと、課題設定から検証可能なconceptまでの5段階を使用します。
+- **長時間taskのkeepalive。** thinking、stream chunk、bulk response、完了signal、新しいdocument bootがinactivity windowを更新します。別の60分hard capにより、古いprovider状態で永久に待機しません。
+- **より安全なprovider entry。** Claude loginとGoogle SSO検出を更新し、CloudflareまたはhCaptchaではbridge開始を延期します。providerのsecurity checkを迂回しません。
+- **Grok challengeへの耐性。** challenge frameが完了するまでautomationを開始せず、loginを妨げる可能性のあるHistory API monkey-patchをGrokページへ適用しません。
+- **Contributor修正を完全統合。** Dave TsengがPR #34で特定したroot causeをco-authorとして保持し、全activity signal、absolute timeout、regression coverageを追加しました。
 
-検証内容、contributorへの謝辞、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.6.1 release notes`](./docs/RELEASE_NOTES_v1.6.1.md) を参照してください。
+検証内容、contributorへの謝辞、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.6.2 release notes`](./docs/RELEASE_NOTES_v1.6.2.md) を参照してください。
 
 ## エディション
 

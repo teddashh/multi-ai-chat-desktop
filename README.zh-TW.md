@@ -10,15 +10,15 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 與 12 輪「腦力激盪」預設已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。腦力激盪的每一輪都由四家各回答一次，共 48 次發言，並輪換發言順序、保留同一 session 的完整前文；現有 snapshot／replay 會原樣保留且不再擴充。
 
-## v1.6.1 更新重點
+## v1.6.2 更新重點
 
-- **Workflow 進度完整在地化。** 模式狀態、輪次／階段、角色名稱、流程追蹤與 Replay 都會跟隨 English、繁體中文、日本語或 Deutsch，不再於英文介面混入「第一輪」等中文標籤。
-- **可驗證的對話邊界。** 開啟本機歷史記錄時會保留 provider 頁面連線；第一次追問前才建立乾淨的遠端 thread，並確認 WebView 已切到新的 boot，才送入同一 session 的上下文。Reset 失敗時不會送出任何內容，草稿也會保留供重試。
-- **可預期的新對話。** 連按「新對話」會沿用目前的空白 session，不再製造重複項目；模式、preset、逐字稿狀態與下一次遠端送出仍會完整重設。
-- **Consult 容錯改善。** 兩個首輪 AI 都只回傳錯誤或略過時，流程會直接停止，不再要求第三家審查無效文字；只要仍有一份可用回答，就會照常進入審查與總結。
-- **完整整合貢獻者修正。** Dave Tseng 的 PR #23、#31、#32 均保留原作者 commit，並由 maintainer 補上 boot gate、graph version、語系與 regression coverage。
+- **完整腦力激盪流程。** 四家 AI 在 12 輪中每輪各回答一次，共 48 次發言；順序逐輪輪換、沿用同一 session 的完整前文，並依問題框定至可測試概念分成五個階段。
+- **長任務 keepalive。** 思考狀態、串流片段、批次回答、完成訊號與新的 document boot 都會刷新 inactivity window；另設 60 分鐘硬上限，避免過期 provider 狀態造成永久等待。
+- **更安全的 provider 入口。** Claude 登入與 Google SSO 偵測已更新；遇到 Cloudflare 或 hCaptcha 時會延後 bridge 啟動，不會嘗試繞過 provider 的安全驗證。
+- **Grok 驗證韌性。** 安全驗證 frame 完成前不啟動自動化，且不再對 Grok 頁面 monkey-patch History API，避免干擾登入流程。
+- **完整整合貢獻者修正。** Dave Tseng 在 PR #34 找到的 root cause 以共同作者保留，並補齊所有活動訊號、絕對逾時與 regression coverage。
 
-完整驗證、貢獻者致謝、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.6.1 發布說明`](./docs/RELEASE_NOTES_v1.6.1.md)。
+完整驗證、貢獻者致謝、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.6.2 發布說明`](./docs/RELEASE_NOTES_v1.6.2.md)。
 
 ## 選擇適合的版本
 

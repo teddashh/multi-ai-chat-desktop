@@ -10,15 +10,15 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Every Brainstorm round includes all four providers—48 contributions total—with a rotating speaking order and full same-session history. The shipped snapshot/replay tools remain available as-is with no further roadmap.
 
-## v1.6.1 highlights
+## v1.6.2 highlights
 
-- **Fully localized workflow progress.** Mode status, round/phase text, role labels, process traces, and Replay now follow English, Traditional Chinese, Japanese, or German without leaking Chinese labels into another UI language.
-- **Verified conversation boundaries.** Reopening local history keeps provider pages connected, but the first follow-up starts a clean remote thread and verifies the new WebView boot before any same-session context is sent. A failed reset sends nothing and leaves the draft available for retry.
-- **Predictable New conversation.** Repeated clicks reuse the current blank session instead of creating duplicates, while still resetting mode, preset, transcript state, and the next remote send.
-- **Resilient Consult mode.** When both initial AIs return only errors or skips, Consult stops instead of asking another AI to review unusable text; one usable initial answer still continues through review and summary.
-- **Contributor-integrated maintenance.** Dave Tseng’s PRs #23, #31, and #32 are preserved with original authorship and completed with maintainer boot-gating, graph-versioning, localization, and regression coverage.
+- **The complete Brainstorm workflow.** All four providers now contribute in each of 12 rounds—48 responses total—with rotating order, full same-session context, and five phases from framing through testable concepts.
+- **Long-task keepalive.** Thinking state, streamed chunks, bulk responses, completion signals, and a new document boot all refresh the inactivity window; a separate 60-minute cap prevents stale provider state from waiting forever.
+- **Safer provider entry.** Claude login and Google SSO detection are current, while Cloudflare or hCaptcha pages defer bridge startup without attempting to bypass provider security checks.
+- **Grok challenge resilience.** Challenge frames are allowed to complete before automation starts, and Grok pages no longer receive History API monkey-patching that could interfere with login.
+- **Contributor-integrated maintenance.** Dave Tseng’s root-cause fix from PR #34 is preserved through co-authorship and extended with activity-complete timeout semantics and regression coverage.
 
-See the bilingual [`v1.6.1 release notes`](./docs/RELEASE_NOTES_v1.6.1.md) for validation, contributor credit, the documented upstream GTK risk, and known platform limits.
+See the bilingual [`v1.6.2 release notes`](./docs/RELEASE_NOTES_v1.6.2.md) for validation, contributor credit, the documented upstream GTK risk, and known platform limits.
 
 ## Choose the right edition
 
