@@ -12,6 +12,7 @@ import {
 } from '../../injected/bootstrap';
 import { onBridgeMessage } from '../bridge/bus';
 import {
+  AWAITING_MAX_MS,
   handleTitleMessage,
   parsePullResult,
   pullProvider,
@@ -190,6 +191,30 @@ describe('pull transport', () => {
     cleanup();
     expect(vi.mocked(host.provider.evalWithCallback).mock.calls.length).toBeGreaterThan(callsBeforeWatchdog);
     expect(messages.some((msg) => msg.transport === 'local' && msg.action === 'RESPONSE_DONE' && msg.payload === '[Error: bridge degraded]')).toBe(true);
+  });
+
+  it('keeps waiting past the awaiting cap while status reports thinking, then degrades once thinking stops', async () => {
+    vi.useFakeTimers();
+    const { messages, cleanup } = collectMessages();
+    setProviderAwaiting(provider, true);
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
+
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS - 1_000);
+    handleTitleMessage({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider,
+      bootId: 'long-task',
+      seq: 1,
+      payload: { dom: 'ready', thinking: true },
+      transport: 'title',
+    });
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS - 1_000);
+    expect(messages.some((msg) => msg.transport === 'local' && msg.payload === '[Error: bridge degraded]')).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    cleanup();
+    expect(messages.some((msg) => msg.transport === 'local' && msg.payload === '[Error: bridge degraded]')).toBe(true);
   });
 
   it('runs a distinct forced pull after an in-flight non-forced pull while still pending', async () => {

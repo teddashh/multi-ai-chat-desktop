@@ -10,7 +10,7 @@ import {
   PROMPTS,
 } from '../../shared/constants';
 import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../bridge/bus';
-import { AWAITING_MAX_MS, pullProvider, resetBridgePullForTests } from '../bridge/pull';
+import { AWAITING_MAX_MS, handleTitleMessage, pullProvider, resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
 import { getInFlightProviders, resetCancelState } from '../workflow/cancel';
 import { hasPendingCheckpoint, onCheckpoint, resetCheckpointForTests, resolveCheckpoint, type PendingCheckpoint } from '../workflow/checkpoint';
@@ -159,6 +159,38 @@ describe('workflow engine', () => {
     await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + 500);
     await expect(promise).resolves.toEqual({ response: '[Error: bridge degraded]', turn: 1 });
     await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS + 1);
+  });
+
+  it('thinking status reports keep a long task alive past both timeout caps', async () => {
+    const promise = sendAndWait('claude', 'long review task');
+    await Promise.resolve();
+
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS - 1_000);
+    handleTitleMessage({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'claude',
+      bootId: 'long-task',
+      seq: 1,
+      payload: { dom: 'ready', thinking: true },
+      transport: 'title',
+    });
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS - 1_000);
+
+    let settled = false;
+    void promise.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    publishBridgeMessage(done('claude', 'reviewed'));
+    await expect(promise).resolves.toEqual({ response: 'reviewed', turn: 1 });
   });
 
   it('keeps polling armed after a pulled chunk', async () => {

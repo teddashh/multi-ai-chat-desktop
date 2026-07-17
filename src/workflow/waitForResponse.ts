@@ -12,7 +12,7 @@ interface Waiter {
   resolve: (value: string) => void;
   reject: (reason: Error) => void;
   settled: boolean;
-  timer: ReturnType<typeof globalThis.setTimeout>;
+  timer: ReturnType<typeof globalThis.setTimeout> | undefined;
 }
 
 const waiters = new Map<string, Waiter>();
@@ -29,9 +29,15 @@ export function ensureWorkflowBusSubscription(): void {
 }
 
 function handleBridgeMessage(message: BridgeMessage): void {
+  if (!message.provider) return;
+  if (message.action === 'STATUS_REPORT') {
+    // A provider still visibly generating must not hit the engine timeout mid-task.
+    const payload = message.payload as { thinking?: boolean } | undefined;
+    if (payload?.thinking === true) rearmProviderTimers(message.provider);
+    return;
+  }
   if (message.action !== 'RESPONSE_DONE') return;
   if (message.transport !== 'pull' && message.transport !== 'local') return;
-  if (!message.provider) return;
   for (const waiter of [...waiters.values()]) {
     if (waiter.provider !== message.provider) continue;
     settle(waiter, 'resolve', payloadText(message.payload));
@@ -52,19 +58,25 @@ export function waitForResponse(provider: AIProvider, turn: number): Promise<str
   ensureWorkflowBusSubscription();
   rejectExistingProviderWaiters(provider, new Error('superseded by a newer send'));
   return new Promise((resolve, reject) => {
-    const waiter: Waiter = {
-      provider,
-      turn,
-      resolve,
-      reject,
-      settled: false,
-      timer: globalThis.setTimeout(() => {
-        const providerName = AI_PROVIDERS[provider]?.name ?? provider;
-        settle(waiter, 'reject', new Error(`${providerName} response timed out after ${STEP_TIMEOUT_MS / 1000}s`));
-      }, STEP_TIMEOUT_MS),
-    };
+    const waiter: Waiter = { provider, turn, resolve, reject, settled: false, timer: undefined };
+    armTimeout(waiter);
     waiters.set(key(provider, turn), waiter);
   });
+}
+
+function armTimeout(waiter: Waiter): void {
+  waiter.timer = globalThis.setTimeout(() => {
+    const providerName = AI_PROVIDERS[waiter.provider]?.name ?? waiter.provider;
+    settle(waiter, 'reject', new Error(`${providerName} response timed out after ${STEP_TIMEOUT_MS / 1000}s`));
+  }, STEP_TIMEOUT_MS);
+}
+
+function rearmProviderTimers(provider: AIProvider): void {
+  for (const waiter of waiters.values()) {
+    if (waiter.provider !== provider || waiter.settled) continue;
+    globalThis.clearTimeout(waiter.timer);
+    armTimeout(waiter);
+  }
 }
 
 function rejectExistingProviderWaiters(provider: AIProvider, reason: Error): void {

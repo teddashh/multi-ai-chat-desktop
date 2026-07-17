@@ -60,7 +60,11 @@ export function handleTitleMessage(message: BridgeMessage): void {
   }
   publish(message);
   if (!message.provider) return;
-  const payload = message.payload as { bulkReady?: number; doneReady?: boolean } | undefined;
+  const payload = message.payload as { bulkReady?: number; doneReady?: boolean; thinking?: boolean } | undefined;
+  // A provider still visibly generating must not hit the awaiting cap mid-task.
+  if (payload?.thinking === true && pending.has(message.provider)) {
+    awaitingSince.set(message.provider, Date.now());
+  }
   if (typeof payload?.bulkReady === 'number' && payload.bulkReady > 0) {
     void pullProvider(message.provider);
     if (payload.doneReady === true) armDoneWatchdog(message.provider);
