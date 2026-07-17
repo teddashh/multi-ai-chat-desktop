@@ -71,6 +71,7 @@ export function SettingsModal({
   const settingsPersistenceRef = useRef(createSettingsPersistence(host.settings));
   const fontSizeDebounceRef = useRef<TrailingDebounce<PendingFontSizeUpdate> | undefined>(undefined);
   const modalSessionRef = useRef(0);
+  const updateCheckSeqRef = useRef(0);
   const draftUpdateSeqRef = useRef(0);
   const languageUpdateSeqRef = useRef(0);
   const fontSizeUpdateSeqRef = useRef(0);
@@ -247,10 +248,15 @@ export function SettingsModal({
   };
 
   const checkForUpdates = async () => {
+    const modalSession = modalSessionRef.current;
+    const updateCheckSeq = ++updateCheckSeqRef.current;
+    const isCurrent = () => modalSession === modalSessionRef.current && updateCheckSeq === updateCheckSeqRef.current;
     setUpdateCheck({ status: 'checking' });
     try {
       const currentVersion = await host.app.version();
+      if (!isCurrent()) return;
       const latest = await fetchLatestRelease();
+      if (!isCurrent()) return;
       if (!latest) {
         setUpdateCheck({ status: 'unavailable' });
         return;
@@ -261,6 +267,7 @@ export function SettingsModal({
         setUpdateCheck({ status: 'up-to-date', version: currentVersion });
       }
     } catch (reason) {
+      if (!isCurrent()) return;
       setUpdateCheck({ status: 'error', message: reason instanceof Error ? reason.message : String(reason) });
     }
   };

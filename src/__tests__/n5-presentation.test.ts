@@ -399,7 +399,7 @@ describe('N5 webview presentation host commands', () => {
     expect(host.hide).toHaveBeenCalledWith('claude');
 
     guard.close(overlayHost);
-    expect(host.show).toHaveBeenCalledWith('claude');
+    await vi.waitFor(() => expect(host.show).toHaveBeenCalledWith('claude'));
     expect(host.show).toHaveBeenCalledTimes(1);
   });
 

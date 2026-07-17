@@ -180,7 +180,6 @@ pub async fn provider_open(
     let label = provider_label(&provider);
     if let Some(webview) = app.get_webview(&label) {
         webview.show().map_err(|error| error.to_string())?;
-        webview.set_focus().map_err(|error| error.to_string())?;
         set_webview_bounds(&webview, position, size)?;
         let state = current_state(&provider);
         return Ok(state);
@@ -531,6 +530,7 @@ pub async fn provider_new_session(
         tokio::time::sleep(Duration::from_millis(NEW_SESSION_READY_POLL_MS)).await;
     }
 
+    cancel_session_reset(&provider);
     Err(format!(
         "provider new session did not become ready within {} seconds: {provider}",
         NEW_SESSION_READY_TIMEOUT_SECS
@@ -987,9 +987,10 @@ mod tests {
     use tauri::{PhysicalPosition, PhysicalSize};
 
     use super::{
-        bridge_resets_on_boot_rotation, challenge_auxiliary_navigation_allowed,
-        decide_new_window_action, eval_callback_reports_true, fresh_session_boot, physical_bounds,
-        popup_initial_title, provider_show_should_focus, provider_uses_permission_shim, runtime,
+        accept_status_for_session_reset, bridge_resets_on_boot_rotation, cancel_session_reset,
+        challenge_auxiliary_navigation_allowed, decide_new_window_action,
+        eval_callback_reports_true, fresh_session_boot, physical_bounds, popup_initial_title,
+        provider_show_should_focus, provider_uses_permission_shim, runtime,
         should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
         NewWindowAction, StalenessAction, PROVIDER_BROWSER_ARGS,
     };
@@ -1289,6 +1290,26 @@ mod tests {
         assert!(!eval_callback_reports_true("false"));
         assert!(!eval_callback_reports_true(r#""false""#));
         assert!(!eval_callback_reports_true("null"));
+    }
+
+    #[test]
+    fn cancelled_session_reset_accepts_status_from_the_current_document_again() {
+        let provider = "test-cancelled-session-reset";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.status_boot.insert(provider.into(), "boot-a".into());
+            guard
+                .pending_session_boot
+                .insert(provider.into(), Some("boot-a".into()));
+        }
+
+        assert!(!accept_status_for_session_reset(provider, Some("boot-a")));
+        cancel_session_reset(provider);
+        assert!(accept_status_for_session_reset(provider, Some("boot-a")));
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.status_boot.remove(provider);
+        guard.pending_session_boot.remove(provider);
     }
 
     #[test]

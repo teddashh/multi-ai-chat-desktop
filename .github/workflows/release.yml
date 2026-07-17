@@ -51,7 +51,7 @@ jobs:
           cache: pnpm
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable 2026-07-16
 
       - name: Install Linux WebKitGTK build deps
         if: matrix.platform == 'linux'
