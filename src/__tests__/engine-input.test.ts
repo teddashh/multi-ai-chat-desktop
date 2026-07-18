@@ -8,6 +8,7 @@ const SEND_FINAL_VERIFY_DELAY_MS = 1500;
 
 type InputStrategyName = 'default' | 'prosemirror-paste' | 'quill-angular';
 type SendStrategy = 'click' | 'enter';
+type TestDetector = string | { selector: string; textIncludes?: string; textExcludes?: string };
 
 interface TestAdapter {
   provider: AIProvider;
@@ -16,8 +17,8 @@ interface TestAdapter {
   sendButtonSelectors: string[];
   responseSelectors: string[];
   loginDetectors: string[];
-  loggedOutDetectors?: string[];
-  thinkingDetectors?: string[];
+  loggedOutDetectors?: TestDetector[];
+  thinkingDetectors?: TestDetector[];
   inputStrategy: InputStrategyName;
   sendStrategy?: SendStrategy;
   timing: {
@@ -35,6 +36,7 @@ interface FakeDomEnv {
   input: FakeElement;
   sendButton: FakeElement | null;
   responses: FakeElement[];
+  detectorElements: Map<string, FakeElement[]>;
   thinking: boolean;
   cloudflareChallenge: boolean;
 }
@@ -60,6 +62,60 @@ describe('injected engine input hardening', () => {
       v: 1,
       action: 'STATUS_REPORT',
       provider: 'grok',
+      payload: { dom: 'ready', login: 'blocked', thinking: false, bootId: 'boot1' },
+    });
+  });
+
+  it('reports ChatGPT logged out when login controls and a stale composer coexist', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    env.detectorElements.set('[data-testid="login-button"]', [new FakeElement(env.document, 'button', 'Log in')]);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      loggedOutDetectors: ['[data-testid="login-button"]'],
+    });
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { dom: 'ready', login: 'logged_out', thinking: false, bootId: 'boot1' },
+    });
+  });
+
+  it('reports localized Grok login buttons before a stale composer', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    env.detectorElements.set('button', [new FakeElement(env.document, 'button', '請先登入')]);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, {
+      loggedOutDetectors: [{ selector: 'button', textIncludes: '登入' }],
+    });
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'grok',
+      payload: { dom: 'ready', login: 'logged_out', thinking: false, bootId: 'boot1' },
+    });
+  });
+
+  it('reports the Gemini Google sorry page as blocked', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    vi.stubGlobal('location', {
+      href: 'https://www.google.com/sorry/index?continue=https%3A%2F%2Fgemini.google.com%2Fapp',
+      hostname: 'www.google.com',
+      pathname: '/sorry/index',
+    });
+
+    dispatchAdapter(handler, { provider: 'gemini', loginDetectors: [], loggedOutDetectors: [] });
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'gemini',
       payload: { dom: 'ready', login: 'blocked', thinking: false, bootId: 'boot1' },
     });
   });
@@ -636,6 +692,7 @@ function createEnv(options: { inputKind: 'textarea' | 'contenteditable'; sendBut
     input,
     sendButton: options.sendButton === undefined ? new FakeElement(document, 'button') : options.sendButton,
     responses: [],
+    detectorElements: new Map(),
     thinking: false,
     cloudflareChallenge: false,
   };
@@ -843,6 +900,8 @@ class FakeDocument {
     if (selector === '#editor') return this.requireEnv().input as unknown as Element;
     if (selector === 'button.send') return this.requireEnv().sendButton as unknown as Element | null;
     if (selector === '.thinking' && this.requireEnv().thinking) return this.body as unknown as Element;
+    const detector = this.requireEnv().detectorElements.get(selector)?.[0];
+    if (detector) return detector as unknown as Element;
     return null;
   }
 
@@ -853,6 +912,8 @@ class FakeDocument {
     if (selectors.includes('button.send') && this.requireEnv().sendButton) {
       return [this.requireEnv().sendButton as unknown as Element];
     }
+    const detectorMatches = this.requireEnv().detectorElements.get(selector);
+    if (detectorMatches) return detectorMatches as unknown as Element[];
     return [];
   }
 
@@ -933,7 +994,7 @@ function installEngineGlobals(env: FakeDomEnv) {
 
   vi.stubGlobal('window', fakeWindow);
   vi.stubGlobal('document', env.document);
-  vi.stubGlobal('location', { href: 'https://grok.com', hostname: 'grok.com' });
+  vi.stubGlobal('location', { href: 'https://grok.com', hostname: 'grok.com', pathname: '/' });
   vi.stubGlobal('HTMLTextAreaElement', FakeTextAreaElement);
   vi.stubGlobal('HTMLImageElement', FakeImageElement);
   vi.stubGlobal('Event', FakeEvent);

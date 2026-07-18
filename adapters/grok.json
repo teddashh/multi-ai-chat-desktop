@@ -1,6 +1,6 @@
 {
   "$schema": "./schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "adapterVersion": 7,
   "provider": "grok",
   "displayName": "Grok",
@@ -14,7 +14,7 @@
   "sendButtonSelectors": ["button[data-testid=\"chat-submit\"]", "button[aria-label=\"Submit\"]", "form button[type=\"submit\"]", "button[type=\"submit\"]"],
   "responseSelectors": ["[data-testid=\"assistant-message\"] .response-content-markdown", "[data-testid=\"assistant-message\"]", ".response-content-markdown", ".message-bubble.assistant"],
   "loginDetectors": ["[data-testid=\"chat-input\"] .ProseMirror[contenteditable=\"true\"]", ".ProseMirror[contenteditable=\"true\"]", "[data-testid=\"chat-submit\"]"],
-  "loggedOutDetectors": [{ "selector": "button", "textIncludes": "Sign in" }, { "selector": "button", "textIncludes": "Sign up" }],
+  "loggedOutDetectors": [{ "selector": "button", "textIncludes": "Sign in" }, { "selector": "button", "textIncludes": "Sign up" }, { "selector": "button", "textIncludes": "Log in" }, { "selector": "button", "textIncludes": "登入" }, { "selector": "button", "textIncludes": "註冊" }, { "selector": "button", "textIncludes": "登录" }, { "selector": "button", "textIncludes": "注册" }, { "selector": "button", "textIncludes": "ログイン" }, { "selector": "button", "textIncludes": "登録" }, { "selector": "button", "textIncludes": "Anmelden" }, { "selector": "button", "textIncludes": "Registrieren" }],
   "thinkingDetectors": ["button[data-testid=\"chat-stop\"]", "button[aria-label=\"Stop\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop response\"]", "[data-streaming=\"true\"]", { "selector": ".thinking-container", "textIncludes": "Thinking", "textExcludes": "Thought for" }],
   "stopButtonSelectors": ["button[data-testid=\"chat-stop\"]", "button[aria-label=\"Stop\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop response\"]"],
   "inputStrategy": "prosemirror-paste",

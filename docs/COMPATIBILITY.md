@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-17 for v1.6.3. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-07-18 against current `main` plus the provider-status maintenance patch. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -35,16 +35,18 @@ The Agent contract does not claim that CI displayed a window. It also does not i
 
 | Provider | Bundled adapter | Windows text workflow evidence | Image-only completion |
 |---|---:|---|---|
-| ChatGPT | v5 | v4 text workflow **Verified**; v5 mismatch recovery has automated coverage and awaits live retest | Partial manual coverage; recheck after provider UI changes |
+| ChatGPT | v6 | v4 text workflow **Verified**; v5 mismatch recovery and v6 logged-out precedence have automated coverage and await live retest | Partial manual coverage; recheck after provider UI changes |
 | Claude | v4 | v3 text workflow **Verified**; v4 login-page detection and explicit Google SSO scope have automated coverage and await live retest | Not a compatibility claim |
-| Gemini | v1 | **Verified** | Not a compatibility claim |
-| Grok | v6 | **Verified** | Not a compatibility claim |
+| Gemini | v2 | Base text workflow **Verified**; bounded Google `/sorry` navigation, blocked status, and passive bridge behavior have automated coverage and await live retest | Not a compatibility claim |
+| Grok | v7 | Base text workflow **Verified**; localized logged-out precedence has automated coverage and awaits live retest | Not a compatibility claim |
 
-Automated tests validate adapter structure, approved strategies, HTTPS URL parsing, and navigation boundaries. They do not log into live provider accounts. Remote adapter updates cannot expand the URL scopes bundled with the installed app.
+Automated tests validate adapter structure, schema v1/v2 parser compatibility, typed detector rejection, logged-out precedence, approved strategies, HTTPS URL parsing, and navigation boundaries. They do not log into live provider accounts. Remote adapter updates cannot expand the URL scopes bundled with the installed app.
 
 Claude's current consumer web experience requires an authenticated account. Adapter v4 recognizes common email-login fields and keeps the official Anthropic and Google sign-in routes within the existing bounded SSO policy. The app does not bypass login, age, subscription, challenge, or other provider-side requirements; guided workflows that assign a Claude seat remain blocked until Claude reports a ready composer.
 
 macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. Current source delays bridge startup for every provider until detected Cloudflare or hCaptcha challenge signals disappear and additionally avoids Grok History API replacement, following anti-bot WebView compatibility requirements. Known Grok challenge titles are reported through the native WebView title callback only; this improves user feedback without injecting automation into the challenge document. CI can verify the policy but cannot prove that a live challenge completes.
+
+Gemini may redirect an embedded session to `https://www.google.com/sorry/index?...`. Current source allows only the HTTPS `www.google.com/sorry` path family for Gemini, reports it as blocked instead of logged in, skips the permission shim there, and defers bridge startup until Google returns to Gemini. Sibling paths, lookalike hosts, non-HTTPS URLs, and cross-provider use remain denied. A live challenge completion still requires manual verification.
 
 ## Product behavior
 

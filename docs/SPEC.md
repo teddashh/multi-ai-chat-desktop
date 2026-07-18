@@ -1,9 +1,9 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2.6 feature-frozen** (four-provider web edition; `v1.4.0` maintenance baseline)
+> Status: **v2.2.7 feature-frozen** (four-provider web edition; `v1.4.0` maintenance baseline)
 > Date: 2026-07-18
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
-> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo; v2.2.6 surfaces Grok challenge state without starting automation on the challenge page.
+> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo; v2.2.6 surfaces Grok challenge state without starting automation on the challenge page; v2.2.7 repairs logged-out status detection and keeps Gemini's Google challenge passive.
 > Audience: maintenance contributors. Existing snapshot/replay/checkpoint behavior is compatibility-maintained but has no vNext roadmap.
 
 ## 0. One-paragraph summary
@@ -299,7 +299,7 @@ All selector fields are **ordered arrays — first match wins** (original `query
   "sendButtonSelectors": ["[data-testid=\"send-button\"]"],
   "responseSelectors": ["[data-message-author-role=\"assistant\"] .markdown", "[data-message-author-role=\"assistant\"]"],
   "loginDetectors":  ["#prompt-textarea"],           // any match ⇒ logged in
-  "loggedOutDetectors": [],                          // optional; a match here WINS over loginDetectors
+  "loggedOutDetectors": ["[data-testid=login]"],    // optional; a match here WINS over loginDetectors
   "thinkingDetectors": [                             // READ-ONLY indicators; string or object form
     "[data-testid=\"stop-button\"]",
     { "selector": ".thinking-container", "textIncludes": "Thinking", "textExcludes": "Thought for" }
@@ -312,7 +312,9 @@ All selector fields are **ordered arrays — first match wins** (original `query
 }
 ```
 
-**Validation (Rust, on bundle + every fetch):** JSON parse → `schemaVersion` supported → required fields present → required selector arrays non-empty (`inputSelectors`, `sendButtonSelectors`, `responseSelectors`, `loginDetectors`) → optional arrays may be empty (`loggedOutDetectors`, `thinkingDetectors`, `stopButtonSelectors`, `urls.ssoMatch`) → `inputStrategy`/`sendStrategy` in enum → every adapter URL is HTTPS without credentials, custom ports, query strings, or fragments → `adapterVersion` integer ≥ `max(bundled, cached)` for the update to apply. Invalid remote bundle ⇒ keep last-known-good, emit warning event. Remote fetch response capped at 64 KB per adapter file.
+`schemaVersion: 1` accepts string selectors in `loggedOutDetectors`. `schemaVersion: 2` preserves every v1 field and additionally accepts the existing read-only detector object shape `{ selector, textIncludes?, textExcludes? }` there. `thinkingDetectors` accepts both shapes in either supported schema version. Object detectors are typed and reject unknown fields, empty selectors, and empty text filters. A logged-out match always takes precedence over a composer/login match because provider pages may leave a stale composer visible after session expiry.
+
+**Validation (Rust, on bundle + every fetch):** JSON parse into typed detectors → `schemaVersion` is exactly 1 or 2 → v1 does not use object-form `loggedOutDetectors` → required fields present → required selector arrays and their entries are non-empty (`inputSelectors`, `sendButtonSelectors`, `responseSelectors`, `loginDetectors`) → optional arrays may be empty (`loggedOutDetectors`, `thinkingDetectors`, `stopButtonSelectors`, `urls.ssoMatch`) → `inputStrategy`/`sendStrategy` in enum → every adapter URL is HTTPS without credentials, custom ports, query strings, or fragments → `adapterVersion` integer ≥ `max(bundled, cached)` for the update to apply. Invalid remote bundle ⇒ keep last-known-good, emit warning event. Remote fetch response capped at 64 KB per adapter file.
 
 **Hot update flow**: on startup + every 6h, Rust `reqwest` GETs `https://raw.githubusercontent.com/<org>/<repo>/main/adapters/<provider>.json` (base URL configurable; HTTPS required) → validate → persist to `<app-data>/adapters-cache/` → push to live webviews via `ADAPTER_UPDATE` eval. Bundled adapters ship in the binary as final fallback. A fetched or cached adapter may narrow paths and update selectors, approved strategies, or timing, but it MUST NOT expand the bundled `urls.app`, `urls.login`, `urls.match`, or `urls.ssoMatch` scopes; broader navigation requires an app release and security review. Downgrade (lower `adapterVersion`) only applies on explicit channel/base-URL change in Settings, with toast.
 
@@ -320,18 +322,22 @@ All selector fields are **ordered arrays — first match wins** (original `query
 
 The §5.1 table below is the frozen seed contract for the four shipped chat providers.
 
-### 5.1 Normative seed adapters (bundled v1 content)
+### 5.1 Normative seed adapters (current bundled content)
 
 Source of truth: `docs/study/multi-ai-chat.md` §2 + §7 (line-referenced to the original MIT source). Bundled JSONs MUST match this table exactly; **CI diffs bundled adapters against this table** (script asserts selector lists + timings).
 
 | Field | chatgpt | claude | gemini | grok |
 |---|---|---|---|---|
+| schemaVersion | `1` | `1` | `1` | `2` |
+| adapterVersion | `6` | `4` | `2` | `7` |
 | urls.app | `https://chatgpt.com` | `https://claude.ai` | `https://gemini.google.com/app` | `https://grok.com` |
 | urls.match | `chatgpt.com/*`, `chat.openai.com/*` | `claude.ai/*` | `gemini.google.com/*` | `grok.com/*` |
+| urls.ssoMatch | `auth.openai.com/*` · `auth0.openai.com/*` · `gsi.google.com/*` · `https://www.google.com/accounts` · `accounts.google.com.tw/*` | `auth.anthropic.com/*` · `accounts.google.com/*` · `gsi.google.com/*` · `https://www.google.com/accounts` · `accounts.google.com.tw/*` | `https://www.google.com/sorry` | `x.com/*` · `twitter.com/*` · `accounts.x.ai/*` · `auth.grokusercontent.com/*` · `auth.grok.com/*` · `challenges.cloudflare.com/*` · `accounts.google.com.tw/*` · `auth.grokipedia.com/*` · `gsi.google.com/*` · `https://www.google.com/accounts` |
 | inputSelectors | `#prompt-textarea` · `[id="prompt-textarea"]` · `div[contenteditable="true"][data-placeholder]` | `.ProseMirror[contenteditable="true"]` · `[contenteditable="true"].ProseMirror` · `div.ProseMirror` · `fieldset div[contenteditable="true"]` | `.ql-editor[contenteditable="true"]` · `rich-textarea .ql-editor` · `div[contenteditable="true"][aria-label="Enter a prompt here"]` · `div[contenteditable="true"][aria-label]` · `.input-area [contenteditable="true"]` · `rich-textarea [contenteditable="true"]` | `[data-testid="chat-input"] .ProseMirror[contenteditable="true"]` · `[data-testid="chat-input"] [contenteditable="true"]` · `.ProseMirror[contenteditable="true"]` · `[contenteditable="true"].ProseMirror` · `div.ProseMirror[contenteditable="true"]` |
 | sendButtonSelectors | `[data-testid="send-button"]` · `button[aria-label="Send prompt"]` · `button[aria-label="Send"]` | `button[aria-label="Send Message"]` · `button[aria-label="Send message"]` · `button[aria-label="Send"]` · `fieldset button[type="button"]:last-of-type` | `button.send-button` · `button[aria-label="Send message"]` · `button[aria-label="Send"]` · `button[aria-label="傳送訊息"]` · `button[aria-label="送出"]` · `button[data-mat-icon-name="send"]` · `.send-button-container button` · `button mat-icon[data-mat-icon-name="send"]` · `.action-wrapper button[aria-label]` · `.input-area-container button.send` · `button.send-message-button` | `button[data-testid="chat-submit"]` · `button[aria-label="Submit"]` · `form button[type="submit"]` · `button[type="submit"]` |
 | responseSelectors | `[data-message-author-role="assistant"] .markdown` · `[data-message-author-role="assistant"]` (image-only fallback) | `.font-claude-response` · `[data-is-streaming] .font-claude-response` · `.font-claude-message` | `.model-response-text .markdown` · `.model-response-text` · `model-response .markdown` · `model-response message-content` · `.response-content .markdown` · `.message-content[data-message-id]` | `[data-testid="assistant-message"] .response-content-markdown` · `[data-testid="assistant-message"]` · `.response-content-markdown` · `.message-bubble.assistant` |
 | loginDetectors | `#prompt-textarea` · `[data-testid="send-button"]` | `.ProseMirror[contenteditable="true"]` · `[contenteditable="true"].ProseMirror` | `.ql-editor[contenteditable="true"]` · `rich-textarea [contenteditable="true"]` · `div[contenteditable="true"][aria-label="Enter a prompt here"]` | `[data-testid="chat-input"] .ProseMirror[contenteditable="true"]` · `.ProseMirror[contenteditable="true"]` · `[data-testid="chat-submit"]` |
+| loggedOutDetectors | `[data-testid="login-button"]` · `[data-testid="signup-button"]` | `input[type="email"]` · `input[autocomplete="email"]` | empty | localized `button` text detectors for sign-in/sign-up in English, Traditional/Simplified Chinese, Japanese, and German |
 | thinkingDetectors | `[data-testid="stop-button"]` · `button[aria-label="Stop generating"]` · `button[aria-label="Stop streaming"]` · `button[aria-label="Stop"]` | `[data-is-streaming="true"]` · `button[aria-label="Stop Response"]` · `button[aria-label="Stop response"]` · `button[aria-label="Stop"]` | `.loading-indicator` · `.thinking-indicator` · `mat-progress-bar` · stop buttons (en + zh-TW per original gemini.ts:53-65) · `.response-streaming` · `[data-test-id="response-loading"]` | stop buttons (grok.ts:38-43) · `[data-streaming="true"]` · `{selector: ".thinking-container", textIncludes: "Thinking", textExcludes: "Thought for"}` |
 | stopButtonSelectors | the 4 stop-button selectors above | the 3 `button[aria-label*=Stop]` selectors | stop buttons subset (en + zh-TW) | stop buttons subset |
 | inputStrategy | `prosemirror-paste` | `prosemirror-paste` | `quill-angular` | `prosemirror-paste` |
@@ -688,6 +694,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 ## 16. Changelog
 
+- **v2.2.7 (2026-07-18)** — provider connection-status repair: supports typed schema-v2 logged-out detectors without breaking schema v1, recognizes stale-composer login pages for ChatGPT and Grok, allows only Gemini's bounded Google `/sorry` challenge path, leaves that challenge document unmodified, and adds parser, URL-boundary, locale, and precedence tests.
 - **v2.2.6 (2026-07-18)** — challenge-passive status repair: keeps bridge startup deferred on provider security checks, surfaces known Grok challenge titles through Tauri's native title observer, replaces the misleading cross-profile login promise, and adds focused frontend/Rust coverage.
 - **v2.2.5 (2026-07-15)** — response-language echo hardening: moves the internal routing policy before the provider request, marks it as non-user-visible metadata, and sanitizes complete, fenced, or partially streamed policy echoes before workflow/UI consumption.
 - **v2.2.4 (2026-07-13)** — response-language compatibility repair: separates interface and response language, applies a question-aware policy to every provider-bound workflow prompt, versions the changed built-in graphs, and preserves retained replay policy without expanding the snapshot schema.

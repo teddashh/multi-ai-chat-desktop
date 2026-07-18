@@ -19,7 +19,7 @@
   ],
   "properties": {
     "$schema": { "type": "string" },
-    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "schemaVersion": { "enum": [1, 2] },
     "adapterVersion": { "type": "integer", "minimum": 1 },
     "provider": { "enum": ["chatgpt", "claude", "gemini", "grok"] },
     "displayName": { "type": "string", "minLength": 1 },
@@ -72,8 +72,8 @@
             "required": ["selector"],
             "properties": {
               "selector": { "type": "string", "minLength": 1 },
-              "textIncludes": { "type": "string" },
-              "textExcludes": { "type": "string" }
+              "textIncludes": { "type": "string", "minLength": 1 },
+              "textExcludes": { "type": "string", "minLength": 1 }
             }
           }
         ]
@@ -91,8 +91,8 @@
             "required": ["selector"],
             "properties": {
               "selector": { "type": "string", "minLength": 1 },
-              "textIncludes": { "type": "string" },
-              "textExcludes": { "type": "string" }
+              "textIncludes": { "type": "string", "minLength": 1 },
+              "textExcludes": { "type": "string", "minLength": 1 }
             }
           }
         ]
@@ -119,5 +119,20 @@
         "backupPollMs": { "type": "integer", "minimum": 1000 }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "schemaVersion": { "const": 1 } },
+        "required": ["schemaVersion"]
+      },
+      "then": {
+        "properties": {
+          "loggedOutDetectors": {
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -1,9 +1,9 @@
 import { OUTBOX_MAX_BYTES, PULL_MAX_DECODED_BYTES } from '../shared/constants';
-import { hasCloudflareChallengeSignals, isCloudflareChallengeActive } from './challenge';
+import { hasCloudflareChallengeSignals, isGoogleSorryChallenge, isProviderChallengeActive } from './challenge';
 import { encodeTitleFrame } from './codec';
 import type { BridgeMessage, MessageAction } from '../shared/types';
 
-export { hasCloudflareChallengeSignals };
+export { hasCloudflareChallengeSignals, isGoogleSorryChallenge };
 
 type BulkAction = MessageAction | 'ECHO_BULK';
 
@@ -130,7 +130,7 @@ interface MacBridge {
   const hasComposer = Boolean(
     document.querySelector('[data-testid="chat-input"] [contenteditable="true"], .ProseMirror[contenteditable="true"]'),
   );
-  const challengeActive = isCloudflareChallengeActive();
+  const challengeActive = isProviderChallengeActive(provider);
   if (shouldDeferBridgeStart(provider, document.readyState, hasComposer, challengeActive)) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', bootstrap, { once: true });

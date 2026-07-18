@@ -8,6 +8,7 @@ import {
   capOutboxEntry,
   enforceOutboxOverflow,
   hasCloudflareChallengeSignals,
+  isGoogleSorryChallenge,
   type OutboxEntry,
   peekOutboxBatch,
   shouldDeferBridgeStart,
@@ -265,6 +266,15 @@ describe('bootstrap outbox helpers', () => {
     expect(shouldDeferBridgeStart('chatgpt', 'loading', false, true)).toBe(true);
     expect(shouldDeferBridgeStart('claude', 'complete', false, true)).toBe(true);
     expect(shouldDeferBridgeStart('claude', 'complete', false, false)).toBe(false);
+  });
+
+  it('recognizes only Gemini Google sorry challenge paths', () => {
+    expect(isGoogleSorryChallenge('gemini', 'www.google.com', '/sorry')).toBe(true);
+    expect(isGoogleSorryChallenge('gemini', 'www.google.com', '/sorry/index')).toBe(true);
+    expect(isGoogleSorryChallenge('gemini', 'www.google.com', '/sorryevil')).toBe(false);
+    expect(isGoogleSorryChallenge('gemini', 'www.google.com', '/search')).toBe(false);
+    expect(isGoogleSorryChallenge('gemini', 'www.google.com.evil.net', '/sorry')).toBe(false);
+    expect(isGoogleSorryChallenge('chatgpt', 'www.google.com', '/sorry')).toBe(false);
   });
 
   it('does not monkey-patch Grok history during authentication', () => {
