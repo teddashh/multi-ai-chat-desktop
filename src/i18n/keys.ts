@@ -87,6 +87,8 @@ export const I18N_KEYS = [
   'provider.access.selectorTextExcludes',
   'provider.realPage',
   'provider.textView',
+  'provider.expandStage',
+  'provider.collapseStage',
   'provider.center',
   'provider.connections',
   'provider.connectionsHint',

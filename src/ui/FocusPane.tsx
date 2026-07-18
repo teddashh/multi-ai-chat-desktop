@@ -43,6 +43,8 @@ export function FocusPane({
   processTrace,
   onTraceDetailOpenChange,
   onChipClick,
+  stageExpanded = false,
+  onToggleStageExpanded,
 }: {
   centeredProvider?: AIProvider;
   states: Record<AIProvider, ProviderState>;
@@ -66,10 +68,13 @@ export function FocusPane({
   processTrace?: ProcessTraceState;
   onTraceDetailOpenChange?: (open: boolean) => void;
   onChipClick?: (provider: AIProvider) => void;
+  stageExpanded?: boolean;
+  onToggleStageExpanded?: () => void;
 }) {
   const { locale, t } = useI18n();
   const [providerAction, setProviderAction] = useState<ProviderActionState | undefined>();
   const providerActionGeneration = useRef(0);
+  const effectiveStageExpanded = stageExpanded && Boolean(onToggleStageExpanded);
 
   const activateProvider = async (provider: AIProvider) => {
     const generation = (providerActionGeneration.current += 1);
@@ -108,6 +113,8 @@ export function FocusPane({
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
+          stageExpanded={effectiveStageExpanded}
+          onToggleStageExpanded={onToggleStageExpanded}
         />
       ) : (
         <FirstRunPanel
@@ -130,17 +137,19 @@ export function FocusPane({
         </div>
       ) : null}
 
-      {processTrace ? <ProcessTrace trace={processTrace} locale={locale} onDetailOpenChange={onTraceDetailOpenChange} /> : null}
+      {processTrace && !effectiveStageExpanded ? <ProcessTrace trace={processTrace} locale={locale} onDetailOpenChange={onTraceDetailOpenChange} /> : null}
 
-      <StatusStrip
-        centeredProvider={centeredProvider}
-        states={states}
-        presentation={presentation}
-        setPaneRef={setPaneRef}
-        activateProvider={activateProvider}
-        openingProvider={openingProvider}
-        onChipClick={onChipClick}
-      />
+      {effectiveStageExpanded ? null : (
+        <StatusStrip
+          centeredProvider={centeredProvider}
+          states={states}
+          presentation={presentation}
+          setPaneRef={setPaneRef}
+          activateProvider={activateProvider}
+          openingProvider={openingProvider}
+          onChipClick={onChipClick}
+        />
+      )}
     </aside>
   );
 }
@@ -215,6 +224,8 @@ function FocusStage({
   syncBounds,
   reportProvider,
   reportBusy,
+  stageExpanded,
+  onToggleStageExpanded,
 }: {
   provider: AIProvider;
   state: ProviderState;
@@ -233,6 +244,8 @@ function FocusStage({
   syncBounds: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
+  stageExpanded: boolean;
+  onToggleStageExpanded?: () => void;
 }) {
   const { t } = useI18n();
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -279,6 +292,16 @@ function FocusStage({
               {t('provider.textView')}
             </button>
           )}
+          {onToggleStageExpanded ? (
+            <button
+              type="button"
+              className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              aria-pressed={stageExpanded}
+              onClick={onToggleStageExpanded}
+            >
+              {stageExpanded ? t('provider.collapseStage') : t('provider.expandStage')}
+            </button>
+          ) : null}
           {showLoginCta ? (
             <button
               type="button"
