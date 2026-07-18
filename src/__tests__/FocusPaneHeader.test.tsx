@@ -104,6 +104,16 @@ describe('FocusPane provider header', () => {
     expect(html).toContain('Open Grok');
   });
 
+  it('offers an honest browser escape hatch when Grok embedded login is blocked', () => {
+    const html = renderFocusPane({
+      centeredProvider: 'grok',
+      stateOverrides: { grok: { login: 'blocked' } },
+    });
+
+    expect(html).toContain('Embedded login is blocked. Continue in your browser, or retry this page later.');
+    expect(html).toContain('Open in browser');
+  });
+
   it('hides the connection strip while the stage is temporarily expanded so the webview gets the full pane', () => {
     const collapsed = renderFocusPane({ stageExpanded: false });
     const expanded = renderFocusPane({ stageExpanded: true });

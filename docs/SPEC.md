@@ -1,9 +1,9 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2.5 feature-frozen** (four-provider web edition; `v1.4.0` maintenance baseline)
-> Date: 2026-07-15
+> Status: **v2.2.6 feature-frozen** (four-provider web edition; `v1.4.0` maintenance baseline)
+> Date: 2026-07-18
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
-> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo without reopening feature development.
+> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo; v2.2.6 surfaces Grok challenge state without starting automation on the challenge page.
 > Audience: maintenance contributors. Existing snapshot/replay/checkpoint behavior is compatibility-maintained but has no vNext roadmap.
 
 ## 0. One-paragraph summary
@@ -641,7 +641,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 | Login expired | loggedOut/login detectors flip | chip → needs-login; free mode excludes; serial mode = preflight block or mid-run timeout UI (§9.5) |
 | Google blocks Gemini login | blocked-login DOM detected | banner + system-browser guidance (§10.1) |
 | Provider-side error UI (rate limit / refusal / verification) | response never appears; error-as-DONE (§8.3) | bubble shows `[Error: …]`; serial workflows surface timeout/retry/skip UI |
-| Cloudflare challenge | challenge DOM detected | pane surfaces webview for manual solve; engine pauses |
+| Cloudflare challenge | challenge DOM detected, or a known Grok challenge title observed natively | pane surfaces webview for manual solve; bridge startup remains deferred; the native title observer may report Grok as blocked without page injection |
 | Workflow step stall | no chunk within step timeout | countdown UI → retry / skip / cancel (§9) |
 | Adapter fetch fails | reqwest error / validation fail | silent fallback to cache; toast on downgrade |
 | Bridge: corrupted title / failed or unparseable pull | codec error, pull timeout, size cap | drop + `bridge:'degraded'` status; pull retry-once (§7.3); persistent ⇒ stale chip + reload suggestion |
@@ -688,6 +688,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 ## 16. Changelog
 
+- **v2.2.6 (2026-07-18)** — challenge-passive status repair: keeps bridge startup deferred on provider security checks, surfaces known Grok challenge titles through Tauri's native title observer, replaces the misleading cross-profile login promise, and adds focused frontend/Rust coverage.
 - **v2.2.5 (2026-07-15)** — response-language echo hardening: moves the internal routing policy before the provider request, marks it as non-user-visible metadata, and sanitizes complete, fenced, or partially streamed policy echoes before workflow/UI consumption.
 - **v2.2.4 (2026-07-13)** — response-language compatibility repair: separates interface and response language, applies a question-aware policy to every provider-bound workflow prompt, versions the changed built-in graphs, and preserves retained replay policy without expanding the snapshot schema.
 - **v2.2.3 (2026-07-12)** — Apple Silicon compatibility follow-up: records the first successful real-Mac `v1.0.1` launch and three-provider login report, while treating Grok's Cloudflare verification loop as a release blocker. Grok and its challenge frames no longer receive permission Web-API monkey-patches, and only Cloudflare-required `about:blank` / `about:srcdoc` auxiliary navigation is added. Final success remains pending an Apple Silicon retest.

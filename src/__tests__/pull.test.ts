@@ -252,12 +252,16 @@ describe('bootstrap outbox helpers', () => {
     expect(hasCloudflareChallengeSignals('Just a moment...', 'Verifying you are human', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', 'Please complete the security check', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', '人間であることを確認しています', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('請稍候…', '', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('Grok', '驗證您是人類 grok.com', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('Grok', '正在驗證您是否為真人', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', 'Ready to chat', true)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', 'Ready to chat', false)).toBe(false);
     expect(hasCloudflareChallengeSignals('Grok', '回答内容を確認しています', false)).toBe(false);
     expect(shouldDeferBridgeStart('grok', 'loading', false, false)).toBe(true);
     expect(shouldDeferBridgeStart('grok', 'complete', false, true)).toBe(true);
-    expect(shouldDeferBridgeStart('grok', 'complete', true, true)).toBe(false);
+    expect(shouldDeferBridgeStart('grok', 'loading', false, true)).toBe(true);
+    expect(shouldDeferBridgeStart('grok', 'complete', true, true)).toBe(true);
     expect(shouldDeferBridgeStart('chatgpt', 'loading', false, true)).toBe(true);
     expect(shouldDeferBridgeStart('claude', 'complete', false, true)).toBe(true);
     expect(shouldDeferBridgeStart('claude', 'complete', false, false)).toBe(false);
