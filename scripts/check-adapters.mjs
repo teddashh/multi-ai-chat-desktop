@@ -11,7 +11,7 @@ const validate = ajv.compile(schema);
 
 const expected = {
   chatgpt: {
-    adapterVersion: 5,
+    adapterVersion: 6,
     urls: {
       app: 'https://chatgpt.com',
       login: 'https://chatgpt.com/auth/login',
@@ -25,7 +25,7 @@ const expected = {
     sendButtonSelectors: ['[data-testid="send-button"]', 'button[aria-label="Send prompt"]', 'button[aria-label="Send"]'],
     responseSelectors: ['[data-message-author-role="assistant"] .markdown', '[data-message-author-role="assistant"]'],
     loginDetectors: ['#prompt-textarea', '[data-testid="send-button"]'],
-    loggedOutDetectors: [],
+    loggedOutDetectors: ['[data-testid="login-button"]', '[data-testid="signup-button"]'],
     thinkingDetectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
     stopButtonSelectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
   },
@@ -49,12 +49,12 @@ const expected = {
     stopButtonSelectors: ['button[aria-label="Stop Response"]', 'button[aria-label="Stop response"]', 'button[aria-label="Stop"]'],
   },
   gemini: {
-    adapterVersion: 1,
+    adapterVersion: 2,
     urls: {
       app: 'https://gemini.google.com/app',
       login: 'https://gemini.google.com/app',
       match: ['gemini.google.com/*'],
-      ssoMatch: [],
+      ssoMatch: ['https://www.google.com/sorry'],
     },
     inputStrategy: 'quill-angular',
     doneDelayMs: 4000,
@@ -68,7 +68,7 @@ const expected = {
     stopButtonSelectors: ['button[aria-label="Stop response"]', 'button[aria-label="Stop"]', 'button[aria-label="停止回應"]'],
   },
   grok: {
-    adapterVersion: 6,
+    adapterVersion: 7,
     urls: {
       app: 'https://grok.com',
       login: 'https://grok.com',
@@ -82,7 +82,7 @@ const expected = {
     sendButtonSelectors: ['button[data-testid="chat-submit"]', 'button[aria-label="Submit"]', 'form button[type="submit"]', 'button[type="submit"]'],
     responseSelectors: ['[data-testid="assistant-message"] .response-content-markdown', '[data-testid="assistant-message"]', '.response-content-markdown', '.message-bubble.assistant'],
     loginDetectors: ['[data-testid="chat-input"] .ProseMirror[contenteditable="true"]', '.ProseMirror[contenteditable="true"]', '[data-testid="chat-submit"]'],
-    loggedOutDetectors: [],
+    loggedOutDetectors: [{ selector: 'button', textIncludes: 'Sign in' }, { selector: 'button', textIncludes: 'Sign up' }],
     thinkingDetectors: ['button[data-testid="chat-stop"]', 'button[aria-label="Stop"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop response"]', '[data-streaming="true"]', { selector: '.thinking-container', textIncludes: 'Thinking', textExcludes: 'Thought for' }],
     stopButtonSelectors: ['button[data-testid="chat-stop"]', 'button[aria-label="Stop"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop response"]'],
   },

@@ -20,7 +20,7 @@ interface AdapterConfig {
   sendButtonSelectors: string[];
   responseSelectors: string[];
   loginDetectors: string[];
-  loggedOutDetectors?: string[];
+  loggedOutDetectors?: Detector[];
   thinkingDetectors?: Detector[];
   stopButtonSelectors?: string[];
   inputStrategy: InputStrategyName;

@@ -63,7 +63,21 @@
     },
     "loggedOutDetectors": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["selector"],
+            "properties": {
+              "selector": { "type": "string", "minLength": 1 },
+              "textIncludes": { "type": "string" },
+              "textExcludes": { "type": "string" }
+            }
+          }
+        ]
+      },
       "default": []
     },
     "thinkingDetectors": {

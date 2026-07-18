@@ -25,7 +25,7 @@ pub struct Adapter {
     #[serde(rename = "loginDetectors")]
     pub login_detectors: Vec<String>,
     #[serde(rename = "loggedOutDetectors", default)]
-    pub logged_out_detectors: Vec<String>,
+    pub logged_out_detectors: Vec<serde_json::Value>,
     #[serde(rename = "thinkingDetectors", default)]
     pub thinking_detectors: Vec<serde_json::Value>,
     #[serde(rename = "stopButtonSelectors", default)]

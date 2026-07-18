@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 6,
+  "adapterVersion": 7,
   "provider": "grok",
   "displayName": "Grok",
   "urls": {
@@ -14,7 +14,7 @@
   "sendButtonSelectors": ["button[data-testid=\"chat-submit\"]", "button[aria-label=\"Submit\"]", "form button[type=\"submit\"]", "button[type=\"submit\"]"],
   "responseSelectors": ["[data-testid=\"assistant-message\"] .response-content-markdown", "[data-testid=\"assistant-message\"]", ".response-content-markdown", ".message-bubble.assistant"],
   "loginDetectors": ["[data-testid=\"chat-input\"] .ProseMirror[contenteditable=\"true\"]", ".ProseMirror[contenteditable=\"true\"]", "[data-testid=\"chat-submit\"]"],
-  "loggedOutDetectors": [],
+  "loggedOutDetectors": [{ "selector": "button", "textIncludes": "Sign in" }, { "selector": "button", "textIncludes": "Sign up" }],
   "thinkingDetectors": ["button[data-testid=\"chat-stop\"]", "button[aria-label=\"Stop\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop response\"]", "[data-streaming=\"true\"]", { "selector": ".thinking-container", "textIncludes": "Thinking", "textExcludes": "Thought for" }],
   "stopButtonSelectors": ["button[data-testid=\"chat-stop\"]", "button[aria-label=\"Stop\"]", "button[aria-label=\"Stop generating\"]", "button[aria-label=\"Stop response\"]"],
   "inputStrategy": "prosemirror-paste",
