@@ -74,6 +74,7 @@ export function FocusPane({
   const { locale, t } = useI18n();
   const [providerAction, setProviderAction] = useState<ProviderActionState | undefined>();
   const providerActionGeneration = useRef(0);
+  const effectiveStageExpanded = stageExpanded && Boolean(onToggleStageExpanded);
 
   const activateProvider = async (provider: AIProvider) => {
     const generation = (providerActionGeneration.current += 1);
@@ -112,7 +113,7 @@ export function FocusPane({
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
-          stageExpanded={stageExpanded}
+          stageExpanded={effectiveStageExpanded}
           onToggleStageExpanded={onToggleStageExpanded}
         />
       ) : (
@@ -136,18 +137,18 @@ export function FocusPane({
         </div>
       ) : null}
 
-      {processTrace && !stageExpanded ? <ProcessTrace trace={processTrace} locale={locale} onDetailOpenChange={onTraceDetailOpenChange} /> : null}
+      {processTrace && !effectiveStageExpanded ? <ProcessTrace trace={processTrace} locale={locale} onDetailOpenChange={onTraceDetailOpenChange} /> : null}
 
-      {stageExpanded ? null : (
-      <StatusStrip
-        centeredProvider={centeredProvider}
-        states={states}
-        presentation={presentation}
-        setPaneRef={setPaneRef}
-        activateProvider={activateProvider}
-        openingProvider={openingProvider}
-        onChipClick={onChipClick}
-      />
+      {effectiveStageExpanded ? null : (
+        <StatusStrip
+          centeredProvider={centeredProvider}
+          states={states}
+          presentation={presentation}
+          setPaneRef={setPaneRef}
+          activateProvider={activateProvider}
+          openingProvider={openingProvider}
+          onChipClick={onChipClick}
+        />
       )}
     </aside>
   );
