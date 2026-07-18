@@ -1,14 +1,14 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 1,
+  "adapterVersion": 2,
   "provider": "gemini",
   "displayName": "Gemini",
   "urls": {
     "app": "https://gemini.google.com/app",
     "login": "https://gemini.google.com/app",
     "match": ["gemini.google.com/*"],
-    "ssoMatch": []
+    "ssoMatch": ["https://www.google.com/sorry"]
   },
   "inputSelectors": [".ql-editor[contenteditable=\"true\"]", "rich-textarea .ql-editor", "div[contenteditable=\"true\"][aria-label=\"Enter a prompt here\"]", "div[contenteditable=\"true\"][aria-label]", ".input-area [contenteditable=\"true\"]", "rich-textarea [contenteditable=\"true\"]"],
   "sendButtonSelectors": ["button.send-button", "button[aria-label=\"Send message\"]", "button[aria-label=\"Send\"]", "button[aria-label=\"傳送訊息\"]", "button[aria-label=\"送出\"]", "button[data-mat-icon-name=\"send\"]", ".send-button-container button", "button mat-icon[data-mat-icon-name=\"send\"]", ".action-wrapper button[aria-label]", ".input-area-container button.send", "button.send-message-button"],

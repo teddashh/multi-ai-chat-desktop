@@ -42,19 +42,23 @@ describe('M0 shared constants and adapter seeds', () => {
   });
 
   it('matches SPEC section 5.1 strategy and timing seed values', () => {
-    expect(chatgpt.adapterVersion).toBe(5);
+    expect(chatgpt.schemaVersion).toBe(1);
+    expect(chatgpt.adapterVersion).toBe(6);
     expect(chatgpt.inputStrategy).toBe('prosemirror-paste');
     expect(chatgpt.timing.doneDelayMs).toBe(3000);
     expect(chatgpt.timing.chunkDebounceMs).toBe(800);
 
+    expect(claude.schemaVersion).toBe(1);
     expect(claude.inputStrategy).toBe('prosemirror-paste');
     expect(claude.timing.doneDelayMs).toBe(5000);
     expect(claude.timing.chunkDebounceMs).toBe(500);
 
+    expect(gemini.schemaVersion).toBe(1);
     expect(gemini.inputStrategy).toBe('quill-angular');
     expect(gemini.timing.doneDelayMs).toBe(4000);
     expect(gemini.timing.chunkDebounceMs).toBe(600);
 
+    expect(grok.schemaVersion).toBe(2);
     expect(grok.inputStrategy).toBe('prosemirror-paste');
     expect(grok.timing.doneDelayMs).toBe(8000);
     expect(grok.timing.chunkDebounceMs).toBe(600);

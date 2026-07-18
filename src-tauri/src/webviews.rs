@@ -33,6 +33,7 @@ const NEW_SESSION_READY_POLL_MS: u64 = 150;
 /// providers' voice-input buttons keep working. Runs at document-start, before site scripts.
 const PERMISSION_SHIM_JS: &str = r#"(function () {
   try {
+    if (location.hostname === 'www.google.com' && (location.pathname === '/sorry' || location.pathname.indexOf('/sorry/') === 0)) return;
     if (typeof Notification !== 'undefined') {
       try { Object.defineProperty(Notification, 'permission', { get: function () { return 'denied'; }, configurable: true }); } catch (e) {}
       try { Notification.requestPermission = function (cb) { if (typeof cb === 'function') { try { cb('denied'); } catch (e) {} } return Promise.resolve('denied'); }; } catch (e) {}
@@ -87,6 +88,10 @@ fn handle_provider_document_title(app: &AppHandle, provider: &str, title: &str) 
     {
         return;
     }
+    set_provider_challenge_blocked(app, provider);
+}
+
+fn set_provider_challenge_blocked(app: &AppHandle, provider: &str) {
     let mut state = current_state(provider);
     if state.webview == "loaded"
         && state.dom == "unknown"
@@ -101,6 +106,13 @@ fn handle_provider_document_title(app: &AppHandle, provider: &str, title: &str) 
     state.thinking = false;
     state.last_status_at = now_ms();
     set_state(app, state);
+}
+
+fn gemini_sorry_navigation_active(provider: &str, url: &tauri::Url) -> bool {
+    provider == "gemini"
+        && url.scheme() == "https"
+        && url.host_str() == Some("www.google.com")
+        && (url.path() == "/sorry" || url.path().starts_with("/sorry/"))
 }
 
 fn challenge_auxiliary_navigation_allowed(provider: &str, url: &tauri::Url) -> bool {
@@ -283,6 +295,10 @@ pub async fn provider_open(
         .on_navigation(move |url| {
             if url.host_str() == Some("mac-bridge.invalid") {
                 return false;
+            }
+            if gemini_sorry_navigation_active(&nav_provider, url) {
+                set_provider_challenge_blocked(&nav_app, &nav_provider);
+                return true;
             }
             if challenge_auxiliary_navigation_allowed(&nav_provider, url)
                 || adapters::url_allowed_for_provider(&nav_provider, url).unwrap_or(false)
@@ -1032,11 +1048,11 @@ mod tests {
     use super::{
         accept_status_for_session_reset, bridge_resets_on_boot_rotation, cancel_session_reset,
         challenge_auxiliary_navigation_allowed, decide_new_window_action,
-        eval_callback_reports_true, fresh_session_boot, grok_challenge_title_active,
-        physical_bounds, popup_initial_title, provider_show_should_focus,
-        provider_uses_permission_shim, runtime, should_reset_bridge_on_boot_rotation,
-        staleness_action, state_with, Bounds, NewWindowAction, StalenessAction,
-        PROVIDER_BROWSER_ARGS,
+        eval_callback_reports_true, fresh_session_boot, gemini_sorry_navigation_active,
+        grok_challenge_title_active, physical_bounds, popup_initial_title,
+        provider_show_should_focus, provider_uses_permission_shim, runtime,
+        should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
+        NewWindowAction, StalenessAction, PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
     };
 
     fn url(input: &str) -> tauri::Url {
@@ -1316,6 +1332,34 @@ mod tests {
             Some("boot-a"),
             Some("boot-b")
         ));
+    }
+
+    #[test]
+    fn gemini_google_sorry_navigation_is_narrow_and_unmodified() {
+        assert!(gemini_sorry_navigation_active(
+            "gemini",
+            &url("https://www.google.com/sorry")
+        ));
+        assert!(gemini_sorry_navigation_active(
+            "gemini",
+            &url(
+                "https://www.google.com/sorry/index?continue=https%3A%2F%2Fgemini.google.com%2Fapp"
+            )
+        ));
+        for value in [
+            "https://www.google.com/sorryevil",
+            "https://www.google.com/search",
+            "https://www.google.com.evil.net/sorry",
+            "http://www.google.com/sorry",
+        ] {
+            assert!(!gemini_sorry_navigation_active("gemini", &url(value)));
+        }
+        assert!(!gemini_sorry_navigation_active(
+            "chatgpt",
+            &url("https://www.google.com/sorry")
+        ));
+        assert!(PERMISSION_SHIM_JS.contains("location.hostname === 'www.google.com'"));
+        assert!(PERMISSION_SHIM_JS.contains("location.pathname === '/sorry'"));
     }
 
     #[test]

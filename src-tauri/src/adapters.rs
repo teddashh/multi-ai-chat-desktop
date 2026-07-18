@@ -6,6 +6,23 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::settings;
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Detector {
+    Selector(String),
+    Detailed(DetectorObject),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DetectorObject {
+    pub selector: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_includes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_excludes: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Adapter {
     #[serde(rename = "schemaVersion")]
@@ -25,9 +42,9 @@ pub struct Adapter {
     #[serde(rename = "loginDetectors")]
     pub login_detectors: Vec<String>,
     #[serde(rename = "loggedOutDetectors", default)]
-    pub logged_out_detectors: Vec<String>,
+    pub logged_out_detectors: Vec<Detector>,
     #[serde(rename = "thinkingDetectors", default)]
-    pub thinking_detectors: Vec<serde_json::Value>,
+    pub thinking_detectors: Vec<Detector>,
     #[serde(rename = "stopButtonSelectors", default)]
     pub stop_button_selectors: Vec<String>,
     #[serde(rename = "inputStrategy")]
@@ -234,8 +251,16 @@ fn init_adapters() {
 }
 
 pub(crate) fn validate_adapter(adapter: &Adapter) -> Result<(), String> {
-    if adapter.schema_version != 1 {
+    if !matches!(adapter.schema_version, 1 | 2) {
         return Err("unsupported schemaVersion".into());
+    }
+    if adapter.schema_version == 1
+        && adapter
+            .logged_out_detectors
+            .iter()
+            .any(|detector| matches!(detector, Detector::Detailed(_)))
+    {
+        return Err("loggedOutDetectors object form requires schemaVersion 2".into());
     }
     if adapter.adapter_version == 0 {
         return Err("adapterVersion must be positive".into());
@@ -250,6 +275,18 @@ pub(crate) fn validate_adapter(adapter: &Adapter) -> Result<(), String> {
         if values.is_empty() {
             return Err(format!("{name} must be non-empty"));
         }
+        if values.iter().any(|value| value.trim().is_empty()) {
+            return Err(format!("{name} entries must be non-empty"));
+        }
+    }
+    validate_detectors("loggedOutDetectors", &adapter.logged_out_detectors)?;
+    validate_detectors("thinkingDetectors", &adapter.thinking_detectors)?;
+    if adapter
+        .stop_button_selectors
+        .iter()
+        .any(|value| value.trim().is_empty())
+    {
+        return Err("stopButtonSelectors entries must be non-empty".into());
     }
     if !matches!(
         adapter.input_strategy.as_str(),
@@ -272,6 +309,31 @@ pub(crate) fn validate_adapter(adapter: &Adapter) -> Result<(), String> {
     ] {
         for value in values {
             parse_adapter_url_scope(value).map_err(|error| format!("{name}: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_detectors(name: &str, detectors: &[Detector]) -> Result<(), String> {
+    for detector in detectors {
+        match detector {
+            Detector::Selector(selector) if selector.trim().is_empty() => {
+                return Err(format!("{name} selector must be non-empty"));
+            }
+            Detector::Detailed(detector) => {
+                if detector.selector.trim().is_empty() {
+                    return Err(format!("{name} selector must be non-empty"));
+                }
+                for value in [&detector.text_includes, &detector.text_excludes]
+                    .into_iter()
+                    .flatten()
+                {
+                    if value.trim().is_empty() {
+                        return Err(format!("{name} text filters must be non-empty"));
+                    }
+                }
+            }
+            Detector::Selector(_) => {}
         }
     }
     Ok(())
@@ -657,6 +719,60 @@ mod tests {
     }
 
     #[test]
+    fn logged_out_detector_objects_require_schema_version_two() {
+        let mut adapter = adapters().get("grok").unwrap().clone();
+        assert_eq!(adapter.schema_version, 2);
+        validate_adapter(&adapter).unwrap();
+
+        adapter.schema_version = 1;
+        assert_eq!(
+            validate_adapter(&adapter).unwrap_err(),
+            "loggedOutDetectors object form requires schemaVersion 2"
+        );
+
+        adapter.schema_version = 3;
+        assert_eq!(
+            validate_adapter(&adapter).unwrap_err(),
+            "unsupported schemaVersion"
+        );
+    }
+
+    #[test]
+    fn malformed_detector_objects_fail_closed() {
+        let source = serde_json::to_value(adapters().get("grok").unwrap()).unwrap();
+        for detectors in [
+            serde_json::json!([null]),
+            serde_json::json!([{ "selector": "button", "unexpected": true }]),
+        ] {
+            let mut candidate = source.clone();
+            candidate["loggedOutDetectors"] = detectors;
+            assert!(serde_json::from_value::<Adapter>(candidate).is_err());
+        }
+    }
+
+    #[test]
+    fn detector_validation_rejects_empty_selector_or_text_filter() {
+        let mut adapter = adapters().get("grok").unwrap().clone();
+        adapter.logged_out_detectors = vec![Detector::Detailed(DetectorObject {
+            selector: " ".into(),
+            text_includes: Some("Sign in".into()),
+            text_excludes: None,
+        })];
+        assert!(validate_adapter(&adapter)
+            .unwrap_err()
+            .contains("selector must be non-empty"));
+
+        adapter.logged_out_detectors = vec![Detector::Detailed(DetectorObject {
+            selector: "button".into(),
+            text_includes: Some("".into()),
+            text_excludes: None,
+        })];
+        assert!(validate_adapter(&adapter)
+            .unwrap_err()
+            .contains("text filters must be non-empty"));
+    }
+
+    #[test]
     fn downloaded_adapters_can_change_automation_inside_bundled_url_scopes() {
         let mut adapter = adapters().get("chatgpt").unwrap().clone();
         adapter.adapter_version += 1;
@@ -724,6 +840,10 @@ mod tests {
             ("claude", "https://auth.anthropic.com/login"),
             ("claude", "https://gsi.google.com/client"),
             ("claude", "https://www.google.com/accounts/ServiceLogin"),
+            (
+                "gemini",
+                "https://www.google.com/sorry/index?continue=https%3A%2F%2Fgemini.google.com%2Fapp",
+            ),
             ("grok", "https://x.com/i/oauth2/authorize"),
             ("grok", "https://twitter.com/i/oauth2/authorize"),
             ("grok", "https://accounts.x.ai/session"),
@@ -769,6 +889,13 @@ mod tests {
             ("grok", "https://auth.grokipedia.com.evil.net/"),
             ("grok", "https://auth.grokusercontent.com.evil.net/"),
             ("grok", "https://auth.grok.com.evil.net/"),
+            ("gemini", "https://www.google.com/search"),
+            ("gemini", "https://www.google.com/sorryevil"),
+            ("gemini", "https://www.google.com.evil.net/sorry"),
+            ("gemini", "http://www.google.com/sorry"),
+            ("chatgpt", "https://www.google.com/sorry/index"),
+            ("claude", "https://www.google.com/sorry/index"),
+            ("grok", "https://www.google.com/sorry/index"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(

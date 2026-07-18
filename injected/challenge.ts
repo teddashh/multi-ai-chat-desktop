@@ -44,6 +44,15 @@ export function isCloudflareChallengeActive(): boolean {
   return hasCloudflareChallengeSignals('', sampleBodyText(), false);
 }
 
+export function isGoogleSorryChallenge(provider: string, hostname: string, pathname: string): boolean {
+  if (provider !== 'gemini' || hostname.toLocaleLowerCase() !== 'www.google.com') return false;
+  return pathname === '/sorry' || pathname.startsWith('/sorry/');
+}
+
+export function isProviderChallengeActive(provider: string): boolean {
+  return isGoogleSorryChallenge(provider, location.hostname, location.pathname) || isCloudflareChallengeActive();
+}
+
 function sampleBodyText(maxChars = 2_000): string {
   if (!document.body) return '';
   const walker = document.createTreeWalker(document.body, 4);
