@@ -29,10 +29,14 @@ function renderFocusPane({
   stateOverrides,
   presentation = defaultPresentation(),
   centeredProvider = 'chatgpt',
+  stageExpanded,
+  stageToggleEnabled = true,
 }: {
   stateOverrides?: Partial<Record<AIProvider, Partial<ProviderState>>>;
   presentation?: PresentationByProvider;
   centeredProvider?: AIProvider | null;
+  stageExpanded?: boolean;
+  stageToggleEnabled?: boolean;
 }): string {
   return renderToStaticMarkup(
     <I18nProvider language="en">
@@ -54,6 +58,8 @@ function renderFocusPane({
         syncBounds={vi.fn().mockResolvedValue(undefined)}
         reportProvider={vi.fn().mockResolvedValue(undefined)}
         reportBusy={false}
+        stageExpanded={stageExpanded}
+        onToggleStageExpanded={stageExpanded === undefined || !stageToggleEnabled ? undefined : vi.fn()}
       />
     </I18nProvider>,
   );
@@ -96,6 +102,23 @@ describe('FocusPane provider header', () => {
     expect(html).toContain('Choose an AI to get started');
     expect(html).toContain('Open ChatGPT');
     expect(html).toContain('Open Grok');
+  });
+
+  it('hides the connection strip while the stage is temporarily expanded so the webview gets the full pane', () => {
+    const collapsed = renderFocusPane({ stageExpanded: false });
+    const expanded = renderFocusPane({ stageExpanded: true });
+
+    expect(collapsed).toContain('Expand');
+    expect(collapsed).toContain('AI connections');
+    expect(expanded).toContain('Restore');
+    expect(expanded).not.toContain('AI connections');
+  });
+
+  it('ignores an expanded state when no restore callback is available', () => {
+    const html = renderFocusPane({ stageExpanded: true, stageToggleEnabled: false });
+
+    expect(html).not.toContain('Restore');
+    expect(html).toContain('AI connections');
   });
 
   it('uses a fixed-px stage floor that cannot out-grow the connection strip at large font sizes', () => {

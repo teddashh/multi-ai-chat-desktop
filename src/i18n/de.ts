@@ -106,6 +106,8 @@ export const de: Record<I18nKey, string> = {
   'provider.access.selectorTextExcludes': 'Text enthält nicht „{value}“',
   'provider.realPage': 'Originalseite',
   'provider.textView': 'Text',
+  'provider.expandStage': 'Vergrößern',
+  'provider.collapseStage': 'Zurücksetzen',
   'provider.center': 'Mitte',
   'provider.connections': 'KI-Verbindungen',
   'provider.connectionsHint': 'KI zum Fokussieren oder Verbinden auswählen',

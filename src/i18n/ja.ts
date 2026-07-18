@@ -106,6 +106,8 @@ export const ja: Record<I18nKey, string> = {
   'provider.access.selectorTextExcludes': 'テキストに「{value}」を含まない',
   'provider.realPage': '実際のページ',
   'provider.textView': 'テキスト',
+  'provider.expandStage': '拡大',
+  'provider.collapseStage': '元に戻す',
   'provider.center': '中央',
   'provider.connections': 'AI接続',
   'provider.connectionsHint': 'フォーカスまたは接続するAIを選択',
