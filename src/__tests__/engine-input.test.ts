@@ -16,6 +16,7 @@ interface TestAdapter {
   sendButtonSelectors: string[];
   responseSelectors: string[];
   loginDetectors: string[];
+  loggedOutDetectors?: string[];
   thinkingDetectors?: string[];
   inputStrategy: InputStrategyName;
   sendStrategy?: SendStrategy;
@@ -35,6 +36,7 @@ interface FakeDomEnv {
   sendButton: FakeElement | null;
   responses: FakeElement[];
   thinking: boolean;
+  cloudflareChallenge: boolean;
 }
 
 describe('injected engine input hardening', () => {
@@ -44,6 +46,22 @@ describe('injected engine input hardening', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.resetModules();
+  });
+
+  it('reports a Grok challenge as blocked when an already-running engine sees it', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    env.cloudflareChallenge = true;
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, { loginDetectors: [], loggedOutDetectors: [] });
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'grok',
+      payload: { dom: 'ready', login: 'blocked', thinking: false, bootId: 'boot1' },
+    });
   });
 
   it('retryLookup polls until a lookup succeeds', async () => {
@@ -619,6 +637,7 @@ function createEnv(options: { inputKind: 'textarea' | 'contenteditable'; sendBut
     sendButton: options.sendButton === undefined ? new FakeElement(document, 'button') : options.sendButton,
     responses: [],
     thinking: false,
+    cloudflareChallenge: false,
   };
   document.env = env;
   return env;
@@ -818,6 +837,9 @@ class FakeDocument {
   execCommandMutates = false;
 
   querySelector(selector: string): Element | null {
+    if (selector.includes('#challenge-running') && this.requireEnv().cloudflareChallenge) {
+      return this.body as unknown as Element;
+    }
     if (selector === '#editor') return this.requireEnv().input as unknown as Element;
     if (selector === 'button.send') return this.requireEnv().sendButton as unknown as Element | null;
     if (selector === '.thinking' && this.requireEnv().thinking) return this.body as unknown as Element;

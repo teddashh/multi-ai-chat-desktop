@@ -1,6 +1,6 @@
-// Cloudflare challenge detection shared by bootstrap (defer the title bridge while a challenge
-// is up) and engine (report login: 'blocked' so the UI can explain the embedded-webview block).
-// Kept side-effect free so both bundles can import it without re-running bootstrap.
+// Cloudflare challenge detection shared by bootstrap and an already-running engine. Bootstrap
+// remains passive while a challenge is present; the engine can report a later interstitial as
+// blocked without changing bridge startup policy.
 
 const CHALLENGE_MARKER_SELECTOR =
   '#challenge-running, #challenge-stage, #cf-challenge-running, form#challenge-form, .h-captcha, [data-hcaptcha-widget-id], iframe[src*="hcaptcha.com"], iframe[src*="challenges.cloudflare.com"]';
@@ -39,9 +39,20 @@ export function hasCloudflareChallengeSignals(title: string, bodyText: string, c
 }
 
 export function isCloudflareChallengeActive(): boolean {
-  return hasCloudflareChallengeSignals(
-    document.title,
-    document.body?.textContent ?? '',
-    Boolean(document.querySelector(CHALLENGE_MARKER_SELECTOR)),
-  );
+  if (document.querySelector(CHALLENGE_MARKER_SELECTOR)) return true;
+  if (hasCloudflareChallengeSignals(document.title ?? '', '', false)) return true;
+  return hasCloudflareChallengeSignals('', sampleBodyText(), false);
+}
+
+function sampleBodyText(maxChars = 2_000): string {
+  if (!document.body) return '';
+  const walker = document.createTreeWalker(document.body, 4);
+  let sample = '';
+  let node = walker.nextNode();
+  while (node && sample.length < maxChars) {
+    const text = node.nodeValue;
+    if (text) sample += ` ${text.slice(0, maxChars - sample.length)}`;
+    node = walker.nextNode();
+  }
+  return sample.slice(0, maxChars);
 }

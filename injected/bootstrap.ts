@@ -100,11 +100,7 @@ export function shouldDeferBridgeStart(
   hasComposer: boolean,
   challengeActive: boolean,
 ): boolean {
-  // Defer only while the page is still loading with nothing on screen yet. Once a challenge
-  // is visibly up we DO start the bridge, so the engine can report login: 'blocked' and the UI
-  // can surface the embedded-login banner instead of silently spinning on a challenge that
-  // Cloudflare never clears for embedded webviews.
-  return !hasComposer && !challengeActive && readyState === 'loading';
+  return challengeActive || (!hasComposer && readyState === 'loading');
 }
 
 export function shouldPatchHistory(provider: string): boolean {

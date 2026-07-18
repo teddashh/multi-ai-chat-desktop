@@ -60,6 +60,49 @@ fn provider_uses_permission_shim(provider: &str) -> bool {
     provider != "grok"
 }
 
+fn grok_challenge_title_active(provider: &str, title: &str) -> bool {
+    if provider != "grok" {
+        return false;
+    }
+    let normalized = title.trim().to_lowercase();
+    [
+        "just a moment",
+        "attention required",
+        "security verification",
+        "performing security verification",
+        "請稍候",
+        "请稍候",
+        "安全性驗證",
+        "安全验证",
+        "セキュリティ検証",
+        "sicherheitsüberprüfung",
+    ]
+    .iter()
+    .any(|signal| normalized.contains(signal))
+}
+
+fn handle_provider_document_title(app: &AppHandle, provider: &str, title: &str) {
+    if crate::bridge::ingest_title(app, provider, title).is_some()
+        || !grok_challenge_title_active(provider, title)
+    {
+        return;
+    }
+    let mut state = current_state(provider);
+    if state.webview == "loaded"
+        && state.dom == "unknown"
+        && state.login == "blocked"
+        && !state.thinking
+    {
+        return;
+    }
+    state.webview = "loaded".into();
+    state.dom = "unknown".into();
+    state.login = "blocked".into();
+    state.thinking = false;
+    state.last_status_at = now_ms();
+    set_state(app, state);
+}
+
 fn challenge_auxiliary_navigation_allowed(provider: &str, url: &tauri::Url) -> bool {
     provider == "grok" && url.scheme() == "about" && matches!(url.path(), "blank" | "srcdoc")
 }
@@ -235,7 +278,7 @@ pub async fn provider_open(
         .background_throttling(BackgroundThrottlingPolicy::Disabled)
         .additional_browser_args(PROVIDER_BROWSER_ARGS)
         .on_document_title_changed(move |_webview, title| {
-            let _ = crate::bridge::ingest_title(&title_app, &title_provider, &title);
+            handle_provider_document_title(&title_app, &title_provider, &title);
         })
         .on_navigation(move |url| {
             if url.host_str() == Some("mac-bridge.invalid") {
@@ -989,10 +1032,11 @@ mod tests {
     use super::{
         accept_status_for_session_reset, bridge_resets_on_boot_rotation, cancel_session_reset,
         challenge_auxiliary_navigation_allowed, decide_new_window_action,
-        eval_callback_reports_true, fresh_session_boot, physical_bounds, popup_initial_title,
-        provider_show_should_focus, provider_uses_permission_shim, runtime,
-        should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
-        NewWindowAction, StalenessAction, PROVIDER_BROWSER_ARGS,
+        eval_callback_reports_true, fresh_session_boot, grok_challenge_title_active,
+        physical_bounds, popup_initial_title, provider_show_should_focus,
+        provider_uses_permission_shim, runtime, should_reset_bridge_on_boot_rotation,
+        staleness_action, state_with, Bounds, NewWindowAction, StalenessAction,
+        PROVIDER_BROWSER_ARGS,
     };
 
     fn url(input: &str) -> tauri::Url {
@@ -1271,6 +1315,24 @@ mod tests {
             "ok",
             Some("boot-a"),
             Some("boot-b")
+        ));
+    }
+
+    #[test]
+    fn grok_challenge_titles_surface_without_enabling_other_providers() {
+        for title in [
+            "Just a moment...",
+            "Performing security verification",
+            "安全性驗證",
+            "セキュリティ検証",
+            "Sicherheitsüberprüfung",
+        ] {
+            assert!(grok_challenge_title_active("grok", title));
+        }
+        assert!(!grok_challenge_title_active("grok", "Grok"));
+        assert!(!grok_challenge_title_active(
+            "chatgpt",
+            "Performing security verification"
         ));
     }
 
