@@ -1,4 +1,5 @@
 import type { AIProvider, BridgeMessage } from '../shared/types';
+import { isCloudflareChallengeActive } from './challenge';
 import { buildReportDigest, type ReportElement } from './reportDigest';
 import { serializeResponseText } from './responseSerializer';
 
@@ -249,6 +250,8 @@ class InputInjectionError extends Error {
     } else if (hasDetector(adapter.loginDetectors)) {
       login = 'logged_in';
     } else if (adapter.provider === 'gemini' && location.hostname === 'gemini.google.com') {
+      login = 'blocked';
+    } else if (adapter.provider === 'grok' && isCloudflareChallengeActive()) {
       login = 'blocked';
     }
     bridge.emit({

@@ -17,7 +17,7 @@
 | macOS Apple Silicon | DMG builds in CI; embedded app is verified as ad-hoc signed | A `v1.0.1` user opened the app and logged into ChatGPT, Claude, and Gemini; Grok looped on Cloudflare verification | **Partially verified** |
 | Linux x86_64 | AppImage builds in CI with WebKitGTK dependencies | No maintainer desktop report yet | **CI-only** |
 
-macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. Current source leaves provider permission APIs untouched, permits Cloudflare's required `about:blank` / `about:srcdoc` documents, defers the automation bridge on any detected Cloudflare or hCaptcha security-check page, and never monkey-patches Grok's History API. Automated tests cover this policy, but a live Apple Silicon retest is still required.
+macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. Current source leaves provider permission APIs untouched, permits Cloudflare's required `about:blank` / `about:srcdoc` documents, defers the automation bridge on any detected Cloudflare or hCaptcha security-check page, and never monkey-patches Grok's History API. A native Tauri title observer can mark known Grok challenge titles as blocked without starting the injected bridge. Automated tests cover this policy, but a live Apple Silicon retest is still required.
 
 ## Agent-ready source lane
 
@@ -44,7 +44,7 @@ Automated tests validate adapter structure, approved strategies, HTTPS URL parsi
 
 Claude's current consumer web experience requires an authenticated account. Adapter v4 recognizes common email-login fields and keeps the official Anthropic and Google sign-in routes within the existing bounded SSO policy. The app does not bypass login, age, subscription, challenge, or other provider-side requirements; guided workflows that assign a Claude seat remain blocked until Claude reports a ready composer.
 
-macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. Current source delays bridge startup for every provider until detected Cloudflare or hCaptcha challenge signals disappear and additionally avoids Grok History API replacement, following anti-bot WebView compatibility requirements. CI can verify the policy but cannot prove that a live challenge completes.
+macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. Current source delays bridge startup for every provider until detected Cloudflare or hCaptcha challenge signals disappear and additionally avoids Grok History API replacement, following anti-bot WebView compatibility requirements. Known Grok challenge titles are reported through the native WebView title callback only; this improves user feedback without injecting automation into the challenge document. CI can verify the policy but cannot prove that a live challenge completes.
 
 ## Product behavior
 
