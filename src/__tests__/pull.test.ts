@@ -252,14 +252,21 @@ describe('bootstrap outbox helpers', () => {
     expect(hasCloudflareChallengeSignals('Just a moment...', 'Verifying you are human', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', 'Please complete the security check', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', '人間であることを確認しています', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('請稍候…', '', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('Grok', '驗證您是人類 grok.com', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('Grok', '正在驗證您是否為真人', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', 'Ready to chat', true)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', 'Ready to chat', false)).toBe(false);
     expect(hasCloudflareChallengeSignals('Grok', '回答内容を確認しています', false)).toBe(false);
+    // Still loading with neither composer nor challenge shown yet: defer.
     expect(shouldDeferBridgeStart('grok', 'loading', false, false)).toBe(true);
-    expect(shouldDeferBridgeStart('grok', 'complete', false, true)).toBe(true);
+    // Challenge visibly up: start the bridge so the engine can report login: 'blocked'
+    // (the embedded-login banner needs a live bridge to surface), never defer it away.
+    expect(shouldDeferBridgeStart('grok', 'complete', false, true)).toBe(false);
+    expect(shouldDeferBridgeStart('grok', 'loading', false, true)).toBe(false);
     expect(shouldDeferBridgeStart('grok', 'complete', true, true)).toBe(false);
-    expect(shouldDeferBridgeStart('chatgpt', 'loading', false, true)).toBe(true);
-    expect(shouldDeferBridgeStart('claude', 'complete', false, true)).toBe(true);
+    expect(shouldDeferBridgeStart('chatgpt', 'loading', false, true)).toBe(false);
+    expect(shouldDeferBridgeStart('claude', 'complete', false, true)).toBe(false);
     expect(shouldDeferBridgeStart('claude', 'complete', false, false)).toBe(false);
   });
 

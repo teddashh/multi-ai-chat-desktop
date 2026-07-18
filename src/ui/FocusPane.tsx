@@ -346,7 +346,7 @@ function FocusStage({
           {t('provider.bridgeDegradedReload')}
         </div>
       ) : null}
-      {provider === 'gemini' && state.login === 'blocked' ? (
+      {(provider === 'gemini' || provider === 'grok') && state.login === 'blocked' ? (
         <div className="flex items-center justify-between gap-2 border-b border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
           <span>{t('provider.embeddedLoginBlocked')}</span>
           <button type="button" className="border border-amber-300 dark:border-amber-700 px-2 py-1 hover:bg-amber-100 dark:hover:bg-amber-900" onClick={() => void host.provider.openLoginExternal(provider)}>

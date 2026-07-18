@@ -113,7 +113,7 @@ export const en: Record<I18nKey, string> = {
   'provider.report': 'Report',
   'provider.adapterBroken': 'Adapter broken',
   'provider.bridgeDegradedReload': 'Bridge degraded. Reload suggested.',
-  'provider.embeddedLoginBlocked': 'Embedded login blocked. Use your browser, then reload Gemini here.',
+  'provider.embeddedLoginBlocked': 'Embedded login blocked. Sign in with your browser, then reload here.',
   'provider.openInBrowser': 'Open in browser',
   'provider.nativeWebviewHidden': 'Native webview hidden; background activity continues.',
   'provider.nativeWebviewMounted': 'Native webview mounted here',

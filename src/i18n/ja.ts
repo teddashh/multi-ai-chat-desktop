@@ -115,7 +115,7 @@ export const ja: Record<I18nKey, string> = {
   'provider.report': '報告',
   'provider.adapterBroken': 'アダプター破損',
   'provider.bridgeDegradedReload': 'ブリッジに問題があります。再読み込みをお勧めします。',
-  'provider.embeddedLoginBlocked': '埋め込みログインがブロックされました。ブラウザーでログインし、ここでGeminiを再読み込みしてください。',
+  'provider.embeddedLoginBlocked': '埋め込みログインがブロックされました。ブラウザーでログインし、ここで再読み込みしてください。',
   'provider.openInBrowser': 'ブラウザーで開く',
   'provider.nativeWebviewHidden': 'ネイティブWebviewは非表示です。バックグラウンド処理は続行します。',
   'provider.nativeWebviewMounted': 'ネイティブWebviewをここに表示中',

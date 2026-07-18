@@ -103,7 +103,7 @@ export const zhTW: Record<I18nKey, string> = {
   'provider.report': '回報',
   'provider.adapterBroken': 'Adapter 異常',
   'provider.bridgeDegradedReload': '橋接降級。建議重新載入。',
-  'provider.embeddedLoginBlocked': '內嵌登入被封鎖。請用瀏覽器登入，然後回到這裡重新載入 Gemini。',
+  'provider.embeddedLoginBlocked': '內嵌登入被封鎖。請用瀏覽器登入，然後回到這裡重新載入。',
   'provider.openInBrowser': '在瀏覽器開啟',
   'provider.nativeWebviewHidden': '原生 webview 已隱藏；背景活動會繼續。',
   'provider.nativeWebviewMounted': '原生 webview 已掛載於此',

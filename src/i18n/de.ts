@@ -115,7 +115,7 @@ export const de: Record<I18nKey, string> = {
   'provider.report': 'Melden',
   'provider.adapterBroken': 'Adapter defekt',
   'provider.bridgeDegradedReload': 'Bridge beeinträchtigt. Neu laden empfohlen.',
-  'provider.embeddedLoginBlocked': 'Eingebettete Anmeldung blockiert. Im Browser anmelden und Gemini hier neu laden.',
+  'provider.embeddedLoginBlocked': 'Eingebettete Anmeldung blockiert. Im Browser anmelden und hier neu laden.',
   'provider.openInBrowser': 'Im Browser öffnen',
   'provider.nativeWebviewHidden': 'Natives Webview ausgeblendet; die Hintergrundaktivität läuft weiter.',
   'provider.nativeWebviewMounted': 'Natives Webview wird hier angezeigt',
