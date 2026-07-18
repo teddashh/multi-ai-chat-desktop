@@ -321,6 +321,7 @@ export default function App() {
   const [initialRestoreComplete, setInitialRestoreComplete] = useState(false);
   const [connectionSnapshotLoaded, setConnectionSnapshotLoaded] = useState(false);
   const [focusPaneWidth, setFocusPaneWidth] = useState(() => defaultSettings().focusPaneWidth);
+  const [stageExpanded, setStageExpanded] = useState(false);
   const [presentation, setPresentation] = useState<PresentationByProvider>(() => defaultPresentation());
   const [centerSurface, setCenterSurface] = useState<CenterSurface>('text');
   const [userHidden, setUserHidden] = useState<Set<AIProvider>>(() => new Set());
@@ -1817,10 +1818,14 @@ export default function App() {
             onDeleteSession={deleteConversationSession}
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {/* 放大檢視時暫時收起選單區讓 webview 吃滿高度；checkpoint / 逾時對話框
+                是 inline 渲染在這個區塊內，出現時必須讓區塊重新顯示，否則使用者按不到。 */}
             <section
               id="workflow-control-shelf"
               aria-label={translate('preset.catalog.aria')}
-              className="ai-sister-workflow-shelf max-h-[42vh] shrink-0 overflow-auto border-b border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/70"
+              className={`ai-sister-workflow-shelf max-h-[42vh] shrink-0 overflow-auto border-b border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/70 ${
+                stageExpanded && !checkpoint && !(stepTimeout && !stepTimeout.timedOut) ? 'hidden' : ''
+              }`}
             >
               <AiSisterEnsembleCard />
               <PresetCatalog
@@ -1889,6 +1894,8 @@ export default function App() {
                 const container = transcriptRef.current;
                 if (container) scrollTranscriptToProviderMessage(container, provider);
               }}
+              stageExpanded={stageExpanded}
+              onToggleStageExpanded={() => setStageExpanded((current) => !current)}
             />
           </div>
         </div>

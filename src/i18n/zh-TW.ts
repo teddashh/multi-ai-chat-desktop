@@ -94,6 +94,8 @@ export const zhTW: Record<I18nKey, string> = {
   'provider.access.selectorTextExcludes': '文字排除「{value}」',
   'provider.realPage': '真實頁面',
   'provider.textView': '文字',
+  'provider.expandStage': '放大',
+  'provider.collapseStage': '還原',
   'provider.center': '置中',
   'provider.connections': 'AI 連線',
   'provider.connectionsHint': '選擇要聚焦或連線的 AI',

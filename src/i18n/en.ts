@@ -104,6 +104,8 @@ export const en: Record<I18nKey, string> = {
   'provider.access.selectorTextExcludes': 'text excludes "{value}"',
   'provider.realPage': 'Real page',
   'provider.textView': 'Text',
+  'provider.expandStage': 'Expand',
+  'provider.collapseStage': 'Restore',
   'provider.center': 'Center',
   'provider.connections': 'AI connections',
   'provider.connectionsHint': 'Choose an AI to focus or connect',
