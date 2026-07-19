@@ -219,6 +219,9 @@ export const de: Record<I18nKey, string> = {
   'settings.title': 'Einstellungen',
   'settings.close': 'Schließen',
   'settings.general': 'Allgemein',
+  'settings.modeRoles': 'Kollaborationsrollen',
+  'settings.modeRolesDescription':
+    'Wählen Sie, welche KI in den strukturierten Modi jede Rolle übernimmt. Dieselbe KI kann mehrere Rollen einnehmen — z. B. eine Debatte mit nur zwei KIs. Rollen, die gleichzeitig laufen (Consult first/second, alle Roundtable-Plätze), müssen unterschiedlich bleiben.',
   'settings.privacyHistory': 'Datenschutz und Verlauf',
   'settings.advanced': 'Erweitert und Diagnose',
   'settings.advancedDescription': 'Adapterkonfiguration, Zugriffsdetails und Werkzeuge zur Fehlerbehebung.',

@@ -207,6 +207,9 @@ export const zhTW: Record<I18nKey, string> = {
   'settings.title': '設定',
   'settings.close': '關閉',
   'settings.general': '一般',
+  'settings.modeRoles': '協作角色',
+  'settings.modeRolesDescription':
+    '選擇在結構化模式中由哪個 AI 擔任每個角色。同一個 AI 可以擔任多個角色，例如讓辯論只由兩個 AI 進行。同時執行的角色（諮詢的 first/second、圓桌的所有席位）必須各不相同。',
   'settings.privacyHistory': '隱私與歷史記錄',
   'settings.advanced': '進階與診斷',
   'settings.advancedDescription': 'Adapter 設定、存取範圍與疑難排解工具。',

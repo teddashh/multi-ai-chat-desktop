@@ -1,11 +1,6 @@
-import {
-  DEFAULT_CODING_ROLES,
-  DEFAULT_CONSULT_ROLES,
-  DEFAULT_DEBATE_ROLES,
-  DEFAULT_FREE_TARGET_PROVIDERS,
-  DEFAULT_ROUNDTABLE_ROLES,
-} from '../../shared/constants';
+import { DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ChatMode, ModeRoles, WorkflowPresetId } from '../../shared/types';
+import { DEFAULT_MODE_ROLE_ASSIGNMENTS, type ModeRoleAssignments } from './modeRoleAssignment';
 import type { I18nKey } from '../i18n/keys';
 
 export interface PresetCatalogEntry {
@@ -102,11 +97,15 @@ export function presetForId(presetId: WorkflowPresetId): PresetCatalogEntry {
   return PRESET_CATALOG.find((preset) => preset.id === presetId) ?? PRESET_CATALOG[0];
 }
 
-export function defaultRolesForPreset(mode: ChatMode, presetId?: WorkflowPresetId): ModeRoles | undefined {
-  if (presetId === 'brainstorm') return { ...DEFAULT_ROUNDTABLE_ROLES };
+export function defaultRolesForPreset(
+  mode: ChatMode,
+  presetId?: WorkflowPresetId,
+  assignments: ModeRoleAssignments = DEFAULT_MODE_ROLE_ASSIGNMENTS,
+): ModeRoles | undefined {
+  if (presetId === 'brainstorm') return { ...assignments.roundtable };
   if (mode === 'free') return undefined;
-  if (mode === 'debate') return { ...DEFAULT_DEBATE_ROLES };
-  if (mode === 'consult') return { ...DEFAULT_CONSULT_ROLES };
-  if (mode === 'coding') return { ...DEFAULT_CODING_ROLES };
-  return { ...DEFAULT_ROUNDTABLE_ROLES };
+  if (mode === 'debate') return { ...assignments.debate };
+  if (mode === 'consult') return { ...assignments.consult };
+  if (mode === 'coding') return { ...assignments.coding };
+  return { ...assignments.roundtable };
 }

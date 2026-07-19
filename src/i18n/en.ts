@@ -217,6 +217,9 @@ export const en: Record<I18nKey, string> = {
   'settings.title': 'Settings',
   'settings.close': 'Close',
   'settings.general': 'General',
+  'settings.modeRoles': 'Collaboration roles',
+  'settings.modeRolesDescription':
+    'Choose which AI fills each role in the structured modes. The same AI can take more than one role — e.g. set a debate to just two AIs. Roles that run at the same time (Consult first/second, all Roundtable seats) must stay distinct.',
   'settings.privacyHistory': 'Privacy & history',
   'settings.advanced': 'Advanced & diagnostics',
   'settings.advancedDescription': 'Adapter configuration, access details, and troubleshooting tools.',

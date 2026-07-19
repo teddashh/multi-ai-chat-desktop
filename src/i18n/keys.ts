@@ -200,6 +200,8 @@ export const I18N_KEYS = [
   'settings.title',
   'settings.close',
   'settings.general',
+  'settings.modeRoles',
+  'settings.modeRolesDescription',
   'settings.privacyHistory',
   'settings.advanced',
   'settings.advancedDescription',

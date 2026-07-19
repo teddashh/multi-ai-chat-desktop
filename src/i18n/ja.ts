@@ -219,6 +219,9 @@ export const ja: Record<I18nKey, string> = {
   'settings.title': '設定',
   'settings.close': '閉じる',
   'settings.general': '一般',
+  'settings.modeRoles': 'コラボレーションの役割',
+  'settings.modeRolesDescription':
+    '構造化モードで各役割を担当する AI を選びます。同じ AI が複数の役割を兼ねることもできます（例: ディベートを 2 つの AI だけで実施）。同時に実行される役割（コンサルの first/second、ラウンドテーブルの全席）は重複させないでください。',
   'settings.privacyHistory': 'プライバシーと履歴',
   'settings.advanced': '詳細設定と診断',
   'settings.advancedDescription': 'アダプター設定、アクセス範囲、トラブルシューティングツール。',

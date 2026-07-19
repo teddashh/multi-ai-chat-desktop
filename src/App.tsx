@@ -1389,7 +1389,7 @@ export default function App() {
       : undefined;
     if (workflowTargets?.length === 0) return;
     if (mode === 'free') {
-      const brainstormRoles = brainstorm ? defaultRolesForPreset(mode, presetId) : undefined;
+      const brainstormRoles = brainstorm ? defaultRolesForPreset(mode, presetId, settingsRef.current.modeRoles) : undefined;
       autoFocusRunCandidate(brainstormRoles ? Object.values(brainstormRoles)[0] : workflowTargets?.[0]);
     }
     const replayContext =
@@ -1402,7 +1402,7 @@ export default function App() {
     setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current, presetId));
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
-    const workflowRoles = defaultRolesForPreset(mode, presetId);
+    const workflowRoles = defaultRolesForPreset(mode, presetId, snapshotSettings.modeRoles);
     recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
     const result = await runWorkflow({
       text: trimmed,
@@ -1437,10 +1437,11 @@ export default function App() {
     if (!trimmed) return false;
     const brainstorm = presetId === 'brainstorm';
     const serialMode = isSerialMode(mode) ? mode as Exclude<ChatMode, 'free'> : undefined;
+    const modeRoles = settingsRef.current.modeRoles;
     const workflowRoles = brainstorm
-      ? defaultRolesForPreset(mode, presetId)
+      ? defaultRolesForPreset(mode, presetId, modeRoles)
       : serialMode
-        ? defaultRolesForPreset(serialMode)
+        ? defaultRolesForPreset(serialMode, undefined, modeRoles)
         : undefined;
     const participants = workflowRoles
       ? [...new Set(Object.values(workflowRoles))]
