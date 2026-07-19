@@ -28,6 +28,23 @@ export function freeModeTargets(selected: AIProvider[], states: Record<AIProvide
   return selected.filter((provider) => isSendable(states[provider]));
 }
 
+// Session reset 會讓 provider 頁面重新導航，導航後第一輪 STATUS_REPORT 常誤報
+// logged_out/blocked（login detector 還沒渲染出來），下一輪（約 10 秒後）才恢復。
+// 送出前等它們回穩，避免 fan-out 目標被暫時性的假狀態默默過濾掉。
+export async function waitForProvidersSendable(
+  providers: readonly AIProvider[],
+  getStates: () => Record<AIProvider, ProviderState>,
+  timeoutMs = 20_000,
+  pollMs = 250,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (providers.every((provider) => isSendable(getStates()[provider]))) return;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  // ponytail: 超時就照舊只送 sendable 的（真的登出的 provider 最多多等 20 秒）
+}
+
 export function hasEffectiveFreeModeTargets(selected: AIProvider[], states: Record<AIProvider, ProviderState>): boolean {
   return freeModeTargets(selected, states).length > 0;
 }
