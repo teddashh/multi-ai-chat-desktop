@@ -1,6 +1,6 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2.7 feature-frozen** (four-provider web edition; `v1.4.0` maintenance baseline)
+> Status: **v2.2.7 feature-frozen** (four-provider web edition; `v1.6.4` maintenance baseline)
 > Date: 2026-07-18
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
 > Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo; v2.2.6 surfaces Grok challenge state without starting automation on the challenge page; v2.2.7 repairs logged-out status detection and keeps Gemini's Google challenge passive.

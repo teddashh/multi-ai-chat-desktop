@@ -1,8 +1,8 @@
 # PLAN — Multi-AI Chat Desktop
 
 > Status: **feature freeze / final commemorative edition**
-> Date: 2026-07-17
-> Stable maintenance baseline: `v1.6.3`; feature development remains frozen after the final compatibility, Brainstorm, and lifecycle hardening. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
+> Date: 2026-07-18
+> Stable maintenance baseline: `v1.6.4`; feature development remains frozen after the final compatibility, Brainstorm, lifecycle, and provider-status hardening. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
 > Working model: the web-session desktop edition is complete. The final source-distribution work formalizes the existing Codex/Claude launch path as a tested Agent-Ready Source Release; it does not add an embedded agent runtime. After this patch, only provider compatibility, security, build-breakage, and release-critical fixes remain in scope.
 
 ## Final scope

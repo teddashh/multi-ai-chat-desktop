@@ -10,15 +10,14 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Every Brainstorm round includes all four providers—48 contributions total—with a rotating speaking order and full same-session history. The shipped snapshot/replay tools remain available as-is with no further roadmap.
 
-## v1.6.3 highlights
+## v1.6.4 highlights
 
-- **Reliable overlay restoration.** Provider WebView hide/show commands now run in order, preventing a rapidly closed modal from leaving a live provider hidden.
-- **Safer UI lifecycles.** Late adapter-listener subscriptions and update checks can no longer update an already-disposed app or Settings session.
-- **Calmer background operation.** Restoring an existing provider no longer steals keyboard focus unless focus was explicitly requested.
-- **Recoverable session resets.** A timed-out new-session attempt clears its temporary boot filter so the current provider page can report status normally again.
-- **Release hygiene.** Rust setup actions use an immutable commit, while the standard MIT text and a separate NOTICE file make licensing and provenance machine-readable.
+- **Accurate provider status.** Logged-out ChatGPT and Grok pages no longer look connected when a stale composer remains, and Grok recognizes common English, Chinese, Japanese, and German sign-in labels.
+- **Passive challenge recovery.** Gemini can display Google's tightly scoped `/sorry` verification page, while Gemini and Grok security challenges remain free of injected automation and report a clear blocked state.
+- **More room for the real page.** Expand/Restore temporarily gives the focused provider WebView the full pane while automatically restoring controls for checkpoints and timeout decisions.
+- **Compatible adapter evolution.** Typed schema v2 detectors add text matching without breaking schema v1 adapters; malformed detectors and widened URL scopes continue to fail closed.
 
-See the bilingual [`v1.6.3 release notes`](./docs/RELEASE_NOTES_v1.6.3.md) for validation, audit scope, the documented upstream GTK risk, and known platform limits.
+See the bilingual [`v1.6.4 release notes`](./docs/RELEASE_NOTES_v1.6.4.md) for validation, contributor credit, the documented upstream GTK risk, and known platform limits.
 
 ## Choose the right edition
 
@@ -174,7 +173,9 @@ Report vulnerabilities privately through [`SECURITY.md`](./SECURITY.md). Report 
 
 ### Contributors and acknowledgements
 
-Special thanks to [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) for the `v1.3.1` overlay reliability fix, the careful reproductions and original proposals in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11), and [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12), and the serializer regression tests merged in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14).
+Special thanks to [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) for the `v1.3.1` overlay reliability fix, the careful reproductions and original proposals in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11), and [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12), the serializer regression tests merged in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14), and the Grok challenge and expanded-focus work in [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39) and [#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40).
+
+Thank you to [CE Lin (`@ChingEnLin`)](https://github.com/ChingEnLin) for the detailed provider-status report in [#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) and the ChatGPT, Gemini, and Grok adapter repair contributed through [#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42).
 
 Thank you to the Windows and macOS users who shared reproducible reports and sanitized debug logs. Those reports directly improved first-launch packaging, provider automation, session continuity, and release verification.
 
