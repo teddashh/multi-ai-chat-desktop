@@ -10,15 +10,14 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. In jeder Runde antworten alle vier Anbieter einmal: insgesamt 48 Beiträge mit wechselnder Reihenfolge und vollständigem Verlauf derselben Sitzung. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
 
-## Neuerungen in v1.6.3
+## Neuerungen in v1.6.4
 
-- **Zuverlässige WebView-Wiederherstellung.** Hide- und Show-Befehle der Provider-WebViews laufen geordnet, damit ein schnell geschlossenes Modal keine echte Anbieter-Seite dauerhaft verborgen lässt.
-- **Sichere UI-Lebenszyklen.** Spät abgeschlossene Adapter-Listener und Update-Prüfungen aktualisieren keine bereits verworfene App- oder geschlossene Settings-Sitzung mehr.
-- **Ruhiger Hintergrundbetrieb.** Das Wiederherstellen eines vorhandenen Providers übernimmt den Tastaturfokus nur noch auf ausdrückliche Anforderung.
-- **Wiederherstellbarer Session-Reset.** Nach einem Timeout wird der temporäre Boot-Filter entfernt, sodass die aktuelle Provider-Seite wieder normal Status melden kann.
-- **Saubere Release-Kette.** Rust-Setup-Actions sind an einen unveränderlichen Commit gebunden; standardisierter MIT-Text und eine separate NOTICE-Datei verbessern maschinenlesbare Lizenz- und Herkunftsangaben.
+- **Korrekter Provider-Status.** Abgemeldete ChatGPT- und Grok-Seiten erscheinen nicht mehr verbunden, wenn ein alter Composer sichtbar bleibt. Grok erkennt typische Anmeldebeschriftungen auf Englisch, Chinesisch, Japanisch und Deutsch.
+- **Passive Sicherheitsprüfungen.** Gemini kann Googles eng begrenzte `/sorry`-Prüfseite anzeigen. Auf Gemini- und Grok-Challenge-Seiten wird keine Automatisierung injiziert; stattdessen erscheint ein klarer blockierter Status.
+- **Mehr Platz für die echte Seite.** Expand/Restore vergrößert die fokussierte Provider-WebView vorübergehend auf das gesamte Pane und stellt Bedienelemente bei Checkpoints oder Timeout-Entscheidungen automatisch wieder her.
+- **Kompatible Adapter-Weiterentwicklung.** Typisierte Schema-v2-Detektoren ergänzen Textabgleich ohne Schema v1 zu brechen; fehlerhafte Detektoren und erweiterte URL-Bereiche bleiben fail closed.
 
-Validierung, Audit-Umfang, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.3 Release Notes`](./docs/RELEASE_NOTES_v1.6.3.md).
+Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.4 Release Notes`](./docs/RELEASE_NOTES_v1.6.4.md).
 
 ## Edition wählen
 
@@ -163,7 +162,9 @@ Schwachstellen bitte gemäß [`SECURITY.md`](./SECURITY.md) privat melden. Regre
 
 ### Mitwirkende und Danksagung
 
-Besonderer Dank gilt [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) für die Overlay-Zuverlässigkeitskorrektur in `v1.3.1`, die sorgfältigen Reproduktionen und ursprünglichen Lösungsansätze in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11) und [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12) sowie die in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) zusammengeführten Serializer-Regressionstests.
+Besonderer Dank gilt [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) für die Overlay-Zuverlässigkeitskorrektur in `v1.3.1`, die sorgfältigen Reproduktionen und ursprünglichen Lösungsansätze in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11) und [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12), die Serializer-Regressionstests in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) sowie die Grok-Challenge- und Fokus-Erweiterungen in [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39) und [#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40).
+
+Danke an [CE Lin (`@ChingEnLin`)](https://github.com/ChingEnLin) für den detaillierten Provider-Statusbericht in [#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) und die ChatGPT-, Gemini- und Grok-Adapterkorrektur in [#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42).
 
 Danke auch an die Windows- und macOS-Nutzer, die reproduzierbare Berichte und bereinigte Debug-Logs geteilt haben. Diese Hinweise verbesserten unmittelbar die Erststart-Pakete, Provider-Automatisierung, Sitzungsfortsetzung und Release-Prüfung.
 

@@ -10,15 +10,14 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 與 12 輪「腦力激盪」預設已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。腦力激盪的每一輪都由四家各回答一次，共 48 次發言，並輪換發言順序、保留同一 session 的完整前文；現有 snapshot／replay 會原樣保留且不再擴充。
 
-## v1.6.3 更新重點
+## v1.6.4 更新重點
 
-- **可靠恢復 WebView。** Provider WebView 的隱藏與顯示命令會依序執行，快速關閉 modal 時不會因競態而讓真實頁面持續隱藏。
-- **更安全的 UI 生命週期。** 過晚完成的 adapter listener 訂閱與版本檢查，不再更新已卸載的 app 或已關閉的設定 session。
-- **安靜的背景操作。** 恢復已存在的 provider 時不再搶走鍵盤焦點；只有明確要求聚焦時才會 focus。
-- **可恢復的 session reset。** 新對話逾時後會清除暫時 boot filter，讓目前 provider 頁面重新正常回報狀態。
-- **發布與授權整理。** Rust setup action 鎖定 immutable commit，標準 MIT 文字與獨立 NOTICE 也讓授權及來源更容易由工具辨識。
+- **正確的 provider 狀態。** ChatGPT 與 Grok 登出後即使殘留 composer，也不會再誤顯示已連線；Grok 也能辨識常見的英、中、日、德登入文字。
+- **被動處理安全驗證。** Gemini 可顯示嚴格限縮於 Google `/sorry` 的驗證頁；Gemini 與 Grok 的安全驗證頁不會被注入自動化，並清楚顯示阻擋狀態。
+- **真實頁面有更多空間。** 「放大／還原」可暫時讓目前 provider WebView 使用完整面板；checkpoint 或逾時決策出現時會自動恢復控制區。
+- **相容的 adapter 演進。** 強型別 schema v2 detector 支援文字比對且不破壞 schema v1；格式錯誤或擴大 URL 範圍的 adapter 仍會 fail closed。
 
-完整驗證、稽核範圍、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.6.3 發布說明`](./docs/RELEASE_NOTES_v1.6.3.md)。
+完整驗證、貢獻者 credit、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.6.4 發布說明`](./docs/RELEASE_NOTES_v1.6.4.md)。
 
 ## 選擇適合的版本
 
@@ -174,7 +173,9 @@ pnpm tauri dev
 
 ### 貢獻者與致謝
 
-特別感謝 [Dave Tseng（`@DaveTseng2019`）](https://github.com/DaveTseng2019)：他貢獻了 `v1.3.1` 的 overlay 可靠性修正，在 [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10)、[#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11)、[#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12) 提供仔細的重現與原始修法，並在 [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) 補上已合併的 serializer regression tests。
+特別感謝 [Dave Tseng（`@DaveTseng2019`）](https://github.com/DaveTseng2019)：他貢獻了 `v1.3.1` 的 overlay 可靠性修正，在 [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10)、[#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11)、[#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12) 提供仔細的重現與原始修法，在 [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) 補上 serializer regression tests，並透過 [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39)、[#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40) 改善 Grok 驗證狀態與真實頁面放大體驗。
+
+也感謝 [CE Lin（`@ChingEnLin`）](https://github.com/ChingEnLin) 在 [#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) 提供完整的 provider 狀態回報，並透過 [#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42) 貢獻 ChatGPT、Gemini 與 Grok adapter 修正。
 
 也感謝提供可重現回報與已清理 debug log 的 Windows、macOS 使用者；這些資料直接改善了第一次啟動封裝、provider 自動化、session 延續與 release 驗證。
 
