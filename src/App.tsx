@@ -384,10 +384,12 @@ export default function App() {
   }, [centerSurface, modalHiddenProviders, presentation, states]);
   const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
   const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
-  const requiredModeProviders = useMemo(
-    () => presetForId(presetId).requiredProviders,
-    [presetId],
-  );
+  const requiredModeProviders = useMemo(() => {
+    const roles = defaultRolesForPreset(mode, presetId, appSettings.modeRoles);
+    return roles
+      ? ([...new Set(Object.values(roles))] as AIProvider[])
+      : presetForId(presetId).requiredProviders;
+  }, [mode, presetId, appSettings.modeRoles]);
   const readyModeProviders = useMemo(
     () => requiredModeProviders.filter((provider) => isSendable(states[provider])),
     [requiredModeProviders, states],
@@ -1835,6 +1837,7 @@ export default function App() {
                 onSelectPreset={selectPreset}
                 locale={locale}
                 states={states}
+                modeRoles={appSettings.modeRoles}
                 disabled={isProcessing}
                 detailsPresetId={presetDetailsId}
                 layout="sidebar"
