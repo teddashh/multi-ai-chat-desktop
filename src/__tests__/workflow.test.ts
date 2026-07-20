@@ -19,7 +19,7 @@ import {
   resetBridgePullForTests,
 } from '../bridge/pull';
 import { host } from '../host';
-import { getInFlightProviders, resetCancelState } from '../workflow/cancel';
+import { abortWorkflow, getInFlightProviders, resetCancelState } from '../workflow/cancel';
 import { hasPendingCheckpoint, onCheckpoint, resetCheckpointForTests, resolveCheckpoint, type PendingCheckpoint } from '../workflow/checkpoint';
 import { emitSystemError } from '../workflow/events';
 import { preflightSerialMode } from '../workflow/preflight';
@@ -27,7 +27,7 @@ import { isSendable } from '../workflow/sendability';
 import { sendAndWait } from '../workflow/sendAndWait';
 import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { getLastSnapshot, resetSnapshotRecorderForTests } from '../workflow/snapshot/recorder';
-import { runStep } from '../workflow/stepRunner';
+import { runStep, SEND_REJECTION_RETRY_DELAY_MS } from '../workflow/stepRunner';
 import { getActiveTurn, reserveTurn, resetWorkflowStateForTests, SKIP_RESPONSE } from '../workflow/state';
 import { chooseStepTimeoutAction, onStepTimeoutEvent, resetStepTimeoutForTests } from '../workflow/stepTimeout';
 import { tearDownWaiters } from '../workflow/teardown';
@@ -531,6 +531,50 @@ describe('workflow engine', () => {
     await expect(step).resolves.toEqual({ response: 'recovered', turn: 2 });
   });
 
+  it('retries a rejected provider send once after the turn boundary settles', async () => {
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      const response = vi.mocked(host.provider.send).mock.calls.length === 1
+        ? `[Error: ${provider} send was not accepted; draft is still in composer]`
+        : 'accepted response';
+      publishBridgeMessage(done(provider, response));
+    });
+
+    const step = runStep('gemini', 'retry rejected send');
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(SEND_REJECTION_RETRY_DELAY_MS);
+    await expect(step).resolves.toEqual({ response: 'accepted response', turn: 2 });
+    expect(host.provider.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops after one automatic retry when the provider still rejects the send', async () => {
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `[Error: ${provider} send was not accepted; draft is still in composer]`));
+    });
+
+    const step = runStep('gemini', 'retry rejected send');
+    const rejection = step.catch((error: unknown) => error);
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(SEND_REJECTION_RETRY_DELAY_MS);
+    await expect(rejection).resolves.toMatchObject({
+      message: 'gemini send was not accepted; draft is still in composer',
+    });
+    expect(host.provider.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels during the rejected-send retry delay without sending again', async () => {
+    vi.mocked(host.provider.send).mockImplementationOnce(async (provider) => {
+      publishBridgeMessage(done(provider, `[Error: ${provider} send was not accepted; draft is still in composer]`));
+    });
+
+    const step = runStep('gemini', 'cancel rejected send retry');
+    const rejection = step.catch((error: unknown) => error);
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    abortWorkflow();
+    await expect(rejection).resolves.toMatchObject({ message: 'Workflow cancelled by user' });
+    await vi.advanceTimersByTimeAsync(SEND_REJECTION_RETRY_DELAY_MS);
+    expect(host.provider.send).toHaveBeenCalledTimes(1);
+  });
+
   it('skip returns the canonical substitution and flows it into the next serial prompt', async () => {
     const sentPrompts: string[] = [];
     vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
@@ -615,23 +659,25 @@ describe('workflow engine', () => {
     ]);
   });
 
-  it.each([
-    ['two errors', '[Error: adapter not installed]', '[Error: bridge degraded]'],
-    ['an error and a skipped answer', '[Error: adapter not installed]', SKIP_RESPONSE],
-  ])('consult stops before review when its first answers are %s', async (_case, firstResponse, secondResponse) => {
+  it('stops a structured workflow immediately when a provider returns an engine error', async () => {
     const sent: AIProvider[] = [];
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       sent.push(provider);
-      const response = provider === DEFAULT_CONSULT_ROLES.first ? firstResponse : secondResponse;
-      publishBridgeMessage(done(provider, response));
+      publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
     });
 
-    await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
+    await expect(runWorkflow({ text: 'q', mode: 'debate' })).resolves.toEqual({ ok: true });
 
-    expect(sent).toEqual([DEFAULT_CONSULT_ROLES.first, DEFAULT_CONSULT_ROLES.second]);
+    expect(sent).toEqual([DEFAULT_DEBATE_ROLES.pro]);
+    expect(getLastSnapshot()?.steps).toHaveLength(1);
+    expect(getLastSnapshot()?.steps[0]).toMatchObject({
+      nodeId: 'pro',
+      status: 'error',
+      outputRef: { text: '[Error: adapter not installed]' },
+    });
   });
 
-  it('consult continues to review when either first answer remains usable', async () => {
+  it('stops consult before review when either parallel answer is an engine error', async () => {
     const sent: AIProvider[] = [];
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       sent.push(provider);
@@ -643,12 +689,23 @@ describe('workflow engine', () => {
 
     await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
 
-    expect(sent).toEqual([
-      DEFAULT_CONSULT_ROLES.first,
+    expect(sent).toEqual([DEFAULT_CONSULT_ROLES.first, DEFAULT_CONSULT_ROLES.second]);
+  });
+
+  it('stops an unfinished parallel sibling after another structured step fails', async () => {
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      if (provider === DEFAULT_CONSULT_ROLES.first) {
+        publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
+      }
+    });
+
+    await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
+
+    expect(host.provider.eval).toHaveBeenCalledWith(
       DEFAULT_CONSULT_ROLES.second,
-      DEFAULT_CONSULT_ROLES.reviewer,
-      DEFAULT_CONSULT_ROLES.summary,
-    ]);
+      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
+    );
+    expect(getInFlightProviders()).toEqual([]);
   });
 
   it.each([

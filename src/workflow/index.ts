@@ -88,7 +88,7 @@ export async function runWorkflow({
 
     return { ok: true };
   } catch (error) {
-    await tearDownWaiters(getInFlightProviders());
+    await tearDownWaiters(getInFlightProviders(), { stopClick: true });
     emitSystemError((error as Error).message);
     sendWorkflowStatus('');
     return { ok: true };
