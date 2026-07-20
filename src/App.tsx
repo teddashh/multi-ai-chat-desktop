@@ -108,6 +108,7 @@ import {
   freeModeTargets,
   hasEffectiveFreeModeTargets,
   markFreeTargetsTouched,
+  waitForProvidersSendable,
   type FreeTargetSelection,
 } from './ui/targets';
 import { useOverlayGuard } from './ui/useOverlayGuard';
@@ -1462,6 +1463,16 @@ export default function App() {
         });
         if (providerSessionResetAttemptRef.current !== resetAttempt) return false;
         for (const provider of providersToFreshen) pendingProviderResetRef.current.delete(provider);
+        // 重置後頁面重新導航，login 狀態要等下一輪 STATUS_REPORT 才回穩；
+        // 不等的話 fan-out 目標會被暫時性的 logged_out/blocked 誤過濾掉。
+        await waitForProvidersSendable(
+          providersToFreshen,
+          () => statesRef.current,
+          undefined,
+          undefined,
+          () => providerSessionResetAttemptRef.current !== resetAttempt,
+        );
+        if (providerSessionResetAttemptRef.current !== resetAttempt) return false;
         setWorkflowStatus('');
       } catch (reason) {
         const resetError = reason instanceof ProviderSessionResetError ? reason : undefined;
