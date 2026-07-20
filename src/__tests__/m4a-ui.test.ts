@@ -21,6 +21,7 @@ import {
   hasEffectiveFreeModeTargets,
   markFreeTargetsTouched,
   toggleTarget,
+  waitForProvidersSendable,
 } from '../ui/targets';
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from '../ui/processing';
 import { chooseTimeoutDialogAction } from '../ui/timeoutActions';
@@ -181,6 +182,28 @@ describe('M4a UI helpers', () => {
 
     expect(hasEffectiveFreeModeTargets([], unavailable)).toBe(false);
     expect(freeModeTargets([], unavailable)).toEqual([]);
+  });
+
+  // Session reset 後第一輪狀態回報會短暫誤報未登入；若不等待回穩,
+  // fan-out 會默默丟掉暫時不可送的目標(4 選 1 出 bug)。
+  it('waits for transiently non-sendable providers to recover before fan-out', async () => {
+    vi.useFakeTimers();
+    try {
+      let current = states({ claude: state('claude', false), grok: state('grok', false) });
+      const wait = waitForProvidersSendable(providers, () => current, 20_000, 250);
+      await vi.advanceTimersByTimeAsync(500);
+      current = states();
+      await vi.advanceTimersByTimeAsync(500);
+      await expect(wait).resolves.toBeUndefined();
+      expect(freeModeTargets(providers, current)).toEqual(providers);
+
+      current = states({ claude: state('claude', false) });
+      const timedOut = waitForProvidersSendable(providers, () => current, 1_000, 250);
+      await vi.advanceTimersByTimeAsync(1_500);
+      await expect(timedOut).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('records timeout dialog retry, skip, and cancel actions', async () => {
