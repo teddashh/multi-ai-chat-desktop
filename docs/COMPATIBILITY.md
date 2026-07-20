@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-18 for v1.6.4. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-07-19 for v1.7.0. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -53,9 +53,9 @@ Gemini may redirect an embedded session to `https://www.google.com/sorry/index?.
 | Area | Automated evidence | Manual release check |
 |---|---|---|
 | Free mode | Four-provider fan-out tests | Send to all selected providers; verify each final response |
-| Debate / consultation / coding | Golden graph ordering and prompt-threading tests | Complete one run; verify role labels and final summary |
-| Roundtable | Five-round, four-speaker history tests | Complete one run; verify prior same-session speeches remain available |
-| Brainstorm | Twelve rounds × four providers, rotating seat order, 48-step history threading, five phase prompts, preflight, localization, and snapshot tests | Allow 45–90 minutes; verify every provider answers once per round and the final speaker returns a consolidated portfolio |
+| Debate / consultation / coding | Golden graph ordering, prompt threading, configurable role assignment, Grok-unavailable preflight, bounded retry, and terminal provider-error tests | Complete one default run; verify role labels and final summary |
+| Roundtable | Five-round, four-seat history, configurable assignment, repeated-seat preflight, and Grok-unavailable default tests | Complete one run; verify prior same-session speeches remain available |
+| Brainstorm | Twelve rounds × four rotating seats, three-provider safe defaults, four distinct lenses, 48-step history threading, five phase prompts, preflight, localization, and snapshot tests | Allow 45–90 minutes; verify four contributions per round and a consolidated portfolio from the final speaker |
 | Long provider work | Thinking, pulled chunks, bulk-ready, and done-ready activity refresh a 10-minute inactivity window; tests also enforce a 60-minute bridge hard cap | Run one provider task beyond 10 minutes, then verify a truly stalled task still terminates |
 | Session isolation | Conversation persistence and latest-snapshot matching tests | Create two sessions; confirm no messages or export provenance cross over |
 | Restored-session continuity | Stable response-identity and bounded same-session replay tests | Reopen a session, ask a follow-up, and confirm old context is available without cross-session leakage |

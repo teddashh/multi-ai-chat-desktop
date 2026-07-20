@@ -8,16 +8,17 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > Das Projekt automatisiert die Webseiten der Anbieter. Änderungen an deren Oberfläche können einen Adapter vorübergehend beschädigen. Beachte die Bedingungen der Anbieter und verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist.
 
-> **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. In jeder Runde antworten alle vier Anbieter einmal: insgesamt 48 Beiträge mit wechselnder Reihenfolge und vollständigem Verlauf derselben Sitzung. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
+> **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. Brainstorming behält vier wechselnde Sitze, insgesamt 48 Beiträge und den vollständigen Verlauf derselben Sitzung. Die sichere Standardbelegung nutzt ChatGPT, Claude und Gemini; Grok bleibt manuell wählbar, wenn die eingebettete Anmeldung funktioniert. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
 
-## Neuerungen in v1.6.4
+## Neuerungen in v1.7.0
 
-- **Korrekter Provider-Status.** Abgemeldete ChatGPT- und Grok-Seiten erscheinen nicht mehr verbunden, wenn ein alter Composer sichtbar bleibt. Grok erkennt typische Anmeldebeschriftungen auf Englisch, Chinesisch, Japanisch und Deutsch.
-- **Passive Sicherheitsprüfungen.** Gemini kann Googles eng begrenzte `/sorry`-Prüfseite anzeigen. Auf Gemini- und Grok-Challenge-Seiten wird keine Automatisierung injiziert; stattdessen erscheint ein klarer blockierter Status.
-- **Mehr Platz für die echte Seite.** Expand/Restore vergrößert die fokussierte Provider-WebView vorübergehend auf das gesamte Pane und stellt Bedienelemente bei Checkpoints oder Timeout-Entscheidungen automatisch wieder her.
-- **Kompatible Adapter-Weiterentwicklung.** Typisierte Schema-v2-Detektoren ergänzen Textabgleich ohne Schema v1 zu brechen; fehlerhafte Detektoren und erweiterte URL-Bereiche bleiben fail closed.
+- **Konfigurierbare Kollaborationsrollen.** Rollen für Debatte, Beratung, Coding, Rundtisch und Brainstorming lassen sich beliebigen Anbietern zuweisen; unsichere Überschneidungen paralleler Rollen bleiben gesperrt.
+- **Zuverlässige Folgesendungen.** Nach einem Session-Reset wartet die App auf Sendebereitschaft; eine direkt nach einer Antwort abgelehnte Sendung wird einmal begrenzt wiederholt.
+- **Strukturierte Workflows bleiben fail closed.** Anbieterfehler stoppen den Lauf und beenden offene parallele Arbeit, statt Fehlertext an spätere Prompts weiterzugeben.
+- **Grok-sichere Standards.** Workflows mit vier Rollen oder Sitzen benötigen standardmäßig nur drei funktionierende Anmeldungen. Grok bleibt optional; Brainstorming behält vier verschiedene Perspektiven, auch wenn ein Anbieter zwei Sitze besetzt.
+- **Ehrliche Anmeldehilfe.** Der Text erklärt nun ausdrücklich, dass ein externer Browser die isolierte WebView-Sitzung der App nicht anmeldet.
 
-Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.6.4 Release Notes`](./docs/RELEASE_NOTES_v1.6.4.md).
+Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.7.0 Release Notes`](./docs/RELEASE_NOTES_v1.7.0.md).
 
 ## Edition wählen
 
@@ -30,7 +31,7 @@ Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Pla
 
 - Zuverlässige Automatisierung im Hintergrund; abgelehnte Sendungen werden erneut versucht oder klar als Fehler gemeldet.
 - Workflow-Steuerung links über dem weniger wichtigen WebView; mehr Platz für Transkript und Eingabe rechts.
-- Sechs geführte Presets in fünf stabilen Modi: freie Verteilung, Debatte, Beratung, Coding, fünf Runden Wahrheitssuche sowie Brainstorming mit 12 Runden × 4 KIs und 48 Beiträgen.
+- Sechs geführte Presets in fünf stabilen Modi: freie Verteilung, Debatte, Beratung, Coding, fünf Runden Wahrheitssuche sowie Brainstorming mit 12 Runden × 4 Sitzen und 48 Beiträgen.
 - Die Rollen strukturierter Workflows lassen sich in den Einstellungen den gewünschten Anbietern zuordnen. Serielle Rollen dürfen denselben Anbieter wiederverwenden; parallele Rollen müssen getrennt bleiben.
 - Bis zu 30 lokale Sitzungen plus **Neuer Chat**; wiederhergestellte Nachfragen erhalten begrenzten Kontext nur aus derselben Sitzung.
 - Sicher gerendertes Markdown mit Überschriften, verschachtelten Listen, Links, Codeblöcken und scrollbaren Tabellen; außerdem Abschluss reiner Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
@@ -48,12 +49,12 @@ Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Pla
 | **Debatte** | Pro → Contra → Urteil → Synthese | Argumente und Entscheidungen prüfen |
 | **Beratung** | Zwei unabhängige Antworten → Prüfung → Ergebnis | Recherche und zweite Meinung |
 | **Coding** | Spezifikation → Reviews → v1 → Tests → v2 → Abnahme → Final | Strukturierte Softwareplanung |
-| **Rundtisch** | 5 Runden × 4 KIs = 20 Beiträge | Schwierige Fragen kontrovers konvergieren lassen |
-| **Brainstorming** | 12 Runden × 4 KIs = 48 Beiträge; wechselnde Reihenfolge über Problemrahmen → Divergenz → gegenseitige Anregung → Auswahl → Konzepttests | Ideenentwicklung mit vollständigem Verlauf, ausgewogenes Portfolio und erste Experimente |
+| **Rundtisch** | 5 Runden × 4 Sitze = 20 Beiträge; standardmäßig 3 Anbieter | Schwierige Fragen kontrovers konvergieren lassen |
+| **Brainstorming** | 12 Runden × 4 wechselnde Sitze = 48 Beiträge; Problemrahmen → Divergenz → gegenseitige Anregung → Auswahl → Konzepttests | Ideenentwicklung mit vollständigem Verlauf, ausgewogenes Portfolio und erste Experimente |
 
 Lehnt eine Anbieter-Seite eine direkt aufeinanderfolgende Sendung nach dem vorherigen Abschluss ab, versucht der strukturierte Workflow sie einmal erneut. Bleibt der Fehler bestehen oder tritt ein anderer Engine-Fehler auf, endet der Workflow, statt den Fehlertext als Antwort an spätere Rollen weiterzugeben.
 
-Brainstorming ist absichtlich das aufwendigste Preset: Alle vier Web-Sitzungen müssen angemeldet sein, und der Lauf kann etwa 45–90 Minuten dauern. Die aktuelle Claude-Webseite verlangt eine Kontoanmeldung; die App erkennt und begleitet den offiziellen Ablauf, umgeht aber weder Anmeldung noch Sicherheitsprüfung des Anbieters.
+Brainstorming ist absichtlich das aufwendigste Preset: Die drei standardmäßigen Web-Sitzungen müssen angemeldet sein, und der Lauf kann etwa 45–90 Minuten dauern. Grok kann manuell zugewiesen werden, wenn die eingebettete Anmeldung funktioniert. Die aktuelle Claude-Webseite verlangt eine Kontoanmeldung; die App erkennt und begleitet den offiziellen Ablauf, umgeht aber weder Anmeldung noch Sicherheitsprüfung des Anbieters.
 
 Nach einem Workflow kann die Unterhaltung unten rechts fortgesetzt werden. **Neuer Chat** beginnt mit sauberem Kontext.
 
