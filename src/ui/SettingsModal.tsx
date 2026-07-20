@@ -7,6 +7,13 @@ import { useI18n } from '../i18n/context';
 import { formatI18n } from '../i18n/t';
 import type { PresentationByProvider } from './presentation';
 import { type AppSettings, DEFAULT_FONT_SIZE, MIN_FONT_SIZE, normalizeSettings } from './settingsModel';
+import {
+  MODE_ROLE_FIELDS,
+  MODE_ROLE_LABEL_KEYS,
+  MODE_ROLE_MODE_LABEL_KEYS,
+  assignModeRole,
+  type ModeRoleAssignments,
+} from './modeRoleAssignment';
 import { compareVersions, fetchLatestRelease } from './updateCheck';
 import { host } from '../host';
 import {
@@ -49,6 +56,7 @@ export function SettingsModal({
   focusPaneWidth,
   presentation,
   providerStates,
+  activeModeRoleSettings,
   onClose,
   onSaved,
 }: {
@@ -57,12 +65,18 @@ export function SettingsModal({
   focusPaneWidth: number;
   presentation: PresentationByProvider;
   providerStates: Record<AIProvider, ProviderState>;
+  activeModeRoleSettings?: keyof ModeRoleAssignments;
   onClose: () => void;
   onSaved: (settings: AppSettings) => void;
 }) {
   const { t, setLanguage } = useI18n();
+  const roleModes = Object.keys(MODE_ROLE_FIELDS) as (keyof ModeRoleAssignments)[];
+  const orderedRoleModes = activeModeRoleSettings
+    ? [activeModeRoleSettings, ...roleModes.filter((roleMode) => roleMode !== activeModeRoleSettings)]
+    : roleModes;
   const [draft, setDraft] = useState<AppSettings | undefined>();
   const [fontSizeText, setFontSizeText] = useState<string | undefined>();
+  const [expandedRoleModes, setExpandedRoleModes] = useState<(keyof ModeRoleAssignments)[]>([]);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<SettingsError | undefined>();
@@ -77,6 +91,11 @@ export function SettingsModal({
   const fontSizeUpdateSeqRef = useRef(0);
   const liveRef = useRef({ openProviders, focusPaneWidth, presentation });
   liveRef.current = { openProviders, focusPaneWidth, presentation };
+
+  useEffect(() => {
+    if (!open) return;
+    setExpandedRoleModes(activeModeRoleSettings ? [activeModeRoleSettings] : []);
+  }, [activeModeRoleSettings, open]);
 
   useEffect(() => {
     const modalSession = ++modalSessionRef.current;
@@ -364,6 +383,50 @@ export function SettingsModal({
                   className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
                 />
               </label>
+            </section>
+
+            <section className="space-y-3 border-t border-zinc-200 dark:border-zinc-800 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('settings.modeRoles')}</h3>
+              <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">{t('settings.modeRolesDescription')}</p>
+              {orderedRoleModes.map((roleMode) => (
+                <details
+                  key={roleMode}
+                  open={expandedRoleModes.includes(roleMode)}
+                  onToggle={(event) => {
+                    const expanded = event.currentTarget.open;
+                    setExpandedRoleModes((current) =>
+                      expanded
+                        ? current.includes(roleMode) ? current : [...current, roleMode]
+                        : current.filter((currentMode) => currentMode !== roleMode),
+                    );
+                  }}
+                  className="rounded border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    {t(MODE_ROLE_MODE_LABEL_KEYS[roleMode])}
+                  </summary>
+                  <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800">
+                    {MODE_ROLE_FIELDS[roleMode].map((role) => (
+                      <label key={role} className="block text-xs text-zinc-600 dark:text-zinc-400">
+                        <span className="mb-1 block">{t(MODE_ROLE_LABEL_KEYS[roleMode][role])}</span>
+                        <select
+                          value={(draft.modeRoles[roleMode] as unknown as Record<string, AIProvider>)[role]}
+                          onChange={(event) =>
+                            updateDraft({
+                              modeRoles: assignModeRole(draft.modeRoles, roleMode, role, event.target.value as AIProvider),
+                            })
+                          }
+                          className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
+                        >
+                          {PROVIDERS.map((provider) => (
+                            <option key={provider} value={provider}>{AI_PROVIDERS[provider].name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              ))}
             </section>
 
             <section className="space-y-3 border-t border-zinc-200 dark:border-zinc-800 pt-4">

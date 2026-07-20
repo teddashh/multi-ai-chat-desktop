@@ -385,10 +385,12 @@ export default function App() {
   }, [centerSurface, modalHiddenProviders, presentation, states]);
   const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
   const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
-  const requiredModeProviders = useMemo(
-    () => presetForId(presetId).requiredProviders,
-    [presetId],
-  );
+  const requiredModeProviders = useMemo(() => {
+    const roles = defaultRolesForPreset(mode, presetId, appSettings.modeRoles);
+    return roles
+      ? ([...new Set(Object.values(roles))] as AIProvider[])
+      : presetForId(presetId).requiredProviders;
+  }, [mode, presetId, appSettings.modeRoles]);
   const readyModeProviders = useMemo(
     () => requiredModeProviders.filter((provider) => isSendable(states[provider])),
     [requiredModeProviders, states],
@@ -1390,7 +1392,7 @@ export default function App() {
       : undefined;
     if (workflowTargets?.length === 0) return;
     if (mode === 'free') {
-      const brainstormRoles = brainstorm ? defaultRolesForPreset(mode, presetId) : undefined;
+      const brainstormRoles = brainstorm ? defaultRolesForPreset(mode, presetId, settingsRef.current.modeRoles) : undefined;
       autoFocusRunCandidate(brainstormRoles ? Object.values(brainstormRoles)[0] : workflowTargets?.[0]);
     }
     const replayContext =
@@ -1403,7 +1405,7 @@ export default function App() {
     setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current, presetId));
     const workflowStartedAt = Date.now();
     const snapshotSettings = settingsRef.current;
-    const workflowRoles = defaultRolesForPreset(mode, presetId);
+    const workflowRoles = defaultRolesForPreset(mode, presetId, snapshotSettings.modeRoles);
     recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
     const result = await runWorkflow({
       text: trimmed,
@@ -1438,10 +1440,11 @@ export default function App() {
     if (!trimmed) return false;
     const brainstorm = presetId === 'brainstorm';
     const serialMode = isSerialMode(mode) ? mode as Exclude<ChatMode, 'free'> : undefined;
+    const modeRoles = settingsRef.current.modeRoles;
     const workflowRoles = brainstorm
-      ? defaultRolesForPreset(mode, presetId)
+      ? defaultRolesForPreset(mode, presetId, modeRoles)
       : serialMode
-        ? defaultRolesForPreset(serialMode)
+        ? defaultRolesForPreset(serialMode, undefined, modeRoles)
         : undefined;
     const participants = workflowRoles
       ? [...new Set(Object.values(workflowRoles))]
@@ -1845,6 +1848,7 @@ export default function App() {
                 onSelectPreset={selectPreset}
                 locale={locale}
                 states={states}
+                modeRoles={appSettings.modeRoles}
                 disabled={isProcessing}
                 detailsPresetId={presetDetailsId}
                 layout="sidebar"
@@ -2045,6 +2049,7 @@ export default function App() {
         focusPaneWidth={focusPaneWidth}
         presentation={presentation}
         providerStates={states}
+        activeModeRoleSettings={presetId === 'brainstorm' ? 'roundtable' : mode === 'free' ? undefined : mode}
         onClose={() => setSettingsOpen(false)}
         onSaved={applySavedSettings}
       />

@@ -8,6 +8,7 @@ import {
   type SlotAssignment,
   normalizeSlotAssignment,
 } from './slotAssignment';
+import { type ModeRoleAssignments, normalizeModeRoleAssignments } from './modeRoleAssignment';
 import { isSnapshotRedactionTier, type SnapshotRedactionTier } from '../workflow/snapshot/types';
 import { defaultPresentation, normalizePresentation, type PresentationByProvider } from './presentation';
 import {
@@ -26,6 +27,7 @@ export interface AppSettings {
   focusPaneWidth: number;
   columnWidths: ColumnWidths;
   slotAssignment: SlotAssignment;
+  modeRoles: ModeRoleAssignments;
   openProviders: AIProvider[];
   adapterBaseUrl: string;
   updaterChannel: string;
@@ -48,6 +50,7 @@ export function defaultSettings(): AppSettings {
     focusPaneWidth: DEFAULT_FOCUS_PANE_WIDTH,
     columnWidths: { ...DEFAULT_COLUMN_WIDTHS },
     slotAssignment: { ...DEFAULT_SLOT_ASSIGNMENT },
+    modeRoles: normalizeModeRoleAssignments(undefined),
     openProviders: [],
     adapterBaseUrl: '',
     updaterChannel: 'stable',
@@ -122,6 +125,7 @@ export function normalizeSettings(value: unknown): AppSettings {
     focusPaneWidth: focusPaneWidth(input.focusPaneWidth, input.columnWidths, defaults.focusPaneWidth),
     columnWidths: normalizedColumnWidths,
     slotAssignment: normalizeSlotAssignment(input.slotAssignment, defaults.slotAssignment),
+    modeRoles: normalizeModeRoleAssignments(input.modeRoles, defaults.modeRoles),
     openProviders: Array.from(new Set(providerList(input.openProviders))),
     adapterBaseUrl: stringValue(input.adapterBaseUrl, defaults.adapterBaseUrl),
     updaterChannel: stringValue(input.updaterChannel, defaults.updaterChannel),

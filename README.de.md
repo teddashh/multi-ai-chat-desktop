@@ -31,6 +31,7 @@ Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Pla
 - Zuverlässige Automatisierung im Hintergrund; abgelehnte Sendungen werden erneut versucht oder klar als Fehler gemeldet.
 - Workflow-Steuerung links über dem weniger wichtigen WebView; mehr Platz für Transkript und Eingabe rechts.
 - Sechs geführte Presets in fünf stabilen Modi: freie Verteilung, Debatte, Beratung, Coding, fünf Runden Wahrheitssuche sowie Brainstorming mit 12 Runden × 4 KIs und 48 Beiträgen.
+- Die Rollen strukturierter Workflows lassen sich in den Einstellungen den gewünschten Anbietern zuordnen. Serielle Rollen dürfen denselben Anbieter wiederverwenden; parallele Rollen müssen getrennt bleiben.
 - Bis zu 30 lokale Sitzungen plus **Neuer Chat**; wiederhergestellte Nachfragen erhalten begrenzten Kontext nur aus derselben Sitzung.
 - Sicher gerendertes Markdown mit Überschriften, verschachtelten Listen, Links, Codeblöcken und scrollbaren Tabellen; außerdem Abschluss reiner Bildantworten, Snapshots, Replay und 2.000 Diagnoseereignisse.
 - English, 繁體中文, 日本語 und Deutsch.
@@ -49,6 +50,8 @@ Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Pla
 | **Coding** | Spezifikation → Reviews → v1 → Tests → v2 → Abnahme → Final | Strukturierte Softwareplanung |
 | **Rundtisch** | 5 Runden × 4 KIs = 20 Beiträge | Schwierige Fragen kontrovers konvergieren lassen |
 | **Brainstorming** | 12 Runden × 4 KIs = 48 Beiträge; wechselnde Reihenfolge über Problemrahmen → Divergenz → gegenseitige Anregung → Auswahl → Konzepttests | Ideenentwicklung mit vollständigem Verlauf, ausgewogenes Portfolio und erste Experimente |
+
+Lehnt eine Anbieter-Seite eine direkt aufeinanderfolgende Sendung nach dem vorherigen Abschluss ab, versucht der strukturierte Workflow sie einmal erneut. Bleibt der Fehler bestehen oder tritt ein anderer Engine-Fehler auf, endet der Workflow, statt den Fehlertext als Antwort an spätere Rollen weiterzugeben.
 
 Brainstorming ist absichtlich das aufwendigste Preset: Alle vier Web-Sitzungen müssen angemeldet sein, und der Lauf kann etwa 45–90 Minuten dauern. Die aktuelle Claude-Webseite verlangt eine Kontoanmeldung; die App erkennt und begleitet den offiziellen Ablauf, umgeht aber weder Anmeldung noch Sicherheitsprüfung des Anbieters.
 

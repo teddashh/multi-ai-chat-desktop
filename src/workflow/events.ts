@@ -1,7 +1,7 @@
 import type { AIProvider, BridgeMessage } from '../../shared/types';
 import { publishBridgeMessage } from '../bridge/bus';
 
-// Provider failures are "[Error: <reason>]" and continue through downstream prompts.
+// Provider failures are "[Error: <reason>]" and terminate structured workflows.
 // User skip is "(no response — skipped)" and also flows downstream.
 // Top-level workflow failure is "Error: <msg>" from provider "system" and is terminal.
 
