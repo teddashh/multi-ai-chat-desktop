@@ -275,7 +275,7 @@ describe('workflow engine', () => {
     expect(statuses).toEqual(['']);
   });
 
-  it('routes Brainstorm through twelve rounds of four providers and records graph v2', async () => {
+  it('routes Brainstorm through twelve rounds of four rotating seats and records graph v2', async () => {
     const order: AIProvider[] = [];
     const prompts: string[] = [];
     const statuses: string[] = [];

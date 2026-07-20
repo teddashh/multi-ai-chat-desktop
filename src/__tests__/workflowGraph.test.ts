@@ -3,6 +3,8 @@ import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/type
 import {
   AI_PROVIDERS,
   BRAINSTORM_ROUND_COUNT,
+  DEFAULT_CODING_ROLES,
+  DEFAULT_CONSULT_ROLES,
   DEFAULT_DEBATE_ROLES,
   DEFAULT_ROUNDTABLE_ROLES,
   PROMPTS,
@@ -11,7 +13,19 @@ import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../brid
 import { resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
-import { brainstormGraph, debateGraph, executeGraph, freeGraph, preflightGraph, validateGraph, type StepNode, type WorkflowGraph } from '../workflow/graph';
+import {
+  brainstormGraph,
+  codingGraph,
+  consultGraph,
+  debateGraph,
+  executeGraph,
+  freeGraph,
+  preflightGraph,
+  roundtableGraph,
+  validateGraph,
+  type StepNode,
+  type WorkflowGraph,
+} from '../workflow/graph';
 import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { resetWorkflowStateForTests } from '../workflow/state';
 import { resetStepTimeoutForTests } from '../workflow/stepTimeout';
@@ -178,6 +192,16 @@ describe('workflow graph foundation', () => {
     );
   });
 
+  it('assigns a distinct lens to every Brainstorm seat when one provider repeats', () => {
+    const lenses = Array.from({ length: 4 }, (_, index) => {
+      const prompt = PROMPTS.brainstorm.buildPrompt('question', 1, index + 1, 'claude', []);
+      return prompt.match(/Your assigned lens is: ([^\n]+)\./)?.[1];
+    });
+
+    expect(lenses.every(Boolean)).toBe(true);
+    expect(new Set(lenses).size).toBe(4);
+  });
+
   it('blocks Brainstorm when a seated provider is unavailable', async () => {
     vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
 
@@ -188,12 +212,16 @@ describe('workflow graph foundation', () => {
     });
   });
 
-  it('starts Brainstorm with repeated seats while Grok is unavailable', async () => {
-    // Grok has no default seat, so its blocked login must not gate the four seats,
-    // and the seat sharing that leaves behind must not count as aliasing.
+  it.each([
+    ['Debate', debateGraph, DEFAULT_DEBATE_ROLES],
+    ['Consult', consultGraph, DEFAULT_CONSULT_ROLES],
+    ['Coding', codingGraph, DEFAULT_CODING_ROLES],
+    ['Roundtable', roundtableGraph, DEFAULT_ROUNDTABLE_ROLES],
+    ['Brainstorm', brainstormGraph, DEFAULT_ROUNDTABLE_ROLES],
+  ] as const)('starts default %s while Grok is unavailable', async (_name, graph, roles) => {
     vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
 
-    await expect(preflightGraph(brainstormGraph, DEFAULT_ROUNDTABLE_ROLES)).resolves.toMatchObject({
+    await expect(preflightGraph(graph, roles)).resolves.toMatchObject({
       ok: true,
       unavailable: [],
       aliased: [],
