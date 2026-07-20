@@ -138,11 +138,12 @@ describe('workflow execution snapshots', () => {
     expect(snapshot?.completedAt).toEqual(expect.any(String));
     expect(snapshot?.humanEdits).toEqual([]);
     expect(snapshot?.steps).toHaveLength(4);
+    const { pro, con, judge } = DEFAULT_DEBATE_ROLES;
     expect(sentPrompts).toEqual([
       PROMPTS.debate.pro('debate question'),
-      PROMPTS.debate.con('debate question', 'chatgpt-answer'),
-      PROMPTS.debate.judge('debate question', 'chatgpt-answer', 'claude-answer'),
-      PROMPTS.debate.summary('debate question', 'chatgpt-answer', 'claude-answer', 'grok-answer'),
+      PROMPTS.debate.con('debate question', `${pro}-answer`),
+      PROMPTS.debate.judge('debate question', `${pro}-answer`, `${con}-answer`),
+      PROMPTS.debate.summary('debate question', `${pro}-answer`, `${con}-answer`, `${judge}-answer`),
     ]);
     expect(
       snapshot?.steps.map((step) => ({
@@ -155,30 +156,30 @@ describe('workflow execution snapshots', () => {
     ).toEqual([
       {
         nodeId: 'pro',
-        provider: 'chatgpt',
+        provider: pro,
         input: PROMPTS.debate.pro('debate question'),
-        output: 'chatgpt-answer',
+        output: `${pro}-answer`,
         status: 'done',
       },
       {
         nodeId: 'con',
-        provider: 'claude',
-        input: PROMPTS.debate.con('debate question', 'chatgpt-answer'),
-        output: 'claude-answer',
+        provider: con,
+        input: PROMPTS.debate.con('debate question', `${pro}-answer`),
+        output: `${con}-answer`,
         status: 'done',
       },
       {
         nodeId: 'judge',
-        provider: 'grok',
-        input: PROMPTS.debate.judge('debate question', 'chatgpt-answer', 'claude-answer'),
-        output: 'grok-answer',
+        provider: judge,
+        input: PROMPTS.debate.judge('debate question', `${pro}-answer`, `${con}-answer`),
+        output: `${judge}-answer`,
         status: 'done',
       },
       {
         nodeId: 'summary',
-        provider: 'gemini',
-        input: PROMPTS.debate.summary('debate question', 'chatgpt-answer', 'claude-answer', 'grok-answer'),
-        output: 'gemini-answer',
+        provider: DEFAULT_DEBATE_ROLES.summary,
+        input: PROMPTS.debate.summary('debate question', `${pro}-answer`, `${con}-answer`, `${judge}-answer`),
+        output: `${DEFAULT_DEBATE_ROLES.summary}-answer`,
         status: 'done',
       },
     ]);

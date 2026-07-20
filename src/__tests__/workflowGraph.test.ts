@@ -3,6 +3,8 @@ import type { AIProvider, BridgeMessage, ProviderState } from '../../shared/type
 import {
   AI_PROVIDERS,
   BRAINSTORM_ROUND_COUNT,
+  DEFAULT_CODING_ROLES,
+  DEFAULT_CONSULT_ROLES,
   DEFAULT_DEBATE_ROLES,
   DEFAULT_ROUNDTABLE_ROLES,
   PROMPTS,
@@ -11,7 +13,19 @@ import { onBridgeMessage, publishBridgeMessage, resetBusForTests } from '../brid
 import { resetBridgePullForTests } from '../bridge/pull';
 import { host } from '../host';
 import { resetCancelState } from '../workflow/cancel';
-import { brainstormGraph, debateGraph, executeGraph, freeGraph, preflightGraph, validateGraph, type StepNode, type WorkflowGraph } from '../workflow/graph';
+import {
+  brainstormGraph,
+  codingGraph,
+  consultGraph,
+  debateGraph,
+  executeGraph,
+  freeGraph,
+  preflightGraph,
+  roundtableGraph,
+  validateGraph,
+  type StepNode,
+  type WorkflowGraph,
+} from '../workflow/graph';
 import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { resetWorkflowStateForTests } from '../workflow/state';
 import { resetStepTimeoutForTests } from '../workflow/stepTimeout';
@@ -110,19 +124,20 @@ describe('workflow graph foundation', () => {
     await expect(executeGraph(debateGraph, { text: 'debate question', roles: DEFAULT_DEBATE_ROLES })).resolves.toBeUndefined();
 
     unsubscribe();
+    const { pro, con, judge, summary } = DEFAULT_DEBATE_ROLES;
     expect(order).toEqual([
-      'role:chatgpt',
-      'send:chatgpt',
-      'role:claude',
-      'send:claude',
-      'role:grok',
-      'send:grok',
-      'role:gemini',
-      'send:gemini',
+      `role:${pro}`,
+      `send:${pro}`,
+      `role:${con}`,
+      `send:${con}`,
+      `role:${judge}`,
+      `send:${judge}`,
+      `role:${summary}`,
+      `send:${summary}`,
     ]);
-    expect(prompts[1]).toBe(PROMPTS.debate.con('debate question', 'chatgpt-answer'));
-    expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', 'chatgpt-answer', 'claude-answer'));
-    expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', 'chatgpt-answer', 'claude-answer', 'grok-answer'));
+    expect(prompts[1]).toBe(PROMPTS.debate.con('debate question', `${pro}-answer`));
+    expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', `${pro}-answer`, `${con}-answer`));
+    expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', `${pro}-answer`, `${con}-answer`, `${judge}-answer`));
     expect(statuses[statuses.length - 1]).toBe('');
   });
 
@@ -151,7 +166,8 @@ describe('workflow graph foundation', () => {
     ).resolves.toBeUndefined();
     unsubscribe();
 
-    const baseOrder = ['claude', 'gemini', 'grok', 'chatgpt'] satisfies AIProvider[];
+    const { first, second, third, fourth } = DEFAULT_ROUNDTABLE_ROLES;
+    const baseOrder = [first, second, third, fourth] satisfies AIProvider[];
     const expectedOrder = Array.from({ length: BRAINSTORM_ROUND_COUNT }, (_, roundIndex) =>
       Array.from({ length: baseOrder.length }, (_, speakerIndex) => baseOrder[(roundIndex + speakerIndex) % baseOrder.length]),
     ).flat();
@@ -176,12 +192,38 @@ describe('workflow graph foundation', () => {
     );
   });
 
-  it('requires all four distinct Brainstorm collaborators before starting', async () => {
-    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
+  it('assigns a distinct lens to every Brainstorm seat when one provider repeats', () => {
+    const lenses = Array.from({ length: 4 }, (_, index) => {
+      const prompt = PROMPTS.brainstorm.buildPrompt('question', 1, index + 1, 'claude', []);
+      return prompt.match(/Your assigned lens is: ([^\n]+)\./)?.[1];
+    });
+
+    expect(lenses.every(Boolean)).toBe(true);
+    expect(new Set(lenses).size).toBe(4);
+  });
+
+  it('blocks Brainstorm when a seated provider is unavailable', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
 
     await expect(preflightGraph(brainstormGraph, DEFAULT_ROUNDTABLE_ROLES)).resolves.toMatchObject({
       ok: false,
-      unavailable: ['grok'],
+      unavailable: ['claude'],
+      aliased: [],
+    });
+  });
+
+  it.each([
+    ['Debate', debateGraph, DEFAULT_DEBATE_ROLES],
+    ['Consult', consultGraph, DEFAULT_CONSULT_ROLES],
+    ['Coding', codingGraph, DEFAULT_CODING_ROLES],
+    ['Roundtable', roundtableGraph, DEFAULT_ROUNDTABLE_ROLES],
+    ['Brainstorm', brainstormGraph, DEFAULT_ROUNDTABLE_ROLES],
+  ] as const)('starts default %s while Grok is unavailable', async (_name, graph, roles) => {
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
+
+    await expect(preflightGraph(graph, roles)).resolves.toMatchObject({
+      ok: true,
+      unavailable: [],
       aliased: [],
     });
   });

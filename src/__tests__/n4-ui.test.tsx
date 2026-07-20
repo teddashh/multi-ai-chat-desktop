@@ -173,7 +173,10 @@ describe('N4 preset catalog', () => {
     );
 
     expect(html).toContain('2 connected');
-    expect(html).toContain('2/4 ready');
+    // The denominator counts distinct providers, not roles: roles may share a
+    // provider, so a four-role preset can require fewer than four connections.
+    const distinctDebateProviders = new Set(Object.values(DEFAULT_DEBATE_ROLES)).size;
+    expect(html).toContain(`2/${distinctDebateProviders} ready`);
   });
 });
 

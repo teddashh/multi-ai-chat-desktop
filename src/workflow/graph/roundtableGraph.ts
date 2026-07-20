@@ -81,8 +81,8 @@ export const roundtableGraph: WorkflowGraph = {
   },
   preflight: {
     kind: 'serial',
+    // Seats may share a provider: only three providers have working default logins.
     requiredRoles: ['first', 'second', 'third', 'fourth'],
-    aliasRules: [{ roles: ['first', 'second', 'third', 'fourth'], unique: true, reason: 'seat' }],
   },
   nodes: makeRoundtableNodes(),
   edges: makeRoundtableEdges(roundtableOrder),

@@ -42,10 +42,6 @@ function parallelAliases(mode: Exclude<ChatMode, 'free'>, roles: ModeRoles): AIP
     const r = roles as typeof DEFAULT_CONSULT_ROLES;
     return r.first === r.second ? [r.first] : [];
   }
-  if (mode === 'roundtable') {
-    const r = roles as typeof DEFAULT_ROUNDTABLE_ROLES;
-    const seats = [r.first, r.second, r.third, r.fourth];
-    return seats.filter((provider, index) => seats.indexOf(provider) !== index);
-  }
+  // Roundtable seats may repeat a provider; only consult's parallel pair must differ.
   return [];
 }
