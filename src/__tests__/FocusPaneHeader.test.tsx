@@ -110,7 +110,9 @@ describe('FocusPane provider header', () => {
       stateOverrides: { grok: { login: 'blocked' } },
     });
 
-    expect(html).toContain('Embedded login is blocked. Continue in your browser, or retry this page later.');
+    expect(html).toContain(
+      'Security checks on this site prevent sign-in within the app. Use this AI in your browser, or retry this page later.',
+    );
     expect(html).toContain('Open in browser');
   });
 

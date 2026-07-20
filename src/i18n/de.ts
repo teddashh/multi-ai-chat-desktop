@@ -117,7 +117,7 @@ export const de: Record<I18nKey, string> = {
   'provider.report': 'Melden',
   'provider.adapterBroken': 'Adapter defekt',
   'provider.bridgeDegradedReload': 'Bridge beeinträchtigt. Neu laden empfohlen.',
-  'provider.embeddedLoginBlocked': 'Die eingebettete Anmeldung ist blockiert. Im Browser fortfahren oder diese Seite später erneut versuchen.',
+  'provider.embeddedLoginBlocked': 'Die Sicherheitsprüfung der Website blockiert die Anmeldung in der App. Diese KI im Browser nutzen oder diese Seite später erneut versuchen.',
   'provider.openInBrowser': 'Im Browser öffnen',
   'provider.nativeWebviewHidden': 'Natives Webview ausgeblendet; die Hintergrundaktivität läuft weiter.',
   'provider.nativeWebviewMounted': 'Natives Webview wird hier angezeigt',
