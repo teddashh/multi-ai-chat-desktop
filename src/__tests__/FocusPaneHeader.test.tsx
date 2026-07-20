@@ -111,7 +111,7 @@ describe('FocusPane provider header', () => {
     });
 
     expect(html).toContain(
-      'Security checks on this site block signing in inside the app. Use this AI in your browser, or retry this page later.',
+      'Security checks on this site prevent sign-in within the app. Use this AI in your browser, or retry this page later.',
     );
     expect(html).toContain('Open in browser');
   });

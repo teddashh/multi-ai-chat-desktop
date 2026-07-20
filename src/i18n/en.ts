@@ -115,7 +115,7 @@ export const en: Record<I18nKey, string> = {
   'provider.report': 'Report',
   'provider.adapterBroken': 'Adapter broken',
   'provider.bridgeDegradedReload': 'Bridge degraded. Reload suggested.',
-  'provider.embeddedLoginBlocked': 'Security checks on this site block signing in inside the app. Use this AI in your browser, or retry this page later.',
+  'provider.embeddedLoginBlocked': 'Security checks on this site prevent sign-in within the app. Use this AI in your browser, or retry this page later.',
   'provider.openInBrowser': 'Open in browser',
   'provider.nativeWebviewHidden': 'Native webview hidden; background activity continues.',
   'provider.nativeWebviewMounted': 'Native webview mounted here',
