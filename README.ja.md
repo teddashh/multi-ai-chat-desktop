@@ -8,16 +8,17 @@
 
 > 本アプリは各プロバイダーのWebページを自動操作します。ページ構造の変更で adapter が一時的に動かなくなる場合があります。各サービスの利用規約と、利用権限のあるアカウント・コンテンツを使用してください。
 
-> **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと12ラウンドのブレインストーミングpresetを追加しました。各ラウンドで4つのproviderが1回ずつ回答し、合計48発言になります。発言順をラウンドごとに交代し、同一sessionの全履歴を引き継ぎます。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
+> **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと12ラウンドのブレインストーミングpresetを追加しました。ブレインストーミングは4つの交代制の席、合計48発言、同一sessionの全履歴を維持します。安全な標準設定ではChatGPT、Claude、Geminiを使用し、Grokは埋め込みloginが利用できる場合に手動で割り当てられます。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
 
-## v1.6.4 の更新点
+## v1.7.0 の更新点
 
-- **正確なprovider status。** ChatGPTとGrokでは、logout後にcomposerが残っていても接続済みと誤表示しません。Grokは英語・中国語・日本語・ドイツ語の代表的なlogin表示を認識します。
-- **受動的なsecurity challenge処理。** GeminiはGoogleの厳密に限定された`/sorry`検証ページを表示できます。GeminiとGrokのchallengeページにはautomationを注入せず、blocked状態を明確に表示します。
-- **実ページを広く表示。** Expand／Restoreで、選択中providerのWebViewを一時的にpane全体へ拡大できます。checkpointやtimeout判断が必要な場合はcontrolを自動的に戻します。
-- **互換性を保つadapter進化。** 型付きschema v2 detectorでtext matchingを追加しながらschema v1を維持し、不正なdetectorやURL scope拡張はfail closedになります。
+- **コラボレーション役割を設定可能。** Debate、Consult、Coding、Roundtable、Brainstormの各役割を任意のproviderへ割り当てられます。並列役割の危険な重複は引き続き拒否します。
+- **連続送信を安定化。** Session reset後はproviderが送信可能になるまで待機し、直前の回答後に拒否された送信は上限付きで1回再試行します。
+- **構造化workflowをfail closed化。** Provider engine errorはworkflowを停止し、未完了の並列処理を終了します。エラー文字列を後続promptへ回答として渡しません。
+- **Grokに阻害されない標準設定。** 4役割／4席のworkflowは標準で3つの利用可能なloginだけを必要とします。Grokは手動選択でき、同じproviderが2席を担当してもBrainstormの4種類の視点は維持されます。
+- **正確なlogin案内。** 外部browserを開いてもapp内の分離WebView sessionはloginされないことを明記しました。
 
-検証内容、貢献者、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.6.4 release notes`](./docs/RELEASE_NOTES_v1.6.4.md) を参照してください。
+検証内容、貢献者、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.7.0 release notes`](./docs/RELEASE_NOTES_v1.7.0.md) を参照してください。
 
 ## エディション
 
@@ -30,7 +31,7 @@
 
 - 非表示のプロバイダーにも安定して送信し、失敗時は再試行または明確なエラーを表示。
 - workflow コントロールを左側 WebView の上へ移動し、右側の会話と入力欄を広く確保。
-- 6つのguided presetと5つの安定したmode：自由送信、四者討論、多角相談、Coding、5ラウンド円卓討論、12ラウンド × 4 AIで合計48発言の多視点ブレインストーミング。
+- 6つのguided presetと5つの安定したmode：自由送信、四者討論、多角相談、Coding、5ラウンド円卓討論、12ラウンド × 4席で合計48発言の多視点ブレインストーミング。
 - 設定画面で構造化workflowの各役割を任意のproviderへ割り当て可能。直列の役割は同じproviderを再利用でき、並列の役割は別々に保つ必要があります。
 - 最大30件のローカル会話履歴と「新しい会話」。復元後の追質問には同一sessionだけの制限付きcontextを渡します。
 - 見出し、ネストしたlist、link、fenced code、scroll可能なtableを安全に表示するMarkdown、画像のみの回答完了判定、snapshot／replay、2,000件の診断ログ。
@@ -48,12 +49,12 @@
 | **四者討論** | 賛成 → 反対 → 判定 → 統合 | 主張や判断の検証 |
 | **多角相談** | 独立回答2件 → レビュー → 最終回答 | 調査、セカンドオピニオン |
 | **Coding** | 仕様 → Review → v1 → Test → v2 → 受入 → 最終版 | ソフトウェア設計とレビュー |
-| **円卓討論** | 5ラウンド × 4 AI = 20発言 | 難題を対立させながら収束 |
-| **ブレインストーミング** | 12ラウンド × 4 AI = 48発言。順番を交代し、課題設定 → 発散 → 相互発展 → 分類・選択 → コンセプト検証 | 全履歴を使ったアイデア深化、バランスの取れた候補群、最初の実験 |
+| **円卓討論** | 5ラウンド × 4席 = 20発言。標準は3 provider | 難題を対立させながら収束 |
+| **ブレインストーミング** | 12ラウンド × 4つの交代制の席 = 48発言。課題設定 → 発散 → 相互発展 → 分類・選択 → コンセプト検証 | 全履歴を使ったアイデア深化、バランスの取れた候補群、最初の実験 |
 
 構造化workflowで、直前の回答後にproviderページが連続送信を拒否した場合は1回だけ自動再試行します。それでも失敗する場合や別のengine errorが発生した場合は、エラー文字列を後続の役割へ回答として渡さず、その場でworkflowを停止します。
 
-ブレインストーミングは意図的に最も重いpresetです。4つのWeb sessionへ先にログインし、約45～90分を見込んでください。現在のClaude consumer siteはアカウントログインが必須です。本appは公式ログインを検出・案内しますが、providerのログインやsecurity checkを回避しません。
+ブレインストーミングは意図的に最も重いpresetです。標準の3つのWeb sessionへ先にログインし、約45～90分を見込んでください。Grokは埋め込みloginが利用できる場合に手動で割り当てられます。現在のClaude consumer siteはアカウントログインが必須です。本appは公式ログインを検出・案内しますが、providerのログインやsecurity checkを回避しません。
 
 workflow 完了後も右下の入力欄から会話を続けられます。文脈をリセットする場合は「新しい会話」を選びます。
 

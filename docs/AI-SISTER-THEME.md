@@ -12,7 +12,7 @@ The supplied ensemble image is intentionally used as a compact hero and brand ma
 
 ## Companion Brainstorm preset
 
-The final **Brainstorm** preset is available in every visual theme, including Light and AI-Sister. It is intentionally separate from the commemorative artwork: all four providers contribute in every one of 12 rounds, for 48 contributions total. The starting and closing seats rotate by round while the workflow moves through framing, divergence, cross-pollination, harvesting, intentional selection, and testable concepts. Every contribution receives the prior same-session record, and the last speaker produces a decision-ready synthesis. Sessions and snapshots retain the `brainstorm` preset identity so the run can be restored or replayed without adding a sixth top-level chat mode.
+The final **Brainstorm** preset is available in every visual theme, including Light and AI-Sister. It is intentionally separate from the commemorative artwork: four seats contribute in every one of 12 rounds, for 48 contributions total. The safe default assignment uses ChatGPT, Claude, and Gemini across those seats so a blocked Grok login cannot prevent the run; users can still assign Grok manually. Each seat receives a distinct lens, the starting and closing seats rotate by round, and the workflow moves through framing, divergence, cross-pollination, harvesting, intentional selection, and testable concepts. Every contribution receives the prior same-session record, and the last speaker produces a decision-ready synthesis. Sessions and snapshots retain the `brainstorm` preset identity so the run can be restored or replayed without adding a sixth top-level chat mode.
 
 ## Character mapping
 
