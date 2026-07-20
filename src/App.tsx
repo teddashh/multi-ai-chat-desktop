@@ -2038,6 +2038,7 @@ export default function App() {
         focusPaneWidth={focusPaneWidth}
         presentation={presentation}
         providerStates={states}
+        activeModeRoleSettings={presetId === 'brainstorm' ? 'roundtable' : mode === 'free' ? undefined : mode}
         onClose={() => setSettingsOpen(false)}
         onSaved={applySavedSettings}
       />
