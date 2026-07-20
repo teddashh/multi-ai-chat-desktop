@@ -82,16 +82,18 @@ export const CHAT_MODES: Record<ChatMode, {
 
 // === Default Role Assignments ===
 
+// Grok is not assigned a default role: its embedded login is blocked, so a default
+// seat would fail preflight on every run. It stays selectable manually.
 export const DEFAULT_DEBATE_ROLES: DebateRoles = {
   pro: 'chatgpt',
   con: 'claude',
-  judge: 'grok',
+  judge: 'gemini',
   summary: 'gemini',
 };
 
 export const DEFAULT_CONSULT_ROLES: ConsultRoles = {
   first: 'chatgpt',
-  second: 'grok',
+  second: 'gemini',
   reviewer: 'claude',
   summary: 'gemini',
 };
@@ -100,14 +102,14 @@ export const DEFAULT_CODING_ROLES: CodingRoles = {
   planner: 'gemini',
   reviewer: 'chatgpt',
   coder: 'claude',
-  tester: 'grok',
+  tester: 'chatgpt',
 };
 
 export const DEFAULT_ROUNDTABLE_ROLES: RoundtableRoles = {
   first: 'claude',
   second: 'gemini',
-  third: 'grok',
-  fourth: 'chatgpt',
+  third: 'chatgpt',
+  fourth: 'claude',
 };
 
 const BRAINSTORM_LENSES: Record<AIProvider, string> = {

@@ -110,19 +110,20 @@ describe('workflow graph foundation', () => {
     await expect(executeGraph(debateGraph, { text: 'debate question', roles: DEFAULT_DEBATE_ROLES })).resolves.toBeUndefined();
 
     unsubscribe();
+    const { pro, con, judge, summary } = DEFAULT_DEBATE_ROLES;
     expect(order).toEqual([
-      'role:chatgpt',
-      'send:chatgpt',
-      'role:claude',
-      'send:claude',
-      'role:grok',
-      'send:grok',
-      'role:gemini',
-      'send:gemini',
+      `role:${pro}`,
+      `send:${pro}`,
+      `role:${con}`,
+      `send:${con}`,
+      `role:${judge}`,
+      `send:${judge}`,
+      `role:${summary}`,
+      `send:${summary}`,
     ]);
-    expect(prompts[1]).toBe(PROMPTS.debate.con('debate question', 'chatgpt-answer'));
-    expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', 'chatgpt-answer', 'claude-answer'));
-    expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', 'chatgpt-answer', 'claude-answer', 'grok-answer'));
+    expect(prompts[1]).toBe(PROMPTS.debate.con('debate question', `${pro}-answer`));
+    expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', `${pro}-answer`, `${con}-answer`));
+    expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', `${pro}-answer`, `${con}-answer`, `${judge}-answer`));
     expect(statuses[statuses.length - 1]).toBe('');
   });
 
@@ -151,7 +152,8 @@ describe('workflow graph foundation', () => {
     ).resolves.toBeUndefined();
     unsubscribe();
 
-    const baseOrder = ['claude', 'gemini', 'grok', 'chatgpt'] satisfies AIProvider[];
+    const { first, second, third, fourth } = DEFAULT_ROUNDTABLE_ROLES;
+    const baseOrder = [first, second, third, fourth] satisfies AIProvider[];
     const expectedOrder = Array.from({ length: BRAINSTORM_ROUND_COUNT }, (_, roundIndex) =>
       Array.from({ length: baseOrder.length }, (_, speakerIndex) => baseOrder[(roundIndex + speakerIndex) % baseOrder.length]),
     ).flat();
@@ -176,12 +178,24 @@ describe('workflow graph foundation', () => {
     );
   });
 
-  it('requires all four distinct Brainstorm collaborators before starting', async () => {
-    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
+  it('blocks Brainstorm when a seated provider is unavailable', async () => {
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
 
     await expect(preflightGraph(brainstormGraph, DEFAULT_ROUNDTABLE_ROLES)).resolves.toMatchObject({
       ok: false,
-      unavailable: ['grok'],
+      unavailable: ['claude'],
+      aliased: [],
+    });
+  });
+
+  it('starts Brainstorm with repeated seats while Grok is unavailable', async () => {
+    // Grok has no default seat, so its blocked login must not gate the four seats,
+    // and the seat sharing that leaves behind must not count as aliasing.
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
+
+    await expect(preflightGraph(brainstormGraph, DEFAULT_ROUNDTABLE_ROLES)).resolves.toMatchObject({
+      ok: true,
+      unavailable: [],
       aliased: [],
     });
   });

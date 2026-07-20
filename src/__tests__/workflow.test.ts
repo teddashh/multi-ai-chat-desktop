@@ -299,7 +299,8 @@ describe('workflow engine', () => {
     ).resolves.toEqual({ ok: true });
     unsubscribe();
 
-    const baseOrder = ['claude', 'gemini', 'grok', 'chatgpt'] satisfies AIProvider[];
+    const { first, second, third, fourth } = DEFAULT_ROUNDTABLE_ROLES;
+    const baseOrder = [first, second, third, fourth] satisfies AIProvider[];
     const expectedOrder = Array.from({ length: BRAINSTORM_ROUND_COUNT }, (_, roundIndex) =>
       Array.from({ length: baseOrder.length }, (_, speakerIndex) => baseOrder[(roundIndex + speakerIndex) % baseOrder.length]),
     ).flat();
@@ -333,7 +334,7 @@ describe('workflow engine', () => {
   });
 
   it('blocks Brainstorm before turn one when a required provider is unavailable', async () => {
-    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
+    vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
 
     await expect(
       runWorkflow({
@@ -343,7 +344,7 @@ describe('workflow engine', () => {
       }),
     ).resolves.toEqual({
       ok: false,
-      preflight: { ok: false, unavailable: ['grok'], aliased: [] },
+      preflight: { ok: false, unavailable: ['claude'], aliased: [] },
     });
     expect(host.provider.send).not.toHaveBeenCalled();
   });
@@ -650,7 +651,13 @@ describe('workflow engine', () => {
     });
     await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
     unsubscribe();
-    expect(order.slice(0, 4)).toEqual(['role:chatgpt', 'role:grok', 'send:chatgpt', 'send:grok']);
+    const { first: consultFirst, second: consultSecond } = DEFAULT_CONSULT_ROLES;
+    expect(order.slice(0, 4)).toEqual([
+      `role:${consultFirst}`,
+      `role:${consultSecond}`,
+      `send:${consultFirst}`,
+      `send:${consultSecond}`,
+    ]);
     expect(statuses).toEqual([
       `🔍 ${providerName(DEFAULT_CONSULT_ROLES.first)} and ${providerName(DEFAULT_CONSULT_ROLES.second)} answering in parallel…`,
       `🔍 ${providerName(DEFAULT_CONSULT_ROLES.reviewer)} — Review in progress…`,
@@ -749,19 +756,20 @@ describe('workflow engine', () => {
     });
     await expect(runWorkflow({ text: 'debate question', mode: 'debate', roles: DEFAULT_DEBATE_ROLES })).resolves.toEqual({ ok: true });
     unsubscribe();
+    const { pro, con, judge, summary } = DEFAULT_DEBATE_ROLES;
     expect(order).toEqual([
-      'role:chatgpt',
-      'send:chatgpt',
-      'role:claude',
-      'send:claude',
-      'role:grok',
-      'send:grok',
-      'role:gemini',
-      'send:gemini',
+      `role:${pro}`,
+      `send:${pro}`,
+      `role:${con}`,
+      `send:${con}`,
+      `role:${judge}`,
+      `send:${judge}`,
+      `role:${summary}`,
+      `send:${summary}`,
     ]);
-    expect(prompts[1]).toBe(PROMPTS.debate.con('debate question', 'chatgpt-answer'));
-    expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', 'chatgpt-answer', 'claude-answer'));
-    expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', 'chatgpt-answer', 'claude-answer', 'grok-answer'));
+    expect(prompts[1]).toBe(PROMPTS.debate.con('debate question', `${pro}-answer`));
+    expect(prompts[2]).toBe(PROMPTS.debate.judge('debate question', `${pro}-answer`, `${con}-answer`));
+    expect(prompts[3]).toBe(PROMPTS.debate.summary('debate question', `${pro}-answer`, `${con}-answer`, `${judge}-answer`));
   });
 
   it('does not checkpoint default debate runs', async () => {
