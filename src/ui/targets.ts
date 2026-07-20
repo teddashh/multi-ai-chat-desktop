@@ -36,13 +36,16 @@ export async function waitForProvidersSendable(
   getStates: () => Record<AIProvider, ProviderState>,
   timeoutMs = 20_000,
   pollMs = 250,
+  shouldAbort?: () => boolean,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (providers.every((provider) => isSendable(getStates()[provider]))) return;
+    if (shouldAbort?.()) return;
+    const states = getStates();
+    if (providers.every((provider) => isSendable(states[provider]))) return;
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
-  // ponytail: 超時就照舊只送 sendable 的（真的登出的 provider 最多多等 20 秒）
+  // 超時就照舊只送 sendable 的（真的登出的 provider 最多多等 20 秒）
 }
 
 export function hasEffectiveFreeModeTargets(selected: AIProvider[], states: Record<AIProvider, ProviderState>): boolean {
