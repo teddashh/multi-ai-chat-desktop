@@ -6,6 +6,7 @@ import { checkAborted } from '../cancel';
 import { awaitCheckpoint } from '../checkpoint';
 import { sendRoleAssignment, sendWorkflowStatus } from '../events';
 import { fillAndAwaitNativeSend } from '../nativeEdit';
+import { providerResponseError, ProviderResponseError } from '../providerResponse';
 import { reserveProviderTurn, sendAndWait } from '../sendAndWait';
 import { prependResponseLanguagePolicy, type ResponseLanguagePolicy } from '../responseLanguage';
 import { runStep } from '../stepRunner';
@@ -295,6 +296,8 @@ function prepareStepNode(
         }
         const result =
           checkpointAction === 'native-edit' ? await fillAndAwaitNativeSend(provider, input, turn) : await runStep(provider, input, turn);
+        const responseError = providerResponseError(provider, result.response);
+        if (responseError) throw responseError;
         recordStep({
           nodeId,
           provider,
@@ -628,6 +631,7 @@ function errorLikeResponse(text: string): boolean {
 }
 
 function snapshotErrorText(error: unknown): string {
+  if (error instanceof ProviderResponseError) return error.response;
   const message = error instanceof Error ? error.message : String(error);
   return `[Error: ${message}]`;
 }
