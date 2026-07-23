@@ -52,6 +52,8 @@ export const en: Record<I18nKey, string> = {
   'connection.readyOff': 'Ready · not selected',
   'connection.notReady': 'Not ready',
   'header.exportMarkdown': 'Export .md',
+  'header.maximizeMessages': 'Maximize messages panel',
+  'header.restoreMessages': 'Restore messages panel',
   'header.settings': 'Settings',
   'header.followRun': 'Follow run',
   'header.followRunPaused': 'Following (paused - manual focus)',

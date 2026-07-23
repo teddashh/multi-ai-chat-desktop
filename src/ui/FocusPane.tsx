@@ -22,6 +22,7 @@ type ProviderActionState =
 
 export function FocusPane({
   centeredProvider,
+  scrollFocusedProvider,
   states,
   presentation,
   centerSurface,
@@ -47,6 +48,7 @@ export function FocusPane({
   onToggleStageExpanded,
 }: {
   centeredProvider?: AIProvider;
+  scrollFocusedProvider?: AIProvider;
   states: Record<AIProvider, ProviderState>;
   presentation: PresentationByProvider;
   centerSurface: CenterSurface;
@@ -142,6 +144,7 @@ export function FocusPane({
       {effectiveStageExpanded ? null : (
         <StatusStrip
           centeredProvider={centeredProvider}
+          scrollFocusedProvider={scrollFocusedProvider}
           states={states}
           presentation={presentation}
           setPaneRef={setPaneRef}
@@ -448,6 +451,7 @@ export function TextCenterView({
 
 function StatusStrip({
   centeredProvider,
+  scrollFocusedProvider,
   states,
   presentation,
   setPaneRef,
@@ -456,6 +460,7 @@ function StatusStrip({
   onChipClick,
 }: {
   centeredProvider?: AIProvider;
+  scrollFocusedProvider?: AIProvider;
   states: Record<AIProvider, ProviderState>;
   presentation: PresentationByProvider;
   setPaneRef: (provider: AIProvider, el: HTMLElement | null) => void;
@@ -478,6 +483,7 @@ function StatusStrip({
             state={states[provider]}
             presentation={presentation[provider]}
             centered={provider === centeredProvider}
+            scrollFocused={provider === scrollFocusedProvider}
             setPaneRef={setPaneRef}
             activateProvider={activateProvider}
             openingProvider={openingProvider}
@@ -494,6 +500,7 @@ function StatusStripItem({
   state,
   presentation,
   centered,
+  scrollFocused,
   setPaneRef,
   activateProvider,
   openingProvider,
@@ -503,6 +510,7 @@ function StatusStripItem({
   state: ProviderState;
   presentation: WebviewPresentationState;
   centered: boolean;
+  scrollFocused: boolean;
   setPaneRef: (provider: AIProvider, el: HTMLElement | null) => void;
   activateProvider: (provider: AIProvider) => Promise<void>;
   openingProvider?: AIProvider;
@@ -523,13 +531,16 @@ function StatusStripItem({
       aria-label={`${AI_PROVIDERS[provider].name}: ${status.label}`}
       aria-pressed={centered}
       disabled={state.webview === 'creating' || openingProvider !== undefined}
-      className={`ai-sister-provider-card min-w-0 rounded border px-2 py-1.5 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${
+      className={`ai-sister-provider-card relative min-w-0 rounded border px-2 py-1.5 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${
         centered
           ? 'cursor-default border-sky-400 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/40'
           : 'cursor-pointer border-zinc-200 bg-zinc-50 hover:border-sky-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-sky-700'
       }`}
       onClick={focusProvider}
     >
+      {scrollFocused ? (
+        <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-sky-400 dark:bg-sky-500" aria-hidden="true" />
+      ) : null}
       <span className="flex min-w-0 items-center gap-2">
         <AiSisterAvatar provider={provider} size="md" active={state.thinking} />
         <span className="min-w-0 flex-1">

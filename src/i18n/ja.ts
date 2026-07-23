@@ -52,6 +52,8 @@ export const ja: Record<I18nKey, string> = {
   'connection.readyOff': '準備完了 · 未選択',
   'connection.notReady': '準備未完了',
   'header.exportMarkdown': '.mdを書き出す',
+  'header.maximizeMessages': 'メッセージパネルを最大化',
+  'header.restoreMessages': 'メッセージパネルを元に戻す',
   'header.settings': '設定',
   'header.followRun': '実行を追跡',
   'header.followRunPaused': '追跡中（手動フォーカスにより一時停止）',

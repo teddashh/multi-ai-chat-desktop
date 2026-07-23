@@ -46,6 +46,8 @@ export const zhTW: Record<I18nKey, string> = {
   'connection.readyOff': '就緒 未選',
   'connection.notReady': '尚未就緒',
   'header.exportMarkdown': '匯出 .md',
+  'header.maximizeMessages': '放大訊息面板',
+  'header.restoreMessages': '還原訊息面板',
   'header.settings': '設定',
   'header.followRun': '跟隨執行',
   'header.followRunPaused': '跟隨中（已暫停：手動焦點）',

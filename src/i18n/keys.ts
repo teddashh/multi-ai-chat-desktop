@@ -44,6 +44,8 @@ export const I18N_KEYS = [
   'connection.readyOff',
   'connection.notReady',
   'header.exportMarkdown',
+  'header.maximizeMessages',
+  'header.restoreMessages',
   'header.settings',
   'header.followRun',
   'header.followRunPaused',
