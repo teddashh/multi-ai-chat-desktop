@@ -10,15 +10,14 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. Brainstorming behält vier wechselnde Sitze, insgesamt 48 Beiträge und den vollständigen Verlauf derselben Sitzung. Die sichere Standardbelegung nutzt ChatGPT, Claude und Gemini; Grok bleibt manuell wählbar, wenn die eingebettete Anmeldung funktioniert. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
 
-## Neuerungen in v1.7.0
+## Neuerungen in v1.8.0
 
-- **Konfigurierbare Kollaborationsrollen.** Rollen für Debatte, Beratung, Coding, Rundtisch und Brainstorming lassen sich beliebigen Anbietern zuweisen; unsichere Überschneidungen paralleler Rollen bleiben gesperrt.
-- **Zuverlässige Folgesendungen.** Nach einem Session-Reset wartet die App auf Sendebereitschaft; eine direkt nach einer Antwort abgelehnte Sendung wird einmal begrenzt wiederholt.
-- **Strukturierte Workflows bleiben fail closed.** Anbieterfehler stoppen den Lauf und beenden offene parallele Arbeit, statt Fehlertext an spätere Prompts weiterzugeben.
-- **Grok-sichere Standards.** Workflows mit vier Rollen oder Sitzen benötigen standardmäßig nur drei funktionierende Anmeldungen. Grok bleibt optional; Brainstorming behält vier verschiedene Perspektiven, auch wenn ein Anbieter zwei Sitze besetzt.
-- **Ehrliche Anmeldehilfe.** Der Text erklärt nun ausdrücklich, dass ein externer Browser die isolierte WebView-Sitzung der App nicht anmeldet.
+- **Transkript über die volle Breite.** Eine Schaltfläche maximiert den Gesprächsbereich oder stellt ihn wieder her; Sidebar und Resizer sind dabei vollständig isoliert, ohne den Workflow zu unterbrechen.
+- **Aktuell gelesenen Anbieter erkennen.** Provider-Chips folgen der Leselinie; Größen- und Textumbruchänderungen werden automatisch neu berechnet.
+- **Sichere native Seitenwechsel.** Anmeldung, Preflight, Replay und Overlay-Wiederherstellung verwenden denselben aktuellen Provider-Zustand, damit keine veraltete WebView das Transkript überdeckt.
+- **Effiziente lange Gespräche.** Die Position wird über eine begrenzte binäre Suche ermittelt, nicht vor der ersten tatsächlich erreichten Provider-Nachricht gesetzt und in allen vier UI-Sprachen barrierefrei beschriftet.
 
-Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.7.0 Release Notes`](./docs/RELEASE_NOTES_v1.7.0.md).
+Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.8.0 Release Notes`](./docs/RELEASE_NOTES_v1.8.0.md).
 
 ## Edition wählen
 
@@ -30,7 +29,7 @@ Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Pla
 ## Inhalt der Desktop-Ausgabe
 
 - Zuverlässige Automatisierung im Hintergrund; abgelehnte Sendungen werden erneut versucht oder klar als Fehler gemeldet.
-- Workflow-Steuerung links über dem weniger wichtigen WebView; mehr Platz für Transkript und Eingabe rechts.
+- Workflow-Steuerung links über dem weniger wichtigen WebView; das Transkript kann das ganze Fenster nutzen, während Provider-Chips die Antwort an der Leselinie anzeigen.
 - Sechs geführte Presets in fünf stabilen Modi: freie Verteilung, Debatte, Beratung, Coding, fünf Runden Wahrheitssuche sowie Brainstorming mit 12 Runden × 4 Sitzen und 48 Beiträgen.
 - Die Rollen strukturierter Workflows lassen sich in den Einstellungen den gewünschten Anbietern zuordnen. Serielle Rollen dürfen denselben Anbieter wiederverwenden; parallele Rollen müssen getrennt bleiben.
 - Bis zu 30 lokale Sitzungen plus **Neuer Chat**; wiederhergestellte Nachfragen erhalten begrenzten Kontext nur aus derselben Sitzung.
@@ -166,7 +165,7 @@ Schwachstellen bitte gemäß [`SECURITY.md`](./SECURITY.md) privat melden. Regre
 
 ### Mitwirkende und Danksagung
 
-Besonderer Dank gilt [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) für die Overlay-Zuverlässigkeitskorrektur in `v1.3.1`, die sorgfältigen Reproduktionen und ursprünglichen Lösungsansätze in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11) und [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12), die Serializer-Regressionstests in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) sowie die Grok-Challenge- und Fokus-Erweiterungen in [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39) und [#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40).
+Besonderer Dank gilt [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) für die Overlay-Zuverlässigkeitskorrektur in `v1.3.1`, die sorgfältigen Reproduktionen und ursprünglichen Lösungsansätze in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11) und [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12), die Serializer-Regressionstests in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14), die Grok-Challenge- und Fokus-Erweiterungen in [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39) und [#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40) sowie das Vollbreiten-Transkript und den scrollgekoppelten Provider-Fokus in [#51](https://github.com/teddashh/multi-ai-chat-desktop/pull/51).
 
 Danke an [CE Lin (`@ChingEnLin`)](https://github.com/ChingEnLin) für den detaillierten Provider-Statusbericht in [#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) und die ChatGPT-, Gemini- und Grok-Adapterkorrektur in [#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42).
 

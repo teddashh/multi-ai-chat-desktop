@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-19 for v1.7.0. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-07-22 for v1.8.0. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -60,7 +60,7 @@ Gemini may redirect an embedded session to `https://www.google.com/sorry/index?.
 | Session isolation | Conversation persistence and latest-snapshot matching tests | Create two sessions; confirm no messages or export provenance cross over |
 | Restored-session continuity | Stable response-identity and bounded same-session replay tests | Reopen a session, ask a follow-up, and confirm old context is available without cross-session leakage |
 | Response fidelity | DOM-to-Markdown tests for paragraphs, nested lists, links, fenced code, direct/nested tables, and image-only fallback | Compare a provider answer containing code and a table with the captured transcript |
-| Transcript scrolling | Near-bottom and user-scroll intent tests | Stream a long answer, scroll upward, and confirm the app shell and reading position remain stable |
+| Transcript scrolling | Near-bottom and user-scroll intent tests; scroll-linked provider focus, resize/reflow recalculation, pre-first-message boundary, binary lookup, and maximized-workspace tests | Stream a long answer, scroll upward, resize the window, maximize/restore the transcript, and confirm the provider chip and reading position remain stable |
 | Session quota recovery | Quota-only eviction, transient-failure preservation, and persisted-state result tests | Fill local history near quota and confirm only the oldest sessions are removed |
 | Snapshot / replay | Schema, redaction, version mismatch, replay, and app-version tests | Save/replay once when local snapshot persistence is enabled |
 | Markdown export | Formatting and provenance tests | Confirm UTC time, app version, latest matching workflow/snapshot, and adapter versions |

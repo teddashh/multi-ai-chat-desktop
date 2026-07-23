@@ -10,15 +10,14 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 與 12 輪「腦力激盪」預設已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。腦力激盪保留四個輪換席位、48 次發言與同一 session 的完整前文；安全預設使用 ChatGPT、Claude、Gemini，Grok 在嵌入式登入可用時仍可手動指定。現有 snapshot／replay 會原樣保留且不再擴充。
 
-## v1.7.0 更新重點
+## v1.8.0 更新重點
 
-- **可自訂協作角色。** 四方辯證、多方諮詢、Coding、道理辯證與腦力激盪的角色都能指定 provider；平行角色仍會拒絕不安全的重複配置。
-- **可靠的連續送出。** 重設 session 後會等到 provider 真正可送出；剛完成回答後若網頁拒絕下一次送出，會做一次有上限的重試。
-- **結構化流程 fail closed。** Provider 引擎錯誤會停止整個流程並結束尚未完成的平行工作，不會再把錯誤文字傳給後續角色。
-- **避開 Grok 登入阻擋的預設。** 四角色／四席流程預設只需要三家可登入的 provider；Grok 仍可手動選用，重複 provider 的腦力激盪席位也保有四種不同視角。
-- **誠實的登入指引。** 外部瀏覽器備援現在會明確說明：它不會替 app 內隔離的 WebView session 完成登入。
+- **逐字稿可全畫面閱讀。** 標題列可放大或還原對話工作區；放大時完整隔離左側欄與 resizer，但不中斷執行中的 workflow。
+- **隨時知道正在讀哪一家。** Provider chip 會跟隨逐字稿閱讀線，視窗縮放或文字重排後也會重新計算。
+- **原生頁面切換更安全。** 登入、preflight、replay 與 overlay 還原統一依最新 provider 狀態處理，避免舊 WebView 蓋住逐字稿。
+- **長對話捲動更有效率。** 閱讀位置使用有界 binary lookup；第一則 provider 訊息尚未到達閱讀線前不會提早標示，並提供四語可及性標籤。
 
-完整驗證、貢獻者 credit、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.7.0 發布說明`](./docs/RELEASE_NOTES_v1.7.0.md)。
+完整驗證、貢獻者 credit、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.8.0 發布說明`](./docs/RELEASE_NOTES_v1.8.0.md)。
 
 ## 選擇適合的版本
 
@@ -30,7 +29,7 @@
 ## 桌面版包含什麼
 
 - **可靠的離屏自動化。** 不必逐家點進「真實頁面」；送出未被接受時會重試，真的失敗就明確回報，不再無限等待。
-- **以對話為主的版面。** 模式卡片、說明與等待狀態移到左側 provider WebView 上方；右側保留更大的逐字稿與輸入區。
+- **以對話為主的版面。** 模式卡片、說明與等待狀態移到左側 provider WebView 上方；右側逐字稿可放大至整個視窗，provider chip 會標示閱讀線目前所在的回答。
 - **六個引導預設、五種穩定模式。** 自由分送、四方辯證、多方諮詢、Coding、五輪道理辯證，以及 12 輪 × 4 席、共 48 次發言的多視角腦力激盪。
 - **可自訂協作角色。** 可在「設定」指定每個結構化角色由哪家 AI 擔任；依序執行的角色可重複使用同一家，同時執行的角色則必須分開。
 - **本機 session。** 可新增對話，或開啟最多 30 個只保存在這台電腦的近期 transcript；恢復後的追問只帶入同一 session 的有限上下文。
@@ -177,7 +176,7 @@ pnpm tauri dev
 
 ### 貢獻者與致謝
 
-特別感謝 [Dave Tseng（`@DaveTseng2019`）](https://github.com/DaveTseng2019)：他貢獻了 `v1.3.1` 的 overlay 可靠性修正，在 [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10)、[#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11)、[#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12) 提供仔細的重現與原始修法，在 [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) 補上 serializer regression tests，並透過 [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39)、[#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40) 改善 Grok 驗證狀態與真實頁面放大體驗。
+特別感謝 [Dave Tseng（`@DaveTseng2019`）](https://github.com/DaveTseng2019)：他貢獻了 `v1.3.1` 的 overlay 可靠性修正，在 [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10)、[#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11)、[#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12) 提供仔細的重現與原始修法，在 [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) 補上 serializer regression tests，透過 [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39)、[#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40) 改善 Grok 驗證狀態與真實頁面放大體驗，並在 [#51](https://github.com/teddashh/multi-ai-chat-desktop/pull/51) 貢獻全寬逐字稿與隨捲動更新的 provider 閱讀焦點。
 
 也感謝 [CE Lin（`@ChingEnLin`）](https://github.com/ChingEnLin) 在 [#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) 提供完整的 provider 狀態回報，並透過 [#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42) 貢獻 ChatGPT、Gemini 與 Grok adapter 修正。
 
