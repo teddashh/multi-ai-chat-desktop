@@ -113,6 +113,7 @@ export const ja: Record<I18nKey, string> = {
   'provider.center': '中央',
   'provider.connections': 'AI接続',
   'provider.connectionsHint': 'フォーカスまたは接続するAIを選択',
+  'provider.currentlyReading': '現在読んでいるメッセージ',
   'provider.login': 'ログイン',
   'provider.moreActions': 'プロバイダーのその他の操作',
   'provider.reload': '再読み込み',

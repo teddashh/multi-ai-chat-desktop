@@ -101,6 +101,7 @@ export const zhTW: Record<I18nKey, string> = {
   'provider.center': '置中',
   'provider.connections': 'AI 連線',
   'provider.connectionsHint': '選擇要聚焦或連線的 AI',
+  'provider.currentlyReading': '正在閱讀',
   'provider.login': '登入',
   'provider.moreActions': '更多 provider 操作',
   'provider.reload': '重新載入',

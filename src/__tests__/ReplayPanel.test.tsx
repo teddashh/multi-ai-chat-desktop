@@ -207,7 +207,8 @@ describe('ReplayPanel', () => {
       blocked: 'preflight',
       preflight: { ok: false, unavailable: ['claude', 'gemini'], aliased: [] },
     });
-    const panel = new ReplayPanel({});
+    const onOpenLogin = vi.fn().mockResolvedValue(undefined);
+    const panel = new ReplayPanel({ onOpenLogin });
 
     propsOf(buttonWithText(panel.render(), t('replay.lastRun', 'en'))).onClick?.();
     await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
@@ -217,6 +218,10 @@ describe('ReplayPanel', () => {
     expect(html).toContain(`Claude ${t('replay.unavailable', 'en')}`);
     expect(html).toContain(`Gemini ${t('replay.unavailable', 'en')}`);
     expect(replaySnapshot).toHaveBeenCalledTimes(1);
+
+    propsOf(buttonWithText(panel.render(), t('replay.openLogin', 'en'))).onClick?.();
+    expect(onOpenLogin).toHaveBeenCalledWith('claude');
+    expect(host.provider.openLogin).not.toHaveBeenCalled();
   });
 
   it('shows missing snapshots as a small error line', async () => {

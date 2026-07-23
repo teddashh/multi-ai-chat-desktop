@@ -111,6 +111,7 @@ export const en: Record<I18nKey, string> = {
   'provider.center': 'Center',
   'provider.connections': 'AI connections',
   'provider.connectionsHint': 'Choose an AI to focus or connect',
+  'provider.currentlyReading': 'Currently reading',
   'provider.login': 'Login',
   'provider.moreActions': 'More provider actions',
   'provider.reload': 'Reload',

@@ -998,6 +998,14 @@ export default function App() {
     handleTranscriptScroll();
   }, [messages, handleTranscriptScroll]);
 
+  useEffect(() => {
+    const container = transcriptRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(handleTranscriptScroll);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [handleTranscriptScroll]);
+
   const setCenterStageRef = useCallback(
     (el: HTMLDivElement | null) => {
       centerStageRef.current = el;
@@ -1746,26 +1754,28 @@ export default function App() {
 
   const openProviderLogin = useCallback(
     async (provider: AIProvider) => {
-      if (centerPresentationProvider(presentationRef.current) === provider && centerSurfaceRef.current === 'text') {
-        setCenterSurfaceMode('native');
-        clearUserHiddenProvider(provider);
+      setMessagesMaximized(false);
+      for (let attempt = 0; attempt < 8 && overlayGuardOpenRef.current; attempt += 1) {
+        await nextAnimationFrame();
       }
+      if (overlayGuardOpenRef.current) throw new Error('Cannot open provider login while an overlay is active');
+      await nextAnimationFrame();
+      await forceProviderNativeCenter(provider);
       await host.provider.openLogin(provider);
     },
-    [clearUserHiddenProvider, setCenterSurfaceMode],
+    [forceProviderNativeCenter],
   );
 
   const openPreflightLogin = useCallback(
     async (provider: AIProvider) => {
       setPreflight(undefined);
       try {
-        await forceProviderNativeCenter(provider);
         await openProviderLogin(provider);
       } catch {
         setWorkflowStatus(translate('input.sendFailed'));
       }
     },
-    [forceProviderNativeCenter, openProviderLogin, translate],
+    [openProviderLogin, translate],
   );
 
   const applySavedSettings = (settings: AppSettings) => {
@@ -1831,7 +1841,12 @@ export default function App() {
         className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)]"
         style={{ gridTemplateColumns: messagesMaximized ? '0px 0px minmax(0,1fr)' : focusGridTemplateColumns(focusPaneWidth) }}
       >
-        <div className="ai-sister-left-shell flex min-h-0 min-w-0 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+        <div
+          aria-hidden={messagesMaximized || undefined}
+          className={`ai-sister-left-shell flex min-h-0 min-w-0 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 ${
+            messagesMaximized ? 'invisible overflow-hidden pointer-events-none' : ''
+          }`}
+        >
           <ConversationSidebar
             collapsed={sessionSidebarCollapsed}
             sessions={sessions}
@@ -1936,13 +1951,18 @@ export default function App() {
           </div>
         </div>
 
-        <Resizer
-          label={translate('layout.resizeFocusPane')}
-          onDrag={dragFocusPane}
-          value={focusPaneWidth}
-          min={DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minFocusPaneWidth}
-          max={focusPaneMaxWidth}
-        />
+        <div
+          aria-hidden={messagesMaximized || undefined}
+          className={`min-h-0 min-w-0 ${messagesMaximized ? 'invisible overflow-hidden pointer-events-none' : ''}`}
+        >
+          <Resizer
+            label={translate('layout.resizeFocusPane')}
+            onDrag={dragFocusPane}
+            value={focusPaneWidth}
+            min={DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minFocusPaneWidth}
+            max={focusPaneMaxWidth}
+          />
+        </div>
 
         <section className="ai-sister-conversation-workspace flex min-h-0 min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
           <div className="ai-sister-conversation-toolbar border-b border-zinc-200 dark:border-zinc-800 pb-3">
@@ -2025,6 +2045,7 @@ export default function App() {
               onReplayWillRun={prepareReplayTrace}
               onReplaySettled={settleReplayTrace}
               onSnapshotComplete={persistReplaySnapshot}
+              onOpenLogin={openProviderLogin}
             />
           </div>
           {sessionCheckpointNotice ? (

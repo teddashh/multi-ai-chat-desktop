@@ -46,14 +46,21 @@ export function findScrollActiveProvider(container: TranscriptSpyContainer, read
   if (bubbles.length === 0) return undefined;
   const readingLine = container.getBoundingClientRect().top + readingLineOffset;
 
-  let active: TranscriptSpyBubble | undefined;
-  for (let index = 0; index < bubbles.length; index += 1) {
-    const bubble = bubbles[index];
-    if (bubble.getBoundingClientRect().top > readingLine) break;
-    active = bubble;
+  let low = 0;
+  let high = bubbles.length - 1;
+  let activeIndex = -1;
+  while (low <= high) {
+    const index = Math.floor((low + high) / 2);
+    if (bubbles[index].getBoundingClientRect().top <= readingLine) {
+      activeIndex = index;
+      low = index + 1;
+    } else {
+      high = index - 1;
+    }
   }
 
-  const provider = (active ?? bubbles[0]).getAttribute('data-provider');
+  if (activeIndex < 0) return undefined;
+  const provider = bubbles[activeIndex].getAttribute('data-provider');
   return isAIProvider(provider) ? provider : undefined;
 }
 

@@ -94,6 +94,7 @@ export const I18N_KEYS = [
   'provider.center',
   'provider.connections',
   'provider.connectionsHint',
+  'provider.currentlyReading',
   'provider.login',
   'provider.moreActions',
   'provider.reload',

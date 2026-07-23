@@ -518,6 +518,9 @@ function StatusStripItem({
 }) {
   const { t } = useI18n();
   const status = chipState(state, presentation, t);
+  const accessibleLabel = `${AI_PROVIDERS[provider].name}: ${status.label}${
+    scrollFocused ? ` · ${t('provider.currentlyReading')}` : ''
+  }`;
   const focusProvider = () => {
     onChipClick?.(provider);
     if (centered && state.webview === 'loaded') return;
@@ -528,8 +531,9 @@ function StatusStripItem({
     <button
       type="button"
       ref={(el) => setPaneRef(provider, el)}
-      aria-label={`${AI_PROVIDERS[provider].name}: ${status.label}`}
+      aria-label={accessibleLabel}
       aria-pressed={centered}
+      title={scrollFocused ? accessibleLabel : undefined}
       disabled={state.webview === 'creating' || openingProvider !== undefined}
       className={`ai-sister-provider-card relative min-w-0 rounded border px-2 py-1.5 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${
         centered
@@ -539,7 +543,7 @@ function StatusStripItem({
       onClick={focusProvider}
     >
       {scrollFocused ? (
-        <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-sky-400 dark:bg-sky-500" aria-hidden="true" />
+        <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-sky-600 dark:bg-sky-400" aria-hidden="true" />
       ) : null}
       <span className="flex min-w-0 items-center gap-2">
         <AiSisterAvatar provider={provider} size="md" active={state.thinking} />

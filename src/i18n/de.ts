@@ -113,6 +113,7 @@ export const de: Record<I18nKey, string> = {
   'provider.center': 'Mitte',
   'provider.connections': 'KI-Verbindungen',
   'provider.connectionsHint': 'KI zum Fokussieren oder Verbinden auswählen',
+  'provider.currentlyReading': 'Wird gerade gelesen',
   'provider.login': 'Anmelden',
   'provider.moreActions': 'Weitere Anbieteraktionen',
   'provider.reload': 'Neu laden',

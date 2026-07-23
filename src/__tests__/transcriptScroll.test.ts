@@ -86,13 +86,13 @@ describe('transcript scrolling', () => {
     expect(findScrollActiveProvider(container)).toBe('claude');
   });
 
-  it('falls back to the first message when nothing has reached the reading line yet', () => {
+  it('does not mark a provider before its first message reaches the reading line', () => {
     const container = {
       getBoundingClientRect: () => ({ top: 0 }),
       querySelectorAll: () => [fakeArticle('chatgpt', 50), fakeArticle('claude', 300)],
     };
 
-    expect(findScrollActiveProvider(container)).toBe('chatgpt');
+    expect(findScrollActiveProvider(container)).toBeUndefined();
   });
 
   it('returns undefined when the transcript has no provider messages', () => {

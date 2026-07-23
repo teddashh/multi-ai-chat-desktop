@@ -30,8 +30,9 @@ export class OverlayGuardCounter {
     }
   }
 
-  close(host: OverlayGuardHost): void {
+  close(host: OverlayGuardHost, loadedProviders?: AIProvider[]): void {
     if (this.openCount === 0) return;
+    if (this.openCount === 1 && loadedProviders) this.reconcile(loadedProviders, host);
     this.openCount -= 1;
     if (this.openCount !== 0) return;
     const toRestore = this.hiddenProviders;
