@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isTranscriptNearEnd, scrollTranscriptToEnd, scrollTranscriptToProviderMessage } from '../ui/transcriptScroll';
+import { findScrollActiveProvider, isTranscriptNearEnd, scrollTranscriptToEnd, scrollTranscriptToProviderMessage } from '../ui/transcriptScroll';
 
 describe('transcript scrolling', () => {
   afterEach(() => {
@@ -70,5 +70,34 @@ describe('transcript scrolling', () => {
     const container = { querySelectorAll: () => [] };
 
     expect(scrollTranscriptToProviderMessage(container, 'gemini')).toBe(false);
+  });
+
+  const fakeArticle = (provider: string, top: number) => ({
+    getBoundingClientRect: () => ({ top }),
+    getAttribute: () => provider,
+  });
+
+  it('picks the message that has scrolled past the reading line so the chip matches what the user is reading', () => {
+    const container = {
+      getBoundingClientRect: () => ({ top: 0 }),
+      querySelectorAll: () => [fakeArticle('chatgpt', -200), fakeArticle('claude', -10), fakeArticle('gemini', 300)],
+    };
+
+    expect(findScrollActiveProvider(container)).toBe('claude');
+  });
+
+  it('does not mark a provider before its first message reaches the reading line', () => {
+    const container = {
+      getBoundingClientRect: () => ({ top: 0 }),
+      querySelectorAll: () => [fakeArticle('chatgpt', 50), fakeArticle('claude', 300)],
+    };
+
+    expect(findScrollActiveProvider(container)).toBeUndefined();
+  });
+
+  it('returns undefined when the transcript has no provider messages', () => {
+    const container = { getBoundingClientRect: () => ({ top: 0 }), querySelectorAll: () => [] };
+
+    expect(findScrollActiveProvider(container)).toBeUndefined();
   });
 });

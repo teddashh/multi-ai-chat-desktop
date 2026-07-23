@@ -62,7 +62,7 @@ import { SessionCheckpointNotice } from './ui/SessionCheckpointNotice';
 import { loadSessionSidebarCollapsed, saveSessionSidebarCollapsed } from './ui/sessionSidebarPreference';
 import { StepTimeoutDialog, type StepTimeoutDialogState } from './ui/StepTimeoutDialog';
 import { TargetChips } from './ui/TargetChips';
-import { isTranscriptNearEnd, scrollTranscriptToEnd, scrollTranscriptToProviderMessage } from './ui/transcriptScroll';
+import { findScrollActiveProvider, isTranscriptNearEnd, scrollTranscriptToEnd, scrollTranscriptToProviderMessage } from './ui/transcriptScroll';
 import {
   DEFAULT_FOCUS_LAYOUT_CONSTRAINTS,
   clampFocusPaneWidth,
@@ -323,6 +323,8 @@ export default function App() {
   const [connectionSnapshotLoaded, setConnectionSnapshotLoaded] = useState(false);
   const [focusPaneWidth, setFocusPaneWidth] = useState(() => defaultSettings().focusPaneWidth);
   const [stageExpanded, setStageExpanded] = useState(false);
+  const [messagesMaximized, setMessagesMaximized] = useState(false);
+  const [scrollFocusedProvider, setScrollFocusedProvider] = useState<AIProvider | undefined>();
   const [presentation, setPresentation] = useState<PresentationByProvider>(() => defaultPresentation());
   const [centerSurface, setCenterSurface] = useState<CenterSurface>('text');
   const [userHidden, setUserHidden] = useState<Set<AIProvider>>(() => new Set());
@@ -415,7 +417,7 @@ export default function App() {
   const centerTextFinal = latestCenterBubble?.final === true;
 
   const overlayGuardOpen =
-    Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || processTraceDetailOpen;
+    Boolean(preflight) || Boolean(stepTimeout?.timedOut) || settingsOpen || Boolean(reportPreview) || processTraceDetailOpen || messagesMaximized;
   const manualFocusIdlePaused = Boolean(checkpoint) || Boolean(stepTimeout);
   overlayGuardOpenRef.current = overlayGuardOpen;
 
@@ -981,6 +983,28 @@ export default function App() {
   // FocusPane 面板在極端小視窗下允許捲動；捲動不會觸發 ResizeObserver（尺寸沒變，只是位置變了），
   // 靠這個 onScroll 立即重新同步原生 webview 座標，而不是只依賴既有的 2.5s 輪詢 fallback。
   const handleFocusPaneScroll = useMemo(() => throttleWithFrame(resyncNativeBounds), [resyncNativeBounds]);
+
+  const updateScrollFocusedProvider = useCallback(() => {
+    const container = transcriptRef.current;
+    if (!container) return;
+    const provider = findScrollActiveProvider(container);
+    setScrollFocusedProvider((current) => (current === provider ? current : provider));
+  }, []);
+
+  // 訊息面板捲動時，換左側對應 chip 反白，讓長回應也能看得出是哪個 AI 講的。
+  const handleTranscriptScroll = useMemo(() => throttleWithFrame(updateScrollFocusedProvider), [updateScrollFocusedProvider]);
+
+  useEffect(() => {
+    handleTranscriptScroll();
+  }, [messages, handleTranscriptScroll]);
+
+  useEffect(() => {
+    const container = transcriptRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(handleTranscriptScroll);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [handleTranscriptScroll]);
 
   const setCenterStageRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -1730,26 +1754,28 @@ export default function App() {
 
   const openProviderLogin = useCallback(
     async (provider: AIProvider) => {
-      if (centerPresentationProvider(presentationRef.current) === provider && centerSurfaceRef.current === 'text') {
-        setCenterSurfaceMode('native');
-        clearUserHiddenProvider(provider);
+      setMessagesMaximized(false);
+      for (let attempt = 0; attempt < 8 && overlayGuardOpenRef.current; attempt += 1) {
+        await nextAnimationFrame();
       }
+      if (overlayGuardOpenRef.current) throw new Error('Cannot open provider login while an overlay is active');
+      await nextAnimationFrame();
+      await forceProviderNativeCenter(provider);
       await host.provider.openLogin(provider);
     },
-    [clearUserHiddenProvider, setCenterSurfaceMode],
+    [forceProviderNativeCenter],
   );
 
   const openPreflightLogin = useCallback(
     async (provider: AIProvider) => {
       setPreflight(undefined);
       try {
-        await forceProviderNativeCenter(provider);
         await openProviderLogin(provider);
       } catch {
         setWorkflowStatus(translate('input.sendFailed'));
       }
     },
-    [forceProviderNativeCenter, openProviderLogin, translate],
+    [openProviderLogin, translate],
   );
 
   const applySavedSettings = (settings: AppSettings) => {
@@ -1810,8 +1836,17 @@ export default function App() {
 
   return (
     <main className="app-shell h-screen overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <div ref={gridRef} className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)]" style={{ gridTemplateColumns: focusGridTemplateColumns(focusPaneWidth) }}>
-        <div className="ai-sister-left-shell flex min-h-0 min-w-0 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+      <div
+        ref={gridRef}
+        className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)]"
+        style={{ gridTemplateColumns: messagesMaximized ? '0px 0px minmax(0,1fr)' : focusGridTemplateColumns(focusPaneWidth) }}
+      >
+        <div
+          aria-hidden={messagesMaximized || undefined}
+          className={`ai-sister-left-shell flex min-h-0 min-w-0 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 ${
+            messagesMaximized ? 'invisible overflow-hidden pointer-events-none' : ''
+          }`}
+        >
           <ConversationSidebar
             collapsed={sessionSidebarCollapsed}
             sessions={sessions}
@@ -1885,6 +1920,7 @@ export default function App() {
             </section>
             <FocusPane
               centeredProvider={centeredProvider}
+              scrollFocusedProvider={scrollFocusedProvider}
               states={states}
               presentation={presentation}
               centerSurface={centerSurface}
@@ -1915,13 +1951,18 @@ export default function App() {
           </div>
         </div>
 
-        <Resizer
-          label={translate('layout.resizeFocusPane')}
-          onDrag={dragFocusPane}
-          value={focusPaneWidth}
-          min={DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minFocusPaneWidth}
-          max={focusPaneMaxWidth}
-        />
+        <div
+          aria-hidden={messagesMaximized || undefined}
+          className={`min-h-0 min-w-0 ${messagesMaximized ? 'invisible overflow-hidden pointer-events-none' : ''}`}
+        >
+          <Resizer
+            label={translate('layout.resizeFocusPane')}
+            onDrag={dragFocusPane}
+            value={focusPaneWidth}
+            min={DEFAULT_FOCUS_LAYOUT_CONSTRAINTS.minFocusPaneWidth}
+            max={focusPaneMaxWidth}
+          />
+        </div>
 
         <section className="ai-sister-conversation-workspace flex min-h-0 min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
           <div className="ai-sister-conversation-toolbar border-b border-zinc-200 dark:border-zinc-800 pb-3">
@@ -1961,6 +2002,32 @@ export default function App() {
               >
                 {translate('header.exportMarkdown')}
               </button>
+              <button
+                type="button"
+                className={`flex h-7 w-7 items-center justify-center border text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                  messagesMaximized ? 'border-sky-400 bg-sky-50 dark:border-sky-800 dark:bg-sky-950' : 'border-zinc-300 dark:border-zinc-700'
+                }`}
+                aria-label={translate(messagesMaximized ? 'header.restoreMessages' : 'header.maximizeMessages')}
+                title={translate(messagesMaximized ? 'header.restoreMessages' : 'header.maximizeMessages')}
+                aria-pressed={messagesMaximized}
+                onClick={() => setMessagesMaximized((current) => !current)}
+              >
+                {messagesMaximized ? (
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 3v4a2 2 0 0 1-2 2H3" />
+                    <path d="M21 9h-4a2 2 0 0 1-2-2V3" />
+                    <path d="M3 15h4a2 2 0 0 1 2 2v4" />
+                    <path d="M15 21v-4a2 2 0 0 1 2-2h4" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 9V3h6" />
+                    <path d="M21 9V3h-6" />
+                    <path d="M3 15v6h6" />
+                    <path d="M21 15v6h-6" />
+                  </svg>
+                )}
+              </button>
               <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
                 {translate('header.settings')}
               </button>
@@ -1978,6 +2045,7 @@ export default function App() {
               onReplayWillRun={prepareReplayTrace}
               onReplaySettled={settleReplayTrace}
               onSnapshotComplete={persistReplaySnapshot}
+              onOpenLogin={openProviderLogin}
             />
           </div>
           {sessionCheckpointNotice ? (
@@ -2011,6 +2079,7 @@ export default function App() {
             className="ai-sister-conversation-transcript mt-3 min-h-0 flex-1 overflow-auto border-y border-zinc-200 dark:border-zinc-800 py-3"
             onScroll={(event) => {
               transcriptStickToEndRef.current = isTranscriptNearEnd(event.currentTarget);
+              handleTranscriptScroll();
             }}
           >
             <ChatArea messages={messages} locale={locale} states={states} />

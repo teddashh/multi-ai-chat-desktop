@@ -103,6 +103,19 @@ describe('M4a UI helpers', () => {
     await vi.waitFor(() => expect(show).toHaveBeenCalledWith('chatgpt'));
   });
 
+  it('restores only the latest visible provider when focus changes while an overlay is open', () => {
+    const guard = new OverlayGuardCounter();
+    const hide = vi.fn();
+    const show = vi.fn();
+    const host = { hide, show };
+
+    guard.open(['chatgpt'], host);
+    guard.close(host, ['claude']);
+
+    expect(hide.mock.calls.map(([provider]) => provider)).toEqual(['chatgpt', 'claude']);
+    expect(show.mock.calls.map(([provider]) => provider)).toEqual(['claude']);
+  });
+
   it('maps preflight unavailable and aliased providers to labelled dialog rows with reasons', () => {
     const model = buildPreflightDialogModel(
       'debate',

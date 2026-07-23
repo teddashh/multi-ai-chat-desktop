@@ -29,12 +29,14 @@ function renderFocusPane({
   stateOverrides,
   presentation = defaultPresentation(),
   centeredProvider = 'chatgpt',
+  scrollFocusedProvider,
   stageExpanded,
   stageToggleEnabled = true,
 }: {
   stateOverrides?: Partial<Record<AIProvider, Partial<ProviderState>>>;
   presentation?: PresentationByProvider;
   centeredProvider?: AIProvider | null;
+  scrollFocusedProvider?: AIProvider;
   stageExpanded?: boolean;
   stageToggleEnabled?: boolean;
 }): string {
@@ -42,6 +44,7 @@ function renderFocusPane({
     <I18nProvider language="en">
       <FocusPane
         centeredProvider={centeredProvider ?? undefined}
+        scrollFocusedProvider={scrollFocusedProvider}
         states={states(stateOverrides)}
         presentation={presentation}
         centerSurface="text"
@@ -102,6 +105,14 @@ describe('FocusPane provider header', () => {
     expect(html).toContain('Choose an AI to get started');
     expect(html).toContain('Open ChatGPT');
     expect(html).toContain('Open Grok');
+  });
+
+  it('announces the provider that matches the transcript reading position', () => {
+    const html = renderFocusPane({ scrollFocusedProvider: 'claude' });
+
+    expect(html).toContain('aria-label="Claude: Ready · Currently reading"');
+    expect(html).toContain('title="Claude: Ready · Currently reading"');
+    expect(html).not.toContain('aria-label="ChatGPT: Ready · Currently reading"');
   });
 
   it('offers an honest browser escape hatch when Grok embedded login is blocked', () => {

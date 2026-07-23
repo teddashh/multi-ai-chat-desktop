@@ -15,10 +15,13 @@ export function useOverlayGuard(open: boolean, loadedProviders: AIProvider[]): v
       show: host.provider.show,
     });
     return () => {
-      globalOverlayGuard.close({
-        hide: host.provider.hide,
-        show: host.provider.show,
-      });
+      globalOverlayGuard.close(
+        {
+          hide: host.provider.hide,
+          show: host.provider.show,
+        },
+        loadedProvidersRef.current,
+      );
     };
   }, [open]);
 

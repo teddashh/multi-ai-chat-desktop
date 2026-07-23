@@ -44,6 +44,7 @@ export interface ReplayPanelProps {
   onReplayWillRun?: (plan: ReplayPlan) => void;
   onReplaySettled?: () => void;
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
+  onOpenLogin?: (provider: AIProvider) => void | Promise<void>;
 }
 
 interface ReplayPanelState {
@@ -326,7 +327,11 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                   <button
                     type="button"
                     className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950"
-                    onClick={() => void host.provider.openLogin(provider)}
+                    onClick={() => void (
+                      this.props.onOpenLogin
+                        ? this.props.onOpenLogin(provider)
+                        : host.provider.openLogin(provider)
+                    )}
                   >
                     {this.t('replay.openLogin')}
                   </button>
