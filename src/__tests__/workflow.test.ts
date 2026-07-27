@@ -275,7 +275,7 @@ describe('workflow engine', () => {
     expect(statuses).toEqual(['']);
   });
 
-  it('routes Brainstorm through twelve rounds of four rotating seats and records graph v2', async () => {
+  it('routes Brainstorm through twelve rounds of four rotating seats and records graph v3', async () => {
     const order: AIProvider[] = [];
     const prompts: string[] = [];
     const statuses: string[] = [];
@@ -328,7 +328,7 @@ describe('workflow engine', () => {
       '',
     ]);
     expect(getLastSnapshot()?.graphId).toBe('brainstorm');
-    expect(getLastSnapshot()?.graphVersion).toBe(2);
+    expect(getLastSnapshot()?.graphVersion).toBe(3);
     expect(getLastSnapshot()?.steps).toHaveLength(48);
     expect(getLastSnapshot()?.userQuestion).toMatchObject({ kind: 'inline', text: 'Invent a better new-user tutorial' });
   });

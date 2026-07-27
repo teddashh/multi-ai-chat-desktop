@@ -228,6 +228,24 @@ describe('workflow graph foundation', () => {
     });
   });
 
+  it('versions every graph whose built-in provider routing changed', () => {
+    expect({
+      debate: debateGraph.version,
+      consult: consultGraph.version,
+      coding: codingGraph.version,
+      roundtable: roundtableGraph.version,
+      brainstorm: brainstormGraph.version,
+      free: freeGraph.version,
+    }).toEqual({
+      debate: 3,
+      consult: 4,
+      coding: 3,
+      roundtable: 3,
+      brainstorm: 3,
+      free: 2,
+    });
+  });
+
   it('preflights serial graphs with the existing sendable predicate', async () => {
     vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
     await expect(preflightGraph(debateGraph, DEFAULT_DEBATE_ROLES)).resolves.toMatchObject({
