@@ -90,7 +90,7 @@ export const brainstormGraph: WorkflowGraph = {
   },
   preflight: {
     kind: 'serial',
-    // Seats may share a provider: only three providers have working default logins.
+    // Custom assignments may share a provider; the built-in default uses all four.
     requiredRoles: ['first', 'second', 'third', 'fourth'],
   },
   nodes: makeBrainstormNodes(),

@@ -8,7 +8,11 @@ import {
   type SlotAssignment,
   normalizeSlotAssignment,
 } from './slotAssignment';
-import { type ModeRoleAssignments, normalizeModeRoleAssignments } from './modeRoleAssignment';
+import {
+  type ModeRoleAssignments,
+  migrateLegacyModeRoleAssignments,
+  normalizeModeRoleAssignments,
+} from './modeRoleAssignment';
 import { isSnapshotRedactionTier, type SnapshotRedactionTier } from '../workflow/snapshot/types';
 import { defaultPresentation, normalizePresentation, type PresentationByProvider } from './presentation';
 import {
@@ -19,6 +23,7 @@ import {
 } from '../i18n/resolve';
 
 export interface AppSettings {
+  settingsSchemaVersion: number;
   language: LanguageSetting;
   responseLanguage: ResponseLanguageSetting;
   theme: 'light' | 'dark' | 'ai-sister';
@@ -39,9 +44,11 @@ export interface AppSettings {
 }
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
+export const SETTINGS_SCHEMA_VERSION = 1;
 
 export function defaultSettings(): AppSettings {
   return {
+    settingsSchemaVersion: SETTINGS_SCHEMA_VERSION,
     language: 'system',
     responseLanguage: 'auto',
     theme: 'light',
@@ -115,8 +122,15 @@ export function normalizeSettings(value: unknown): AppSettings {
   if (!value || typeof value !== 'object') return defaults;
   const input = value as Partial<Record<keyof AppSettings, unknown>>;
   const normalizedColumnWidths = columnWidths(input.columnWidths, defaults.columnWidths);
+  const storedSchemaVersion =
+    typeof input.settingsSchemaVersion === 'number' &&
+    Number.isInteger(input.settingsSchemaVersion) &&
+    input.settingsSchemaVersion >= 0
+      ? input.settingsSchemaVersion
+      : 0;
 
   return {
+    settingsSchemaVersion: SETTINGS_SCHEMA_VERSION,
     language: normalizeLanguageSetting(input.language),
     responseLanguage: normalizeResponseLanguageSetting(input.responseLanguage),
     theme: theme(input.theme, defaults.theme),
@@ -125,7 +139,10 @@ export function normalizeSettings(value: unknown): AppSettings {
     focusPaneWidth: focusPaneWidth(input.focusPaneWidth, input.columnWidths, defaults.focusPaneWidth),
     columnWidths: normalizedColumnWidths,
     slotAssignment: normalizeSlotAssignment(input.slotAssignment, defaults.slotAssignment),
-    modeRoles: normalizeModeRoleAssignments(input.modeRoles, defaults.modeRoles),
+    modeRoles:
+      storedSchemaVersion < SETTINGS_SCHEMA_VERSION
+        ? migrateLegacyModeRoleAssignments(input.modeRoles, defaults.modeRoles)
+        : normalizeModeRoleAssignments(input.modeRoles, defaults.modeRoles),
     openProviders: Array.from(new Set(providerList(input.openProviders))),
     adapterBaseUrl: stringValue(input.adapterBaseUrl, defaults.adapterBaseUrl),
     updaterChannel: stringValue(input.updaterChannel, defaults.updaterChannel),
@@ -138,7 +155,11 @@ export function normalizeSettings(value: unknown): AppSettings {
 }
 
 export function mergeSettings(loaded: unknown, patch: Partial<AppSettings>): AppSettings {
-  return normalizeSettings({ ...normalizeSettings(loaded), ...patch });
+  return normalizeSettings({
+    ...normalizeSettings(loaded),
+    ...patch,
+    settingsSchemaVersion: SETTINGS_SCHEMA_VERSION,
+  });
 }
 
 export function slotProviders(assignment: SlotAssignment, side: 'left' | 'right'): AIProvider[] {

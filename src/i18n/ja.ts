@@ -16,27 +16,27 @@ export const ja: Record<I18nKey, string> = {
   'preset.debate.meta': '約4分',
   'preset.debate.description':
     '賛否両方の議論と中立的なまとめが必要な質問に使います。賛成、反対、判定、要約の順で進みます。',
-  'preset.debate.costLabel': '4役割 · ログイン3件 · 3～5分 · RAM使用量：中',
+  'preset.debate.costLabel': '4役割 · ログイン4件 · 3～5分 · RAM使用量：中',
   'preset.consult.displayName': 'コンサル',
   'preset.consult.meta': '約2分',
   'preset.consult.description':
     '調査型の質問に使います。2つの役割が先に回答し、レビュー役が検証して、最後の工程で簡潔に統合します。',
-  'preset.consult.costLabel': '4役割 · ログイン3件 · 約2分 · RAM使用量：少',
+  'preset.consult.costLabel': '4役割 · ログイン4件 · 約2分 · RAM使用量：少',
   'preset.coding.displayName': 'コーディング',
   'preset.coding.meta': '約10分',
   'preset.coding.description':
     '実装作業に使います。計画、レビュー、作成、テスト、修正を行い、具体的な回答に仕上げます。',
-  'preset.coding.costLabel': '4役割 · ログイン3件 · 8～12分 · RAM使用量：多',
+  'preset.coding.costLabel': '4役割 · ログイン4件 · 8～12分 · RAM使用量：多',
   'preset.roundtable.displayName': 'ラウンドテーブル',
   'preset.roundtable.meta': '約12分',
   'preset.roundtable.description':
-    '時間をかけた複数ラウンドの議論に使います。4つの席が5ラウンドにわたり質問を再検討し、標準では3つのAIが担当します。',
-  'preset.roundtable.costLabel': '4席 · ログイン3件 · 10～15分 · RAM使用量：多',
+    '時間をかけた複数ラウンドの議論に使います。4つのAIが1席ずつ担当し、5ラウンドにわたり質問を再検討します。',
+  'preset.roundtable.costLabel': '4席 · ログイン4件 · 10～15分 · RAM使用量：多',
   'preset.brainstorm.displayName': 'ブレインストーミング',
   'preset.brainstorm.meta': '12ラウンド · 48発言 · 5段階',
   'preset.brainstorm.description':
     '全12ラウンドで4つの交代制の席が毎回発言し、計48発言で課題設定、発散、相互発展、分類・選択、検証可能なコンセプトまで進めます。',
-  'preset.brainstorm.costLabel': '4席 · ログイン3件 · 48回答 · 約45～90分 · RAM使用量：非常に多い',
+  'preset.brainstorm.costLabel': '4席 · ログイン4件 · 48回答 · 約45～90分 · RAM使用量：非常に多い',
   'preset.readinessAny': '{ready}件接続済み',
   'preset.readinessRequired': '{ready}/{total}件準備完了',
   'connection.sessionReady': 'バックグラウンドで準備完了',
@@ -224,7 +224,7 @@ export const ja: Record<I18nKey, string> = {
   'settings.general': '一般',
   'settings.modeRoles': 'コラボレーションの役割',
   'settings.modeRolesDescription':
-    '構造化モードで各役割を担当する AI を選びます。同じ AI が複数の役割を兼ねることもできます（例: ディベートを 2 つの AI だけで実施）。同時に実行される役割（コンサルの最初の回答者 2 名、ラウンドテーブルの全席）は重複させないでください。',
+    '組み込みの構造化プリセットでは、ChatGPT、Claude、Gemini、Grok を各 1 役に割り当てます。役割はカスタマイズでき、直列の役割では同じ AI を再利用できますが、同時に実行される役割（例：コンサルの最初の回答者 2 名）は重複させないでください。',
   'settings.modeRoles.coding.planner': 'プランナー',
   'settings.modeRoles.coding.reviewer': 'レビュアー',
   'settings.modeRoles.coding.coder': '実装担当',

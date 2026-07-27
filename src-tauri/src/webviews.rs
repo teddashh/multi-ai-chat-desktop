@@ -28,6 +28,14 @@ const ENGINE_JS: &str = include_str!(concat!(
 const PROVIDER_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows";
 const NEW_SESSION_READY_TIMEOUT_SECS: u64 = 30;
 const NEW_SESSION_READY_POLL_MS: u64 = 150;
+// Bootstrap deliberately stays dormant on provider security checks. Turnstile can be embedded in
+// a page whose top-level title remains "Grok", so the native title observer alone cannot surface
+// every blocked login. This host probe only reads known markers and never creates the bridge.
+const GROK_CHALLENGE_PROBE_JS: &str = r#"Boolean(
+  window.self === window.top &&
+  !window.__MAC_BRIDGE__ &&
+  document.querySelector('#challenge-running, #challenge-stage, #cf-challenge-running, form#challenge-form, .h-captcha, [data-hcaptcha-widget-id], iframe[src*="hcaptcha.com"], iframe[src*="challenges.cloudflare.com"]')
+)"#;
 /// Auto-deny site permission prompts that otherwise pop a blocking native dialog.
 /// SCOPE: Notifications + Geolocation ONLY. We intentionally leave microphone/camera alone so the
 /// providers' voice-input buttons keep working. Runs at document-start, before site scripts.
@@ -131,7 +139,7 @@ pub struct Bounds {
     pub height: f64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ProviderState {
     pub provider: String,
     pub webview: String,
@@ -162,6 +170,55 @@ static RUNTIME: OnceLock<Mutex<ProviderRuntime>> = OnceLock::new();
 
 fn runtime() -> &'static Mutex<ProviderRuntime> {
     RUNTIME.get_or_init(|| Mutex::new(ProviderRuntime::default()))
+}
+
+fn should_probe_grok_challenge(state: &ProviderState) -> bool {
+    state.provider == "grok" && state.webview == "loaded" && state.login != "blocked"
+}
+
+fn grok_challenge_probe_is_current(
+    observed_state: &ProviderState,
+    current_state: &ProviderState,
+) -> bool {
+    should_probe_grok_challenge(current_state) && current_state == observed_state
+}
+
+fn set_grok_challenge_blocked_if_unchanged(app: &AppHandle, observed_state: &ProviderState) {
+    let next_state = {
+        let Ok(mut guard) = runtime().lock() else {
+            return;
+        };
+        let Some(current_state) = guard.states.get(&observed_state.provider) else {
+            return;
+        };
+        if !grok_challenge_probe_is_current(observed_state, current_state) {
+            return;
+        }
+        let mut next_state = current_state.clone();
+        next_state.webview = "loaded".into();
+        next_state.dom = "unknown".into();
+        next_state.login = "blocked".into();
+        next_state.thinking = false;
+        next_state.last_status_at = now_ms();
+        guard
+            .states
+            .insert(next_state.provider.clone(), next_state.clone());
+        next_state
+    };
+    let _ = app.emit_to("main", "connections://update", &next_state);
+}
+
+fn probe_grok_challenge(app: &AppHandle, observed_state: ProviderState) {
+    let label = provider_label(&observed_state.provider);
+    let Some(webview) = app.get_webview(&label) else {
+        return;
+    };
+    let app = app.clone();
+    let _ = webview.eval_with_callback(GROK_CHALLENGE_PROBE_JS, move |raw| {
+        if eval_callback_reports_true(&raw) {
+            set_grok_challenge_blocked_if_unchanged(&app, &observed_state);
+        }
+    });
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -979,9 +1036,13 @@ fn run_staleness_check(app: &AppHandle) {
     let now = now_ms();
     let mut to_check = Vec::new();
     let mut to_mark_unknown = Vec::new();
+    let mut to_probe = Vec::new();
     if let Ok(mut guard) = runtime().lock() {
         let providers = guard.states.values().cloned().collect::<Vec<_>>();
         for state in providers {
+            if should_probe_grok_challenge(&state) {
+                to_probe.push(state.clone());
+            }
             match staleness_action(state.last_status_at, now, state.webview == "loaded") {
                 StalenessAction::None => {}
                 StalenessAction::DispatchCheck
@@ -997,6 +1058,9 @@ fn run_staleness_check(app: &AppHandle) {
                 }
             }
         }
+    }
+    for state in to_probe {
+        probe_grok_challenge(app, state);
     }
     for provider in to_check {
         let msg = serde_json::json!({ "v": 1, "action": "CHECK_STATUS", "provider": provider });
@@ -1049,10 +1113,11 @@ mod tests {
         accept_status_for_session_reset, bridge_resets_on_boot_rotation, cancel_session_reset,
         challenge_auxiliary_navigation_allowed, decide_new_window_action,
         eval_callback_reports_true, fresh_session_boot, gemini_sorry_navigation_active,
-        grok_challenge_title_active, physical_bounds, popup_initial_title,
-        provider_show_should_focus, provider_uses_permission_shim, runtime,
-        should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
-        NewWindowAction, StalenessAction, PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
+        grok_challenge_probe_is_current, grok_challenge_title_active, physical_bounds,
+        popup_initial_title, provider_show_should_focus, provider_uses_permission_shim, runtime,
+        should_probe_grok_challenge, should_reset_bridge_on_boot_rotation, staleness_action,
+        state_with, Bounds, NewWindowAction, StalenessAction, GROK_CHALLENGE_PROBE_JS,
+        PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
     };
 
     fn url(input: &str) -> tauri::Url {
@@ -1378,6 +1443,64 @@ mod tests {
             "chatgpt",
             "Performing security verification"
         ));
+    }
+
+    #[test]
+    fn grok_challenge_probe_is_read_only_and_bridge_passive() {
+        assert!(GROK_CHALLENGE_PROBE_JS.contains("!window.__MAC_BRIDGE__"));
+        assert!(GROK_CHALLENGE_PROBE_JS.contains("document.querySelector"));
+        assert!(GROK_CHALLENGE_PROBE_JS.contains("challenges.cloudflare.com"));
+        for mutation in [
+            "document.title =",
+            "history.",
+            "navigator.",
+            "MutationObserver",
+            "__MAC_BRIDGE__ =",
+        ] {
+            assert!(!GROK_CHALLENGE_PROBE_JS.contains(mutation));
+        }
+    }
+
+    #[test]
+    fn grok_challenge_probe_targets_only_loaded_unblocked_grok() {
+        assert!(should_probe_grok_challenge(&state_with(
+            "grok", "loaded", "unknown", "unknown", false
+        )));
+        assert!(should_probe_grok_challenge(&state_with(
+            "grok",
+            "loaded",
+            "ready",
+            "logged_in",
+            false
+        )));
+        assert!(!should_probe_grok_challenge(&state_with(
+            "grok", "loaded", "unknown", "blocked", false
+        )));
+        assert!(!should_probe_grok_challenge(&state_with(
+            "grok", "creating", "unknown", "unknown", false
+        )));
+        assert!(!should_probe_grok_challenge(&state_with(
+            "chatgpt", "loaded", "unknown", "unknown", false
+        )));
+    }
+
+    #[test]
+    fn stale_grok_challenge_probe_cannot_override_a_newer_state() {
+        let observed = state_with("grok", "loaded", "unknown", "unknown", false);
+        assert!(grok_challenge_probe_is_current(&observed, &observed));
+
+        let mut ready = observed.clone();
+        ready.dom = "ready".into();
+        ready.login = "logged_in".into();
+        assert!(!grok_challenge_probe_is_current(&observed, &ready));
+
+        let mut newer = observed.clone();
+        newer.last_status_at = newer.last_status_at.saturating_add(1);
+        assert!(!grok_challenge_probe_is_current(&observed, &newer));
+
+        let mut blocked = observed.clone();
+        blocked.login = "blocked".into();
+        assert!(!grok_challenge_probe_is_current(&observed, &blocked));
     }
 
     #[test]

@@ -25,6 +25,15 @@ export const DEFAULT_MODE_ROLE_ASSIGNMENTS: ModeRoleAssignments = {
   roundtable: { ...DEFAULT_ROUNDTABLE_ROLES },
 };
 
+// v1.7-v1.8 duplicated one provider in each setup to keep Grok optional. This
+// table is consumed only by the versioned, one-time settings migration below.
+const LEGACY_THREE_PROVIDER_DEFAULTS: ModeRoleAssignments = {
+  debate: { pro: 'chatgpt', con: 'claude', judge: 'gemini', summary: 'gemini' },
+  consult: { first: 'chatgpt', second: 'gemini', reviewer: 'claude', summary: 'gemini' },
+  coding: { planner: 'gemini', reviewer: 'chatgpt', coder: 'claude', tester: 'chatgpt' },
+  roundtable: { first: 'claude', second: 'gemini', third: 'chatgpt', fourth: 'claude' },
+};
+
 // Role keys per mode, in execution order — drives the Settings UI rows.
 export const MODE_ROLE_FIELDS = {
   debate: ['pro', 'con', 'judge', 'summary'],
@@ -91,6 +100,28 @@ export function normalizeModeRoleAssignments(
   });
 
   return out as unknown as ModeRoleAssignments;
+}
+
+export function migrateLegacyModeRoleAssignments(
+  value: unknown,
+  fallback: ModeRoleAssignments = DEFAULT_MODE_ROLE_ASSIGNMENTS,
+): ModeRoleAssignments {
+  const migrated = normalizeModeRoleAssignments(value, fallback);
+  if (!value || typeof value !== 'object') return migrated;
+  const input = value as Partial<Record<keyof ModeRoleAssignments, unknown>>;
+  const output = migrated as unknown as Record<keyof ModeRoleAssignments, Record<string, AIProvider>>;
+
+  for (const mode of Object.keys(MODE_ROLE_FIELDS) as (keyof ModeRoleAssignments)[]) {
+    if (!input[mode] || typeof input[mode] !== 'object') continue;
+    const supplied = input[mode] as Record<string, unknown>;
+    const legacyDefaults = LEGACY_THREE_PROVIDER_DEFAULTS[mode] as unknown as Record<string, AIProvider>;
+    const isExactLegacyDefault = MODE_ROLE_FIELDS[mode].every((role) => supplied[role] === legacyDefaults[role]);
+    if (isExactLegacyDefault) {
+      output[mode] = { ...(fallback[mode] as unknown as Record<string, AIProvider>) };
+    }
+  }
+
+  return migrated;
 }
 
 export function assignModeRole(
