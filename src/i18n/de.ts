@@ -16,27 +16,27 @@ export const de: Record<I18nKey, string> = {
   'preset.debate.meta': 'ca. 4 Min.',
   'preset.debate.description':
     'Für Fragen, die Gegenargumente und eine neutrale Synthese brauchen. Enthält Pro-, Kontra-, Bewertungs- und Zusammenfassungsrunden.',
-  'preset.debate.costLabel': '4 Rollen · 3 Anmeldungen · 3–5 Min. · Mittlerer RAM-Bedarf',
+  'preset.debate.costLabel': '4 Rollen · 4 Anmeldungen · 3–5 Min. · Mittlerer RAM-Bedarf',
   'preset.consult.displayName': 'Beratung',
   'preset.consult.meta': 'ca. 2 Min.',
   'preset.consult.description':
     'Für Recherchefragen. Zwei Rollen antworten zuerst, eine Prüfung folgt und ein letzter Durchlauf erstellt eine kurze Gesamtausgabe.',
-  'preset.consult.costLabel': '4 Rollen · 3 Anmeldungen · ca. 2 Min. · Geringer RAM-Bedarf',
+  'preset.consult.costLabel': '4 Rollen · 4 Anmeldungen · ca. 2 Min. · Geringer RAM-Bedarf',
   'preset.coding.displayName': 'Programmieren',
   'preset.coding.meta': 'ca. 10 Min.',
   'preset.coding.description':
     'Für Implementierungsaufgaben. Der Lauf plant, prüft, schreibt, testet, überarbeitet und liefert ein konkretes Ergebnis.',
-  'preset.coding.costLabel': '4 Rollen · 3 Anmeldungen · 8–12 Min. · Hoher RAM-Bedarf',
+  'preset.coding.costLabel': '4 Rollen · 4 Anmeldungen · 8–12 Min. · Hoher RAM-Bedarf',
   'preset.roundtable.displayName': 'Diskussionsrunde',
   'preset.roundtable.meta': 'ca. 12 Min.',
   'preset.roundtable.description':
-    'Für langsamere Diskussionen über mehrere Runden. Vier Sitze prüfen die Frage in fünf Runden; standardmäßig werden sie von drei KIs besetzt.',
-  'preset.roundtable.costLabel': '4 Sitze · 3 Anmeldungen · 10–15 Min. · Hoher RAM-Bedarf',
+    'Für langsamere Diskussionen über mehrere Runden. Alle vier KIs besetzen je einen Sitz und prüfen die Frage in fünf Runden.',
+  'preset.roundtable.costLabel': '4 Sitze · 4 Anmeldungen · 10–15 Min. · Hoher RAM-Bedarf',
   'preset.brainstorm.displayName': 'Brainstorming',
   'preset.brainstorm.meta': '12 Runden · 48 Beiträge · 5 Phasen',
   'preset.brainstorm.description':
     'Vier wechselnde Sitze tragen in jeder der 12 Runden bei: 48 Beiträge von Problemrahmen und Divergenz über gegenseitige Anregung bis Auswahl und testbaren Konzepten.',
-  'preset.brainstorm.costLabel': '4 Sitze · 3 Anmeldungen · 48 Antworten · 45–90 Min. · Sehr hoher RAM-Bedarf',
+  'preset.brainstorm.costLabel': '4 Sitze · 4 Anmeldungen · 48 Antworten · 45–90 Min. · Sehr hoher RAM-Bedarf',
   'preset.readinessAny': '{ready} verbunden',
   'preset.readinessRequired': '{ready}/{total} bereit',
   'connection.sessionReady': 'Im Hintergrund bereit',
@@ -224,7 +224,7 @@ export const de: Record<I18nKey, string> = {
   'settings.general': 'Allgemein',
   'settings.modeRoles': 'Kollaborationsrollen',
   'settings.modeRolesDescription':
-    'Wählen Sie, welche KI in den strukturierten Modi jede Rolle übernimmt. Dieselbe KI kann mehrere Rollen einnehmen — z. B. eine Debatte mit nur zwei KIs. Gleichzeitig laufende Rollen (die ersten beiden Antworten der Beratung und alle Rundtischplätze) müssen unterschiedlich bleiben.',
+    'Die integrierten strukturierten Presets weisen ChatGPT, Claude, Gemini und Grok jeweils genau eine Rolle zu. Rollen lassen sich anpassen: Serielle Rollen dürfen dieselbe KI wiederverwenden; gleichzeitig laufende Rollen, etwa die ersten beiden Antworten der Beratung, müssen unterschiedlich bleiben.',
   'settings.modeRoles.coding.planner': 'Planung',
   'settings.modeRoles.coding.reviewer': 'Prüfung',
   'settings.modeRoles.coding.coder': 'Implementierung',

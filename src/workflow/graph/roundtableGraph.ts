@@ -70,7 +70,7 @@ const roundtableOrder = orderedRoundtableNodeIds();
 export const roundtableGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'roundtable',
-  version: 2,
+  version: 3,
   mode: 'roundtable',
   start: roundtableOrder[0],
   roles: {
@@ -81,7 +81,7 @@ export const roundtableGraph: WorkflowGraph = {
   },
   preflight: {
     kind: 'serial',
-    // Seats may share a provider: only three providers have working default logins.
+    // Custom assignments may share a provider; the built-in default uses all four.
     requiredRoles: ['first', 'second', 'third', 'fourth'],
   },
   nodes: makeRoundtableNodes(),

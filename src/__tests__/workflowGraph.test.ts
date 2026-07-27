@@ -218,13 +218,31 @@ describe('workflow graph foundation', () => {
     ['Coding', codingGraph, DEFAULT_CODING_ROLES],
     ['Roundtable', roundtableGraph, DEFAULT_ROUNDTABLE_ROLES],
     ['Brainstorm', brainstormGraph, DEFAULT_ROUNDTABLE_ROLES],
-  ] as const)('starts default %s while Grok is unavailable', async (_name, graph, roles) => {
+  ] as const)('requires Grok for the four-provider default %s setup', async (_name, graph, roles) => {
     vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude'), state('gemini'), state('grok', false)]);
 
     await expect(preflightGraph(graph, roles)).resolves.toMatchObject({
-      ok: true,
-      unavailable: [],
+      ok: false,
+      unavailable: ['grok'],
       aliased: [],
+    });
+  });
+
+  it('versions every graph whose built-in provider routing changed', () => {
+    expect({
+      debate: debateGraph.version,
+      consult: consultGraph.version,
+      coding: codingGraph.version,
+      roundtable: roundtableGraph.version,
+      brainstorm: brainstormGraph.version,
+      free: freeGraph.version,
+    }).toEqual({
+      debate: 3,
+      consult: 4,
+      coding: 3,
+      roundtable: 3,
+      brainstorm: 3,
+      free: 2,
     });
   });
 

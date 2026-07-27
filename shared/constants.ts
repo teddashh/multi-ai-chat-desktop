@@ -82,18 +82,18 @@ export const CHAT_MODES: Record<ChatMode, {
 
 // === Default Role Assignments ===
 
-// Grok is not assigned a default role: provider-controlled challenges can block
-// its embedded login. It stays selectable manually.
+// Every built-in four-role setup starts with one seat per provider. Users can
+// still customize assignments in Settings when a provider is unavailable.
 export const DEFAULT_DEBATE_ROLES: DebateRoles = {
   pro: 'chatgpt',
   con: 'claude',
-  judge: 'gemini',
+  judge: 'grok',
   summary: 'gemini',
 };
 
 export const DEFAULT_CONSULT_ROLES: ConsultRoles = {
   first: 'chatgpt',
-  second: 'gemini',
+  second: 'grok',
   reviewer: 'claude',
   summary: 'gemini',
 };
@@ -102,14 +102,14 @@ export const DEFAULT_CODING_ROLES: CodingRoles = {
   planner: 'gemini',
   reviewer: 'chatgpt',
   coder: 'claude',
-  tester: 'chatgpt',
+  tester: 'grok',
 };
 
 export const DEFAULT_ROUNDTABLE_ROLES: RoundtableRoles = {
   first: 'claude',
   second: 'gemini',
-  third: 'chatgpt',
-  fourth: 'claude',
+  third: 'grok',
+  fourth: 'chatgpt',
 };
 
 const BRAINSTORM_SEAT_LENSES = [

@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-22 for v1.8.0. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-07-27 for v1.8.0. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -17,7 +17,7 @@
 | macOS Apple Silicon | DMG builds in CI; embedded app is verified as ad-hoc signed | A `v1.0.1` user opened the app and logged into ChatGPT, Claude, and Gemini; Grok looped on Cloudflare verification | **Partially verified** |
 | Linux x86_64 | AppImage builds in CI with WebKitGTK dependencies | No maintainer desktop report yet | **CI-only** |
 
-macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. Current source leaves provider permission APIs untouched, permits Cloudflare's required `about:blank` / `about:srcdoc` documents, defers the automation bridge on any detected Cloudflare or hCaptcha security-check page, and never monkey-patches Grok's History API. A native Tauri title observer can mark known Grok challenge titles as blocked without starting the injected bridge. Automated tests cover this policy, but a live Apple Silicon retest is still required.
+macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. Current source leaves provider permission APIs untouched, permits Cloudflare's required `about:blank` / `about:srcdoc` documents, defers the automation bridge on any detected Cloudflare or hCaptcha security-check page, and never monkey-patches Grok's History API. A native Tauri title observer marks known Grok challenge titles as blocked, and a bounded read-only host probe covers embedded Turnstile widgets whose top-level title remains unchanged. Neither path starts the injected bridge or changes the challenge page. Automated tests cover this policy, but a live Apple Silicon retest is still required.
 
 ## Agent-ready source lane
 
@@ -44,7 +44,7 @@ Automated tests validate adapter structure, schema v1/v2 parser compatibility, t
 
 Claude's current consumer web experience requires an authenticated account. Adapter v4 recognizes common email-login fields and keeps the official Anthropic and Google sign-in routes within the existing bounded SSO policy. The app does not bypass login, age, subscription, challenge, or other provider-side requirements; guided workflows that assign a Claude seat remain blocked until Claude reports a ready composer.
 
-macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. Current source delays bridge startup for every provider until detected Cloudflare or hCaptcha challenge signals disappear and additionally avoids Grok History API replacement, following anti-bot WebView compatibility requirements. Known Grok challenge titles are reported through the native WebView title callback only; this improves user feedback without injecting automation into the challenge document. CI can verify the policy but cannot prove that a live challenge completes.
+macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. Current source delays bridge startup for every provider until detected Cloudflare or hCaptcha challenge signals disappear and additionally avoids Grok History API replacement, following anti-bot WebView compatibility requirements. Known Grok challenge titles are reported through the native WebView title callback; title-preserving widgets are detected by a Grok-only read-only host probe. This improves user feedback without starting the bridge or mutating the challenge document. CI can verify the policy but cannot prove that a live challenge completes.
 
 Gemini may redirect an embedded session to `https://www.google.com/sorry/index?...`. Current source allows only the HTTPS `www.google.com/sorry` path family for Gemini, reports it as blocked instead of logged in, skips the permission shim there, and defers bridge startup until Google returns to Gemini. Sibling paths, lookalike hosts, non-HTTPS URLs, and cross-provider use remain denied. A live challenge completion still requires manual verification.
 
@@ -53,9 +53,9 @@ Gemini may redirect an embedded session to `https://www.google.com/sorry/index?.
 | Area | Automated evidence | Manual release check |
 |---|---|---|
 | Free mode | Four-provider fan-out tests | Send to all selected providers; verify each final response |
-| Debate / consultation / coding | Golden graph ordering, prompt threading, configurable role assignment, Grok-unavailable preflight, bounded retry, and terminal provider-error tests | Complete one default run; verify role labels and final summary |
-| Roundtable | Five-round, four-seat history, configurable assignment, repeated-seat preflight, and Grok-unavailable default tests | Complete one run; verify prior same-session speeches remain available |
-| Brainstorm | Twelve rounds × four rotating seats, three-provider safe defaults, four distinct lenses, 48-step history threading, five phase prompts, preflight, localization, and snapshot tests | Allow 45–90 minutes; verify four contributions per round and a consolidated portfolio from the final speaker |
+| Debate / consultation / coding | Golden graph ordering, prompt threading, four-provider default assignment, unavailable-provider preflight, configurable roles, bounded retry, and terminal provider-error tests | Complete one default run; verify role labels and final summary |
+| Roundtable | Five-round, four-seat history, four-provider default coverage, configurable assignment, repeated-seat preflight, and unavailable-provider tests | Complete one run; verify prior same-session speeches remain available |
+| Brainstorm | Twelve rounds × four rotating seats, four-provider defaults, four distinct lenses, 48-step history threading, five phase prompts, preflight, localization, and snapshot tests | Allow 45–90 minutes; verify four contributions per round and a consolidated portfolio from the final speaker |
 | Long provider work | Thinking, pulled chunks, bulk-ready, and done-ready activity refresh a 10-minute inactivity window; tests also enforce a 60-minute bridge hard cap | Run one provider task beyond 10 minutes, then verify a truly stalled task still terminates |
 | Session isolation | Conversation persistence and latest-snapshot matching tests | Create two sessions; confirm no messages or export provenance cross over |
 | Restored-session continuity | Stable response-identity and bounded same-session replay tests | Reopen a session, ask a follow-up, and confirm old context is available without cross-session leakage |

@@ -79,7 +79,7 @@ const brainstormOrder = orderedBrainstormSeats();
 export const brainstormGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'brainstorm',
-  version: 2,
+  version: 3,
   mode: 'free',
   start: nodeId(brainstormOrder[0].round, brainstormOrder[0].role),
   roles: {
@@ -90,7 +90,7 @@ export const brainstormGraph: WorkflowGraph = {
   },
   preflight: {
     kind: 'serial',
-    // Seats may share a provider: only three providers have working default logins.
+    // Custom assignments may share a provider; the built-in default uses all four.
     requiredRoles: ['first', 'second', 'third', 'fourth'],
   },
   nodes: makeBrainstormNodes(),

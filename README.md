@@ -8,7 +8,7 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > This project automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider’s terms. Use accounts and content you are authorized to use.
 
-> **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Brainstorm keeps four rotating seats and 48 contributions with full same-session history; the safe defaults use ChatGPT, Claude, and Gemini, while Grok remains manually selectable when its embedded login is available. The shipped snapshot/replay tools remain available as-is with no further roadmap.
+> **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Brainstorm keeps four rotating seats and 48 contributions with full same-session history. Every built-in four-role or four-seat setup assigns ChatGPT, Claude, Gemini, and Grok once each. The shipped snapshot/replay tools remain available as-is with no further roadmap.
 
 ## v1.8.0 highlights
 
@@ -31,7 +31,7 @@ See the bilingual [`v1.8.0 release notes`](./docs/RELEASE_NOTES_v1.8.0.md) for v
 - **Reliable offscreen automation.** Providers keep working without manually opening each “live page”; rejected sends retry and fail clearly instead of waiting forever.
 - **Conversation-first layout.** Workflow controls sit above the less-important provider WebView on the left; the larger transcript pane can expand across the whole window, and provider chips identify the answer at the reading line.
 - **Six guided presets, five stable modes.** Free distribution, debate, consultation, coding, five-round truth-seeking roundtable, and a 12-round × 4-seat Brainstorm workflow with 48 contributions.
-- **Configurable collaboration roles.** In Settings, assign each structured role to the providers you want; serial roles may reuse one provider, while roles that run in parallel must remain distinct.
+- **Configurable collaboration roles.** Built-in four-role setups use all four providers once each. In Settings, you can assign roles differently; serial roles may reuse one provider, while roles that run in parallel must remain distinct.
 - **Local sessions.** Create a new conversation or reopen up to 30 recent transcripts stored on this computer; restored follow-ups receive bounded context from the same session.
 - **Readable results.** Safe semantic Markdown rendering for headings, nested lists, links, quotes, fenced code, and scrollable tables.
 - **Image completion.** Image-only ChatGPT responses complete the workflow instead of hanging.
@@ -50,12 +50,12 @@ See the bilingual [`v1.8.0 release notes`](./docs/RELEASE_NOTES_v1.8.0.md) for v
 | **Debate** | Pro → Con → Judge → Synthesis | Stress-test a decision or argument |
 | **Consult** | Two independent answers → Review → Final answer | Research and second opinions |
 | **Coding** | Specification → Reviews → v1 → Tests → v2 → Acceptance → Final | Structured software planning and review |
-| **Roundtable** | 5 rounds × 4 seats = 20 turns; 3 providers by default | Slow, adversarial convergence on difficult questions |
+| **Roundtable** | 5 rounds × 4 seats = 20 turns; all 4 providers by default | Slow, adversarial convergence on difficult questions |
 | **Brainstorm** | 12 rounds × 4 rotating seats = 48 contributions; framing → divergence → cross-pollination → harvesting → concept tests | Full-context idea development, a balanced portfolio, and concrete first experiments |
 
 Structured workflows retry a provider once when its page rejects a just-finished back-to-back send. Any remaining engine error stops the workflow instead of being passed to later roles as if it were an answer.
 
-Brainstorm is intentionally the heaviest preset: keep the three default provider sessions authenticated and allow roughly 45–90 minutes. Grok can be assigned manually when its embedded login is usable. Claude's current consumer site requires an account login; this app detects and guides that flow but never bypasses provider login or security checks.
+Brainstorm is intentionally the heaviest preset: keep all four default provider sessions authenticated and allow roughly 45–90 minutes. If a provider is unavailable, preflight identifies it and you can customize the role assignments. Claude's current consumer site requires an account login; this app detects and guides that flow but never bypasses provider login or security checks.
 
 After a workflow finishes, use the bottom composer to continue the same conversation. Use **New conversation** when you want a clean session.
 

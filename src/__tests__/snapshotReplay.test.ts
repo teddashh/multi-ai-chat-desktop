@@ -124,6 +124,7 @@ describe('snapshot replay', () => {
   it('plans a version-matched snapshot and derives free replay targets', () => {
     const snapshot = buildSnapshot({
       graphId: 'free',
+      graphVersion: 2,
       roleMap: {},
       userQuestion: inlineRef('free question'),
       steps: [
@@ -147,7 +148,7 @@ describe('snapshot replay', () => {
   it('replays Brainstorm snapshots with the fixed four-seat rotation', () => {
     const snapshot = buildSnapshot({
       graphId: 'brainstorm',
-      graphVersion: 2,
+      graphVersion: 3,
       roleMap: { ...DEFAULT_ROUNDTABLE_ROLES },
       userQuestion: inlineRef('brainstorm question'),
       steps: [
@@ -167,17 +168,17 @@ describe('snapshot replay', () => {
   });
 
   it('blocks graph version mismatches unless the caller opts into the current graph', async () => {
-    const snapshot = buildSnapshot({ graphVersion: 1 });
+    const snapshot = buildSnapshot({ graphVersion: 2 });
 
     expect(planReplay(snapshot)).toMatchObject({
       blocked: 'graph-version-mismatch',
-      detail: { snapshotVersion: 1, currentVersion: 2 },
+      detail: { snapshotVersion: 2, currentVersion: 3 },
     });
 
     await expect(replaySnapshot({ snapshot }, {})).resolves.toEqual({
       ok: false,
       blocked: 'graph-version-mismatch',
-      detail: { snapshotVersion: 1, currentVersion: 2 },
+      detail: { snapshotVersion: 2, currentVersion: 3 },
     });
     expect(executeGraph).not.toHaveBeenCalled();
 
@@ -217,7 +218,7 @@ describe('snapshot replay', () => {
   it('uses the raw prompt-text userQuestion instead of rendered step inputs', () => {
     const snapshot = buildSnapshot({
       graphId: 'consult',
-      graphVersion: 3,
+      graphVersion: 4,
       redactionTier: 'prompt-text',
       roleMap: { first: 'chatgpt', second: 'grok', reviewer: 'claude', summary: 'gemini' },
       userQuestion: inlineRef('prompt text question', 'prompt-text'),
@@ -300,6 +301,7 @@ describe('snapshot replay', () => {
   it('accepts caller-supplied questions for hashes snapshots and executes with derived free targets', async () => {
     const snapshot = buildSnapshot({
       graphId: 'free',
+      graphVersion: 2,
       redactionTier: 'hashes',
       roleMap: {},
       steps: [
@@ -321,6 +323,7 @@ describe('snapshot replay', () => {
     vi.mocked(host.connections.get).mockResolvedValue(providers.map((provider) => state(provider)));
     const snapshot = buildSnapshot({
       graphId: 'free',
+      graphVersion: 2,
       roleMap: {},
       userQuestion: inlineRef('legacy free replay'),
       steps: [],
@@ -461,6 +464,7 @@ describe('snapshot replay', () => {
     vi.mocked(host.connections.get).mockResolvedValue([state('chatgpt'), state('claude', false), state('gemini'), state('grok')]);
     const snapshot = buildSnapshot({
       graphId: 'free',
+      graphVersion: 2,
       roleMap: {},
       userQuestion: inlineRef('free replay sendability'),
       steps: [
@@ -509,7 +513,7 @@ function buildSnapshot(overrides: Partial<ExecutionSnapshot> = {}): ExecutionSna
   return {
     snapshotId: 'snapshot-source',
     graphId: 'debate',
-    graphVersion: 2,
+    graphVersion: 3,
     appVersion: '0.0.0-test',
     createdAt: '2026-07-06T00:00:00.000Z',
     completedAt: '2026-07-06T00:01:00.000Z',
