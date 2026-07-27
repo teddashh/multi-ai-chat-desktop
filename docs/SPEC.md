@@ -1,9 +1,9 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2.8 feature-frozen** (four-provider web edition; `v1.6.4` maintenance baseline)
-> Date: 2026-07-27
+> Status: **v2.2.7 feature-frozen** (four-provider web edition; `v1.6.4` maintenance baseline)
+> Date: 2026-07-18
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
-> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo; v2.2.6 surfaces Grok challenge state without starting automation on the challenge page; v2.2.7 repairs logged-out status detection and keeps Gemini's Google challenge passive; v2.2.8 detects title-preserving Grok Turnstile widgets with a read-only host probe while keeping the bridge deferred, and restores one seat per provider in every built-in four-role setup.
+> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo; v2.2.6 surfaces Grok challenge state without starting automation on the challenge page; v2.2.7 repairs logged-out status detection and keeps Gemini's Google challenge passive.
 > Audience: maintenance contributors. Existing snapshot/replay/checkpoint behavior is compatibility-maintained but has no vNext roadmap.
 
 ## 0. One-paragraph summary
@@ -273,14 +273,7 @@ interface PresetCatalogEntry {
 }
 ```
 
-Role interfaces (DebateRoles, ConsultRoles, CodingRoles, RoundtableRoles) port from the original. Every built-in four-role or four-seat assignment MUST contain each shipped provider exactly once:
-
-- Debate: pro ChatGPT, con Claude, judge Grok, summary Gemini.
-- Consult: first ChatGPT, second Grok, reviewer Claude, summary Gemini.
-- Coding: planner Gemini, reviewer ChatGPT, coder Claude, tester Grok.
-- Roundtable and Brainstorm: first Claude, second Gemini, third Grok, fourth ChatGPT.
-
-During the settings-schema-v1 upgrade, an exact saved copy of a v1.7–v1.8 three-provider built-in assignment migrates, mode by mode, to the corresponding current default. The normalized value MUST carry `settingsSchemaVersion: 1`, so later user choices that happen to match a legacy shape remain valid. Any other valid saved mapping is user customization and MUST be preserved.
+Role interfaces (DebateRoles, ConsultRoles, CodingRoles, RoundtableRoles) and default role assignments port unchanged from `shared/constants.ts` of the original.
 
 The v2 target pack/pulse fields are local-first (§11). They MUST NOT introduce a telemetry server or automatic upload channel.
 
@@ -560,7 +553,7 @@ ConnectionBar chip mapping (SHIPPED floor, normative): `no-webview` (webview≠l
 **NEXT-PHASE (N4):** primary v2 entry is the preset catalog:
 - Built-in cards: Free fan-out, Debate, Consult, Coding, Roundtable. Imported packs appear with source and maintenance metadata.
 - Each card displays cost label, required provider count, estimated time, RAM hint, and login prerequisites. Cost labels are descriptive, not billing estimates.
-- Preset-card copy contract: `displayName` + `description` MUST state in plain language the scenario ("when to use / what you get"), provider count, estimated time, RAM hint, and login prerequisites. Default-locale copy MUST avoid graph/editor jargon. An example built-in cost string is "4 roles · 4 logins · 3-5 min · 8 GB RAM"; imported or customized cards may report a different provider count.
+- Preset-card copy contract: `displayName` + `description` MUST state in plain language the scenario ("when to use / what you get"), provider count, estimated time, RAM hint, and login prerequisites. Default-locale copy MUST avoid graph/editor jargon. Example cost strings: "4 AI · 3 logins · 3-5 min · 8 GB RAM" and "2 AI · 2 logins · about 2 min · low RAM".
 - "More…" opens the advanced drawer: raw ModeSelector, RoleConfig, imported pack management, snapshot replay, and settings.
 - Starting a card runs the graph-backed preset after preflight. The old mode dropdown remains reachable for parity testing and power users.
 
@@ -590,8 +583,8 @@ Desktop deviation from the original "open new tab" (equivalent outcome, document
 
 | Provider | Default action | Blocked path |
 |---|---|---|
-| chatgpt / claude | navigate `ai-<provider>` webview to `adapter.urls.login`, show + focus pane | — |
-| gemini / grok | same attempt | if the embedded security check reports login `blocked`, show a banner + button → system browser via opener. The browser is a separate session and cannot authenticate the app's isolated provider profile; the user can use that provider in the browser or retry the embedded page later. **No cookie import, no UA spoofing** (ARCH D6/D6b). |
+| chatgpt / claude / grok | navigate `ai-<provider>` webview to `adapter.urls.login`, show + focus pane | — |
+| gemini | same attempt, but if Google embedded-login block is detected (login `blocked`) | banner + button → system browser via opener; user logs in in Chrome/Edge, then retries embedded (session cookie sometimes carries); **no cookie import, no UA spoofing** (ARCH D6/D6b) |
 
 SSO redirects during login stay in-webview per §6.3.
 
@@ -654,7 +647,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 | Login expired | loggedOut/login detectors flip | chip → needs-login; free mode excludes; serial mode = preflight block or mid-run timeout UI (§9.5) |
 | Google blocks Gemini login | blocked-login DOM detected | banner + system-browser guidance (§10.1) |
 | Provider-side error UI (rate limit / refusal / verification) | response never appears; error-as-DONE (§8.3) | bubble shows `[Error: …]`; serial workflows surface timeout/retry/skip UI |
-| Cloudflare challenge | challenge DOM detected; for Grok, a known title or a host-side read-only marker probe also detects title-preserving Turnstile widgets | pane surfaces webview for manual solve and reports Grok as blocked; full bridge startup remains deferred; no challenge bypass or page mutation |
+| Cloudflare challenge | challenge DOM detected, or a known Grok challenge title observed natively | pane surfaces webview for manual solve; bridge startup remains deferred; the native title observer may report Grok as blocked without page injection |
 | Workflow step stall | no chunk within step timeout | countdown UI → retry / skip / cancel (§9) |
 | Adapter fetch fails | reqwest error / validation fail | silent fallback to cache; toast on downgrade |
 | Bridge: corrupted title / failed or unparseable pull | codec error, pull timeout, size cap | drop + `bridge:'degraded'` status; pull retry-once (§7.3); persistent ⇒ stale chip + reload suggestion |
@@ -701,7 +694,6 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 ## 16. Changelog
 
-- **v2.2.8 (2026-07-27)** — Grok Turnstile status repair: while the full automation bridge remains deferred, the native watchdog performs a bounded read-only marker probe so an embedded widget whose page title remains `Grok` still reports login `blocked`; the existing system-browser action remains an honest outside-app fallback because browser and provider WebView profiles do not share authentication. Built-in four-role and four-seat setups again assign ChatGPT, Claude, Gemini, and Grok exactly once each; only exact saved copies of the v1.7–v1.8 three-provider defaults in unversioned settings migrate during schema-v1 normalization, so later custom role maps remain intact.
 - **v2.2.7 (2026-07-18)** — provider connection-status repair: supports typed schema-v2 logged-out detectors without breaking schema v1, recognizes stale-composer login pages for ChatGPT and Grok, allows only Gemini's bounded Google `/sorry` challenge path, leaves that challenge document unmodified, and adds parser, URL-boundary, locale, and precedence tests.
 - **v2.2.6 (2026-07-18)** — challenge-passive status repair: keeps bridge startup deferred on provider security checks, surfaces known Grok challenge titles through Tauri's native title observer, replaces the misleading cross-profile login promise, and adds focused frontend/Rust coverage.
 - **v2.2.5 (2026-07-15)** — response-language echo hardening: moves the internal routing policy before the provider request, marks it as non-user-visible metadata, and sanitizes complete, fenced, or partially streamed policy echoes before workflow/UI consumption.
