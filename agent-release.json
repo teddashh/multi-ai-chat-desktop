@@ -1,7 +1,7 @@
 {
   "$schema": "./agent-release.schema.json",
   "schemaVersion": 1,
-  "contractVersion": "1.0.0",
+  "contractVersion": "2.0.0",
   "kind": "agent-ready-source-release",
   "product": {
     "name": "Multi-AI Chat Desktop",
@@ -45,7 +45,7 @@
     }
   },
   "requirements": {
-    "common": ["Node.js 20+", "pnpm or Corepack", "stable Rust toolchain", "local graphical session"],
+    "common": ["Node.js ^22.13.0 || >=24.0.0", "pnpm or Corepack", "stable Rust toolchain", "local graphical session"],
     "windows": ["Visual Studio C++ Build Tools", "Microsoft Edge WebView2 Runtime"],
     "macos": ["Xcode Command Line Tools"],
     "linux": ["WebKitGTK 4.1 development libraries", "pkg-config", "X11 or Wayland desktop session"]
@@ -141,7 +141,7 @@
     "3": "readiness wait timed out"
   },
   "skills": {
-    "version": "1.0.0",
+    "version": "2.0.0",
     "codex": ".agents/skills/launch-multi-ai-chat/SKILL.md",
     "codexMetadata": ".agents/skills/launch-multi-ai-chat/agents/openai.yaml",
     "claude": ".claude/skills/launch-multi-ai-chat/SKILL.md",

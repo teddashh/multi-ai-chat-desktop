@@ -105,7 +105,7 @@ Ist die Desktop-/Browser-Sitzung remote, verwende eine lokale Claude-Code-Sitzun
 
 ### Voraussetzungen nach Betriebssystem
 
-Allgemein: **Node.js 20+**, pnpm (oder Corepack) und stabiles Rust. Die folgenden Schritte sind manuelle Beispiele; der Skill meldet fehlende Voraussetzungen nur und beendet sich.
+Allgemein: **Node.js 22.13.x oder 24+**, pnpm (oder Corepack) und stabiles Rust. Die folgenden Schritte sind manuelle Beispiele; der Skill meldet fehlende Voraussetzungen nur und beendet sich.
 
 **Windows 10/11**
 
@@ -128,7 +128,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-Danach Node.js 20+ und Rust stable installieren und den Skill in einer X11-/Wayland-Sitzung ausführen. Andere Distributionen: [Tauri-2-Voraussetzungen](https://v2.tauri.app/start/prerequisites/).
+Danach Node.js 22.13.x oder 24+ und Rust stable installieren und den Skill in einer X11-/Wayland-Sitzung ausführen. Andere Distributionen: [Tauri-2-Voraussetzungen](https://v2.tauri.app/start/prerequisites/).
 
 ### Skill-Befehle
 

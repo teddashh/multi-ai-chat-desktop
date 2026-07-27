@@ -19,8 +19,19 @@ export default tseslint.config(
       'react-refresh': reactRefresh,
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      // Preserve the pre-v7 lint contract. react-hooks v7 folds optional
+      // React Compiler rules into "recommended"; adopting those is a separate
+      // refactor from this security-only toolchain update.
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // New in ESLint 10's recommended set; enabling it requires an unrelated
+      // executor cleanup and is intentionally deferred.
+      'no-useless-assignment': 'off',
+      // Keep this dependency-only security update from expanding the existing
+      // lint contract with ESLint 10's newly recommended rules.
+      'no-unassigned-vars': 'off',
+      'preserve-caught-error': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

@@ -105,7 +105,7 @@ desktop/browser session が remote の場合は、local Claude Code session を�
 
 ### OS別の前提条件
 
-共通：**Node.js 20+**、pnpm（または Corepack）、stable Rust。以下は手動で前提条件を用意する例であり、Skill自体は不足項目を報告して停止します。
+共通：**Node.js 22.13.x または 24+**、pnpm（または Corepack）、stable Rust。以下は手動で前提条件を用意する例であり、Skill自体は不足項目を報告して停止します。
 
 **Windows 10/11**
 
@@ -128,7 +128,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-Node.js 20+ と Rust stable を追加し、X11／Wayland session でSkillを実行します。他のdistributionは [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) を参照してください。
+Node.js 22.13.x または 24+ と Rust stable を追加し、X11／Wayland session でSkillを実行します。他のdistributionは [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) を参照してください。
 
 ### Skill コマンド
 
