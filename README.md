@@ -109,7 +109,7 @@ If your Claude desktop/browser session is remote, use a local Claude Code sessio
 
 ### Platform prerequisites for source launch
 
-Common: **Node.js 20+**, pnpm (or Corepack), and the stable Rust toolchain. The commands below are manual prerequisite examples; the Skill only reports missing items and stops.
+Common: **Node.js 22.13.x or 24+**, pnpm (or Corepack), and the stable Rust toolchain. The commands below are manual prerequisite examples; the Skill only reports missing items and stops.
 
 **Windows 10/11**
 
@@ -132,7 +132,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-Then install Node.js 20+, Rust stable, and run the Skill from a graphical X11/Wayland session. Other distributions should follow the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/).
+Then install Node.js 22.13.x or 24+, Rust stable, and run the Skill from a graphical X11/Wayland session. Other distributions should follow the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ### Skill lifecycle commands
 

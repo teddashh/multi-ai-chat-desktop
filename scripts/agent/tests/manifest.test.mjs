@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import Ajv from 'ajv';
 import { manifest, root } from '../contract.mjs';
+import { supportedNodeRange } from '../environment.mjs';
 
 test('agent release manifest validates against its schema', () => {
   const schema = readJson(path.join(root, 'agent-release.schema.json'));
@@ -31,6 +32,8 @@ test('manifest entrypoints and package scripts stay aligned', () => {
   }
   assert.equal(packageJson.scripts['agent:verify'], 'node --test scripts/agent/tests/*.test.mjs');
   assert.match(packageJson.scripts.verify, /pnpm agent:verify/);
+  assert.equal(packageJson.engines.node, supportedNodeRange);
+  assert.equal(manifest.requirements.common.includes(`Node.js ${supportedNodeRange}`), true);
 });
 
 test('Codex and Claude skills share one maintained instruction body', () => {
@@ -73,6 +76,7 @@ test('all localized READMEs expose the same Agent contract boundary', () => {
     assert.match(source, /AGENT-READY-SOURCE-RELEASE\.md/);
     assert.match(source, /launch\.mjs --wait --timeout-ms 600000 --json/);
     assert.match(source, /Docker/i);
+    assert.match(source, /Node\.js 22\.13\.x.*24\+/);
   }
 });
 

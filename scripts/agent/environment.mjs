@@ -4,6 +4,16 @@ import path from 'node:path';
 import { root } from './contract.mjs';
 import { windowsShellCommand } from './windows-command.mjs';
 
+export const supportedNodeRange = '^22.13.0 || >=24.0.0';
+
+export function isSupportedNodeVersion(version) {
+  const match = /^(?:v)?(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (!match) return false;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  return (major === 22 && minor >= 13) || major >= 24;
+}
+
 export function collectEnvironmentChecks() {
   const checks = [
     {
@@ -13,8 +23,8 @@ export function collectEnvironmentChecks() {
     },
     {
       name: 'node',
-      ok: Number(process.versions.node.split('.')[0]) >= 20,
-      detail: process.version,
+      ok: isSupportedNodeVersion(process.versions.node),
+      detail: `${process.version} (requires ${supportedNodeRange})`,
     },
     resolvePnpmCheck(),
     commandCheck('cargo', ['--version']),

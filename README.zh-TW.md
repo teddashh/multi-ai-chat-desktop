@@ -109,7 +109,7 @@ Repo Skill 可在 Codex app、CLI 與 IDE 使用。雲端／remote task 可以�
 
 ### 各平台原始碼前置環境
 
-共同需求：**Node.js 20+**、pnpm（或 Corepack）與 stable Rust toolchain。以下是人工安裝前置環境的範例；Skill 本身只會指出缺少項目並停止。
+共同需求：**Node.js 22.13.x 或 24+**、pnpm（或 Corepack）與 stable Rust toolchain。以下是人工安裝前置環境的範例；Skill 本身只會指出缺少項目並停止。
 
 **Windows 10/11**
 
@@ -132,7 +132,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-接著安裝 Node.js 20+、Rust stable，並在 X11／Wayland 圖形 session 執行 Skill。其他 distribution 請參考 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/)。
+接著安裝 Node.js 22.13.x 或 24+、Rust stable，並在 X11／Wayland 圖形 session 執行 Skill。其他 distribution 請參考 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/)。
 
 ### Skill 生命週期指令
 

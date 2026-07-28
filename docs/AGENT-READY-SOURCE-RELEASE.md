@@ -1,6 +1,6 @@
 # Agent-Ready Source Release Contract / Agent 可操作原始碼發行契約
 
-> Contract version: **1.0.0**<br>
+> Contract version: **2.0.0**<br>
 > Machine-readable source of truth: [`agent-release.json`](../agent-release.json)<br>
 > Schema: [`agent-release.schema.json`](../agent-release.schema.json)
 
