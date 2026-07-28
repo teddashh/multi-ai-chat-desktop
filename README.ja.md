@@ -10,14 +10,14 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと12ラウンドのブレインストーミングpresetを追加しました。ブレインストーミングは4つの交代制の席、合計48発言、同一sessionの全履歴を維持します。組み込みの4役または4席のpresetはすべて、ChatGPT、Claude、Gemini、Grokを1回ずつ割り当てます。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
 
-## v1.8.0 の更新点
+## v1.8.1 の更新点
 
-- **会話を全幅表示。** ヘッダーから会話workspaceを最大化または復元でき、実行中workflowを止めずにsidebarとresizerの操作を完全に隔離します。
-- **読んでいるproviderを追跡。** Transcriptのreading lineに対応するprovider chipを表示し、window resizeやtext reflow後も再計算します。
-- **native page遷移を安全化。** Login、preflight、replay、overlay復元を最新provider stateへ統一し、古いWebViewがtranscriptを覆う競合を防ぎます。
-- **長い会話を効率的に追跡。** 有界binary lookupを使用し、最初のprovider messageがreading lineへ到達する前は選択しません。4言語のaccessibility labelも追加しました。
+- **Grok challenge の状態を正確に表示。** Cloudflare／Turnstile widget が元のpage titleを維持していても、automation bridgeを開始したりchallenge pageを変更したりせず、blockedとして報告します。
+- **組み込みの4役設定で4 providerを使用。** ChatGPT、Claude、Gemini、Grokを1回ずつ割り当てます。旧標準設定と完全一致する設定だけを一度移行し、カスタム設定は変更しません。
+- **Snapshot／replay の互換性を保護。** Provider routingを変更したworkflow graphは新しいversionを使用し、互換性のないsnapshotやreplayを暗黙に別routingで実行せず明示的に拒否します。
+- **Source toolchain の安全性を改善。** 対応可能なJavaScript開発依存関係のadvisoryを解消し、Agent-ready source contractはNode.js 22.13.xまたは24+を明示的に要求します。
 
-検証内容、貢献者、記録済みのGTK上流リスク、既知のplatform制限は、日英併記の [`v1.8.0 release notes`](./docs/RELEASE_NOTES_v1.8.0.md) を参照してください。
+検証結果、Grokの制限、残っている手動release gateは、日英併記の [`v1.8.1 release notes`](./docs/RELEASE_NOTES_v1.8.1.md) を参照してください。
 
 ## エディション
 

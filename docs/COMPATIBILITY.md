@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-27 for v1.8.0. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-07-27 for the v1.8.1 release candidate. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -23,13 +23,15 @@ macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Sil
 
 | Evidence | Windows | macOS / Linux | Status |
 |---|---|---|---|
-| Manifest/schema and Skill drift tests | 20 focused tests pass locally | The same 20 tests pass in Windows, macOS, and Linux CI jobs | **Verified** as a source contract; GUI launch remains separate |
+| Manifest/schema and Skill drift tests | 22 focused tests pass locally | The same 22 tests pass in Windows, macOS, and Linux CI jobs | **Verified** as a source contract; GUI launch remains separate |
 | Doctor/audit/dry-run JSON | Exercised locally; dry-run preserves runtime state | Node contract paths pass on all three CI operating systems | Windows **Verified**; others **CI-only** |
 | App-level READY wait | Three live source-launch smokes reached the same-run, identity-verified control-pane READY marker on 2026-07-12; stale/replacement/missing-state tests also pass | No real-device source-launch report | Windows **Verified**; others **Pending** |
 | Launch/stop race safety | Live smokes released the fail-closed launch mutex; audit probes detected generated/target/runtime changes; stop re-verified before kill and before same-run state deletion; foreign/EPERM tests pass | Same code path, not manually exercised | Windows **Verified**; others **Pending** |
 | Corrupt state recovery | Default stop refused malformed state and preserved it; explicit `--clear-invalid-state` removed only the state file, then a normal launch/stop completed | Not manually exercised | Windows **Verified**; others **Pending** |
 
 The Agent contract does not claim that CI displayed a window. It also does not install host prerequisites, inventory the full OS, sandbox checked-out code, upload receipts, or roll back host changes. See [`AGENT-READY-SOURCE-RELEASE.md`](./AGENT-READY-SOURCE-RELEASE.md).
+
+The v2.0.0 source contract supports Node.js `^22.13.0 || >=24.0.0`, matching the locked pnpm and lint toolchain. `agent:doctor` rejects unsupported Node versions and stops instead of presenting an invalid source launch as ready. This requirement applies only to source development; packaged desktop users do not need Node.js.
 
 ## Provider adapters
 
@@ -38,7 +40,7 @@ The Agent contract does not claim that CI displayed a window. It also does not i
 | ChatGPT | v6 | v4 text workflow **Verified**; v5 mismatch recovery and v6 logged-out precedence have automated coverage and await live retest | Partial manual coverage; recheck after provider UI changes |
 | Claude | v4 | v3 text workflow **Verified**; v4 login-page detection and explicit Google SSO scope have automated coverage and await live retest | Not a compatibility claim |
 | Gemini | v2 | Base text workflow **Verified**; bounded Google `/sorry` navigation, blocked status, and passive bridge behavior have automated coverage and await live retest | Not a compatibility claim |
-| Grok | v7 | Base text workflow **Verified**; localized logged-out precedence has automated coverage and awaits live retest | Not a compatibility claim |
+| Grok | v7 | Base text workflow **Verified**; localized logged-out precedence and title-preserving Cloudflare/Turnstile blocked-state detection have automated coverage and await live retest | Not a compatibility claim |
 
 Automated tests validate adapter structure, schema v1/v2 parser compatibility, typed detector rejection, logged-out precedence, approved strategies, HTTPS URL parsing, and navigation boundaries. They do not log into live provider accounts. Remote adapter updates cannot expand the URL scopes bundled with the installed app.
 

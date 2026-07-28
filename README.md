@@ -10,14 +10,14 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Brainstorm keeps four rotating seats and 48 contributions with full same-session history. Every built-in four-role or four-seat setup assigns ChatGPT, Claude, Gemini, and Grok once each. The shipped snapshot/replay tools remain available as-is with no further roadmap.
 
-## v1.8.0 highlights
+## v1.8.1 highlights
 
-- **Full-width transcript.** A header control maximizes or restores the conversation workspace, fully isolating the hidden sidebar and resizer without interrupting the running workflow.
-- **Know whose answer you are reading.** Provider chips follow the answer at the transcript reading line and stay accurate after window resizing or text reflow.
-- **Safer native-page transitions.** Login, preflight, replay, and overlay restoration now use the latest provider state so a stale WebView cannot cover the transcript.
-- **Efficient long conversations.** Scroll focus uses bounded binary lookup, does not preselect a provider before its first answer reaches the reading line, and includes accessible labels in all four UI languages.
+- **Accurate Grok challenge status.** A title-preserving Cloudflare/Turnstile widget is reported as blocked without starting the automation bridge or changing the challenge page.
+- **All four providers in built-in four-role setups.** ChatGPT, Claude, Gemini, and Grok are assigned once each; exact legacy defaults migrate once, while customized role maps remain unchanged.
+- **Replay-safe workflow changes.** Updated workflow graphs carry new versions, so incompatible snapshots and replays fail explicitly instead of silently changing provider routing.
+- **A cleaner source toolchain.** Actionable JavaScript development-dependency advisories are cleared, and the Agent-ready source contract now enforces Node.js 22.13.x or 24+.
 
-See the bilingual [`v1.8.0 release notes`](./docs/RELEASE_NOTES_v1.8.0.md) for validation, contributor credit, the documented upstream GTK risk, and known platform limits.
+See the bilingual [`v1.8.1 release notes`](./docs/RELEASE_NOTES_v1.8.1.md) for validation evidence, the Grok limitation, and the remaining manual release gates.
 
 ## Choose the right edition
 

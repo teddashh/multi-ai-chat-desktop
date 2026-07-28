@@ -10,14 +10,14 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 與 12 輪「腦力激盪」預設已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。腦力激盪保留四個輪換席位、48 次發言與同一 session 的完整前文。所有內建的四角色或四席預設都會讓 ChatGPT、Claude、Gemini、Grok 各擔任一次。現有 snapshot／replay 會原樣保留且不再擴充。
 
-## v1.8.0 更新重點
+## v1.8.1 更新重點
 
-- **逐字稿可全畫面閱讀。** 標題列可放大或還原對話工作區；放大時完整隔離左側欄與 resizer，但不中斷執行中的 workflow。
-- **隨時知道正在讀哪一家。** Provider chip 會跟隨逐字稿閱讀線，視窗縮放或文字重排後也會重新計算。
-- **原生頁面切換更安全。** 登入、preflight、replay 與 overlay 還原統一依最新 provider 狀態處理，避免舊 WebView 蓋住逐字稿。
-- **長對話捲動更有效率。** 閱讀位置使用有界 binary lookup；第一則 provider 訊息尚未到達閱讀線前不會提早標示，並提供四語可及性標籤。
+- **正確顯示 Grok 驗證狀態。** 即使 Cloudflare／Turnstile widget 保留原本頁面標題，app 仍會回報 blocked，且不啟動自動化 bridge、不修改驗證頁面。
+- **內建四角色配置完整使用四家 provider。** ChatGPT、Claude、Gemini、Grok 各擔任一次；完全符合舊預設的設定只遷移一次，使用者自訂配置則保持不變。
+- **保護 snapshot／replay 相容性。** Provider routing 有變更的 workflow graph 會使用新版號；不相容的 snapshot 或 replay 會明確失敗，不會悄悄改用新路由。
+- **更乾淨的原始碼工具鏈。** 已清除可處理的 JavaScript 開發依賴警示，Agent-ready source contract 現在明確要求 Node.js 22.13.x 或 24+。
 
-完整驗證、貢獻者 credit、已記錄的 GTK 上游風險與平台限制，請見雙語版 [`v1.8.0 發布說明`](./docs/RELEASE_NOTES_v1.8.0.md)。
+完整驗證證據、Grok 限制與尚待完成的人工發布門檻，請見雙語版 [`v1.8.1 發布說明`](./docs/RELEASE_NOTES_v1.8.1.md)。
 
 ## 選擇適合的版本
 
