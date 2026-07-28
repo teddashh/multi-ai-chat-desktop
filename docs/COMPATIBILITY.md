@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-27 for the v1.8.1 release candidate. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-07-28 for the v1.8.1 release candidate. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -40,13 +40,13 @@ The v2.0.0 source contract supports Node.js `^22.13.0 || >=24.0.0`, matching the
 | ChatGPT | v6 | v4 text workflow **Verified**; v5 mismatch recovery and v6 logged-out precedence have automated coverage and await live retest | Partial manual coverage; recheck after provider UI changes |
 | Claude | v4 | v3 text workflow **Verified**; v4 login-page detection and explicit Google SSO scope have automated coverage and await live retest | Not a compatibility claim |
 | Gemini | v2 | Base text workflow **Verified**; bounded Google `/sorry` navigation, blocked status, and passive bridge behavior have automated coverage and await live retest | Not a compatibility claim |
-| Grok | v7 | Base text workflow **Verified**; localized logged-out precedence and title-preserving Cloudflare/Turnstile blocked-state detection have automated coverage and await live retest | Not a compatibility claim |
+| Grok | v7 | Base text workflow **Verified**; a Windows 11 / WebView2 150 fresh-profile prototype completed Turnstile and embedded login; delayed status handoff has automated coverage and awaits a live retest | Not a compatibility claim |
 
 Automated tests validate adapter structure, schema v1/v2 parser compatibility, typed detector rejection, logged-out precedence, approved strategies, HTTPS URL parsing, and navigation boundaries. They do not log into live provider accounts. Remote adapter updates cannot expand the URL scopes bundled with the installed app.
 
 Claude's current consumer web experience requires an authenticated account. Adapter v4 recognizes common email-login fields and keeps the official Anthropic and Google sign-in routes within the existing bounded SSO policy. The app does not bypass login, age, subscription, challenge, or other provider-side requirements; guided workflows that assign a Claude seat remain blocked until Claude reports a ready composer.
 
-macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. Current source delays bridge startup for every provider until detected Cloudflare or hCaptcha challenge signals disappear and additionally avoids Grok History API replacement, following anti-bot WebView compatibility requirements. Known Grok challenge titles are reported through the native WebView title callback; title-preserving widgets are detected by a Grok-only read-only host probe. This improves user feedback without starting the bridge or mutating the challenge document. CI can verify the policy but cannot prove that a live challenge completes.
+macOS note: the `v1.0.1` report verified ChatGPT, Claude, and Gemini login, but Grok remained on Cloudflare's security-verification page. Current source does not apply a document-start bridge or automation-oriented browser arguments to Grok. It installs the bridge only after a read-only probe explicitly confirms that no Cloudflare or hCaptcha marker is present on an allowlisted Grok app page. Known challenge titles still report a blocked state, including the Traditional Chinese `安全驗證` variant. A Windows 11 test with WebView2 Runtime `150.0.4078.99` completed the live challenge and embedded login using the prototype; the final status handoff and non-Windows behavior still require live confirmation. The app does not automate or bypass the challenge.
 
 Gemini may redirect an embedded session to `https://www.google.com/sorry/index?...`. Current source allows only the HTTPS `www.google.com/sorry` path family for Gemini, reports it as blocked instead of logged in, skips the permission shim there, and defers bridge startup until Google returns to Gemini. Sibling paths, lookalike hosts, non-HTTPS URLs, and cross-provider use remain denied. A live challenge completion still requires manual verification.
 

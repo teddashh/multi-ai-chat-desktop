@@ -69,6 +69,27 @@ fn provider_uses_permission_shim(provider: &str) -> bool {
     provider != "grok"
 }
 
+fn provider_uses_automation_browser_tuning(provider: &str) -> bool {
+    provider != "grok"
+}
+
+fn provider_uses_document_start_bridge(provider: &str) -> bool {
+    provider != "grok"
+}
+
+fn grok_app_title_ready(provider: &str, title: &str) -> bool {
+    if provider != "grok" {
+        return false;
+    }
+    let normalized = title.trim().to_lowercase();
+    normalized == "grok" || normalized.starts_with("grok - ") || normalized.starts_with("grok — ")
+}
+
+fn grok_bridge_install_ready(provider: &str, title: &str, url: &tauri::Url) -> bool {
+    grok_app_title_ready(provider, title)
+        && adapters::url_matches_provider_app(provider, url).unwrap_or(false)
+}
+
 fn grok_challenge_title_active(provider: &str, title: &str) -> bool {
     if provider != "grok" {
         return false;
@@ -81,6 +102,7 @@ fn grok_challenge_title_active(provider: &str, title: &str) -> bool {
         "performing security verification",
         "請稍候",
         "请稍候",
+        "安全驗證",
         "安全性驗證",
         "安全验证",
         "セキュリティ検証",
@@ -322,6 +344,11 @@ pub async fn provider_open(
         serde_json::to_string(&provider).map_err(|error| error.to_string())?,
         BOOTSTRAP_JS
     );
+    let delayed_grok_script = if provider == "grok" {
+        Some(delayed_grok_bridge_script(&provider)?)
+    } else {
+        None
+    };
     let nav_app = app.clone();
     let nav_provider = provider.clone();
     let popup_app = app.clone();
@@ -332,8 +359,15 @@ pub async fn provider_open(
     // the old Windows-only `register_title_watcher` (whose non-Windows branch was a no-op stub).
     let title_app = app.clone();
     let title_provider = provider.clone();
-    let builder =
-        WebviewBuilder::new(&label, WebviewUrl::External(url)).initialization_script(&init_script);
+    let title_delayed_grok_script = delayed_grok_script;
+    let builder = WebviewBuilder::new(&label, WebviewUrl::External(url));
+    // Grok's Cloudflare challenge must see a stock document from its first instruction.
+    // Install the automation bridge only after the real app page is confirmed below.
+    let builder = if provider_uses_document_start_bridge(&provider) {
+        builder.initialization_script(&init_script)
+    } else {
+        builder
+    };
     // Cloudflare Turnstile requires standard, unmodified browser APIs in embedded WebViews.
     // Grok is Cloudflare-protected, so do not monkey-patch navigator.permissions,
     // Notification, or geolocation in its top page or challenge frames.
@@ -342,12 +376,41 @@ pub async fn provider_open(
     } else {
         builder
     };
+    let builder = builder.data_directory(profile_dir);
+    // Keep Grok's challenge environment close to stock WebView2. Other providers retain
+    // background execution tuning for hidden workflow automation.
+    let builder = if provider_uses_automation_browser_tuning(&provider) {
+        builder
+            .background_throttling(BackgroundThrottlingPolicy::Disabled)
+            .additional_browser_args(PROVIDER_BROWSER_ARGS)
+    } else {
+        builder
+    };
     let builder = builder
-        .data_directory(profile_dir)
-        .background_throttling(BackgroundThrottlingPolicy::Disabled)
-        .additional_browser_args(PROVIDER_BROWSER_ARGS)
-        .on_document_title_changed(move |_webview, title| {
+        .on_document_title_changed(move |webview, title| {
             handle_provider_document_title(&title_app, &title_provider, &title);
+            let install_ready = webview
+                .url()
+                .ok()
+                .is_some_and(|url| grok_bridge_install_ready(&title_provider, &title, &url));
+            let Some(script) = title_delayed_grok_script.as_deref() else {
+                return;
+            };
+            if !install_ready {
+                return;
+            }
+
+            // A Turnstile iframe can leave the top-level title as "Grok". Require the
+            // read-only challenge probe to return an explicit false before installing.
+            // Use this event's WebView directly: title events may arrive before the
+            // child is discoverable through AppHandle's webview registry.
+            let install_webview = webview.clone();
+            let script = script.to_string();
+            let _ = webview.eval_with_callback(GROK_CHALLENGE_PROBE_JS, move |raw| {
+                if eval_callback_reports_false(&raw) {
+                    let _ = install_webview.eval(&script);
+                }
+            });
         })
         .on_navigation(move |url| {
             if url.host_str() == Some("mac-bridge.invalid") {
@@ -782,6 +845,50 @@ pub(crate) fn push_engine_and_adapter(app: &AppHandle, provider: &str) -> Result
     eval_provider(app, provider, &js)
 }
 
+fn delayed_grok_bridge_script(provider: &str) -> Result<String, String> {
+    let adapter = adapters::get_adapter(provider)?;
+    let provider_json = serde_json::to_string(provider).map_err(|error| error.to_string())?;
+    let dispatch_adapter = serde_json::json!({
+        "v": 1,
+        "action": "ADAPTER_UPDATE",
+        "provider": provider,
+        "payload": adapter
+    });
+    let dispatch_check = serde_json::json!({
+        "v": 1,
+        "action": "CHECK_STATUS",
+        "provider": provider
+    });
+    Ok(format!(
+        r#"if (
+  window.self === window.top &&
+  location.protocol === 'https:' &&
+  location.hostname === 'grok.com' &&
+  !document.querySelector('#challenge-running, #challenge-stage, #cf-challenge-running, form#challenge-form, .h-captcha, [data-hcaptcha-widget-id], iframe[src*="hcaptcha.com"], iframe[src*="challenges.cloudflare.com"]') &&
+  !window.__MAC_GROK_DELAYED_INSTALL__
+) {{
+  window.__MAC_GROK_DELAYED_INSTALL__ = true;
+  window.__MAC_PROVIDER__ = {provider_json};
+  {bootstrap}
+  (function installGrokEngine(attempt) {{
+    if (window.__MAC_BRIDGE__) {{
+      {engine}
+      window.__MAC_BRIDGE__.dispatch({adapter_msg});
+      window.__MAC_BRIDGE__.dispatch({check_msg});
+      return;
+    }}
+    if (attempt < 120) {{
+      window.setTimeout(function () {{ installGrokEngine(attempt + 1); }}, 250);
+    }}
+  }})(0);
+}}"#,
+        bootstrap = BOOTSTRAP_JS,
+        engine = ENGINE_JS,
+        adapter_msg = serde_json::to_string(&dispatch_adapter).map_err(|error| error.to_string())?,
+        check_msg = serde_json::to_string(&dispatch_check).map_err(|error| error.to_string())?,
+    ))
+}
+
 fn update_status_state(
     app: &AppHandle,
     provider: &str,
@@ -984,12 +1091,18 @@ fn fresh_session_boot(previous_boot: Option<&str>, incoming_boot: Option<&str>) 
 }
 
 fn eval_callback_reports_true(raw: &str) -> bool {
+    eval_callback_boolean(raw) == Some(true)
+}
+
+fn eval_callback_reports_false(raw: &str) -> bool {
+    eval_callback_boolean(raw) == Some(false)
+}
+
+fn eval_callback_boolean(raw: &str) -> Option<bool> {
     match serde_json::from_str::<serde_json::Value>(raw) {
-        Ok(serde_json::Value::Bool(value)) => value,
-        Ok(serde_json::Value::String(value)) => {
-            serde_json::from_str::<bool>(&value).unwrap_or(false)
-        }
-        _ => false,
+        Ok(serde_json::Value::Bool(value)) => Some(value),
+        Ok(serde_json::Value::String(value)) => serde_json::from_str::<bool>(&value).ok(),
+        _ => None,
     }
 }
 
@@ -1112,12 +1225,15 @@ mod tests {
     use super::{
         accept_status_for_session_reset, bridge_resets_on_boot_rotation, cancel_session_reset,
         challenge_auxiliary_navigation_allowed, decide_new_window_action,
-        eval_callback_reports_true, fresh_session_boot, gemini_sorry_navigation_active,
-        grok_challenge_probe_is_current, grok_challenge_title_active, physical_bounds,
-        popup_initial_title, provider_show_should_focus, provider_uses_permission_shim, runtime,
-        should_probe_grok_challenge, should_reset_bridge_on_boot_rotation, staleness_action,
-        state_with, Bounds, NewWindowAction, StalenessAction, GROK_CHALLENGE_PROBE_JS,
-        PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
+        delayed_grok_bridge_script, eval_callback_reports_false, eval_callback_reports_true,
+        fresh_session_boot, gemini_sorry_navigation_active, grok_app_title_ready,
+        grok_bridge_install_ready, grok_challenge_probe_is_current, grok_challenge_title_active,
+        physical_bounds, popup_initial_title, provider_show_should_focus,
+        provider_uses_automation_browser_tuning, provider_uses_document_start_bridge,
+        provider_uses_permission_shim, runtime, should_probe_grok_challenge,
+        should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
+        NewWindowAction, StalenessAction, GROK_CHALLENGE_PROBE_JS, PERMISSION_SHIM_JS,
+        PROVIDER_BROWSER_ARGS,
     };
 
     fn url(input: &str) -> tauri::Url {
@@ -1142,9 +1258,44 @@ mod tests {
     #[test]
     fn grok_keeps_core_web_apis_unmodified_for_cloudflare_challenges() {
         assert!(!provider_uses_permission_shim("grok"));
+        assert!(!provider_uses_automation_browser_tuning("grok"));
+        assert!(!provider_uses_document_start_bridge("grok"));
         for provider in ["chatgpt", "claude", "gemini"] {
             assert!(provider_uses_permission_shim(provider));
+            assert!(provider_uses_automation_browser_tuning(provider));
+            assert!(provider_uses_document_start_bridge(provider));
         }
+    }
+
+    #[test]
+    fn grok_bridge_waits_for_the_real_app_and_a_negative_challenge_probe() {
+        assert!(grok_app_title_ready("grok", "Grok"));
+        assert!(grok_app_title_ready("grok", "Grok — Home"));
+        assert!(!grok_app_title_ready("grok", "grok.com 正在執行安全驗證"));
+        assert!(!grok_app_title_ready("grok", "Just a moment..."));
+        assert!(!grok_app_title_ready("chatgpt", "Grok"));
+        assert!(grok_bridge_install_ready(
+            "grok",
+            "Grok",
+            &url("https://grok.com/")
+        ));
+        assert!(!grok_bridge_install_ready(
+            "grok",
+            "Grok",
+            &url("https://accounts.x.ai/sign-in")
+        ));
+        assert!(!eval_callback_reports_false("null"));
+        assert!(!eval_callback_reports_false(r#""unexpected""#));
+        assert!(eval_callback_reports_false("false"));
+        assert!(eval_callback_reports_false(r#""false""#));
+
+        let script = delayed_grok_bridge_script("grok").expect("delayed script should build");
+        assert!(script.contains("__MAC_GROK_DELAYED_INSTALL__"));
+        assert!(script.contains("location.hostname === 'grok.com'"));
+        assert!(script.contains("challenges.cloudflare.com"));
+        assert!(script.contains("installGrokEngine"));
+        assert!(script.contains("ADAPTER_UPDATE"));
+        assert!(script.contains("CHECK_STATUS"));
     }
 
     #[test]
@@ -1432,6 +1583,7 @@ mod tests {
         for title in [
             "Just a moment...",
             "Performing security verification",
+            "grok.com 正在執行安全驗證",
             "安全性驗證",
             "セキュリティ検証",
             "Sicherheitsüberprüfung",
