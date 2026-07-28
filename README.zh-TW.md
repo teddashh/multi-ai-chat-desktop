@@ -15,7 +15,7 @@
 - **正確顯示 Grok 驗證狀態。** 即使 Cloudflare／Turnstile widget 保留原本頁面標題，app 仍會回報 blocked，且不啟動自動化 bridge、不修改驗證頁面。
 - **內建四角色配置完整使用四家 provider。** ChatGPT、Claude、Gemini、Grok 各擔任一次；完全符合舊預設的設定只遷移一次，使用者自訂配置則保持不變。
 - **保護 snapshot／replay 相容性。** Provider routing 有變更的 workflow graph 會使用新版號；不相容的 snapshot 或 replay 會明確失敗，不會悄悄改用新路由。
-- **更乾淨的原始碼工具鏈。** 已清除可處理的 JavaScript 開發依賴警示，Agent-ready source contract 現在明確要求 Node.js 22.13.x 或 24+。
+- **更乾淨的原始碼工具鏈。** 已清除可處理的 JavaScript 開發依賴警示，Agent-ready source contract 現在明確要求 Node.js ^22.13.0 || >=24.0.0。
 
 完整驗證證據、Grok 限制與尚待完成的人工發布門檻，請見雙語版 [`v1.8.1 發布說明`](./docs/RELEASE_NOTES_v1.8.1.md)。
 
@@ -109,7 +109,7 @@ Repo Skill 可在 Codex app、CLI 與 IDE 使用。雲端／remote task 可以�
 
 ### 各平台原始碼前置環境
 
-共同需求：**Node.js 22.13.x 或 24+**、pnpm（或 Corepack）與 stable Rust toolchain。以下是人工安裝前置環境的範例；Skill 本身只會指出缺少項目並停止。
+共同需求：**Node.js ^22.13.0 || >=24.0.0**、pnpm（或 Corepack）與 stable Rust toolchain。以下是人工安裝前置環境的範例；Skill 本身只會指出缺少項目並停止。
 
 **Windows 10/11**
 
@@ -132,7 +132,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-接著安裝 Node.js 22.13.x 或 24+、Rust stable，並在 X11／Wayland 圖形 session 執行 Skill。其他 distribution 請參考 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/)。
+接著安裝 Node.js ^22.13.0 || >=24.0.0、Rust stable，並在 X11／Wayland 圖形 session 執行 Skill。其他 distribution 請參考 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/)。
 
 ### Skill 生命週期指令
 

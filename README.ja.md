@@ -15,7 +15,7 @@
 - **Grok challenge の状態を正確に表示。** Cloudflare／Turnstile widget が元のpage titleを維持していても、automation bridgeを開始したりchallenge pageを変更したりせず、blockedとして報告します。
 - **組み込みの4役設定で4 providerを使用。** ChatGPT、Claude、Gemini、Grokを1回ずつ割り当てます。旧標準設定と完全一致する設定だけを一度移行し、カスタム設定は変更しません。
 - **Snapshot／replay の互換性を保護。** Provider routingを変更したworkflow graphは新しいversionを使用し、互換性のないsnapshotやreplayを暗黙に別routingで実行せず明示的に拒否します。
-- **Source toolchain の安全性を改善。** 対応可能なJavaScript開発依存関係のadvisoryを解消し、Agent-ready source contractはNode.js 22.13.xまたは24+を明示的に要求します。
+- **Source toolchain の安全性を改善。** 対応可能なJavaScript開発依存関係のadvisoryを解消し、Agent-ready source contractはNode.js ^22.13.0 || >=24.0.0を明示的に要求します。
 
 検証結果、Grokの制限、残っている手動release gateは、日英併記の [`v1.8.1 release notes`](./docs/RELEASE_NOTES_v1.8.1.md) を参照してください。
 
@@ -105,7 +105,7 @@ desktop/browser session が remote の場合は、local Claude Code session を�
 
 ### OS別の前提条件
 
-共通：**Node.js 22.13.x または 24+**、pnpm（または Corepack）、stable Rust。以下は手動で前提条件を用意する例であり、Skill自体は不足項目を報告して停止します。
+共通：**Node.js ^22.13.0 || >=24.0.0**、pnpm（または Corepack）、stable Rust。以下は手動で前提条件を用意する例であり、Skill自体は不足項目を報告して停止します。
 
 **Windows 10/11**
 
@@ -128,7 +128,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-Node.js 22.13.x または 24+ と Rust stable を追加し、X11／Wayland session でSkillを実行します。他のdistributionは [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) を参照してください。
+Node.js ^22.13.0 || >=24.0.0 と Rust stable を追加し、X11／Wayland session でSkillを実行します。他のdistributionは [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) を参照してください。
 
 ### Skill コマンド
 

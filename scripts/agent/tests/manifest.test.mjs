@@ -76,7 +76,7 @@ test('all localized READMEs expose the same Agent contract boundary', () => {
     assert.match(source, /AGENT-READY-SOURCE-RELEASE\.md/);
     assert.match(source, /launch\.mjs --wait --timeout-ms 600000 --json/);
     assert.match(source, /Docker/i);
-    assert.match(source, /Node\.js 22\.13\.x.*24\+/);
+    assert.equal(source.includes(`Node.js ${supportedNodeRange}`), true);
   }
 });
 
