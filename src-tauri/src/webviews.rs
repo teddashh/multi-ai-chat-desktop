@@ -10,7 +10,7 @@ use std::{
 };
 use tauri::{
     utils::config::BackgroundThrottlingPolicy,
-    webview::{NewWindowResponse, WebviewBuilder},
+    webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder},
     AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl,
 };
 use tauri_plugin_opener::OpenerExt;
@@ -25,17 +25,27 @@ const ENGINE_JS: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/gen/injected/engine.js"
 ));
+const CHALLENGE_SIGNALS_JSON: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../shared/challenge-signals.json"
+));
 const PROVIDER_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows";
 const NEW_SESSION_READY_TIMEOUT_SECS: u64 = 30;
 const NEW_SESSION_READY_POLL_MS: u64 = 150;
-// Bootstrap deliberately stays dormant on provider security checks. Turnstile can be embedded in
-// a page whose top-level title remains "Grok", so the native title observer alone cannot surface
-// every blocked login. This host probe only reads known markers and never creates the bridge.
-const GROK_CHALLENGE_PROBE_JS: &str = r#"Boolean(
-  window.self === window.top &&
-  !window.__MAC_BRIDGE__ &&
-  document.querySelector('#challenge-running, #challenge-stage, #cf-challenge-running, form#challenge-form, .h-captcha, [data-hcaptcha-widget-id], iframe[src*="hcaptcha.com"], iframe[src*="challenges.cloudflare.com"]')
-)"#;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChallengeSignals {
+    title_signals: Vec<String>,
+}
+
+fn challenge_signals() -> &'static ChallengeSignals {
+    static SIGNALS: OnceLock<ChallengeSignals> = OnceLock::new();
+    SIGNALS.get_or_init(|| {
+        serde_json::from_str(CHALLENGE_SIGNALS_JSON)
+            .expect("shared/challenge-signals.json must be valid")
+    })
+}
 /// Auto-deny site permission prompts that otherwise pop a blocking native dialog.
 /// SCOPE: Notifications + Geolocation ONLY. We intentionally leave microphone/camera alone so the
 /// providers' voice-input buttons keep working. Runs at document-start, before site scripts.
@@ -69,10 +79,6 @@ fn provider_uses_permission_shim(provider: &str) -> bool {
     provider != "grok"
 }
 
-fn provider_uses_automation_browser_tuning(provider: &str) -> bool {
-    provider != "grok"
-}
-
 fn provider_uses_document_start_bridge(provider: &str) -> bool {
     provider != "grok"
 }
@@ -95,30 +101,14 @@ fn grok_challenge_title_active(provider: &str, title: &str) -> bool {
         return false;
     }
     let normalized = title.trim().to_lowercase();
-    [
-        "just a moment",
-        "attention required",
-        "security verification",
-        "performing security verification",
-        "請稍候",
-        "请稍候",
-        "安全驗證",
-        "安全性驗證",
-        "安全验证",
-        "セキュリティ検証",
-        "sicherheitsüberprüfung",
-    ]
-    .iter()
-    .any(|signal| normalized.contains(signal))
+    challenge_signals()
+        .title_signals
+        .iter()
+        .any(|signal| normalized.contains(signal))
 }
 
 fn handle_provider_document_title(app: &AppHandle, provider: &str, title: &str) {
-    if crate::bridge::ingest_title(app, provider, title).is_some()
-        || !grok_challenge_title_active(provider, title)
-    {
-        return;
-    }
-    set_provider_challenge_blocked(app, provider);
+    let _ = crate::bridge::ingest_title(app, provider, title);
 }
 
 fn set_provider_challenge_blocked(app: &AppHandle, provider: &str) {
@@ -182,10 +172,21 @@ struct ProviderRuntime {
     engine_boot: HashMap<String, String>,
     bridge_boot: HashMap<String, String>,
     status_boot: HashMap<String, String>,
+    grok_document_epoch: HashMap<String, u64>,
+    grok_adopted_boot: HashMap<String, (u64, String)>,
+    grok_pending_navigation: HashMap<String, GrokNavigationPreparation>,
     pending_session_boot: HashMap<String, Option<String>>,
     last_push_ms: HashMap<String, u64>,
     stale_check_sent: HashMap<String, u64>,
     watchdog_started: bool,
+}
+
+#[derive(Debug, Clone)]
+struct GrokNavigationPreparation {
+    epoch: u64,
+    previous_epoch: u64,
+    previous_adopted_boot: Option<(u64, String)>,
+    previous_status_boot: Option<String>,
 }
 
 static RUNTIME: OnceLock<Mutex<ProviderRuntime>> = OnceLock::new();
@@ -194,26 +195,306 @@ fn runtime() -> &'static Mutex<ProviderRuntime> {
     RUNTIME.get_or_init(|| Mutex::new(ProviderRuntime::default()))
 }
 
-fn should_probe_grok_challenge(state: &ProviderState) -> bool {
-    state.provider == "grok" && state.webview == "loaded" && state.login != "blocked"
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GrokBridgeDriveOutcome {
+    Challenge,
+    Installed,
+    Present,
+    Waiting,
+    Retry,
+    Ineligible,
 }
 
-fn grok_challenge_probe_is_current(
-    observed_state: &ProviderState,
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GrokBridgeDriveResult {
+    outcome: GrokBridgeDriveOutcome,
+    boot_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GrokBridgeHostAction {
+    Ignore,
+    MarkBlocked,
+}
+
+fn prepare_grok_navigation(provider: &str) -> u64 {
+    if provider != "grok" {
+        return 0;
+    }
+    let Ok(mut guard) = runtime().lock() else {
+        return 0;
+    };
+    if let Some(pending) = guard.grok_pending_navigation.get(provider) {
+        return pending.epoch;
+    }
+    let previous_epoch = guard
+        .grok_document_epoch
+        .get(provider)
+        .copied()
+        .unwrap_or_default();
+    let previous_adopted_boot = guard.grok_adopted_boot.remove(provider);
+    let previous_status_boot = guard.status_boot.get(provider).cloned();
+    let next_epoch = previous_epoch.saturating_add(1);
+    guard.grok_pending_navigation.insert(
+        provider.to_string(),
+        GrokNavigationPreparation {
+            epoch: next_epoch,
+            previous_epoch,
+            previous_adopted_boot,
+            previous_status_boot,
+        },
+    );
+    next_epoch
+}
+
+fn confirm_grok_page_load(provider: &str) -> u64 {
+    if provider != "grok" {
+        return 0;
+    }
+    let Ok(mut guard) = runtime().lock() else {
+        return 0;
+    };
+    if let Some(pending) = guard.grok_pending_navigation.remove(provider) {
+        guard
+            .grok_document_epoch
+            .insert(provider.to_string(), pending.epoch);
+        guard.grok_adopted_boot.remove(provider);
+        return pending.epoch;
+    }
+    guard.grok_adopted_boot.remove(provider);
+    let epoch = guard
+        .grok_document_epoch
+        .entry(provider.to_string())
+        .or_default();
+    *epoch = epoch.saturating_add(1);
+    *epoch
+}
+
+fn cancel_grok_navigation(provider: &str, prepared_epoch: u64) {
+    if provider != "grok" || prepared_epoch == 0 {
+        return;
+    }
+    let Ok(mut guard) = runtime().lock() else {
+        return;
+    };
+    let Some(pending) = guard.grok_pending_navigation.get(provider).cloned() else {
+        return;
+    };
+    if pending.epoch != prepared_epoch {
+        return;
+    }
+    if guard
+        .grok_document_epoch
+        .get(provider)
+        .copied()
+        .unwrap_or_default()
+        != pending.previous_epoch
+    {
+        return;
+    }
+    guard.grok_pending_navigation.remove(provider);
+    match pending.previous_adopted_boot {
+        Some(previous) => {
+            guard
+                .grok_adopted_boot
+                .insert(provider.to_string(), previous);
+        }
+        None => {
+            guard.grok_adopted_boot.remove(provider);
+        }
+    }
+    match pending.previous_status_boot {
+        Some(previous) => {
+            guard.status_boot.insert(provider.to_string(), previous);
+        }
+        None => {
+            guard.status_boot.remove(provider);
+        }
+    }
+}
+
+fn retire_grok_document(provider: &str) {
+    if provider != "grok" {
+        return;
+    }
+    let Ok(mut guard) = runtime().lock() else {
+        return;
+    };
+    guard.grok_pending_navigation.remove(provider);
+    guard.grok_adopted_boot.remove(provider);
+    let epoch = guard
+        .grok_document_epoch
+        .entry(provider.to_string())
+        .or_default();
+    *epoch = epoch.saturating_add(1);
+}
+
+fn adopt_grok_bridge_boot(provider: &str, observed_epoch: u64, boot_id: &str) -> bool {
+    if provider != "grok" || observed_epoch == 0 || boot_id.is_empty() {
+        return false;
+    }
+    let Ok(mut guard) = runtime().lock() else {
+        return false;
+    };
+    if guard.grok_document_epoch.get(provider).copied() != Some(observed_epoch) {
+        return false;
+    }
+    if guard.grok_pending_navigation.contains_key(provider) {
+        return false;
+    }
+    guard
+        .grok_adopted_boot
+        .insert(provider.to_string(), (observed_epoch, boot_id.to_string()));
+    true
+}
+
+fn grok_bridge_result_is_current(provider: &str, observed_epoch: u64) -> bool {
+    provider == "grok"
+        && observed_epoch != 0
+        && runtime().lock().ok().is_some_and(|guard| {
+            guard.grok_document_epoch.get(provider).copied() == Some(observed_epoch)
+                && !guard.grok_pending_navigation.contains_key(provider)
+        })
+}
+
+fn grok_bridge_boot_is_current(provider: &str, boot_id: Option<&str>) -> bool {
+    if provider != "grok" {
+        return true;
+    }
+    let Some(boot_id) = boot_id else {
+        return false;
+    };
+    runtime().lock().ok().is_some_and(|guard| {
+        let current_epoch = guard
+            .grok_document_epoch
+            .get(provider)
+            .copied()
+            .unwrap_or_default();
+        guard
+            .grok_adopted_boot
+            .get(provider)
+            .is_some_and(|(epoch, adopted_boot)| *epoch == current_epoch && adopted_boot == boot_id)
+    })
+}
+
+fn current_grok_document_epoch(provider: &str) -> u64 {
+    runtime()
+        .lock()
+        .ok()
+        .and_then(|guard| guard.grok_document_epoch.get(provider).copied())
+        .unwrap_or_default()
+}
+
+fn should_drive_grok_bridge(state: &ProviderState) -> bool {
+    state.provider == "grok" && state.webview == "loaded" && state.dom != "ready"
+}
+
+fn grok_bridge_drive_allowed(state: &ProviderState) -> bool {
+    state.provider == "grok"
+        && matches!(state.webview.as_str(), "creating" | "loaded")
+        && state.dom != "ready"
+}
+
+fn grok_bridge_host_action(
+    outcome: GrokBridgeDriveOutcome,
+    observed_epoch: u64,
+    current_epoch: u64,
     current_state: &ProviderState,
-) -> bool {
-    should_probe_grok_challenge(current_state) && current_state == observed_state
+) -> GrokBridgeHostAction {
+    if observed_epoch == 0
+        || observed_epoch != current_epoch
+        || !grok_bridge_drive_allowed(current_state)
+    {
+        return GrokBridgeHostAction::Ignore;
+    }
+    match outcome {
+        GrokBridgeDriveOutcome::Challenge => GrokBridgeHostAction::MarkBlocked,
+        GrokBridgeDriveOutcome::Installed
+        | GrokBridgeDriveOutcome::Present
+        | GrokBridgeDriveOutcome::Waiting
+        | GrokBridgeDriveOutcome::Retry
+        | GrokBridgeDriveOutcome::Ineligible => GrokBridgeHostAction::Ignore,
+    }
 }
 
-fn set_grok_challenge_blocked_if_unchanged(app: &AppHandle, observed_state: &ProviderState) {
+fn parse_grok_bridge_drive_outcome(raw: &str) -> Option<GrokBridgeDriveResult> {
+    let mut value = serde_json::from_str::<serde_json::Value>(raw).ok()?;
+    let value = match value {
+        serde_json::Value::String(nested) => {
+            value = serde_json::from_str::<serde_json::Value>(&nested)
+                .unwrap_or(serde_json::Value::String(nested));
+            value
+        }
+        value => value,
+    };
+    let (outcome, boot_id) = match value {
+        serde_json::Value::String(outcome) => (outcome, None),
+        serde_json::Value::Object(mut result) => (
+            result.remove("outcome")?.as_str()?.to_string(),
+            result
+                .remove("bootId")
+                .and_then(|value| value.as_str().map(str::to_string)),
+        ),
+        _ => return None,
+    };
+    let outcome = match outcome.as_str() {
+        "challenge" => GrokBridgeDriveOutcome::Challenge,
+        "installed" => GrokBridgeDriveOutcome::Installed,
+        "present" => GrokBridgeDriveOutcome::Present,
+        "waiting" => GrokBridgeDriveOutcome::Waiting,
+        "retry" => GrokBridgeDriveOutcome::Retry,
+        "ineligible" => GrokBridgeDriveOutcome::Ineligible,
+        _ => return None,
+    };
+    Some(GrokBridgeDriveResult { outcome, boot_id })
+}
+
+fn apply_grok_bridge_drive_outcome(
+    app: &AppHandle,
+    provider: &str,
+    observed_epoch: u64,
+    result: GrokBridgeDriveResult,
+) {
+    if !grok_bridge_result_is_current(provider, observed_epoch) {
+        return;
+    }
+    if matches!(
+        result.outcome,
+        GrokBridgeDriveOutcome::Installed | GrokBridgeDriveOutcome::Present
+    ) {
+        let Some(boot_id) = result.boot_id.as_deref() else {
+            return;
+        };
+        if !adopt_grok_bridge_boot(provider, observed_epoch, boot_id) {
+            return;
+        }
+        let check = serde_json::json!({
+            "v": 1,
+            "action": "CHECK_STATUS",
+            "provider": provider
+        });
+        let script = format!(
+            "window.__MAC_BRIDGE__ && window.__MAC_BRIDGE__.dispatch({});",
+            serde_json::to_string(&check).unwrap_or_default()
+        );
+        let _ = eval_provider(app, provider, &script);
+        return;
+    }
     let next_state = {
         let Ok(mut guard) = runtime().lock() else {
             return;
         };
-        let Some(current_state) = guard.states.get(&observed_state.provider) else {
+        let current_epoch = guard
+            .grok_document_epoch
+            .get(provider)
+            .copied()
+            .unwrap_or_default();
+        let Some(current_state) = guard.states.get(provider) else {
             return;
         };
-        if !grok_challenge_probe_is_current(observed_state, current_state) {
+        if grok_bridge_host_action(result.outcome, observed_epoch, current_epoch, current_state)
+            != GrokBridgeHostAction::MarkBlocked
+        {
             return;
         }
         let mut next_state = current_state.clone();
@@ -224,21 +505,27 @@ fn set_grok_challenge_blocked_if_unchanged(app: &AppHandle, observed_state: &Pro
         next_state.last_status_at = now_ms();
         guard
             .states
-            .insert(next_state.provider.clone(), next_state.clone());
+            .insert(provider.to_string(), next_state.clone());
         next_state
     };
     let _ = app.emit_to("main", "connections://update", &next_state);
 }
 
-fn probe_grok_challenge(app: &AppHandle, observed_state: ProviderState) {
-    let label = provider_label(&observed_state.provider);
-    let Some(webview) = app.get_webview(&label) else {
+fn drive_grok_bridge_on_webview(
+    webview: &tauri::Webview,
+    app: &AppHandle,
+    provider: &str,
+    script: &str,
+    observed_epoch: u64,
+) {
+    if !grok_bridge_result_is_current(provider, observed_epoch) {
         return;
-    };
+    }
     let app = app.clone();
-    let _ = webview.eval_with_callback(GROK_CHALLENGE_PROBE_JS, move |raw| {
-        if eval_callback_reports_true(&raw) {
-            set_grok_challenge_blocked_if_unchanged(&app, &observed_state);
+    let provider = provider.to_string();
+    let _ = webview.eval_with_callback(script, move |raw| {
+        if let Some(result) = parse_grok_bridge_drive_outcome(&raw) {
+            apply_grok_bridge_drive_outcome(&app, &provider, observed_epoch, result);
         }
     });
 }
@@ -359,7 +646,10 @@ pub async fn provider_open(
     // the old Windows-only `register_title_watcher` (whose non-Windows branch was a no-op stub).
     let title_app = app.clone();
     let title_provider = provider.clone();
-    let title_delayed_grok_script = delayed_grok_script;
+    let title_delayed_grok_script = delayed_grok_script.clone();
+    let load_app = app.clone();
+    let load_provider = provider.clone();
+    let load_delayed_grok_script = delayed_grok_script;
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(url));
     // Grok's Cloudflare challenge must see a stock document from its first instruction.
     // Install the automation bridge only after the real app page is confirmed below.
@@ -376,41 +666,72 @@ pub async fn provider_open(
     } else {
         builder
     };
-    let builder = builder.data_directory(profile_dir);
-    // Keep Grok's challenge environment close to stock WebView2. Other providers retain
-    // background execution tuning for hidden workflow automation.
-    let builder = if provider_uses_automation_browser_tuning(&provider) {
-        builder
-            .background_throttling(BackgroundThrottlingPolicy::Disabled)
-            .additional_browser_args(PROVIDER_BROWSER_ARGS)
-    } else {
-        builder
-    };
+    // Every provider is parked offscreen outside its active pane. Preserve the shipped liveness
+    // tuning so provider timers and renderers keep running while hidden.
     let builder = builder
+        .data_directory(profile_dir)
+        .background_throttling(BackgroundThrottlingPolicy::Disabled)
+        .additional_browser_args(PROVIDER_BROWSER_ARGS)
         .on_document_title_changed(move |webview, title| {
+            let document_epoch = current_grok_document_epoch(&title_provider);
             handle_provider_document_title(&title_app, &title_provider, &title);
             let install_ready = webview
                 .url()
                 .ok()
                 .is_some_and(|url| grok_bridge_install_ready(&title_provider, &title, &url));
+            let challenge_ready = grok_challenge_title_active(&title_provider, &title)
+                && webview.url().ok().is_some_and(|url| {
+                    adapters::url_matches_provider_app(&title_provider, &url).unwrap_or(false)
+                });
             let Some(script) = title_delayed_grok_script.as_deref() else {
                 return;
             };
-            if !install_ready {
+            if !install_ready && !challenge_ready {
+                return;
+            }
+            if !grok_bridge_drive_allowed(&current_state(&title_provider)) {
                 return;
             }
 
-            // A Turnstile iframe can leave the top-level title as "Grok". Require the
-            // read-only challenge probe to return an explicit false before installing.
-            // Use this event's WebView directly: title events may arrive before the
-            // child is discoverable through AppHandle's webview registry.
-            let install_webview = webview.clone();
-            let script = script.to_string();
-            let _ = webview.eval_with_callback(GROK_CHALLENGE_PROBE_JS, move |raw| {
-                if eval_callback_reports_false(&raw) {
-                    let _ = install_webview.eval(&script);
+            // Use this event's WebView directly: title events may arrive before the child is
+            // discoverable through AppHandle's webview registry. The driver probes and installs
+            // atomically in one JavaScript task.
+            drive_grok_bridge_on_webview(
+                &webview,
+                &title_app,
+                &title_provider,
+                script,
+                document_epoch,
+            );
+        })
+        .on_page_load(move |webview, payload| {
+            if load_provider != "grok" {
+                return;
+            }
+            match payload.event() {
+                PageLoadEvent::Started => {
+                    confirm_grok_page_load(&load_provider);
+                    reset_bridge_state(&load_app, &load_provider);
                 }
-            });
+                PageLoadEvent::Finished => {
+                    let Some(script) = load_delayed_grok_script.as_deref() else {
+                        return;
+                    };
+                    if !adapters::url_matches_provider_app(&load_provider, payload.url())
+                        .unwrap_or(false)
+                        || !grok_bridge_drive_allowed(&current_state(&load_provider))
+                    {
+                        return;
+                    }
+                    drive_grok_bridge_on_webview(
+                        &webview,
+                        &load_app,
+                        &load_provider,
+                        script,
+                        current_grok_document_epoch(&load_provider),
+                    );
+                }
+            }
         })
         .on_navigation(move |url| {
             if url.host_str() == Some("mac-bridge.invalid") {
@@ -484,12 +805,23 @@ pub async fn provider_open(
             }
         });
 
-    let webview = window
-        .add_child(builder, position, size)
-        .map_err(|error| error.to_string())?;
+    let prepared_epoch = prepare_grok_navigation(&provider);
+    let webview = match window.add_child(builder, position, size) {
+        Ok(webview) => webview,
+        Err(error) => {
+            cancel_grok_navigation(&provider, prepared_epoch);
+            return Err(error.to_string());
+        }
+    };
     webview.show().map_err(|error| error.to_string())?;
-    let state = state_with(&provider, "loaded", "unknown", "unknown", false);
-    set_state(&app, state.clone());
+    let current = current_state(&provider);
+    let state = if current.webview == "loaded" {
+        current
+    } else {
+        let state = state_with(&provider, "loaded", "unknown", "unknown", false);
+        set_state(&app, state.clone());
+        state
+    };
     Ok(state)
 }
 
@@ -501,6 +833,7 @@ pub async fn provider_close(
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
     let label = provider_label(&provider);
+    retire_grok_document(&provider);
     if let Some(webview) = app.get_webview(&label) {
         webview.close().map_err(|error| error.to_string())?;
     }
@@ -508,6 +841,8 @@ pub async fn provider_close(
         guard.engine_boot.remove(&provider);
         guard.bridge_boot.remove(&provider);
         guard.status_boot.remove(&provider);
+        guard.grok_adopted_boot.remove(&provider);
+        guard.grok_pending_navigation.remove(&provider);
         guard.pending_session_boot.remove(&provider);
         guard.last_push_ms.remove(&provider);
     }
@@ -661,8 +996,13 @@ pub async fn provider_reload(
     provider: String,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    let prepared_epoch = prepare_grok_navigation(&provider);
     reset_bridge_state(&app, &provider);
-    eval_provider(&app, &provider, "location.reload();")
+    if let Err(error) = eval_provider(&app, &provider, "location.reload();") {
+        cancel_grok_navigation(&provider, prepared_epoch);
+        return Err(error);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -676,13 +1016,18 @@ pub async fn provider_new_session(
         return Err(format!("provider webview is not open: {provider}"));
     }
     let adapter = adapters::get_adapter(&provider)?;
-    begin_session_reset(&app, &provider)?;
+    let prepared_epoch = prepare_grok_navigation(&provider);
+    if let Err(error) = begin_session_reset(&app, &provider) {
+        cancel_grok_navigation(&provider, prepared_epoch);
+        return Err(error);
+    }
     let js = format!(
         "location.href = {};",
         serde_json::to_string(&adapter.urls.app).map_err(|error| error.to_string())?
     );
     if let Err(error) = eval_provider(&app, &provider, &js) {
         cancel_session_reset(&provider);
+        cancel_grok_navigation(&provider, prepared_epoch);
         return Err(error);
     }
 
@@ -710,6 +1055,7 @@ pub async fn provider_new_session(
     }
 
     cancel_session_reset(&provider);
+    cancel_grok_navigation(&provider, prepared_epoch);
     Err(format!(
         "provider new session did not become ready within {} seconds: {provider}",
         NEW_SESSION_READY_TIMEOUT_SECS
@@ -757,16 +1103,20 @@ pub async fn dev_log(
     Ok(())
 }
 
+pub(crate) fn bridge_title_is_eligible(provider: &str, msg: &BridgeMessage) -> bool {
+    msg.action != "STATUS_REPORT" || grok_bridge_boot_is_current(provider, msg.boot_id.as_deref())
+}
+
 pub(crate) fn handle_bridge_title(
     app: &AppHandle,
     provider: &str,
     msg: &BridgeMessage,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     if msg.action != "STATUS_REPORT" {
-        return Ok(());
+        return Ok(true);
     }
     if !accept_status_for_session_reset(provider, msg.boot_id.as_deref()) {
-        return Ok(());
+        return Ok(false);
     }
     if should_reset_bridge_on_boot_rotation(provider, msg.boot_id.as_deref()) {
         let mut state = current_state(provider);
@@ -800,7 +1150,7 @@ pub(crate) fn handle_bridge_title(
         }
     }
     update_status_state(app, provider, payload, msg.boot_id.as_deref());
-    Ok(())
+    Ok(true)
 }
 
 fn should_reset_bridge_on_boot_rotation(provider: &str, incoming_boot: Option<&str>) -> bool {
@@ -847,6 +1197,10 @@ pub(crate) fn push_engine_and_adapter(app: &AppHandle, provider: &str) -> Result
 
 fn delayed_grok_bridge_script(provider: &str) -> Result<String, String> {
     let adapter = adapters::get_adapter(provider)?;
+    let challenge_signals = serde_json::from_str::<serde_json::Value>(CHALLENGE_SIGNALS_JSON)
+        .map_err(|error| format!("invalid shared challenge signals: {error}"))?;
+    let challenge_signals_json =
+        serde_json::to_string(&challenge_signals).map_err(|error| error.to_string())?;
     let provider_json = serde_json::to_string(provider).map_err(|error| error.to_string())?;
     let dispatch_adapter = serde_json::json!({
         "v": 1,
@@ -859,34 +1213,100 @@ fn delayed_grok_bridge_script(provider: &str) -> Result<String, String> {
         "action": "CHECK_STATUS",
         "provider": provider
     });
-    Ok(format!(
-        r#"if (
-  window.self === window.top &&
-  location.protocol === 'https:' &&
-  location.hostname === 'grok.com' &&
-  !document.querySelector('#challenge-running, #challenge-stage, #cf-challenge-running, form#challenge-form, .h-captcha, [data-hcaptcha-widget-id], iframe[src*="hcaptcha.com"], iframe[src*="challenges.cloudflare.com"]') &&
-  !window.__MAC_GROK_DELAYED_INSTALL__
-) {{
-  window.__MAC_GROK_DELAYED_INSTALL__ = true;
-  window.__MAC_PROVIDER__ = {provider_json};
-  {bootstrap}
-  (function installGrokEngine(attempt) {{
-    if (window.__MAC_BRIDGE__) {{
-      {engine}
-      window.__MAC_BRIDGE__.dispatch({adapter_msg});
-      window.__MAC_BRIDGE__.dispatch({check_msg});
-      return;
-    }}
-    if (attempt < 120) {{
-      window.setTimeout(function () {{ installGrokEngine(attempt + 1); }}, 250);
-    }}
-  }})(0);
-}}"#,
-        bootstrap = BOOTSTRAP_JS,
-        engine = ENGINE_JS,
-        adapter_msg = serde_json::to_string(&dispatch_adapter).map_err(|error| error.to_string())?,
-        check_msg = serde_json::to_string(&dispatch_check).map_err(|error| error.to_string())?,
-    ))
+    let template = r#"(function driveGrokBridge() {
+  try {
+    if (
+      window.self !== window.top ||
+      location.protocol !== 'https:' ||
+      location.hostname !== 'grok.com'
+    ) {
+      return { outcome: 'ineligible' };
+    }
+
+    var challengeSignals = __MAC_CHALLENGE_SIGNALS_JSON__;
+    function normalize(value) {
+      return String(value || '').trim().toLocaleLowerCase();
+    }
+    function includesSignal(value, signals) {
+      var normalized = normalize(value);
+      return signals.some(function (signal) { return normalized.indexOf(signal) !== -1; });
+    }
+    function sampleBodyText() {
+      if (!document.body) return '';
+      try {
+        var walker = document.createTreeWalker(document.body, 4);
+        var sample = '';
+        var node = walker.nextNode();
+        while (node && sample.length < challengeSignals.bodySampleChars) {
+          if (node.nodeValue) {
+            sample += ' ' + node.nodeValue.slice(0, challengeSignals.bodySampleChars - sample.length);
+          }
+          node = walker.nextNode();
+        }
+        return sample.slice(0, challengeSignals.bodySampleChars);
+      } catch (_) {
+        return String(document.body.innerText || document.body.textContent || '')
+          .slice(0, challengeSignals.bodySampleChars);
+      }
+    }
+    function challengeActive() {
+      if (document.querySelector(challengeSignals.markerSelector)) return true;
+      if (includesSignal(document.title, challengeSignals.titleSignals)) return true;
+      return includesSignal(sampleBodyText(), challengeSignals.bodySignals);
+    }
+    function installEngineAndAdapter() {
+      __MAC_ENGINE_JS__
+      window.__MAC_BRIDGE__.dispatch(__MAC_ADAPTER_MESSAGE__);
+      window.__MAC_BRIDGE__.dispatch(__MAC_CHECK_MESSAGE__);
+    }
+
+    // This read-only decision and the bridge installation run in one JavaScript task. No provider
+    // global or DOM state is changed unless the challenge result is explicitly negative.
+    if (challengeActive()) return { outcome: 'challenge' };
+    if (window.__MAC_BRIDGE__) {
+      installEngineAndAdapter();
+      return { outcome: 'present', bootId: String(window.__MAC_BRIDGE__.bootId || '') };
+    }
+    if (document.readyState === 'loading') return { outcome: 'waiting' };
+
+    var title = normalize(document.title);
+    if (!(title === 'grok' || title.indexOf('grok - ') === 0 || title.indexOf('grok — ') === 0)) {
+      return { outcome: 'ineligible' };
+    }
+
+    window.__MAC_PROVIDER__ = __MAC_PROVIDER_JSON__;
+    __MAC_BOOTSTRAP_JS__
+    if (!window.__MAC_BRIDGE__) {
+      return { outcome: challengeActive() ? 'challenge' : 'waiting' };
+    }
+    installEngineAndAdapter();
+    return { outcome: 'installed', bootId: String(window.__MAC_BRIDGE__.bootId || '') };
+  } catch (error) {
+    try { console.error('[MAC Grok bridge driver]', error); } catch (_) {}
+    return { outcome: 'retry' };
+  }
+})()"#;
+    Ok(template
+        .replace("__MAC_CHALLENGE_SIGNALS_JSON__", &challenge_signals_json)
+        .replace("__MAC_ENGINE_JS__", ENGINE_JS)
+        .replace(
+            "__MAC_ADAPTER_MESSAGE__",
+            &serde_json::to_string(&dispatch_adapter).map_err(|error| error.to_string())?,
+        )
+        .replace(
+            "__MAC_CHECK_MESSAGE__",
+            &serde_json::to_string(&dispatch_check).map_err(|error| error.to_string())?,
+        )
+        .replace("__MAC_PROVIDER_JSON__", &provider_json)
+        .replace("__MAC_BOOTSTRAP_JS__", BOOTSTRAP_JS))
+}
+
+fn cached_grok_bridge_script() -> Result<&'static str, String> {
+    static SCRIPT: OnceLock<Result<String, String>> = OnceLock::new();
+    match SCRIPT.get_or_init(|| delayed_grok_bridge_script("grok")) {
+        Ok(script) => Ok(script.as_str()),
+        Err(error) => Err(error.clone()),
+    }
 }
 
 fn update_status_state(
@@ -1072,6 +1492,25 @@ fn accept_status_for_session_reset(provider: &str, incoming_boot: Option<&str>) 
     let Ok(mut guard) = runtime().lock() else {
         return false;
     };
+    if provider == "grok" {
+        let Some(incoming_boot) = incoming_boot else {
+            return false;
+        };
+        let current_epoch = guard
+            .grok_document_epoch
+            .get(provider)
+            .copied()
+            .unwrap_or_default();
+        if !guard
+            .grok_adopted_boot
+            .get(provider)
+            .is_some_and(|(epoch, adopted_boot)| {
+                *epoch == current_epoch && adopted_boot == incoming_boot
+            })
+        {
+            return false;
+        }
+    }
     if let Some(previous_boot) = guard.pending_session_boot.get(provider).cloned() {
         if !fresh_session_boot(previous_boot.as_deref(), incoming_boot) {
             return false;
@@ -1092,10 +1531,6 @@ fn fresh_session_boot(previous_boot: Option<&str>, incoming_boot: Option<&str>) 
 
 fn eval_callback_reports_true(raw: &str) -> bool {
     eval_callback_boolean(raw) == Some(true)
-}
-
-fn eval_callback_reports_false(raw: &str) -> bool {
-    eval_callback_boolean(raw) == Some(false)
 }
 
 fn eval_callback_boolean(raw: &str) -> Option<bool> {
@@ -1149,12 +1584,17 @@ fn run_staleness_check(app: &AppHandle) {
     let now = now_ms();
     let mut to_check = Vec::new();
     let mut to_mark_unknown = Vec::new();
-    let mut to_probe = Vec::new();
+    let mut grok_to_drive = Vec::new();
     if let Ok(mut guard) = runtime().lock() {
         let providers = guard.states.values().cloned().collect::<Vec<_>>();
         for state in providers {
-            if should_probe_grok_challenge(&state) {
-                to_probe.push(state.clone());
+            if should_drive_grok_bridge(&state) {
+                let document_epoch = guard
+                    .grok_document_epoch
+                    .get(&state.provider)
+                    .copied()
+                    .unwrap_or_default();
+                grok_to_drive.push((state.provider.clone(), document_epoch));
             }
             match staleness_action(state.last_status_at, now, state.webview == "loaded") {
                 StalenessAction::None => {}
@@ -1172,8 +1612,12 @@ fn run_staleness_check(app: &AppHandle) {
             }
         }
     }
-    for state in to_probe {
-        probe_grok_challenge(app, state);
+    if let Ok(script) = cached_grok_bridge_script() {
+        for (provider, document_epoch) in grok_to_drive {
+            if let Some(webview) = app.get_webview(&provider_label(&provider)) {
+                drive_grok_bridge_on_webview(&webview, app, &provider, script, document_epoch);
+            }
+        }
     }
     for provider in to_check {
         let msg = serde_json::json!({ "v": 1, "action": "CHECK_STATUS", "provider": provider });
@@ -1220,21 +1664,26 @@ fn now_ms() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use tauri::{PhysicalPosition, PhysicalSize};
 
     use super::{
-        accept_status_for_session_reset, bridge_resets_on_boot_rotation, cancel_session_reset,
-        challenge_auxiliary_navigation_allowed, decide_new_window_action,
-        delayed_grok_bridge_script, eval_callback_reports_false, eval_callback_reports_true,
-        fresh_session_boot, gemini_sorry_navigation_active, grok_app_title_ready,
-        grok_bridge_install_ready, grok_challenge_probe_is_current, grok_challenge_title_active,
-        physical_bounds, popup_initial_title, provider_show_should_focus,
-        provider_uses_automation_browser_tuning, provider_uses_document_start_bridge,
-        provider_uses_permission_shim, runtime, should_probe_grok_challenge,
+        accept_status_for_session_reset, adopt_grok_bridge_boot, bridge_resets_on_boot_rotation,
+        cancel_grok_navigation, cancel_session_reset, challenge_auxiliary_navigation_allowed,
+        confirm_grok_page_load, decide_new_window_action, delayed_grok_bridge_script,
+        eval_callback_reports_true, fresh_session_boot, gemini_sorry_navigation_active,
+        grok_app_title_ready, grok_bridge_drive_allowed, grok_bridge_host_action,
+        grok_bridge_install_ready, grok_bridge_result_is_current, grok_challenge_title_active,
+        parse_grok_bridge_drive_outcome, physical_bounds, popup_initial_title,
+        prepare_grok_navigation, provider_show_should_focus, provider_uses_document_start_bridge,
+        provider_uses_permission_shim, runtime, should_drive_grok_bridge,
         should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
-        NewWindowAction, StalenessAction, GROK_CHALLENGE_PROBE_JS, PERMISSION_SHIM_JS,
-        PROVIDER_BROWSER_ARGS,
+        GrokBridgeDriveOutcome, GrokBridgeDriveResult, GrokBridgeHostAction, NewWindowAction,
+        StalenessAction, CHALLENGE_SIGNALS_JSON, PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
     };
+
+    static GROK_RUNTIME_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn url(input: &str) -> tauri::Url {
         tauri::Url::parse(input).expect("test URL should parse")
@@ -1258,17 +1707,15 @@ mod tests {
     #[test]
     fn grok_keeps_core_web_apis_unmodified_for_cloudflare_challenges() {
         assert!(!provider_uses_permission_shim("grok"));
-        assert!(!provider_uses_automation_browser_tuning("grok"));
         assert!(!provider_uses_document_start_bridge("grok"));
         for provider in ["chatgpt", "claude", "gemini"] {
             assert!(provider_uses_permission_shim(provider));
-            assert!(provider_uses_automation_browser_tuning(provider));
             assert!(provider_uses_document_start_bridge(provider));
         }
     }
 
     #[test]
-    fn grok_bridge_waits_for_the_real_app_and_a_negative_challenge_probe() {
+    fn grok_bridge_waits_for_the_real_app_and_an_atomic_negative_challenge_check() {
         assert!(grok_app_title_ready("grok", "Grok"));
         assert!(grok_app_title_ready("grok", "Grok — Home"));
         assert!(!grok_app_title_ready("grok", "grok.com 正在執行安全驗證"));
@@ -1284,18 +1731,25 @@ mod tests {
             "Grok",
             &url("https://accounts.x.ai/sign-in")
         ));
-        assert!(!eval_callback_reports_false("null"));
-        assert!(!eval_callback_reports_false(r#""unexpected""#));
-        assert!(eval_callback_reports_false("false"));
-        assert!(eval_callback_reports_false(r#""false""#));
 
         let script = delayed_grok_bridge_script("grok").expect("delayed script should build");
-        assert!(script.contains("__MAC_GROK_DELAYED_INSTALL__"));
-        assert!(script.contains("location.hostname === 'grok.com'"));
+        assert!(!script.contains("__MAC_GROK_DELAYED_INSTALL__"));
+        assert!(script.contains("location.hostname !== 'grok.com'"));
         assert!(script.contains("challenges.cloudflare.com"));
-        assert!(script.contains("installGrokEngine"));
+        assert!(script.contains("function installEngineAndAdapter()"));
         assert!(script.contains("ADAPTER_UPDATE"));
         assert!(script.contains("CHECK_STATUS"));
+        assert!(script.contains("正在執行安全驗證"));
+        assert!(script.contains("bootId: String(window.__MAC_BRIDGE__.bootId || '')"));
+        let challenge_check = script
+            .find("if (challengeActive()) return { outcome: 'challenge' };")
+            .expect("driver must check the challenge");
+        let first_provider_write = script
+            .find("window.__MAC_PROVIDER__ =")
+            .expect("driver must eventually identify the provider");
+        assert!(challenge_check < first_provider_write);
+        serde_json::from_str::<serde_json::Value>(CHALLENGE_SIGNALS_JSON)
+            .expect("shared challenge signals must remain valid JSON");
     }
 
     #[test]
@@ -1598,61 +2052,83 @@ mod tests {
     }
 
     #[test]
-    fn grok_challenge_probe_is_read_only_and_bridge_passive() {
-        assert!(GROK_CHALLENGE_PROBE_JS.contains("!window.__MAC_BRIDGE__"));
-        assert!(GROK_CHALLENGE_PROBE_JS.contains("document.querySelector"));
-        assert!(GROK_CHALLENGE_PROBE_JS.contains("challenges.cloudflare.com"));
-        for mutation in [
-            "document.title =",
-            "history.",
-            "navigator.",
-            "MutationObserver",
-            "__MAC_BRIDGE__ =",
-        ] {
-            assert!(!GROK_CHALLENGE_PROBE_JS.contains(mutation));
-        }
+    fn grok_bridge_driver_callback_parses_only_known_outcomes() {
+        assert_eq!(
+            parse_grok_bridge_drive_outcome(r#""challenge""#),
+            Some(GrokBridgeDriveResult {
+                outcome: GrokBridgeDriveOutcome::Challenge,
+                boot_id: None,
+            })
+        );
+        assert_eq!(
+            parse_grok_bridge_drive_outcome(r#""\"installed\"""#),
+            Some(GrokBridgeDriveResult {
+                outcome: GrokBridgeDriveOutcome::Installed,
+                boot_id: None,
+            })
+        );
+        assert_eq!(
+            parse_grok_bridge_drive_outcome(
+                r#""{\"outcome\":\"present\",\"bootId\":\"boot-current\"}""#
+            ),
+            Some(GrokBridgeDriveResult {
+                outcome: GrokBridgeDriveOutcome::Present,
+                boot_id: Some("boot-current".into()),
+            })
+        );
+        assert_eq!(parse_grok_bridge_drive_outcome("null"), None);
+        assert_eq!(parse_grok_bridge_drive_outcome(r#""unexpected""#), None);
     }
 
     #[test]
-    fn grok_challenge_probe_targets_only_loaded_unblocked_grok() {
-        assert!(should_probe_grok_challenge(&state_with(
+    fn grok_bridge_watchdog_retries_loaded_unresolved_grok_including_blocked() {
+        assert!(should_drive_grok_bridge(&state_with(
             "grok", "loaded", "unknown", "unknown", false
         )));
-        assert!(should_probe_grok_challenge(&state_with(
+        assert!(should_drive_grok_bridge(&state_with(
+            "grok", "loaded", "unknown", "blocked", false
+        )));
+        assert!(!should_drive_grok_bridge(&state_with(
             "grok",
             "loaded",
             "ready",
             "logged_in",
             false
         )));
-        assert!(!should_probe_grok_challenge(&state_with(
-            "grok", "loaded", "unknown", "blocked", false
-        )));
-        assert!(!should_probe_grok_challenge(&state_with(
+        assert!(!should_drive_grok_bridge(&state_with(
             "grok", "creating", "unknown", "unknown", false
         )));
-        assert!(!should_probe_grok_challenge(&state_with(
+        assert!(!should_drive_grok_bridge(&state_with(
             "chatgpt", "loaded", "unknown", "unknown", false
+        )));
+        assert!(grok_bridge_drive_allowed(&state_with(
+            "grok", "creating", "unknown", "unknown", false
         )));
     }
 
     #[test]
-    fn stale_grok_challenge_probe_cannot_override_a_newer_state() {
-        let observed = state_with("grok", "loaded", "unknown", "unknown", false);
-        assert!(grok_challenge_probe_is_current(&observed, &observed));
+    fn stale_grok_bridge_driver_cannot_override_a_newer_document_or_ready_state() {
+        let unresolved = state_with("grok", "loaded", "unknown", "unknown", false);
+        assert_eq!(
+            grok_bridge_host_action(GrokBridgeDriveOutcome::Challenge, 4, 4, &unresolved),
+            GrokBridgeHostAction::MarkBlocked
+        );
+        assert_eq!(
+            grok_bridge_host_action(GrokBridgeDriveOutcome::Challenge, 3, 4, &unresolved),
+            GrokBridgeHostAction::Ignore
+        );
+        assert_eq!(
+            grok_bridge_host_action(GrokBridgeDriveOutcome::Waiting, 4, 4, &unresolved),
+            GrokBridgeHostAction::Ignore
+        );
 
-        let mut ready = observed.clone();
+        let mut ready = unresolved.clone();
         ready.dom = "ready".into();
         ready.login = "logged_in".into();
-        assert!(!grok_challenge_probe_is_current(&observed, &ready));
-
-        let mut newer = observed.clone();
-        newer.last_status_at = newer.last_status_at.saturating_add(1);
-        assert!(!grok_challenge_probe_is_current(&observed, &newer));
-
-        let mut blocked = observed.clone();
-        blocked.login = "blocked".into();
-        assert!(!grok_challenge_probe_is_current(&observed, &blocked));
+        assert_eq!(
+            grok_bridge_host_action(GrokBridgeDriveOutcome::Challenge, 4, 4, &ready),
+            GrokBridgeHostAction::Ignore
+        );
     }
 
     #[test]
@@ -1662,6 +2138,80 @@ mod tests {
         assert!(fresh_session_boot(None, Some("boot-a")));
         assert!(!fresh_session_boot(Some("boot-a"), None));
         assert!(!fresh_session_boot(None, None));
+    }
+
+    #[test]
+    fn grok_navigation_rejects_late_status_from_the_previous_document_boot() {
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.status_boot.remove(provider);
+            guard.grok_adopted_boot.remove(provider);
+            guard.grok_pending_navigation.remove(provider);
+            guard.grok_document_epoch.remove(provider);
+            guard.pending_session_boot.remove(provider);
+        }
+
+        let first_epoch = prepare_grok_navigation(provider);
+        assert_eq!(confirm_grok_page_load(provider), first_epoch);
+        assert!(adopt_grok_bridge_boot(provider, first_epoch, "old-boot"));
+        assert!(accept_status_for_session_reset(provider, Some("old-boot")));
+
+        let next_epoch = prepare_grok_navigation(provider);
+        assert!(!grok_bridge_result_is_current(provider, first_epoch));
+        assert!(!adopt_grok_bridge_boot(provider, first_epoch, "old-boot"));
+        assert!(!accept_status_for_session_reset(provider, Some("old-boot")));
+        assert_eq!(confirm_grok_page_load(provider), next_epoch);
+        assert!(!grok_bridge_result_is_current(provider, first_epoch));
+        assert!(!adopt_grok_bridge_boot(provider, first_epoch, "old-boot"));
+        assert!(adopt_grok_bridge_boot(provider, next_epoch, "new-boot"));
+        assert!(accept_status_for_session_reset(provider, Some("new-boot")));
+        assert!(accept_status_for_session_reset(provider, Some("new-boot")));
+
+        let restored_epoch = prepare_grok_navigation(provider);
+        assert_eq!(confirm_grok_page_load(provider), restored_epoch);
+        assert!(adopt_grok_bridge_boot(provider, restored_epoch, "old-boot"));
+        assert!(accept_status_for_session_reset(provider, Some("old-boot")));
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.status_boot.remove(provider);
+        guard.grok_adopted_boot.remove(provider);
+        guard.grok_pending_navigation.remove(provider);
+        guard.grok_document_epoch.remove(provider);
+    }
+
+    #[test]
+    fn failed_grok_navigation_restores_the_live_document_boot() {
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.status_boot.remove(provider);
+            guard.grok_adopted_boot.remove(provider);
+            guard.grok_pending_navigation.remove(provider);
+            guard.grok_document_epoch.remove(provider);
+            guard.pending_session_boot.remove(provider);
+        }
+
+        let live_epoch = prepare_grok_navigation(provider);
+        assert_eq!(confirm_grok_page_load(provider), live_epoch);
+        assert!(adopt_grok_bridge_boot(provider, live_epoch, "live-boot"));
+        assert!(accept_status_for_session_reset(provider, Some("live-boot")));
+
+        let failed_epoch = prepare_grok_navigation(provider);
+        assert!(!accept_status_for_session_reset(
+            provider,
+            Some("live-boot")
+        ));
+        cancel_grok_navigation(provider, failed_epoch);
+        assert!(accept_status_for_session_reset(provider, Some("live-boot")));
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.status_boot.remove(provider);
+        guard.grok_adopted_boot.remove(provider);
+        guard.grok_pending_navigation.remove(provider);
+        guard.grok_document_epoch.remove(provider);
     }
 
     #[test]
