@@ -10,14 +10,14 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. Brainstorming behält vier wechselnde Sitze, insgesamt 48 Beiträge und den vollständigen Verlauf derselben Sitzung. Jedes integrierte Preset mit vier Rollen oder Sitzen weist ChatGPT, Claude, Gemini und Grok jeweils genau einmal zu. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
 
-## Neuerungen in v1.8.0
+## Neuerungen in v1.8.1
 
-- **Transkript über die volle Breite.** Eine Schaltfläche maximiert den Gesprächsbereich oder stellt ihn wieder her; Sidebar und Resizer sind dabei vollständig isoliert, ohne den Workflow zu unterbrechen.
-- **Aktuell gelesenen Anbieter erkennen.** Provider-Chips folgen der Leselinie; Größen- und Textumbruchänderungen werden automatisch neu berechnet.
-- **Sichere native Seitenwechsel.** Anmeldung, Preflight, Replay und Overlay-Wiederherstellung verwenden denselben aktuellen Provider-Zustand, damit keine veraltete WebView das Transkript überdeckt.
-- **Effiziente lange Gespräche.** Die Position wird über eine begrenzte binäre Suche ermittelt, nicht vor der ersten tatsächlich erreichten Provider-Nachricht gesetzt und in allen vier UI-Sprachen barrierefrei beschriftet.
+- **Korrekter Grok-Challenge-Status.** Ein Cloudflare-/Turnstile-Widget wird auch bei unverändertem Seitentitel als blockiert gemeldet, ohne die Automatisierungs-Bridge zu starten oder die Challenge-Seite zu verändern.
+- **Alle vier Anbieter in integrierten Vier-Rollen-Setups.** ChatGPT, Claude, Gemini und Grok werden jeweils einmal zugewiesen. Nur exakt übereinstimmende alte Standardwerte werden einmal migriert; benutzerdefinierte Belegungen bleiben erhalten.
+- **Replay-sichere Workflow-Änderungen.** Workflows mit geändertem Provider-Routing erhalten neue Versionen, damit inkompatible Snapshots und Replays ausdrücklich abgelehnt werden.
+- **Bereinigte Source-Toolchain.** Behebbare Sicherheitswarnungen der JavaScript-Entwicklungsabhängigkeiten sind beseitigt; der Agent-ready Source Contract verlangt nun Node.js ^22.13.0 || >=24.0.0.
 
-Validierung, Mitwirkende, das dokumentierte GTK-Upstream-Risiko und bekannte Plattformgrenzen stehen in den zweisprachigen [`v1.8.0 Release Notes`](./docs/RELEASE_NOTES_v1.8.0.md).
+Validierung, Grok-Einschränkungen und ausstehende manuelle Release-Prüfungen stehen in den zweisprachigen [`v1.8.1 Release Notes`](./docs/RELEASE_NOTES_v1.8.1.md).
 
 ## Edition wählen
 
@@ -105,7 +105,7 @@ Ist die Desktop-/Browser-Sitzung remote, verwende eine lokale Claude-Code-Sitzun
 
 ### Voraussetzungen nach Betriebssystem
 
-Allgemein: **Node.js 22.13.x oder 24+**, pnpm (oder Corepack) und stabiles Rust. Die folgenden Schritte sind manuelle Beispiele; der Skill meldet fehlende Voraussetzungen nur und beendet sich.
+Allgemein: **Node.js ^22.13.0 || >=24.0.0**, pnpm (oder Corepack) und stabiles Rust. Die folgenden Schritte sind manuelle Beispiele; der Skill meldet fehlende Voraussetzungen nur und beendet sich.
 
 **Windows 10/11**
 
@@ -128,7 +128,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-Danach Node.js 22.13.x oder 24+ und Rust stable installieren und den Skill in einer X11-/Wayland-Sitzung ausführen. Andere Distributionen: [Tauri-2-Voraussetzungen](https://v2.tauri.app/start/prerequisites/).
+Danach Node.js ^22.13.0 || >=24.0.0 und Rust stable installieren und den Skill in einer X11-/Wayland-Sitzung ausführen. Andere Distributionen: [Tauri-2-Voraussetzungen](https://v2.tauri.app/start/prerequisites/).
 
 ### Skill-Befehle
 

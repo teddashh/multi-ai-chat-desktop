@@ -4,7 +4,7 @@
 
 ## 前置需求
 
-- Node.js 22.13.x 或 24+
+- Node.js ^22.13.0 || >=24.0.0
 - pnpm（本專案鎖定 `pnpm@11`，可用 Corepack：`corepack enable`）
 - Rust stable toolchain（Windows 需 MSVC + Visual Studio Build Tools「Desktop development with C++」）
 - Windows 10/11 通常已內建 WebView2
