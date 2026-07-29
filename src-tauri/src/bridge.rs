@@ -29,6 +29,12 @@ struct BridgeState {
     last_seq: HashMap<(String, String), u64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProviderTransportSnapshot {
+    active_boot: Option<String>,
+    last_seq: Vec<(String, u64)>,
+}
+
 static STATE: OnceLock<Mutex<BridgeState>> = OnceLock::new();
 
 fn state() -> &'static Mutex<BridgeState> {
@@ -43,19 +49,27 @@ pub(crate) fn ingest_title(
     let mut msg = decode_title_frame(title).ok().flatten()?;
     let boot_id = msg.boot_id.clone()?;
     let seq = msg.seq?;
+    msg.provider = Some(provider.to_string());
+    msg.transport = Some("title".into());
+    if !is_title_action_allowed(&msg) || !webviews::bridge_title_is_eligible(provider, &msg) {
+        return None;
+    }
+
     let mut guard = state().lock().ok()?;
+    let previous = provider_transport_snapshot(&guard, provider);
     rotate_boot_if_needed(&mut guard, provider, &boot_id);
     if !accept_seq(&mut guard, provider, &boot_id, seq) {
         return None;
     }
     drop(guard);
 
-    msg.provider = Some(provider.to_string());
-    msg.transport = Some("title".into());
-    let _ = webviews::handle_bridge_title(app, provider, &msg);
-    if is_title_action_allowed(&msg) {
-        let _ = app.emit_to("main", "bridge://msg", &msg);
+    if !webviews::handle_bridge_title(app, provider, &msg).unwrap_or(false) {
+        if let Ok(mut guard) = state().lock() {
+            restore_rejected_transport(&mut guard, provider, &boot_id, seq, previous);
+        }
+        return None;
     }
+    let _ = app.emit_to("main", "bridge://msg", &msg);
     Some(msg)
 }
 
@@ -93,6 +107,43 @@ fn rotate_boot_if_needed(state: &mut BridgeState, provider: &str, boot_id: &str)
     state
         .active_boot
         .insert(provider.to_string(), boot_id.to_string());
+}
+
+fn provider_transport_snapshot(state: &BridgeState, provider: &str) -> ProviderTransportSnapshot {
+    ProviderTransportSnapshot {
+        active_boot: state.active_boot.get(provider).cloned(),
+        last_seq: state
+            .last_seq
+            .iter()
+            .filter(|((seq_provider, _), _)| seq_provider == provider)
+            .map(|((_, boot_id), seq)| (boot_id.clone(), *seq))
+            .collect(),
+    }
+}
+
+fn restore_rejected_transport(
+    state: &mut BridgeState,
+    provider: &str,
+    rejected_boot: &str,
+    rejected_seq: u64,
+    previous: ProviderTransportSnapshot,
+) {
+    let rejected_key = (provider.to_string(), rejected_boot.to_string());
+    if state.active_boot.get(provider).map(String::as_str) != Some(rejected_boot)
+        || state.last_seq.get(&rejected_key).copied() != Some(rejected_seq)
+    {
+        return;
+    }
+    state.active_boot.remove(provider);
+    if let Some(active_boot) = previous.active_boot {
+        state.active_boot.insert(provider.to_string(), active_boot);
+    }
+    state
+        .last_seq
+        .retain(|(seq_provider, _), _| seq_provider != provider);
+    for (boot_id, seq) in previous.last_seq {
+        state.last_seq.insert((provider.to_string(), boot_id), seq);
+    }
 }
 
 fn decode_title_frame(title: &str) -> Result<Option<BridgeMessage>, String> {
@@ -235,5 +286,31 @@ mod tests {
             state.active_boot.get("chatgpt").map(String::as_str),
             Some("new")
         );
+    }
+
+    #[test]
+    fn rejected_title_restores_the_previous_transport_boot() {
+        let mut state = BridgeState::default();
+        state.active_boot.insert("grok".into(), "current".into());
+        state.last_seq.insert(("grok".into(), "current".into()), 7);
+        let previous = provider_transport_snapshot(&state, "grok");
+
+        rotate_boot_if_needed(&mut state, "grok", "stale");
+        assert!(accept_seq(&mut state, "grok", "stale", 1));
+        restore_rejected_transport(&mut state, "grok", "stale", 1, previous);
+
+        assert_eq!(
+            state.active_boot.get("grok").map(String::as_str),
+            Some("current")
+        );
+        assert_eq!(
+            state
+                .last_seq
+                .get(&("grok".to_string(), "current".to_string())),
+            Some(&7)
+        );
+        assert!(!state
+            .last_seq
+            .contains_key(&("grok".to_string(), "stale".to_string())));
     }
 }

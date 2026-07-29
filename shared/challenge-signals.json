@@ -1,0 +1,32 @@
+{
+  "markerSelector": "#challenge-running, #challenge-stage, #cf-challenge-running, form#challenge-form, .h-captcha, [data-hcaptcha-widget-id], iframe[src*=\"hcaptcha.com\"], iframe[src*=\"challenges.cloudflare.com\"]",
+  "titleSignals": [
+    "just a moment",
+    "attention required",
+    "security verification",
+    "performing security verification",
+    "請稍候",
+    "请稍候",
+    "安全驗證",
+    "安全性驗證",
+    "安全验证",
+    "セキュリティ検証",
+    "sicherheitsüberprüfung"
+  ],
+  "bodySignals": [
+    "verifying you are human",
+    "verify you are human",
+    "performing security verification",
+    "checking if the site connection is secure",
+    "complete the security check",
+    "驗證您是人類",
+    "验证您是人类",
+    "確認您是人類",
+    "正在驗證您是否為真人",
+    "正在執行安全驗證",
+    "正在执行安全验证",
+    "人間であることを確認しています",
+    "sicherheitsüberprüfung"
+  ],
+  "bodySampleChars": 2000
+}

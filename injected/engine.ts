@@ -13,6 +13,7 @@ interface DetectorObject {
 }
 
 type Detector = string | DetectorObject;
+type ChallengeMutationGuard = () => void;
 
 interface AdapterConfig {
   provider: AIProvider;
@@ -40,7 +41,7 @@ interface MacEngineState {
   stop?: () => void;
 }
 
-type InputStrategy = (el: Element, text: string) => void | Promise<void>;
+type InputStrategy = (el: Element, text: string, assertCanMutate: ChallengeMutationGuard) => void | Promise<void>;
 
 interface RetryLookupOptions {
   intervalMs?: number;
@@ -124,6 +125,20 @@ class InputInjectionError extends Error {
   }
 }
 
+class ChallengeActiveError extends Error {
+  constructor() {
+    super('security challenge is active');
+    this.name = 'ChallengeActiveError';
+  }
+}
+
+class InactiveSendOperationError extends Error {
+  constructor() {
+    super('send operation is no longer active');
+    this.name = 'InactiveSendOperationError';
+  }
+}
+
 (function engine() {
   if (typeof window === 'undefined') return;
   if (window.self !== window.top) return;
@@ -136,11 +151,17 @@ class InputInjectionError extends Error {
   let adapter: AdapterConfig | undefined;
   let statusInterval: number | undefined;
   let responseTimeout: number | undefined;
+  let finishResponseTimeout: number | undefined;
   let checkDoneInterval: number | undefined;
   let pollInterval: number | undefined;
   let lastSeenResponseEl: Element | null = null;
   let responseBaselineEls = new Set<Element>();
   let waitingForResponse = false;
+  let responseGeneration = 0;
+  let activeResponseGeneration = 0;
+  let nextSendOperation = 0;
+  let activeSendOperation: number | undefined;
+  let draftStaging = false;
   let lastResponseText = '';
   let pendingPromptText = '';
   let lastChunkTime = 0;
@@ -179,13 +200,21 @@ class InputInjectionError extends Error {
       return;
     }
     if (message.action === 'SEND_MESSAGE' && (!adapter || !message.provider || message.provider === adapter.provider)) {
+      const sendOperation = beginSendOperation(message.provider);
+      if (sendOperation === undefined) return;
+      if (abortAutomationForChallenge(message.provider, true, 'send', sendOperation)) return;
       const payload = message.payload as { text?: string } | undefined;
-      void sendMessage(payload?.text ?? '', message.provider);
+      void sendMessage(payload?.text ?? '', message.provider, sendOperation);
       return;
     }
     if (message.action === 'FILL_DRAFT' && (!adapter || !message.provider || message.provider === adapter.provider)) {
+      if (!beginFillOperation(message.provider)) return;
+      if (abortAutomationForChallenge(message.provider, false, 'fill')) {
+        releaseFillOperation();
+        return;
+      }
       const payload = message.payload as { text?: string } | undefined;
-      void fillDraft(payload?.text ?? '', message.provider);
+      void fillDraft(payload?.text ?? '', message.provider).finally(releaseFillOperation);
       return;
     }
     if (message.action === 'CHECK_STATUS') {
@@ -214,6 +243,7 @@ class InputInjectionError extends Error {
 
   function stop() {
     if (!adapter) return;
+    if (abortAutomationForChallenge(adapter.provider, false, 'stop')) return;
     try {
       const button = queryFirst(adapter.stopButtonSelectors ?? []);
       (button as HTMLElement | null)?.click?.();
@@ -245,13 +275,13 @@ class InputInjectionError extends Error {
       return;
     }
     let login: 'logged_in' | 'logged_out' | 'blocked' = 'logged_out';
-    if (hasDetector(adapter.loggedOutDetectors)) {
+    if (isProviderChallengeActive(adapter.provider)) {
+      login = 'blocked';
+    } else if (hasDetector(adapter.loggedOutDetectors)) {
       login = 'logged_out';
     } else if (hasDetector(adapter.loginDetectors)) {
       login = 'logged_in';
     } else if (adapter.provider === 'gemini' && location.hostname === 'gemini.google.com') {
-      login = 'blocked';
-    } else if (isProviderChallengeActive(adapter.provider)) {
       login = 'blocked';
     }
     bridge.emit({
@@ -262,78 +292,205 @@ class InputInjectionError extends Error {
     });
   }
 
+  function reportChallengeBlocked(provider: AIProvider) {
+    bridge.emit({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider,
+      payload: { dom: 'ready', login: 'blocked', thinking: false, bootId: bridge.bootId },
+    });
+  }
+
+  function abortAutomationForChallenge(
+    providerHint: AIProvider | undefined,
+    errorAsDone: boolean,
+    operation: 'send' | 'fill' | 'stop',
+    sendOperation?: number,
+  ): boolean {
+    const provider = providerHint ?? adapter?.provider;
+    if (!provider || !isProviderChallengeActive(provider)) return false;
+    reportChallengeBlocked(provider);
+    logEngine(`${provider} ${operation} refused: security challenge is active`);
+    if (errorAsDone) doneWithError(`${provider} security challenge is active`, provider, sendOperation);
+    return true;
+  }
+
+  function beginSendOperation(providerHint?: AIProvider): number | undefined {
+    if (activeSendOperation !== undefined || draftStaging || waitingForResponse) {
+      logEngine(`${providerHint ?? adapter?.provider ?? 'provider'} send rejected: response in flight`);
+      return undefined;
+    }
+    nextSendOperation += 1;
+    activeSendOperation = nextSendOperation;
+    return nextSendOperation;
+  }
+
+  function beginFillOperation(providerHint?: AIProvider): boolean {
+    if (activeSendOperation !== undefined || draftStaging || waitingForResponse) {
+      logEngine(`${providerHint ?? adapter?.provider ?? 'provider'} fill rejected: response in flight`);
+      return false;
+    }
+    draftStaging = true;
+    return true;
+  }
+
+  function releaseFillOperation() {
+    void Promise.resolve().then(() => {
+      draftStaging = false;
+    });
+  }
+
+  function isActiveSendOperation(sendOperation: number): boolean {
+    return activeSendOperation === sendOperation;
+  }
+
+  function releaseSendOperation(sendOperation: number) {
+    void Promise.resolve().then(() => {
+      if (activeSendOperation === sendOperation && !waitingForResponse) {
+        activeSendOperation = undefined;
+      }
+    });
+  }
+
   async function stageDraftForResponse(
     text: string,
     providerHint?: AIProvider,
+    challengeErrorAsDone = true,
+    sendOperation?: number,
   ): Promise<{ activeAdapter: AdapterConfig; input: Element; injectionStartedAt: number } | undefined> {
+    if (sendOperation !== undefined && !isActiveSendOperation(sendOperation)) return undefined;
+    if (
+      abortAutomationForChallenge(
+        providerHint,
+        challengeErrorAsDone,
+        challengeErrorAsDone ? 'send' : 'fill',
+        sendOperation,
+      )
+    ) {
+      return undefined;
+    }
     const activeAdapter = adapter;
     if (!activeAdapter) {
-      doneWithError('adapter not installed', providerHint);
+      doneWithError('adapter not installed', providerHint, sendOperation);
       return undefined;
     }
     const input = await retryLookup(() => queryFirst(activeAdapter.inputSelectors), {
       intervalMs: SELECTOR_RETRY_INTERVAL_MS,
       timeoutMs: INPUT_SELECTOR_TIMEOUT_MS,
     });
+    if (sendOperation !== undefined && !isActiveSendOperation(sendOperation)) return undefined;
     if (!input) {
-      doneWithError(`${activeAdapter.provider} input element not found`, activeAdapter.provider);
+      doneWithError(`${activeAdapter.provider} input element not found`, activeAdapter.provider, sendOperation);
+      return undefined;
+    }
+    if (
+      abortAutomationForChallenge(
+        activeAdapter.provider,
+        challengeErrorAsDone,
+        challengeErrorAsDone ? 'send' : 'fill',
+        sendOperation,
+      )
+    ) {
       return undefined;
     }
 
     const existingResponses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
     lastSeenResponseEl = existingResponses.length > 0 ? existingResponses[existingResponses.length - 1] : null;
     responseBaselineEls = new Set(existingResponses);
+    responseGeneration += 1;
+    activeResponseGeneration = responseGeneration;
     waitingForResponse = true;
     lastResponseText = '';
     pendingPromptText = text;
     startResponsePolling();
 
     const injectionStartedAt = Date.now();
+    const operation = challengeErrorAsDone ? 'send' : 'fill';
+    const assertCanMutate = () => {
+      if (sendOperation !== undefined && !isActiveSendOperation(sendOperation)) {
+        throw new InactiveSendOperationError();
+      }
+      if (
+        abortAutomationForChallenge(
+          activeAdapter.provider,
+          challengeErrorAsDone,
+          operation,
+          sendOperation,
+        )
+      ) {
+        throw new ChallengeActiveError();
+      }
+    };
     try {
-      await inputStrategies[activeAdapter.inputStrategy](input, text);
+      assertCanMutate();
+      await inputStrategies[activeAdapter.inputStrategy](input, text, assertCanMutate);
+      assertCanMutate();
       assertInputLanded(input, text, activeAdapter.inputStrategy);
     } catch (error) {
-      doneWithError(`${activeAdapter.provider} input injection failed: ${errorMessage(error)}`, activeAdapter.provider);
+      if (error instanceof ChallengeActiveError) {
+        if (!challengeErrorAsDone) cancelResponseWait();
+        return undefined;
+      }
+      if (error instanceof InactiveSendOperationError) {
+        return undefined;
+      }
+      doneWithError(
+        `${activeAdapter.provider} input injection failed: ${errorMessage(error)}`,
+        activeAdapter.provider,
+        sendOperation,
+      );
       return undefined;
     }
 
     return { activeAdapter, input, injectionStartedAt };
   }
 
-  async function sendMessage(text: string, providerHint?: AIProvider) {
-    const staged = await stageDraftForResponse(text, providerHint);
+  async function sendMessage(text: string, providerHint: AIProvider | undefined, sendOperation: number) {
+    const staged = await stageDraftForResponse(text, providerHint, true, sendOperation);
     if (!staged) return;
+    if (!isActiveSendOperation(sendOperation)) return;
     const { activeAdapter, input, injectionStartedAt } = staged;
 
     const preSendDelayMs = Math.max(0, PRE_SEND_DELAY_MS - (Date.now() - injectionStartedAt));
     window.setTimeout(() => {
       void (async () => {
-        const firstAttempt = await activateSend(input);
+        if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return;
+        if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) return;
+        const firstAttempt = await activateSend(input, sendOperation);
 
+        if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return;
         window.setTimeout(() => {
-          void retrySendIfStillPending(input, firstAttempt, activeAdapter);
+          void retrySendIfStillPending(input, firstAttempt, activeAdapter, sendOperation);
         }, SEND_RETRY_DELAY_MS);
       })();
     }, preSendDelayMs);
   }
 
   async function fillDraft(text: string, providerHint?: AIProvider) {
-    if (waitingForResponse) {
-      logEngine(`${providerHint ?? adapter?.provider ?? 'provider'} fill rejected: response in flight`);
-      return;
-    }
-    const staged = await stageDraftForResponse(text, providerHint);
+    const staged = await stageDraftForResponse(text, providerHint, false);
     if (!staged) return;
     logEngine(`${staged.activeAdapter.provider} fill: draft staged, awaiting native send`);
   }
 
-  async function retrySendIfStillPending(originalInput: Element, firstAttempt: SendActivationResult, originalAdapter: AdapterConfig) {
-    if (!waitingForResponse || !adapter) return;
+  async function retrySendIfStillPending(
+    originalInput: Element,
+    firstAttempt: SendActivationResult,
+    originalAdapter: AdapterConfig,
+    sendOperation: number,
+  ) {
+    if (!isActiveSendOperation(sendOperation) || !waitingForResponse || !adapter) return;
+    if (abortAutomationForChallenge(originalAdapter.provider, true, 'send', sendOperation)) return;
     if (sendStarted(adapter)) return;
 
     const currentInput = queryFirst(adapter.inputSelectors);
     if (!currentInput) {
-      if (!firstAttempt.ok) doneWithError(`${originalAdapter.provider} input disappeared before send was confirmed`, originalAdapter.provider);
+      if (!firstAttempt.ok) {
+        doneWithError(
+          `${originalAdapter.provider} input disappeared before send was confirmed`,
+          originalAdapter.provider,
+          sendOperation,
+        );
+      }
       return;
     }
     const inputText = getInputText(currentInput).trim();
@@ -345,24 +502,38 @@ class InputInjectionError extends Error {
     }
 
     const retryInput = currentInput ?? originalInput;
-    const retryAttempt = await activateSend(retryInput);
+    const retryAttempt = await activateSend(retryInput, sendOperation);
+    if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return;
 
     if (!retryAttempt.ok) {
       doneWithError(
         `${originalAdapter.provider} send activation failed: ${retryAttempt.detail ?? firstAttempt.detail ?? retryAttempt.path}`,
         originalAdapter.provider,
+        sendOperation,
       );
       return;
     }
 
     window.setTimeout(() => {
-      void verifySendAfterRetry(retryAttempt, originalAdapter);
+      void verifySendAfterRetry(retryAttempt, originalAdapter, sendOperation);
     }, SEND_FINAL_VERIFY_DELAY_MS);
   }
 
-  async function verifySendAfterRetry(retryAttempt: SendActivationResult, originalAdapter: AdapterConfig) {
+  async function verifySendAfterRetry(
+    retryAttempt: SendActivationResult,
+    originalAdapter: AdapterConfig,
+    sendOperation: number,
+  ) {
     const activeAdapter = adapter;
-    if (!waitingForResponse || !activeAdapter || activeAdapter.provider !== originalAdapter.provider) return;
+    if (
+      !isActiveSendOperation(sendOperation) ||
+      !waitingForResponse ||
+      !activeAdapter ||
+      activeAdapter.provider !== originalAdapter.provider
+    ) {
+      return;
+    }
+    if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) return;
     if (sendStarted(activeAdapter)) return;
 
     const currentInput = queryFirst(activeAdapter.inputSelectors);
@@ -372,32 +543,61 @@ class InputInjectionError extends Error {
     if (retryAttempt.path === 'button-click' && (!sendButton || isDisabled(sendButton))) return;
     const hadSendButton = Boolean(sendButton);
 
+    if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) return;
     const enterOk = dispatchEnter(currentInput);
     logEngine(`${activeAdapter.provider} final send fallback: enter-key${enterOk ? '' : ' failed'}`);
     if (!enterOk) {
-      doneWithError(`${activeAdapter.provider} send activation failed: enter key dispatch failed`, activeAdapter.provider);
+      doneWithError(
+        `${activeAdapter.provider} send activation failed: enter key dispatch failed`,
+        activeAdapter.provider,
+        sendOperation,
+      );
       return;
     }
 
     window.setTimeout(() => {
-      if (!waitingForResponse || !adapter || adapter.provider !== originalAdapter.provider) return;
+      if (
+        !isActiveSendOperation(sendOperation) ||
+        !waitingForResponse ||
+        !adapter ||
+        adapter.provider !== originalAdapter.provider
+      ) {
+        return;
+      }
+      if (abortAutomationForChallenge(adapter.provider, true, 'send', sendOperation)) return;
       if (sendStarted(adapter)) return;
       const finalInput = queryFirst(adapter.inputSelectors);
       const finalButton = finalInput ? querySendButton(adapter, finalInput) : null;
       if (!finalInput || !getInputText(finalInput).trim()) return;
       if (hadSendButton && (!finalButton || isDisabled(finalButton))) return;
-      doneWithError(`${adapter.provider} send was not accepted; draft is still in composer`, adapter.provider);
+      doneWithError(
+        `${adapter.provider} send was not accepted; draft is still in composer`,
+        adapter.provider,
+        sendOperation,
+      );
     }, SEND_FINAL_VERIFY_DELAY_MS);
   }
 
-  async function activateSend(input: Element): Promise<SendActivationResult> {
+  async function activateSend(input: Element, sendOperation: number): Promise<SendActivationResult> {
+    if (!isActiveSendOperation(sendOperation)) {
+      return { ok: false, path: 'enter-key', detail: 'send operation is no longer active' };
+    }
     const activeAdapter = adapter;
     if (!activeAdapter) return { ok: false, path: 'enter-key', detail: 'adapter not installed' };
+    if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) {
+      return { ok: false, path: 'enter-key', detail: 'security challenge is active' };
+    }
     if (activeAdapter.sendStrategy !== 'enter') {
       const sendBtn = await retryLookup(() => querySendButton(activeAdapter, input), {
         intervalMs: SELECTOR_RETRY_INTERVAL_MS,
         timeoutMs: SEND_BUTTON_SELECTOR_TIMEOUT_MS,
       });
+      if (!isActiveSendOperation(sendOperation)) {
+        return { ok: false, path: 'enter-key', detail: 'send operation is no longer active' };
+      }
+      if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) {
+        return { ok: false, path: 'enter-key', detail: 'security challenge is active' };
+      }
       if (sendBtn) {
         if (isDisabled(sendBtn)) {
           logEngine(`${activeAdapter.provider} send path: send button disabled; falling back to enter`);
@@ -411,21 +611,32 @@ class InputInjectionError extends Error {
       }
     }
 
+    if (!isActiveSendOperation(sendOperation)) {
+      return { ok: false, path: 'enter-key', detail: 'send operation is no longer active' };
+    }
+    if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) {
+      return { ok: false, path: 'enter-key', detail: 'security challenge is active' };
+    }
     const ok = dispatchEnter(input);
     logEngine(`${activeAdapter.provider} send path: enter-key${ok ? '' : ' failed'}`);
     return { ok, path: 'enter-key', detail: ok ? undefined : 'enter key dispatch failed' };
   }
 
-  function defaultInjectInput(input: Element, text: string) {
+  function defaultInjectInput(input: Element, text: string, assertCanMutate: ChallengeMutationGuard) {
     const el = input as HTMLElement;
+    assertCanMutate();
     tryFocus(el, 'default input');
+    assertCanMutate();
 
     if (input instanceof HTMLTextAreaElement) {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
       if (setter) setter.call(input, text);
       else input.value = text;
+      assertCanMutate();
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      assertCanMutate();
     } else {
+      assertCanMutate();
       try {
         const sel = window.getSelection();
         if (!sel) throw new InputInjectionError('selection unavailable');
@@ -436,17 +647,24 @@ class InputInjectionError extends Error {
       } catch (error) {
         logEngine(`default input selection guard fell back to execCommand: ${errorMessage(error)}`);
       }
-      if (!execInsertText(text)) throw new InputInjectionError('execCommand insertText returned false');
+      assertCanMutate();
+      const inserted = execInsertText(text);
+      assertCanMutate();
+      if (!inserted) throw new InputInjectionError('execCommand insertText returned false');
       el.dispatchEvent(new Event('input', { bubbles: true }));
+      assertCanMutate();
     }
   }
 
-  async function prosemirrorPasteInput(el: Element, text: string) {
+  async function prosemirrorPasteInput(el: Element, text: string, assertCanMutate: ChallengeMutationGuard) {
     const editor = el as HTMLElement;
+    assertCanMutate();
     tryFocus(editor, 'prosemirror editor');
+    assertCanMutate();
 
     try {
       tryFocus(editor, 'prosemirror paste');
+      assertCanMutate();
       const selection = window.getSelection();
       if (!selection) throw new InputInjectionError('selection unavailable');
       const range = document.createRange();
@@ -461,45 +679,63 @@ class InputInjectionError extends Error {
         bubbles: true,
         cancelable: true,
       });
+      assertCanMutate();
       editor.dispatchEvent(pasteEvent);
+      assertCanMutate();
       await Promise.resolve();
+      assertCanMutate();
     } catch (error) {
+      if (error instanceof ChallengeActiveError) throw error;
       logEngine(`prosemirror synthetic paste failed: ${errorMessage(error)}`);
     }
 
+    assertCanMutate();
     if (!composerTextMatches(editor, text)) {
       try {
         tryFocus(editor, 'prosemirror insertText fallback');
+        assertCanMutate();
         const selection = window.getSelection();
         if (!selection) throw new InputInjectionError('selection unavailable');
         const range = document.createRange();
         range.selectNodeContents(editor);
         selection.removeAllRanges();
         selection.addRange(range);
-        if (execInsertText(text)) {
+        assertCanMutate();
+        const inserted = execInsertText(text);
+        assertCanMutate();
+        if (inserted) {
           editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+          assertCanMutate();
           await Promise.resolve();
+          assertCanMutate();
         }
       } catch (error) {
+        if (error instanceof ChallengeActiveError) throw error;
         logEngine(`prosemirror insertText fallback failed: ${errorMessage(error)}`);
       }
     }
 
+    assertCanMutate();
     if (!composerTextMatches(editor, text)) {
+      assertCanMutate();
       editor.replaceChildren();
       const p = document.createElement('p');
       p.textContent = text;
       editor.appendChild(p);
       editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+      assertCanMutate();
     }
   }
 
-  async function quillAngularInput(el: Element, text: string) {
+  async function quillAngularInput(el: Element, text: string, assertCanMutate: ChallengeMutationGuard) {
     const editor = el as HTMLElement;
+    assertCanMutate();
     tryFocus(editor, 'quill editor');
+    assertCanMutate();
     // Trusted-Types-safe clear: Gemini enforces Trusted Types (CSP), under which ANY innerHTML
     // assignment — even '' — throws "requires 'TrustedHTML' assignment". replaceChildren() removes
     // all children with no HTML parsing, so it never trips Trusted Types.
+    assertCanMutate();
     editor.replaceChildren();
 
     const lines = text.split('\n');
@@ -511,13 +747,20 @@ class InputInjectionError extends Error {
     }
     editor.appendChild(fragment);
     editor.dispatchEvent(new Event('input', { bubbles: true }));
+    assertCanMutate();
     editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+    assertCanMutate();
 
     await Promise.resolve();
+    assertCanMutate();
     if (!editor.textContent?.trim()) {
       tryFocus(editor, 'quill fallback');
-      if (!execInsertText(text)) throw new InputInjectionError('quill fallback execCommand insertText returned false');
+      assertCanMutate();
+      const inserted = execInsertText(text);
+      assertCanMutate();
+      if (!inserted) throw new InputInjectionError('quill fallback execCommand insertText returned false');
       editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+      assertCanMutate();
     }
   }
 
@@ -561,48 +804,62 @@ class InputInjectionError extends Error {
     return hasDetector(adapter?.thinkingDetectors);
   }
 
-  function checkIfDone() {
-    if (!waitingForResponse) return;
+  function checkIfDone(expectedGeneration = activeResponseGeneration) {
+    if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) return;
     if (isThinking()) {
       if (checkDoneInterval === undefined) {
         checkDoneInterval = window.setInterval(() => {
-          if (!waitingForResponse) {
+          if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) {
             clearCheckDone();
             return;
           }
           if (!isThinking()) {
             clearCheckDone();
-            window.setTimeout(() => {
+            finishResponseTimeout = window.setTimeout(() => {
+              finishResponseTimeout = undefined;
+              if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) return;
+              if (isThinking()) {
+                checkIfDone(expectedGeneration);
+                return;
+              }
               const finalText = getLatestResponseText();
               if (finalText) lastResponseText = finalText;
-              finishResponse();
+              finishResponse(expectedGeneration);
             }, timing('doneDelayMs', 3000));
           }
         }, 1000);
       }
       return;
     }
-    finishResponse();
+    finishResponse(expectedGeneration);
   }
 
-  function finishResponse() {
-    if (!waitingForResponse || !adapter) return;
-    waitingForResponse = false;
-    clearTimersForResponse();
-    responseBaselineEls.clear();
+  function finishResponse(expectedGeneration = activeResponseGeneration) {
+    if (!waitingForResponse || expectedGeneration !== activeResponseGeneration || !adapter) return;
     const payload = lastResponseText;
-    pendingPromptText = '';
+    const sendOperation = activeSendOperation;
+    cancelResponseWait();
     bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider: adapter.provider, payload });
+    if (sendOperation !== undefined) releaseSendOperation(sendOperation);
   }
 
-  function doneWithError(reason: string, providerHint?: AIProvider) {
-    const provider = providerHint ?? adapter?.provider;
-    if (!provider) return;
+  function cancelResponseWait() {
     waitingForResponse = false;
     clearTimersForResponse();
     responseBaselineEls.clear();
     pendingPromptText = '';
+  }
+
+  function doneWithError(reason: string, providerHint?: AIProvider, sendOperation?: number) {
+    if (sendOperation !== undefined && !isActiveSendOperation(sendOperation)) return;
+    const provider = providerHint ?? adapter?.provider;
+    if (!provider) {
+      if (sendOperation !== undefined) releaseSendOperation(sendOperation);
+      return;
+    }
+    cancelResponseWait();
     bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider, payload: `[Error: ${reason}]` });
+    if (sendOperation !== undefined) releaseSendOperation(sendOperation);
   }
 
   let observerInstalled = false;
@@ -621,6 +878,7 @@ class InputInjectionError extends Error {
       if (isThinking()) return;
       const currentText = getLatestResponseText();
       if (!currentText || currentText === lastResponseText) return;
+      clearFinishResponseTimeout();
       lastResponseText = currentText;
 
       const now = Date.now();
@@ -629,7 +887,11 @@ class InputInjectionError extends Error {
         if (adapter) bridge.emit({ v: 1, action: 'RESPONSE_CHUNK', provider: adapter.provider, payload: currentText });
       }
       if (responseTimeout !== undefined) window.clearTimeout(responseTimeout);
-      responseTimeout = window.setTimeout(checkIfDone, timing('doneDelayMs', 3000));
+      const expectedGeneration = activeResponseGeneration;
+      responseTimeout = window.setTimeout(
+        () => checkIfDone(expectedGeneration),
+        timing('doneDelayMs', 3000),
+      );
     });
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     observerInstalled = true;
@@ -645,10 +907,15 @@ class InputInjectionError extends Error {
       }
       const currentText = getLatestResponseText();
       if (!currentText || currentText === lastResponseText) return;
+      clearFinishResponseTimeout();
       lastResponseText = currentText;
       if (adapter) bridge.emit({ v: 1, action: 'RESPONSE_CHUNK', provider: adapter.provider, payload: currentText });
       if (responseTimeout !== undefined) window.clearTimeout(responseTimeout);
-      responseTimeout = window.setTimeout(checkIfDone, timing('doneDelayMs', 3000));
+      const expectedGeneration = activeResponseGeneration;
+      responseTimeout = window.setTimeout(
+        () => checkIfDone(expectedGeneration),
+        timing('doneDelayMs', 3000),
+      );
     }, timing('backupPollMs', 3000));
   }
 
@@ -657,8 +924,14 @@ class InputInjectionError extends Error {
     checkDoneInterval = undefined;
   }
 
+  function clearFinishResponseTimeout() {
+    if (finishResponseTimeout !== undefined) window.clearTimeout(finishResponseTimeout);
+    finishResponseTimeout = undefined;
+  }
+
   function clearTimersForResponse() {
     if (responseTimeout !== undefined) window.clearTimeout(responseTimeout);
+    clearFinishResponseTimeout();
     if (pollInterval !== undefined) window.clearInterval(pollInterval);
     clearCheckDone();
     responseTimeout = undefined;

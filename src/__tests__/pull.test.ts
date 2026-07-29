@@ -254,6 +254,7 @@ describe('bootstrap outbox helpers', () => {
     expect(hasCloudflareChallengeSignals('Grok', 'Please complete the security check', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', '人間であることを確認しています', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('請稍候…', '', false)).toBe(true);
+    expect(hasCloudflareChallengeSignals('grok.com 正在執行安全驗證', '', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', '驗證您是人類 grok.com', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', '正在驗證您是否為真人', false)).toBe(true);
     expect(hasCloudflareChallengeSignals('Grok', 'Ready to chat', true)).toBe(true);

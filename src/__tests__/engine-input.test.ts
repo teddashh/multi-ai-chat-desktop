@@ -50,13 +50,13 @@ describe('injected engine input hardening', () => {
     vi.resetModules();
   });
 
-  it('reports a Grok challenge as blocked when an already-running engine sees it', async () => {
+  it('reports a Grok challenge before a stale composer can claim logged-in', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
     env.cloudflareChallenge = true;
     const handler = await installEngine(env);
 
-    dispatchAdapter(handler, { loginDetectors: [], loggedOutDetectors: [] });
+    dispatchAdapter(handler);
 
     expect(env.emitted).toContainEqual({
       v: 1,
@@ -64,6 +64,182 @@ describe('injected engine input hardening', () => {
       provider: 'grok',
       payload: { dom: 'ready', login: 'blocked', thinking: false, bootId: 'boot1' },
     });
+  });
+
+  it('refuses SEND_MESSAGE without mutating the challenge document', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+    env.cloudflareChallenge = true;
+
+    send(handler, 'must not land');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_RETRY_DELAY_MS);
+
+    expect(env.input.textContent).toBe('');
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)?.payload).toBe('[Error: grok security challenge is active]');
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'grok',
+      payload: { dom: 'ready', login: 'blocked', thinking: false, bootId: 'boot1' },
+    });
+  });
+
+  it('emits one challenge error for two queued SEND_MESSAGE commands', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+    env.cloudflareChallenge = true;
+
+    send(handler, 'first queued send');
+    send(handler, 'second queued send');
+    await flushMicrotasks();
+
+    expect(
+      env.emitted.filter(
+        (message) => message.action === 'RESPONSE_DONE' && message.payload === '[Error: grok security challenge is active]',
+      ),
+    ).toHaveLength(1);
+    expect(env.input.textContent).toBe('');
+  });
+
+  it('rejects an overlapping SEND_MESSAGE while the first send is being staged', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+
+    send(handler, 'first queued send');
+    send(handler, 'second queued send');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.input.textContent).toBe('first queued send');
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+  });
+
+  it('serializes same-tick SEND_MESSAGE and FILL_DRAFT staging', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+
+    send(handler, 'send wins');
+    fill(handler, 'fill must wait');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.input.textContent).toBe('send wins');
+    expect(env.sendButton?.clickCount).toBe(1);
+  });
+
+  it('serializes same-tick FILL_DRAFT and SEND_MESSAGE staging', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+
+    fill(handler, 'fill wins');
+    send(handler, 'send must wait');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.input.textContent).toBe('fill wins');
+    expect(env.sendButton?.clickCount).toBe(0);
+  });
+
+  it('refuses FILL_DRAFT without mutation or an unsolicited error DONE', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+    env.cloudflareChallenge = true;
+
+    fill(handler, 'must not land');
+    await flushMicrotasks();
+
+    expect(env.input.textContent).toBe('');
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('does not click or press Enter when a challenge appears during the pre-send delay', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+
+    send(handler, 'staged before challenge');
+    await flushMicrotasks();
+    expect(env.input.textContent).toBe('staged before challenge');
+
+    env.cloudflareChallenge = true;
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)?.payload).toBe('[Error: grok security challenge is active]');
+  });
+
+  it('stops async input fallbacks when a challenge appears at a strategy yield', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    env.input.onDispatch = (event) => {
+      if (event.type === 'paste') {
+        void Promise.resolve().then(() => {
+          env.cloudflareChallenge = true;
+        });
+      }
+    };
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { inputStrategy: 'prosemirror-paste' });
+
+    send(handler, 'must not reach a fallback');
+    await flushMicrotasks();
+    await flushMicrotasks();
+
+    expect(env.input.textContent).toBe('');
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(
+      env.emitted.filter(
+        (message) => message.action === 'RESPONSE_DONE' && message.payload === '[Error: grok security challenge is active]',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('releases a FILL_DRAFT response wait when a challenge appears at a strategy yield', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    env.input.onDispatch = (event) => {
+      if (event.type === 'paste') {
+        void Promise.resolve().then(() => {
+          env.cloudflareChallenge = true;
+        });
+      }
+    };
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { inputStrategy: 'prosemirror-paste' });
+
+    fill(handler, 'blocked fill');
+    await flushMicrotasks();
+    await flushMicrotasks();
+    env.cloudflareChallenge = false;
+    env.input.onDispatch = undefined;
+
+    send(handler, 'later send');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.input.textContent).toBe('later send');
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
   });
 
   it('reports ChatGPT logged out when login controls and a stale composer coexist', async () => {
@@ -418,6 +594,127 @@ describe('injected engine input hardening', () => {
 
     await vi.advanceTimersByTimeAsync(1);
     expect(errorDone(env)?.payload).toBe('[Error: grok send activation failed: enter key dispatch failed]');
+  });
+
+  it('emits only one terminal error when a challenge appears during retry lookup', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea', sendButton: null });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+
+    send(handler, 'hello');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_BUTTON_SELECTOR_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(SEND_RETRY_DELAY_MS);
+    env.cloudflareChallenge = true;
+    await vi.advanceTimersByTimeAsync(SEND_BUTTON_SELECTOR_TIMEOUT_MS);
+    await flushMicrotasks();
+
+    expect(
+      env.emitted.filter(
+        (message) => message.action === 'RESPONSE_DONE' && message.payload === '[Error: grok security challenge is active]',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('does not let a stale pre-send timer act on a later send operation', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, 'first draft');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'first answer')];
+    await vi.advanceTimersByTimeAsync(20);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(1);
+
+    send(handler, 'second draft');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.input.textContent).toBe('second draft');
+    expect(env.sendButton?.clickCount).toBe(1);
+  });
+
+  it('does not let a stale delayed finish terminate a later response wait', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      thinkingDetectors: ['.thinking'],
+      timing: {
+        doneDelayMs: 1_000,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    env.thinking = true;
+    send(handler, 'first draft');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'first answer')];
+    await vi.advanceTimersByTimeAsync(1_010);
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    env.cloudflareChallenge = true;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(errorDone(env)?.payload).toBe('[Error: grok security challenge is active]');
+
+    env.cloudflareChallenge = false;
+    await flushMicrotasks();
+    send(handler, 'second draft');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(1);
+    expect(env.input.textContent).toBe('second draft');
+  });
+
+  it('renews the stability window when text arrives after thinking stops', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      thinkingDetectors: ['.thinking'],
+      timing: {
+        doneDelayMs: 100,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    env.thinking = true;
+    send(handler, 'draft');
+    await flushMicrotasks();
+    const response = new FakeElement(env.document, 'div', 'partial answer');
+    env.responses = [response];
+    await vi.advanceTimersByTimeAsync(110);
+
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(1_000);
+    response.textContent = 'complete answer';
+    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(90);
+
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(10);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: 'complete answer',
+    });
   });
 
   it('FILL_DRAFT inserts text without clicking send, dispatching Enter, or scheduling send retry', async () => {
@@ -921,6 +1218,14 @@ class FakeDocument {
     return {
       selectNodeContents(_el: Element) {
         // no-op for fake selection
+      },
+    };
+  }
+
+  createTreeWalker(_root: FakeElement, _whatToShow: number) {
+    return {
+      nextNode() {
+        return null;
       },
     };
   }
