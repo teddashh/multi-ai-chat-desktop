@@ -436,6 +436,29 @@ fn parse_adapter_url_scope(value: &str) -> Result<AdapterUrlScope, String> {
     })
 }
 
+/// Hosts of the provider's own app surface (`urls.match` plus the login URL's host). The
+/// document-start bridge is scoped to these hosts so SSO/auth documents stay stock: rotating
+/// `document.title` or patching `history` on an identity-provider page interferes with login
+/// flows and their embedded challenge widgets.
+pub(crate) fn app_hosts_for_provider(provider: &str) -> Result<Vec<String>, String> {
+    let adapter = get_adapter(provider)?;
+    let mut hosts: Vec<String> = Vec::new();
+    for pattern in &adapter.urls.match_patterns {
+        if let Ok(scope) = parse_adapter_url_scope(pattern) {
+            if !scope.host.is_empty() && !hosts.contains(&scope.host) {
+                hosts.push(scope.host);
+            }
+        }
+    }
+    if let Ok(login) = tauri::Url::parse(&adapter.urls.login) {
+        let host = login.host_str().unwrap_or_default().to_ascii_lowercase();
+        if !host.is_empty() && !hosts.contains(&host) {
+            hosts.push(host);
+        }
+    }
+    Ok(hosts)
+}
+
 pub(crate) fn url_allowed_for_provider(provider: &str, url: &tauri::Url) -> Result<bool, String> {
     let adapter = get_adapter(provider)?;
     if login_url_matches(&adapter.urls.login, url) {
@@ -715,6 +738,19 @@ mod tests {
     fn bundled_adapters_validate() {
         for adapter in adapters().values() {
             validate_adapter(adapter).unwrap();
+        }
+    }
+
+    #[test]
+    fn app_hosts_cover_the_app_surface_but_never_sso_hosts() {
+        let hosts = app_hosts_for_provider("chatgpt").unwrap();
+        assert!(hosts.contains(&"chatgpt.com".to_string()));
+        assert!(hosts.contains(&"chat.openai.com".to_string()));
+        assert!(!hosts.contains(&"auth.openai.com".to_string()));
+        assert!(!hosts.contains(&"auth0.openai.com".to_string()));
+
+        for provider in ["chatgpt", "claude", "gemini", "grok"] {
+            assert!(!app_hosts_for_provider(provider).unwrap().is_empty());
         }
     }
 

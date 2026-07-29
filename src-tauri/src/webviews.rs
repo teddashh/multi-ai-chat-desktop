@@ -52,6 +52,10 @@ fn challenge_signals() -> &'static ChallengeSignals {
 const PERMISSION_SHIM_JS: &str = r#"(function () {
   try {
     if (location.hostname === 'www.google.com' && (location.pathname === '/sorry' || location.pathname.indexOf('/sorry/') === 0)) return;
+    // Cloudflare Turnstile frames must see stock browser APIs (same rationale as the Grok
+    // top-page exemption): ChatGPT's auth flow serves Turnstile in iframes, and a patched
+    // navigator.permissions inside the challenge frame reads as tampering.
+    if (/(^|\.)challenges\.cloudflare\.com$/.test(location.hostname)) return;
     if (typeof Notification !== 'undefined') {
       try { Object.defineProperty(Notification, 'permission', { get: function () { return 'denied'; }, configurable: true }); } catch (e) {}
       try { Notification.requestPermission = function (cb) { if (typeof cb === 'function') { try { cb('denied'); } catch (e) {} } return Promise.resolve('denied'); }; } catch (e) {}
@@ -386,7 +390,13 @@ fn current_grok_document_epoch(provider: &str) -> u64 {
 }
 
 fn should_drive_grok_bridge(state: &ProviderState) -> bool {
-    state.provider == "grok" && state.webview == "loaded" && state.dom != "ready"
+    // "blocked" means an active Cloudflare challenge document. Never evaluate scripts into it —
+    // Turnstile treats injected script activity as tampering and reissues the challenge, which
+    // loops forever. Recovery happens via the app-title path once the challenge clears.
+    state.provider == "grok"
+        && state.webview == "loaded"
+        && state.dom != "ready"
+        && state.login != "blocked"
 }
 
 fn grok_bridge_drive_allowed(state: &ProviderState) -> bool {
@@ -627,8 +637,10 @@ pub async fn provider_open(
         .map_err(|error| format!("invalid provider URL: {error}"))?;
 
     let init_script = format!(
-        "window.__MAC_PROVIDER__ = {};\n{}",
+        "window.__MAC_PROVIDER__ = {};\nwindow.__MAC_APP_HOSTS__ = {};\n{}",
         serde_json::to_string(&provider).map_err(|error| error.to_string())?,
+        serde_json::to_string(&adapters::app_hosts_for_provider(&provider)?)
+            .map_err(|error| error.to_string())?,
         BOOTSTRAP_JS
     );
     let delayed_grok_script = if provider == "grok" {
@@ -683,15 +695,23 @@ pub async fn provider_open(
                 && webview.url().ok().is_some_and(|url| {
                     adapters::url_matches_provider_app(&title_provider, &url).unwrap_or(false)
                 });
-            let Some(script) = title_delayed_grok_script.as_deref() else {
-                return;
-            };
             if !install_ready && !challenge_ready {
                 return;
             }
             if !grok_bridge_drive_allowed(&current_state(&title_provider)) {
                 return;
             }
+            if challenge_ready && !install_ready {
+                // The title alone proves a challenge document is active. Mark it blocked from
+                // host state only — evaluating the probe script into the challenge document is
+                // itself the tampering Turnstile rejects, and each rejection reissues the
+                // challenge with a fresh Ray ID (an unrecoverable loop).
+                set_provider_challenge_blocked(&title_app, &title_provider);
+                return;
+            }
+            let Some(script) = title_delayed_grok_script.as_deref() else {
+                return;
+            };
 
             // Use this event's WebView directly: title events may arrive before the child is
             // discoverable through AppHandle's webview registry. The driver probes and installs
@@ -717,9 +737,14 @@ pub async fn provider_open(
                     let Some(script) = load_delayed_grok_script.as_deref() else {
                         return;
                     };
-                    if !adapters::url_matches_provider_app(&load_provider, payload.url())
-                        .unwrap_or(false)
-                        || !grok_bridge_drive_allowed(&current_state(&load_provider))
+                    let state = current_state(&load_provider);
+                    // While blocked, challenge auto-retries also fire Finished on the grok.com
+                    // URL; probing those documents would re-trip Turnstile. The app-title event
+                    // is the recovery signal instead.
+                    if state.login == "blocked"
+                        || !adapters::url_matches_provider_app(&load_provider, payload.url())
+                            .unwrap_or(false)
+                        || !grok_bridge_drive_allowed(&state)
                     {
                         return;
                     }
@@ -2081,11 +2106,13 @@ mod tests {
     }
 
     #[test]
-    fn grok_bridge_watchdog_retries_loaded_unresolved_grok_including_blocked() {
+    fn grok_bridge_watchdog_retries_loaded_unresolved_grok_but_skips_blocked_challenges() {
         assert!(should_drive_grok_bridge(&state_with(
             "grok", "loaded", "unknown", "unknown", false
         )));
-        assert!(should_drive_grok_bridge(&state_with(
+        // An active challenge document must never receive script evaluation: Turnstile treats
+        // it as tampering and reissues the challenge in a loop. Recovery is title-driven.
+        assert!(!should_drive_grok_bridge(&state_with(
             "grok", "loaded", "unknown", "blocked", false
         )));
         assert!(!should_drive_grok_bridge(&state_with(
@@ -2103,6 +2130,10 @@ mod tests {
         )));
         assert!(grok_bridge_drive_allowed(&state_with(
             "grok", "creating", "unknown", "unknown", false
+        )));
+        // The blocked state must stay drive-eligible for the app-title recovery path.
+        assert!(grok_bridge_drive_allowed(&state_with(
+            "grok", "loaded", "unknown", "blocked", false
         )));
     }
 

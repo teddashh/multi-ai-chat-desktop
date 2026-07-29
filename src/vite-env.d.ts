@@ -5,6 +5,7 @@ import type { BridgeMessage } from '../shared/types';
 declare global {
   interface Window {
     __MAC_PROVIDER__?: string;
+    __MAC_APP_HOSTS__?: string[];
     __MAC_BRIDGE__?: {
       version: 1;
       bootId: string;

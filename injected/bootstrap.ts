@@ -107,6 +107,21 @@ export function shouldPatchHistory(provider: string): boolean {
   return provider !== 'grok';
 }
 
+// The bridge belongs on the provider's own app documents only. SSO/auth pages (auth.openai.com,
+// accounts.google.com, ...) must stay stock: rotating document.title or patching history there
+// interferes with login flows and the challenge widgets they embed. An empty or missing host
+// list keeps the legacy boot-everywhere behavior.
+export function isProviderAppHost(hostname: string, appHosts: unknown): boolean {
+  if (!Array.isArray(appHosts) || appHosts.length === 0) return true;
+  const host = hostname.trim().toLocaleLowerCase();
+  return appHosts.some((entry) => {
+    if (typeof entry !== 'string') return false;
+    const appHost = entry.trim().toLocaleLowerCase();
+    if (!appHost) return false;
+    return host === appHost || host.endsWith(`.${appHost}`);
+  });
+}
+
 interface MacBridge {
   version: 1;
   bootId: string;
@@ -127,6 +142,7 @@ interface MacBridge {
   if (window.__MAC_BRIDGE__) return;
 
   const provider = providerFromLabel();
+  if (!isProviderAppHost(location.hostname, window.__MAC_APP_HOSTS__)) return;
   const hasComposer = Boolean(
     document.querySelector('[data-testid="chat-input"] [contenteditable="true"], .ProseMirror[contenteditable="true"]'),
   );
