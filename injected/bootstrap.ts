@@ -107,19 +107,23 @@ export function shouldPatchHistory(provider: string): boolean {
   return provider !== 'grok';
 }
 
-// The bridge belongs on the provider's own app documents only. SSO/auth pages (auth.openai.com,
+// The bridge belongs on the provider's exact app hosts only. SSO/auth pages (auth.openai.com,
 // accounts.google.com, ...) must stay stock: rotating document.title or patching history there
-// interferes with login flows and the challenge widgets they embed. An empty or missing host
-// list keeps the legacy boot-everywhere behavior.
+// interferes with login flows and the challenge widgets they embed. Treat missing or malformed
+// configuration as ineligible so a host-list injection failure cannot widen this boundary.
 export function isProviderAppHost(hostname: string, appHosts: unknown): boolean {
-  if (!Array.isArray(appHosts) || appHosts.length === 0) return true;
-  const host = hostname.trim().toLocaleLowerCase();
-  return appHosts.some((entry) => {
+  if (!Array.isArray(appHosts) || appHosts.length === 0) return false;
+  const host = hostname.trim().toLowerCase();
+  if (!host) return false;
+
+  const normalizedHosts: string[] = [];
+  for (const entry of appHosts) {
     if (typeof entry !== 'string') return false;
-    const appHost = entry.trim().toLocaleLowerCase();
+    const appHost = entry.trim().toLowerCase();
     if (!appHost) return false;
-    return host === appHost || host.endsWith(`.${appHost}`);
-  });
+    normalizedHosts.push(appHost);
+  }
+  return normalizedHosts.includes(host);
 }
 
 interface MacBridge {

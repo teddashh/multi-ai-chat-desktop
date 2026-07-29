@@ -124,32 +124,14 @@ pub async fn report_broken(
 ) -> Result<String, String> {
     crate::webviews::ensure_control_webview(&webview)?;
     let adapter = get_adapter(&provider)?;
-    let label = format!("ai-{provider}");
-    let target = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("provider not open: {provider}"))?;
     let adapter_json = serde_json::to_string(&adapter).map_err(|error| error.to_string())?;
     let app_version = serde_json::to_string(&app.package_info().version.to_string())
         .map_err(|error| error.to_string())?;
     let js = format!(
         "window.__MAC_REPORT__ ? window.__MAC_REPORT__.collect({adapter_json}, {app_version}) : null"
     );
-    let (sender, receiver) = tokio::sync::oneshot::channel();
-    let sender = std::sync::Arc::new(std::sync::Mutex::new(Some(sender)));
-    let callback_sender = sender.clone();
-    target
-        .eval_with_callback(js, move |result| {
-            if let Ok(mut sender) = callback_sender.lock() {
-                if let Some(sender) = sender.take() {
-                    let _ = sender.send(result);
-                }
-            }
-        })
-        .map_err(|error| error.to_string())?;
-    let raw = tokio::time::timeout(std::time::Duration::from_secs(5), receiver)
-        .await
-        .map_err(|_| "report diagnostics timed out".to_string())?
-        .map_err(|_| "report diagnostics channel closed".to_string())?;
+    let raw =
+        crate::webviews::eval_provider_with_callback_from_control(&app, &provider, &js).await?;
     if raw.trim() == "null" {
         return Err("diagnostics unavailable - open the provider and try again".to_string());
     }
@@ -436,27 +418,29 @@ fn parse_adapter_url_scope(value: &str) -> Result<AdapterUrlScope, String> {
     })
 }
 
-/// Hosts of the provider's own app surface (`urls.match` plus the login URL's host). The
+fn app_hosts_from_adapter(adapter: &Adapter) -> Result<Vec<String>, String> {
+    let mut hosts: Vec<String> = Vec::new();
+    for pattern in &adapter.urls.match_patterns {
+        let scope =
+            parse_adapter_url_scope(pattern).map_err(|error| format!("urls.match: {error}"))?;
+        if !hosts.contains(&scope.host) {
+            hosts.push(scope.host);
+        }
+    }
+    let login = parse_adapter_url_scope(&adapter.urls.login)
+        .map_err(|error| format!("urls.login: {error}"))?;
+    if !hosts.contains(&login.host) {
+        hosts.push(login.host);
+    }
+    Ok(hosts)
+}
+
+/// Exact hosts of the provider's own app surface (`urls.match` plus the login URL's host). The
 /// document-start bridge is scoped to these hosts so SSO/auth documents stay stock: rotating
 /// `document.title` or patching `history` on an identity-provider page interferes with login
 /// flows and their embedded challenge widgets.
 pub(crate) fn app_hosts_for_provider(provider: &str) -> Result<Vec<String>, String> {
-    let adapter = get_adapter(provider)?;
-    let mut hosts: Vec<String> = Vec::new();
-    for pattern in &adapter.urls.match_patterns {
-        if let Ok(scope) = parse_adapter_url_scope(pattern) {
-            if !scope.host.is_empty() && !hosts.contains(&scope.host) {
-                hosts.push(scope.host);
-            }
-        }
-    }
-    if let Ok(login) = tauri::Url::parse(&adapter.urls.login) {
-        let host = login.host_str().unwrap_or_default().to_ascii_lowercase();
-        if !host.is_empty() && !hosts.contains(&host) {
-            hosts.push(host);
-        }
-    }
-    Ok(hosts)
+    app_hosts_from_adapter(&get_adapter(provider)?)
 }
 
 pub(crate) fn url_allowed_for_provider(provider: &str, url: &tauri::Url) -> Result<bool, String> {
@@ -752,6 +736,21 @@ mod tests {
         for provider in ["chatgpt", "claude", "gemini", "grok"] {
             assert!(!app_hosts_for_provider(provider).unwrap().is_empty());
         }
+    }
+
+    #[test]
+    fn app_host_collection_fails_closed_on_invalid_match_or_login_urls() {
+        let mut adapter = adapters().get("chatgpt").unwrap().clone();
+        adapter.urls.match_patterns = vec!["http://chatgpt.com/*".into()];
+        assert!(app_hosts_from_adapter(&adapter)
+            .unwrap_err()
+            .starts_with("urls.match:"));
+
+        adapter = adapters().get("chatgpt").unwrap().clone();
+        adapter.urls.login = "http://chatgpt.com/auth/login".into();
+        assert!(app_hosts_from_adapter(&adapter)
+            .unwrap_err()
+            .starts_with("urls.login:"));
     }
 
     #[test]

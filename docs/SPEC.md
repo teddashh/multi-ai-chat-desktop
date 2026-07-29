@@ -390,7 +390,7 @@ Order of checks:
 4. Host in shared SSO allowlist (`shared/constants.ts`: `accounts.google.com`, `accounts.youtube.com`, `appleid.apple.com`, `login.microsoftonline.com`, `login.live.com`, `github.com`) or adapter `urls.ssoMatch` ⇒ allow (SSO flows stay in-webview).
 5. Anything else ⇒ **return false** + open in system browser via opener plugin.
 
-Grok's Cloudflare-protected WebView MUST NOT receive `PERMISSION_SHIM_JS`. Cloudflare's WebView integration requires standard Web APIs and no modification of core browser behavior; the other three providers retain the notification/geolocation prompt shim, which additionally self-exempts inside `challenges.cloudflare.com` frames so embedded Turnstile widgets (e.g. in ChatGPT's auth flow) always see stock APIs. This is a provider-specific compatibility exception, not a reduction of Tauri capability isolation. Reference: `https://developers.cloudflare.com/turnstile/get-started/mobile-implementation/`.
+Grok's Cloudflare-protected WebView MUST NOT receive `PERMISSION_SHIM_JS`. Cloudflare's WebView integration requires standard Web APIs and no modification of core browser behavior; the other three providers retain the notification/geolocation prompt shim. This is a provider-specific compatibility exception, not a reduction of Tauri capability isolation. Reference: `https://developers.cloudflare.com/turnstile/get-started/mobile-implementation/`.
 
 ## 7. Bridge protocol (`bridge.rs` + `injected/bootstrap.ts`)
 
@@ -452,7 +452,7 @@ Port of `refs/multi-ai-chat/src/content/base.ts` (MIT) with transport shim:
 
 ### 8.1 Boot & re-injection lifecycle (normative sequence)
 
-0. Bootstrap first line: **subframe guard** — `if (window.self !== window.top) return;` (Windows injects init scripts into subframes, ARCH D2). Second check: `location.origin` must be non-opaque http(s). Third check: **app-host gate** — the host injects `window.__MAC_APP_HOSTS__` (hosts of adapter `urls.match` + the login URL host) alongside `__MAC_PROVIDER__`; bootstrap stays fully dormant (no bridge, no title emits, no history patching) on any other host, so SSO/auth documents (`auth.openai.com`, `accounts.google.com`, …) and the challenge widgets they embed see a stock document. A missing/empty list keeps the legacy boot-everywhere behavior.
+0. Bootstrap first line: **subframe guard** — `if (window.self !== window.top) return;` (Windows injects init scripts into subframes, ARCH D2). Second check: `location.origin` must be non-opaque http(s).
 1. `provider_open` creates webview; bootstrap runs via `initialization_script` on this and **every** subsequent real page load.
 2. Bootstrap installs `window.__MAC_BRIDGE__` (idempotent: if present for same document, no-op), generates fresh `bootId`, patches `history.pushState/replaceState` + `popstate` listener (SPA status freshness), emits title `STATUS_REPORT {dom:'unknown', bootId}` (= HELLO).
 3. Rust, on HELLO with unseen bootId **and** current URL matching adapter `urls.match`: eval `engine.js` bundle → dispatch `ADAPTER_UPDATE` (current adapter JSON) → dispatch `CHECK_STATUS`. (URL not matching — e.g. mid-SSO redirect — ⇒ do nothing; the post-login load produces a fresh HELLO.)

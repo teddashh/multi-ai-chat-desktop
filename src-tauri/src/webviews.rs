@@ -111,6 +111,32 @@ fn grok_challenge_title_active(provider: &str, title: &str) -> bool {
         .any(|signal| normalized.contains(signal))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GrokDocumentTitleSignal {
+    Ignore,
+    Challenge,
+    App,
+}
+
+fn grok_document_title_signal(
+    provider: &str,
+    title: &str,
+    url: &tauri::Url,
+) -> GrokDocumentTitleSignal {
+    if !adapters::url_matches_provider_app(provider, url).unwrap_or(false) {
+        return GrokDocumentTitleSignal::Ignore;
+    }
+    // A challenge title can also begin with the provider name (for example,
+    // "Grok — Performing security verification"). Never let that overlap authorize injection.
+    if grok_challenge_title_active(provider, title) {
+        return GrokDocumentTitleSignal::Challenge;
+    }
+    if grok_bridge_install_ready(provider, title, url) {
+        return GrokDocumentTitleSignal::App;
+    }
+    GrokDocumentTitleSignal::Ignore
+}
+
 fn handle_provider_document_title(app: &AppHandle, provider: &str, title: &str) {
     let _ = crate::bridge::ingest_title(app, provider, title);
 }
@@ -127,6 +153,18 @@ fn set_provider_challenge_blocked(app: &AppHandle, provider: &str) {
     state.webview = "loaded".into();
     state.dom = "unknown".into();
     state.login = "blocked".into();
+    state.thinking = false;
+    state.last_status_at = now_ms();
+    set_state(app, state);
+}
+
+fn clear_provider_challenge_blocked(app: &AppHandle, provider: &str) {
+    let mut state = current_state(provider);
+    if provider != "grok" || state.login != "blocked" {
+        return;
+    }
+    state.dom = "unknown".into();
+    state.login = "unknown".into();
     state.thinking = false;
     state.last_status_at = now_ms();
     set_state(app, state);
@@ -177,6 +215,7 @@ struct ProviderRuntime {
     bridge_boot: HashMap<String, String>,
     status_boot: HashMap<String, String>,
     grok_document_epoch: HashMap<String, u64>,
+    grok_app_title_epoch: HashMap<String, u64>,
     grok_adopted_boot: HashMap<String, (u64, String)>,
     grok_pending_navigation: HashMap<String, GrokNavigationPreparation>,
     pending_session_boot: HashMap<String, Option<String>>,
@@ -326,6 +365,7 @@ fn retire_grok_document(provider: &str) {
     };
     guard.grok_pending_navigation.remove(provider);
     guard.grok_adopted_boot.remove(provider);
+    guard.grok_app_title_epoch.remove(provider);
     let epoch = guard
         .grok_document_epoch
         .entry(provider.to_string())
@@ -389,14 +429,74 @@ fn current_grok_document_epoch(provider: &str) -> u64 {
         .unwrap_or_default()
 }
 
+fn set_grok_app_title_signal(provider: &str, observed_epoch: u64, active: bool) {
+    if provider != "grok" {
+        return;
+    }
+    if let Ok(mut guard) = runtime().lock() {
+        if active && observed_epoch != 0 {
+            guard
+                .grok_app_title_epoch
+                .insert(provider.to_string(), observed_epoch);
+        } else {
+            guard.grok_app_title_epoch.remove(provider);
+        }
+    }
+}
+
+fn grok_app_title_signal_is_current(provider: &str, observed_epoch: u64) -> bool {
+    provider == "grok"
+        && observed_epoch != 0
+        && runtime().lock().ok().is_some_and(|guard| {
+            guard.grok_app_title_epoch.get(provider).copied() == Some(observed_epoch)
+        })
+}
+
 fn should_drive_grok_bridge(state: &ProviderState) -> bool {
-    // "blocked" means an active Cloudflare challenge document. Never evaluate scripts into it —
-    // Turnstile treats injected script activity as tampering and reissues the challenge, which
-    // loops forever. Recovery happens via the app-title path once the challenge clears.
-    state.provider == "grok"
-        && state.webview == "loaded"
-        && state.dom != "ready"
+    state.provider == "grok" && state.webview == "loaded" && state.dom != "ready"
+}
+
+fn should_drive_grok_bridge_from_background(
+    state: &ProviderState,
+    app_title_signal_is_current: bool,
+) -> bool {
+    should_drive_grok_bridge(state) && app_title_signal_is_current
+}
+
+fn generic_staleness_dispatch_allowed(
+    state: &ProviderState,
+    app_title_signal_is_current: bool,
+) -> bool {
+    state.provider != "grok" || app_title_signal_is_current
+}
+
+fn provider_document_allows_generic_eval(
+    provider: &str,
+    url_matches_app: bool,
+    state: Option<&ProviderState>,
+    current_epoch: u64,
+    app_title_epoch: Option<u64>,
+    adopted_boot_epoch: Option<u64>,
+    navigation_pending: bool,
+) -> bool {
+    if !url_matches_app {
+        return false;
+    }
+    if provider != "grok" {
+        return true;
+    }
+    let Some(state) = state else {
+        return false;
+    };
+    current_epoch != 0
+        && app_title_epoch == Some(current_epoch)
+        && adopted_boot_epoch == Some(current_epoch)
+        && !navigation_pending
         && state.login != "blocked"
+}
+
+fn provider_state_allows_control_eval(state: &ProviderState) -> bool {
+    state.webview == "loaded" && state.dom == "ready" && state.login != "blocked"
 }
 
 fn grok_bridge_drive_allowed(state: &ProviderState) -> bool {
@@ -425,6 +525,38 @@ fn grok_bridge_host_action(
         | GrokBridgeDriveOutcome::Retry
         | GrokBridgeDriveOutcome::Ineligible => GrokBridgeHostAction::Ignore,
     }
+}
+
+fn record_grok_bridge_challenge(provider: &str, observed_epoch: u64) -> Option<ProviderState> {
+    let Ok(mut guard) = runtime().lock() else {
+        return None;
+    };
+    let current_epoch = guard
+        .grok_document_epoch
+        .get(provider)
+        .copied()
+        .unwrap_or_default();
+    let current_state = guard.states.get(provider)?.clone();
+    if grok_bridge_host_action(
+        GrokBridgeDriveOutcome::Challenge,
+        observed_epoch,
+        current_epoch,
+        &current_state,
+    ) != GrokBridgeHostAction::MarkBlocked
+    {
+        return None;
+    }
+    guard.grok_app_title_epoch.remove(provider);
+    let mut next_state = current_state;
+    next_state.webview = "loaded".into();
+    next_state.dom = "unknown".into();
+    next_state.login = "blocked".into();
+    next_state.thinking = false;
+    next_state.last_status_at = now_ms();
+    guard
+        .states
+        .insert(provider.to_string(), next_state.clone());
+    Some(next_state)
 }
 
 fn parse_grok_bridge_drive_outcome(raw: &str) -> Option<GrokBridgeDriveResult> {
@@ -478,6 +610,10 @@ fn apply_grok_bridge_drive_outcome(
         if !adopt_grok_bridge_boot(provider, observed_epoch, boot_id) {
             return;
         }
+        // The atomic delayed driver observed no challenge and installed a current bridge. Clear
+        // the stale blocked UI state before routing ordinary bridge traffic through the guarded
+        // generic-eval path.
+        clear_provider_challenge_blocked(app, provider);
         let check = serde_json::json!({
             "v": 1,
             "action": "CHECK_STATUS",
@@ -490,33 +626,11 @@ fn apply_grok_bridge_drive_outcome(
         let _ = eval_provider(app, provider, &script);
         return;
     }
-    let next_state = {
-        let Ok(mut guard) = runtime().lock() else {
-            return;
-        };
-        let current_epoch = guard
-            .grok_document_epoch
-            .get(provider)
-            .copied()
-            .unwrap_or_default();
-        let Some(current_state) = guard.states.get(provider) else {
-            return;
-        };
-        if grok_bridge_host_action(result.outcome, observed_epoch, current_epoch, current_state)
-            != GrokBridgeHostAction::MarkBlocked
-        {
-            return;
-        }
-        let mut next_state = current_state.clone();
-        next_state.webview = "loaded".into();
-        next_state.dom = "unknown".into();
-        next_state.login = "blocked".into();
-        next_state.thinking = false;
-        next_state.last_status_at = now_ms();
-        guard
-            .states
-            .insert(provider.to_string(), next_state.clone());
-        next_state
+    if result.outcome != GrokBridgeDriveOutcome::Challenge {
+        return;
+    }
+    let Some(next_state) = record_grok_bridge_challenge(provider, observed_epoch) else {
+        return;
     };
     let _ = app.emit_to("main", "connections://update", &next_state);
 }
@@ -687,26 +801,31 @@ pub async fn provider_open(
         .on_document_title_changed(move |webview, title| {
             let document_epoch = current_grok_document_epoch(&title_provider);
             handle_provider_document_title(&title_app, &title_provider, &title);
-            let install_ready = webview
+            let Some(title_signal) = webview
                 .url()
                 .ok()
-                .is_some_and(|url| grok_bridge_install_ready(&title_provider, &title, &url));
-            let challenge_ready = grok_challenge_title_active(&title_provider, &title)
-                && webview.url().ok().is_some_and(|url| {
-                    adapters::url_matches_provider_app(&title_provider, &url).unwrap_or(false)
-                });
-            if !install_ready && !challenge_ready {
+                .map(|url| grok_document_title_signal(&title_provider, &title, &url))
+            else {
                 return;
+            };
+            match title_signal {
+                GrokDocumentTitleSignal::Ignore => return,
+                GrokDocumentTitleSignal::Challenge => {
+                    set_grok_app_title_signal(&title_provider, document_epoch, false);
+                    // The title alone proves a challenge document is active. Mark it blocked from
+                    // host state only — evaluating the probe script into the challenge document is
+                    // itself the tampering Turnstile rejects, and each rejection reissues the
+                    // challenge with a fresh Ray ID (an unrecoverable loop).
+                    set_provider_challenge_blocked(&title_app, &title_provider);
+                    return;
+                }
+                GrokDocumentTitleSignal::App => {
+                    // Persist the positive host-side title signal for this document epoch. Only
+                    // then may page-load or watchdog retries evaluate the delayed bridge driver.
+                    set_grok_app_title_signal(&title_provider, document_epoch, true);
+                }
             }
             if !grok_bridge_drive_allowed(&current_state(&title_provider)) {
-                return;
-            }
-            if challenge_ready && !install_ready {
-                // The title alone proves a challenge document is active. Mark it blocked from
-                // host state only — evaluating the probe script into the challenge document is
-                // itself the tampering Turnstile rejects, and each rejection reissues the
-                // challenge with a fresh Ray ID (an unrecoverable loop).
-                set_provider_challenge_blocked(&title_app, &title_provider);
                 return;
             }
             let Some(script) = title_delayed_grok_script.as_deref() else {
@@ -725,26 +844,32 @@ pub async fn provider_open(
             );
         })
         .on_page_load(move |webview, payload| {
-            if load_provider != "grok" {
-                return;
-            }
             match payload.event() {
                 PageLoadEvent::Started => {
-                    confirm_grok_page_load(&load_provider);
+                    if load_provider == "grok" {
+                        confirm_grok_page_load(&load_provider);
+                    }
                     reset_bridge_state(&load_app, &load_provider);
                 }
                 PageLoadEvent::Finished => {
+                    if load_provider != "grok" {
+                        return;
+                    }
                     let Some(script) = load_delayed_grok_script.as_deref() else {
                         return;
                     };
                     let state = current_state(&load_provider);
+                    let document_epoch = current_grok_document_epoch(&load_provider);
                     // While blocked, challenge auto-retries also fire Finished on the grok.com
                     // URL; probing those documents would re-trip Turnstile. The app-title event
-                    // is the recovery signal instead.
-                    if state.login == "blocked"
-                        || !adapters::url_matches_provider_app(&load_provider, payload.url())
-                            .unwrap_or(false)
-                        || !grok_bridge_drive_allowed(&state)
+                    // is the recovery signal instead. A provider URL alone is insufficient:
+                    // page-load may fire before any positive host-side app-title observation.
+                    if !adapters::url_matches_provider_app(&load_provider, payload.url())
+                        .unwrap_or(false)
+                        || !should_drive_grok_bridge_from_background(
+                            &state,
+                            grok_app_title_signal_is_current(&load_provider, document_epoch),
+                        )
                     {
                         return;
                     }
@@ -753,7 +878,7 @@ pub async fn provider_open(
                         &load_app,
                         &load_provider,
                         script,
-                        current_grok_document_epoch(&load_provider),
+                        document_epoch,
                     );
                 }
             }
@@ -866,6 +991,7 @@ pub async fn provider_close(
         guard.engine_boot.remove(&provider);
         guard.bridge_boot.remove(&provider);
         guard.status_boot.remove(&provider);
+        guard.grok_app_title_epoch.remove(&provider);
         guard.grok_adopted_boot.remove(&provider);
         guard.grok_pending_navigation.remove(&provider);
         guard.pending_session_boot.remove(&provider);
@@ -935,6 +1061,7 @@ pub async fn provider_eval(
     js: String,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    ensure_provider_control_eval_allowed(&provider)?;
     eval_provider(&app, &provider, &js)
 }
 
@@ -946,7 +1073,16 @@ pub async fn provider_eval_with_callback(
     js: String,
 ) -> Result<String, String> {
     ensure_control_webview(&webview)?;
-    eval_provider_with_callback(&app, &provider, &js).await
+    eval_provider_with_callback_from_control(&app, &provider, &js).await
+}
+
+pub(crate) async fn eval_provider_with_callback_from_control(
+    app: &AppHandle,
+    provider: &str,
+    js: &str,
+) -> Result<String, String> {
+    ensure_provider_control_eval_allowed(provider)?;
+    eval_provider_with_callback(app, provider, js).await
 }
 
 async fn eval_provider_with_callback(
@@ -954,10 +1090,7 @@ async fn eval_provider_with_callback(
     provider: &str,
     js: &str,
 ) -> Result<String, String> {
-    let label = provider_label(provider);
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("webview not found: {label}"))?;
+    let webview = get_provider_webview_for_generic_eval(app, provider)?;
     let (sender, receiver) = tokio::sync::oneshot::channel();
     let sender = std::sync::Arc::new(std::sync::Mutex::new(Some(sender)));
     let callback_sender = sender.clone();
@@ -993,11 +1126,11 @@ pub async fn provider_open_login(
         };
         let _ = provider_open(app.clone(), webview.clone(), provider.clone(), bounds).await?;
     }
-    let js = format!(
-        "location.href = {};",
-        serde_json::to_string(&adapter.urls.login).map_err(|error| error.to_string())?
-    );
-    eval_provider(&app, &provider, &js)?;
+    let login_url = tauri::Url::parse(&adapter.urls.login)
+        .map_err(|error| format!("invalid provider login URL: {error}"))?;
+    get_provider_webview(&app, &provider)?
+        .navigate(login_url)
+        .map_err(|error| error.to_string())?;
     provider_show(app, webview, provider, Some(true)).await
 }
 
@@ -1023,7 +1156,9 @@ pub async fn provider_reload(
     ensure_control_webview(&webview)?;
     let prepared_epoch = prepare_grok_navigation(&provider);
     reset_bridge_state(&app, &provider);
-    if let Err(error) = eval_provider(&app, &provider, "location.reload();") {
+    let reload_result = get_provider_webview(&app, &provider)
+        .and_then(|provider_webview| provider_webview.reload().map_err(|error| error.to_string()));
+    if let Err(error) = reload_result {
         cancel_grok_navigation(&provider, prepared_epoch);
         return Err(error);
     }
@@ -1041,16 +1176,19 @@ pub async fn provider_new_session(
         return Err(format!("provider webview is not open: {provider}"));
     }
     let adapter = adapters::get_adapter(&provider)?;
+    let app_url = tauri::Url::parse(&adapter.urls.app)
+        .map_err(|error| format!("invalid provider app URL: {error}"))?;
     let prepared_epoch = prepare_grok_navigation(&provider);
     if let Err(error) = begin_session_reset(&app, &provider) {
         cancel_grok_navigation(&provider, prepared_epoch);
         return Err(error);
     }
-    let js = format!(
-        "location.href = {};",
-        serde_json::to_string(&adapter.urls.app).map_err(|error| error.to_string())?
-    );
-    if let Err(error) = eval_provider(&app, &provider, &js) {
+    let navigate_result = get_provider_webview(&app, &provider).and_then(|provider_webview| {
+        provider_webview
+            .navigate(app_url)
+            .map_err(|error| error.to_string())
+    });
+    if let Err(error) = navigate_result {
         cancel_session_reset(&provider);
         cancel_grok_navigation(&provider, prepared_epoch);
         return Err(error);
@@ -1227,6 +1365,8 @@ fn delayed_grok_bridge_script(provider: &str) -> Result<String, String> {
     let challenge_signals_json =
         serde_json::to_string(&challenge_signals).map_err(|error| error.to_string())?;
     let provider_json = serde_json::to_string(provider).map_err(|error| error.to_string())?;
+    let app_hosts_json = serde_json::to_string(&adapters::app_hosts_for_provider(provider)?)
+        .map_err(|error| error.to_string())?;
     let dispatch_adapter = serde_json::json!({
         "v": 1,
         "action": "ADAPTER_UPDATE",
@@ -1300,6 +1440,7 @@ fn delayed_grok_bridge_script(provider: &str) -> Result<String, String> {
     }
 
     window.__MAC_PROVIDER__ = __MAC_PROVIDER_JSON__;
+    window.__MAC_APP_HOSTS__ = __MAC_APP_HOSTS_JSON__;
     __MAC_BOOTSTRAP_JS__
     if (!window.__MAC_BRIDGE__) {
       return { outcome: challengeActive() ? 'challenge' : 'waiting' };
@@ -1323,6 +1464,7 @@ fn delayed_grok_bridge_script(provider: &str) -> Result<String, String> {
             &serde_json::to_string(&dispatch_check).map_err(|error| error.to_string())?,
         )
         .replace("__MAC_PROVIDER_JSON__", &provider_json)
+        .replace("__MAC_APP_HOSTS_JSON__", &app_hosts_json)
         .replace("__MAC_BOOTSTRAP_JS__", BOOTSTRAP_JS))
 }
 
@@ -1393,11 +1535,64 @@ fn can_push_now(guard: &ProviderRuntime, provider: &str) -> bool {
     now_ms().saturating_sub(*guard.last_push_ms.get(provider).unwrap_or(&0)) >= 1000
 }
 
-fn eval_provider(app: &AppHandle, provider: &str, js: &str) -> Result<(), String> {
+fn get_provider_webview(app: &AppHandle, provider: &str) -> Result<tauri::Webview, String> {
     let label = provider_label(provider);
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("webview not found: {label}"))?;
+    app.get_webview(&label)
+        .ok_or_else(|| format!("webview not found: {label}"))
+}
+
+fn get_provider_webview_for_generic_eval(
+    app: &AppHandle,
+    provider: &str,
+) -> Result<tauri::Webview, String> {
+    let webview = get_provider_webview(app, provider)?;
+    let url = webview.url().map_err(|error| error.to_string())?;
+    let url_matches_app = adapters::url_matches_provider_app(provider, &url)?;
+    let allowed = if provider == "grok" {
+        let guard = runtime()
+            .lock()
+            .map_err(|_| "provider state poisoned".to_string())?;
+        let current_epoch = guard
+            .grok_document_epoch
+            .get(provider)
+            .copied()
+            .unwrap_or_default();
+        provider_document_allows_generic_eval(
+            provider,
+            url_matches_app,
+            guard.states.get(provider),
+            current_epoch,
+            guard.grok_app_title_epoch.get(provider).copied(),
+            guard
+                .grok_adopted_boot
+                .get(provider)
+                .map(|(epoch, _)| *epoch),
+            guard.grok_pending_navigation.contains_key(provider),
+        )
+    } else {
+        provider_document_allows_generic_eval(provider, url_matches_app, None, 0, None, None, false)
+    };
+    if !allowed {
+        return Err(format!(
+            "script evaluation is not allowed for the current {provider} document"
+        ));
+    }
+    Ok(webview)
+}
+
+fn ensure_provider_control_eval_allowed(provider: &str) -> Result<(), String> {
+    let state = current_state(provider);
+    if provider_state_allows_control_eval(&state) {
+        Ok(())
+    } else {
+        Err(format!(
+            "script evaluation is not ready for provider: {provider}"
+        ))
+    }
+}
+
+fn eval_provider(app: &AppHandle, provider: &str, js: &str) -> Result<(), String> {
+    let webview = get_provider_webview_for_generic_eval(app, provider)?;
     webview.eval(js).map_err(|error| error.to_string())
 }
 
@@ -1477,6 +1672,14 @@ fn current_url_matches_provider(app: &AppHandle, provider: &str) -> Result<bool,
     adapters::url_matches_provider_app(provider, &url)
 }
 
+fn reset_state_for_page_load(state: &mut ProviderState) {
+    state.dom = "unknown".into();
+    state.thinking = false;
+    state.last_status_at = now_ms();
+    state.bridge = "ok".into();
+    state.bridge_reason = None;
+}
+
 fn reset_bridge_state(app: &AppHandle, provider: &str) {
     if let Ok(mut guard) = runtime().lock() {
         guard.engine_boot.remove(provider);
@@ -1485,11 +1688,7 @@ fn reset_bridge_state(app: &AppHandle, provider: &str) {
         guard.stale_check_sent.remove(provider);
     }
     let mut state = current_state(provider);
-    state.dom = "unknown".into();
-    state.thinking = false;
-    state.last_status_at = now_ms();
-    state.bridge = "ok".into();
-    state.bridge_reason = None;
+    reset_state_for_page_load(&mut state);
     set_state(app, state);
 }
 
@@ -1613,13 +1812,19 @@ fn run_staleness_check(app: &AppHandle) {
     if let Ok(mut guard) = runtime().lock() {
         let providers = guard.states.values().cloned().collect::<Vec<_>>();
         for state in providers {
-            if should_drive_grok_bridge(&state) {
-                let document_epoch = guard
-                    .grok_document_epoch
-                    .get(&state.provider)
-                    .copied()
-                    .unwrap_or_default();
+            let document_epoch = guard
+                .grok_document_epoch
+                .get(&state.provider)
+                .copied()
+                .unwrap_or_default();
+            let app_title_signal_is_current =
+                guard.grok_app_title_epoch.get(&state.provider).copied() == Some(document_epoch);
+            if should_drive_grok_bridge_from_background(&state, app_title_signal_is_current) {
                 grok_to_drive.push((state.provider.clone(), document_epoch));
+            }
+            if !generic_staleness_dispatch_allowed(&state, app_title_signal_is_current) {
+                guard.stale_check_sent.remove(&state.provider);
+                continue;
             }
             match staleness_action(state.last_status_at, now, state.webview == "loaded") {
                 StalenessAction::None => {}
@@ -1698,14 +1903,18 @@ mod tests {
         cancel_grok_navigation, cancel_session_reset, challenge_auxiliary_navigation_allowed,
         confirm_grok_page_load, decide_new_window_action, delayed_grok_bridge_script,
         eval_callback_reports_true, fresh_session_boot, gemini_sorry_navigation_active,
-        grok_app_title_ready, grok_bridge_drive_allowed, grok_bridge_host_action,
-        grok_bridge_install_ready, grok_bridge_result_is_current, grok_challenge_title_active,
-        parse_grok_bridge_drive_outcome, physical_bounds, popup_initial_title,
-        prepare_grok_navigation, provider_show_should_focus, provider_uses_document_start_bridge,
-        provider_uses_permission_shim, runtime, should_drive_grok_bridge,
+        generic_staleness_dispatch_allowed, grok_app_title_ready, grok_bridge_drive_allowed,
+        grok_bridge_host_action, grok_bridge_install_ready, grok_bridge_result_is_current,
+        grok_challenge_title_active, grok_document_title_signal, parse_grok_bridge_drive_outcome,
+        physical_bounds, popup_initial_title, prepare_grok_navigation,
+        provider_document_allows_generic_eval, provider_show_should_focus,
+        provider_state_allows_control_eval, provider_uses_document_start_bridge,
+        provider_uses_permission_shim, record_grok_bridge_challenge, reset_state_for_page_load,
+        runtime, should_drive_grok_bridge, should_drive_grok_bridge_from_background,
         should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
-        GrokBridgeDriveOutcome, GrokBridgeDriveResult, GrokBridgeHostAction, NewWindowAction,
-        StalenessAction, CHALLENGE_SIGNALS_JSON, PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
+        GrokBridgeDriveOutcome, GrokBridgeDriveResult, GrokBridgeHostAction,
+        GrokDocumentTitleSignal, NewWindowAction, StalenessAction, CHALLENGE_SIGNALS_JSON,
+        PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
     };
 
     static GROK_RUNTIME_TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -1764,6 +1973,7 @@ mod tests {
         assert!(script.contains("function installEngineAndAdapter()"));
         assert!(script.contains("ADAPTER_UPDATE"));
         assert!(script.contains("CHECK_STATUS"));
+        assert!(script.contains("window.__MAC_APP_HOSTS__ = [\"grok.com\"]"));
         assert!(script.contains("正在執行安全驗證"));
         assert!(script.contains("bootId: String(window.__MAC_BRIDGE__.bootId || '')"));
         let challenge_check = script
@@ -2077,6 +2287,22 @@ mod tests {
     }
 
     #[test]
+    fn grok_challenge_title_wins_when_it_also_looks_like_an_app_title() {
+        assert_eq!(
+            grok_document_title_signal(
+                "grok",
+                "Grok — Performing security verification",
+                &url("https://grok.com/")
+            ),
+            GrokDocumentTitleSignal::Challenge
+        );
+        assert_eq!(
+            grok_document_title_signal("grok", "Grok — Home", &url("https://grok.com/")),
+            GrokDocumentTitleSignal::App
+        );
+    }
+
+    #[test]
     fn grok_bridge_driver_callback_parses_only_known_outcomes() {
         assert_eq!(
             parse_grok_bridge_drive_outcome(r#""challenge""#),
@@ -2106,13 +2332,11 @@ mod tests {
     }
 
     #[test]
-    fn grok_bridge_watchdog_retries_loaded_unresolved_grok_but_skips_blocked_challenges() {
+    fn grok_bridge_driver_structural_gate_accepts_loaded_unresolved_states() {
         assert!(should_drive_grok_bridge(&state_with(
             "grok", "loaded", "unknown", "unknown", false
         )));
-        // An active challenge document must never receive script evaluation: Turnstile treats
-        // it as tampering and reissues the challenge in a loop. Recovery is title-driven.
-        assert!(!should_drive_grok_bridge(&state_with(
+        assert!(should_drive_grok_bridge(&state_with(
             "grok", "loaded", "unknown", "blocked", false
         )));
         assert!(!should_drive_grok_bridge(&state_with(
@@ -2135,6 +2359,180 @@ mod tests {
         assert!(grok_bridge_drive_allowed(&state_with(
             "grok", "loaded", "unknown", "blocked", false
         )));
+    }
+
+    #[test]
+    fn grok_page_load_and_watchdog_require_a_positive_app_title_signal() {
+        let unresolved = state_with("grok", "loaded", "unknown", "unknown", false);
+        assert!(!should_drive_grok_bridge_from_background(
+            &unresolved,
+            false
+        ));
+        assert!(should_drive_grok_bridge_from_background(&unresolved, true));
+
+        // A positive title is the recovery authorization. Keep the UI blocked until the bridge
+        // confirms status, but allow Finished/watchdog to retry if the first title-time drive
+        // returned "waiting" while the real app document was still loading.
+        let blocked = state_with("grok", "loaded", "unknown", "blocked", false);
+        assert!(!should_drive_grok_bridge_from_background(&blocked, false));
+        assert!(should_drive_grok_bridge_from_background(&blocked, true));
+        assert!(grok_bridge_drive_allowed(&blocked));
+    }
+
+    #[test]
+    fn grok_generic_staleness_requires_an_app_title_and_skips_blocked() {
+        assert!(!generic_staleness_dispatch_allowed(
+            &state_with("grok", "loaded", "unknown", "blocked", false),
+            false
+        ));
+        assert!(!generic_staleness_dispatch_allowed(
+            &state_with("grok", "loaded", "unknown", "unknown", false),
+            false
+        ));
+        assert!(generic_staleness_dispatch_allowed(
+            &state_with("grok", "loaded", "unknown", "unknown", false),
+            true
+        ));
+        assert!(generic_staleness_dispatch_allowed(
+            &state_with("grok", "loaded", "unknown", "blocked", false),
+            true
+        ));
+        assert!(generic_staleness_dispatch_allowed(
+            &state_with("chatgpt", "loaded", "unknown", "blocked", false),
+            false
+        ));
+    }
+
+    #[test]
+    fn generic_eval_requires_an_app_document_and_a_current_grok_bridge() {
+        let ready = state_with("grok", "loaded", "ready", "logged_in", false);
+        assert!(!provider_document_allows_generic_eval(
+            "grok",
+            false,
+            Some(&ready),
+            7,
+            Some(7),
+            Some(7),
+            false
+        ));
+        assert!(!provider_document_allows_generic_eval(
+            "grok",
+            true,
+            Some(&ready),
+            7,
+            None,
+            Some(7),
+            false
+        ));
+        assert!(!provider_document_allows_generic_eval(
+            "grok",
+            true,
+            Some(&ready),
+            7,
+            Some(7),
+            Some(6),
+            false
+        ));
+        assert!(!provider_document_allows_generic_eval(
+            "grok",
+            true,
+            Some(&ready),
+            7,
+            Some(7),
+            Some(7),
+            true
+        ));
+        assert!(provider_document_allows_generic_eval(
+            "grok",
+            true,
+            Some(&ready),
+            7,
+            Some(7),
+            Some(7),
+            false
+        ));
+
+        let blocked = state_with("grok", "loaded", "unknown", "blocked", false);
+        assert!(!provider_document_allows_generic_eval(
+            "grok",
+            true,
+            Some(&blocked),
+            7,
+            Some(7),
+            Some(7),
+            false
+        ));
+        assert!(provider_document_allows_generic_eval(
+            "chatgpt", true, None, 0, None, None, false
+        ));
+        assert!(!provider_document_allows_generic_eval(
+            "chatgpt", false, None, 0, None, None, false
+        ));
+    }
+
+    #[test]
+    fn control_eval_requires_a_ready_non_challenge_document() {
+        assert!(provider_state_allows_control_eval(&state_with(
+            "chatgpt",
+            "loaded",
+            "ready",
+            "logged_in",
+            false
+        )));
+        assert!(!provider_state_allows_control_eval(&state_with(
+            "chatgpt",
+            "loaded",
+            "unknown",
+            "logged_in",
+            false
+        )));
+        assert!(!provider_state_allows_control_eval(&state_with(
+            "grok", "loaded", "ready", "blocked", false
+        )));
+    }
+
+    #[test]
+    fn page_load_start_immediately_makes_a_ready_provider_non_sendable() {
+        let mut state = state_with("chatgpt", "loaded", "ready", "logged_in", true);
+        state.bridge = "degraded".into();
+        state.bridge_reason = Some("stale".into());
+        reset_state_for_page_load(&mut state);
+        assert_eq!(state.webview, "loaded");
+        assert_eq!(state.dom, "unknown");
+        assert_eq!(state.login, "logged_in");
+        assert!(!state.thinking);
+        assert_eq!(state.bridge, "ok");
+        assert_eq!(state.bridge_reason, None);
+        assert!(!provider_state_allows_control_eval(&state));
+    }
+
+    #[test]
+    fn body_detected_grok_challenge_revokes_the_positive_title_epoch() {
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.states.insert(
+                provider.into(),
+                state_with(provider, "loaded", "unknown", "unknown", false),
+            );
+            guard.grok_document_epoch.insert(provider.into(), 9);
+            guard.grok_app_title_epoch.insert(provider.into(), 9);
+            guard.grok_pending_navigation.remove(provider);
+        }
+
+        let blocked =
+            record_grok_bridge_challenge(provider, 9).expect("current challenge should apply");
+        assert_eq!(blocked.login, "blocked");
+        let guard = runtime().lock().expect("provider runtime lock");
+        assert!(!guard.grok_app_title_epoch.contains_key(provider));
+        drop(guard);
+        assert!(!should_drive_grok_bridge_from_background(&blocked, false));
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.states.remove(provider);
+        guard.grok_document_epoch.remove(provider);
+        guard.grok_app_title_epoch.remove(provider);
     }
 
     #[test]
