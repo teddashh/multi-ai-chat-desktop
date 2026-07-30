@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { serializeResponseText } from '../../injected/responseSerializer';
+import { longerResponseText, serializeResponseText } from '../../injected/responseSerializer';
 
 interface FakeNode {
   nodeType: number;
@@ -89,6 +89,18 @@ describe('serializeResponseText', () => {
     expect(serialize(root)).toBe('```\nif x:\n    y()\n```');
   });
 
+  it('restores code blocks verbatim when they contain String.replace substitution patterns', () => {
+    // $&、$'、$` 在替換字串裡有特殊意義，會把整段程式碼換成佔位符或前後文，
+    // 而且外觀正常看不出被竄改，還會原封不動餵進下一棒 AI。
+    const code = 'echo "$&" && echo \'$`\' && echo "$\'" && echo "100$$"';
+    const root = element('div', [
+      element('p', [text('Run this:')]),
+      element('pre', [element('code', [text(code)])]),
+    ]);
+
+    expect(serialize(root)).toBe(`Run this:\n\n\`\`\`\n${code}\n\`\`\``);
+  });
+
   it('ignores non-elements safely and falls back when childNodes is unavailable', () => {
     const root = element('div', [
       { nodeType: 8, textContent: 'hidden comment' },
@@ -99,5 +111,15 @@ describe('serializeResponseText', () => {
 
     expect(serialize(root)).toBe('visible');
     expect(serializeResponseText(bare as unknown as Element)).toBe('native answer');
+  });
+});
+
+describe('longerResponseText', () => {
+  it('takes the freshly read DOM text only when it adds content to the cache', () => {
+    // 串流是純附加，較長的那份才是完整的一份。
+    expect(longerResponseText('opening line', 'opening line and the rest')).toBe('opening line and the rest');
+    // 反向要守住：DOM 已被清空或換掉時不能拿短的那份蓋掉收齊的內容。
+    expect(longerResponseText('the whole answer', 'the')).toBe('the whole answer');
+    expect(longerResponseText('the whole answer', null)).toBe('the whole answer');
   });
 });

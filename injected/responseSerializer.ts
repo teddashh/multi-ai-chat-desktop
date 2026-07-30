@@ -26,11 +26,20 @@ interface SerializationContext {
   protectedBlocks: string[];
 }
 
+// 收尾時要送哪一份文字。ChatGPT 實測：停止鍵消失的當下回應只有 39 字，1.07 秒後才長到完整的
+// 301 字——「生成中」的訊號比最後一批 render 早結束，只送串流途中快取的文字就會少一截，
+// 極端情況（快取只抓到開頭那行）等於整篇只剩一行。串流是純附加，取較長的那份即可。
+export function longerResponseText(cached: string, fresh: string | null): string {
+  return fresh && fresh.length > cached.length ? fresh : cached;
+}
+
 export function serializeResponseText(root: Element): string {
   const context: SerializationContext = { protectedBlocks: [] };
   const serialized = normalizeDocument(serializeNode(root, context));
+  // 用 replacer function 而不是字串：程式碼區塊裡的 $&、$'、$` 會被 String.replace 當成
+  // 特殊樣式展開，把整段程式碼換成別的內容。
   return context.protectedBlocks.reduce(
-    (text, block, index) => text.replace(protectedToken(index), block),
+    (text, block, index) => text.replace(protectedToken(index), () => block),
     serialized,
   );
 }
