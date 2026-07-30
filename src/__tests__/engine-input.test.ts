@@ -995,8 +995,9 @@ describe('injected engine input hardening', () => {
     env.responses = [new FakeElement(env.document, 'div', 'opening line')];
     await vi.advanceTimersByTimeAsync(1_000);
 
-    // 最後一批 render 落地，但「生成中」訊號同時消失。快取還停在 opening line，
-    // 下一次 backup poll 要 1000ms 後才到，收尾計時器只剩 100ms——收尾若送快取就少一截。
+    // The last render batch lands as the "still generating" signal clears. The cache still holds
+    // only the opening line, the next backup poll is 1000ms away, and the done timer fires in
+    // 100ms — so finishing from the cache would drop the tail.
     env.responses = [new FakeElement(env.document, 'div', 'opening line and everything after it')];
     env.thinking = false;
     await vi.advanceTimersByTimeAsync(100);

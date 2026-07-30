@@ -834,8 +834,9 @@ class InactiveSendOperationError extends Error {
 
   function finishResponse(expectedGeneration = activeResponseGeneration) {
     if (!waitingForResponse || expectedGeneration !== activeResponseGeneration || !adapter) return;
-    // 一定要在 cancelResponseWait() 之前重讀：getLatestResponseText 的 baseline 過濾靠
-    // waitingForResponse 與 responseBaselineEls，重置後會撈到送出前就存在的舊訊息。
+    // Must re-read before cancelResponseWait(): getLatestResponseText filters the send-time
+    // baseline through waitingForResponse and responseBaselineEls, so after the reset it would
+    // return a message that already existed before the send.
     const payload = longerResponseText(lastResponseText, getLatestResponseText());
     const sendOperation = activeSendOperation;
     cancelResponseWait();

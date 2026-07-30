@@ -90,8 +90,9 @@ describe('serializeResponseText', () => {
   });
 
   it('restores code blocks verbatim when they contain String.replace substitution patterns', () => {
-    // $&、$'、$` 在替換字串裡有特殊意義，會把整段程式碼換成佔位符或前後文，
-    // 而且外觀正常看不出被竄改，還會原封不動餵進下一棒 AI。
+    // $&, $' and $` are special inside a replacement string and rewrite the block with the
+    // placeholder or the surrounding text. The result still looks like valid code, and it is
+    // forwarded verbatim to the next AI in the workflow.
     const code = 'echo "$&" && echo \'$`\' && echo "$\'" && echo "100$$"';
     const root = element('div', [
       element('p', [text('Run this:')]),
@@ -116,9 +117,10 @@ describe('serializeResponseText', () => {
 
 describe('longerResponseText', () => {
   it('takes the freshly read DOM text only when it adds content to the cache', () => {
-    // 串流是純附加，較長的那份才是完整的一份。
+    // Streaming is append-only, so the longer text is the complete one.
     expect(longerResponseText('opening line', 'opening line and the rest')).toBe('opening line and the rest');
-    // 反向要守住：DOM 已被清空或換掉時不能拿短的那份蓋掉收齊的內容。
+    // The reverse has to hold too: a cleared or replaced container must not overwrite a complete
+    // answer with a shorter read.
     expect(longerResponseText('the whole answer', 'the')).toBe('the whole answer');
     expect(longerResponseText('the whole answer', null)).toBe('the whole answer');
   });
