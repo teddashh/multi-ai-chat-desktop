@@ -1,7 +1,7 @@
 import type { AIProvider, BridgeMessage } from '../shared/types';
 import { isProviderChallengeActive } from './challenge';
 import { buildReportDigest, type ReportElement } from './reportDigest';
-import { serializeResponseText } from './responseSerializer';
+import { longerResponseText, serializeResponseText } from './responseSerializer';
 
 type InputStrategyName = 'default' | 'prosemirror-paste' | 'quill-angular';
 type SendStrategy = 'click' | 'enter';
@@ -822,8 +822,6 @@ class InactiveSendOperationError extends Error {
                 checkIfDone(expectedGeneration);
                 return;
               }
-              const finalText = getLatestResponseText();
-              if (finalText) lastResponseText = finalText;
               finishResponse(expectedGeneration);
             }, timing('doneDelayMs', 3000));
           }
@@ -836,7 +834,9 @@ class InactiveSendOperationError extends Error {
 
   function finishResponse(expectedGeneration = activeResponseGeneration) {
     if (!waitingForResponse || expectedGeneration !== activeResponseGeneration || !adapter) return;
-    const payload = lastResponseText;
+    // 一定要在 cancelResponseWait() 之前重讀：getLatestResponseText 的 baseline 過濾靠
+    // waitingForResponse 與 responseBaselineEls，重置後會撈到送出前就存在的舊訊息。
+    const payload = longerResponseText(lastResponseText, getLatestResponseText());
     const sendOperation = activeSendOperation;
     cancelResponseWait();
     bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider: adapter.provider, payload });

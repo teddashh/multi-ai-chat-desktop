@@ -974,6 +974,40 @@ describe('injected engine input hardening', () => {
     expect(env.emitted).toContainEqual({ v: 1, action: 'RESPONSE_DONE', provider: 'grok', payload: 'sent response' });
     expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(1);
   });
+
+  it('collects text that lands after the last cached chunk instead of sending a half answer', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      thinkingDetectors: ['.thinking'],
+      timing: {
+        doneDelayMs: 100,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 1_000,
+      },
+    });
+
+    env.thinking = true;
+    send(handler, 'ask something');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'opening line')];
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    // 最後一批 render 落地，但「生成中」訊號同時消失。快取還停在 opening line，
+    // 下一次 backup poll 要 1000ms 後才到，收尾計時器只剩 100ms——收尾若送快取就少一截。
+    env.responses = [new FakeElement(env.document, 'div', 'opening line and everything after it')];
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: 'opening line and everything after it',
+    });
+  });
 });
 
 function createEnv(options: { inputKind: 'textarea' | 'contenteditable'; sendButton?: FakeElement | null }): FakeDomEnv {
