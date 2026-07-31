@@ -17,7 +17,8 @@ Requirements:
 
 Portable notes:
 - Keep the PORTABLE marker file next to the .exe.
-- Portable mode disables auto-update. Use Settings -> Check for updates, then download a newer release manually.
+- Portable mode hides the in-app update controls. Download newer releases manually from:
+  https://github.com/teddashh/multi-ai-chat-desktop/releases/latest
 `;
 
 function parseArgs(argv) {
