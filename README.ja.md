@@ -10,14 +10,14 @@
 
 > **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと12ラウンドのブレインストーミングpresetを追加しました。ブレインストーミングは4つの交代制の席、合計48発言、同一sessionの全履歴を維持します。組み込みの4役または4席のpresetはすべて、ChatGPT、Claude、Gemini、Grokを1回ずつ割り当てます。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
 
-## v1.8.1 の更新点
+## v1.8.4 の更新点
 
-- **Grok challenge の状態を正確に表示。** Cloudflare／Turnstile widget が元のpage titleを維持していても、automation bridgeを開始したりchallenge pageを変更したりせず、blockedとして報告します。
-- **組み込みの4役設定で4 providerを使用。** ChatGPT、Claude、Gemini、Grokを1回ずつ割り当てます。旧標準設定と完全一致する設定だけを一度移行し、カスタム設定は変更しません。
-- **Snapshot／replay の互換性を保護。** Provider routingを変更したworkflow graphは新しいversionを使用し、互換性のないsnapshotやreplayを暗黙に別routingで実行せず明示的に拒否します。
-- **Source toolchain の安全性を改善。** 対応可能なJavaScript開発依存関係のadvisoryを解消し、Agent-ready source contractはNode.js ^22.13.0 || >=24.0.0を明示的に要求します。
+- **Provider回答を完全に保存。** 完了時のDOM textを最終結果として扱い、replacement patternを含むcode blockを維持します。未完了のChatGPT turnを成功した部分回答として確定することもありません。
+- **有界なGrok login recovery。** 許可された認証popupを閉じた際、同じdocumentがまだblockedの場合に限りnative reloadを1回実行します。Lifecycle ownershipとstart leaseにより、重複reloadや永久停止を防ぎます。
+- **Provider別のchallenge案内。** Grokではpane内で解決可能な検証を完了するよう案内し、GeminiのGoogle `/sorry` blockでは必要なsystem browser案内を維持します。
+- **Portable版の更新案内を修正。** Portable modeではapp内の更新操作が非表示になるため、READMEからGitHub Releasesへ直接案内します。
 
-検証結果、Grokの制限、残っている手動release gateは、日英併記の [`v1.8.1 release notes`](./docs/RELEASE_NOTES_v1.8.1.md) を参照してください。
+検証結果、contributor情報、残っている手動release gateは、日英併記の [`v1.8.4 release notes`](./docs/RELEASE_NOTES_v1.8.4.md) を参照してください。
 
 ## エディション
 

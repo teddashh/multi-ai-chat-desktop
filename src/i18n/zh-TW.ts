@@ -109,6 +109,7 @@ export const zhTW: Record<I18nKey, string> = {
   'provider.adapterBroken': 'Adapter 異常',
   'provider.bridgeDegradedReload': '橋接降級。建議重新載入。',
   'provider.embeddedLoginBlocked': '網站的安全驗證擋下了 app 內登入。請改在瀏覽器使用這個 AI，或稍後重試此頁面。',
+  'provider.grokChallengeActive': '網站正在進行安全驗證。請在此面板完成驗證；完成後若狀態未更新，重新載入即可。',
   'provider.openInBrowser': '在瀏覽器開啟',
   'provider.nativeWebviewHidden': '原生 webview 已隱藏；背景活動會繼續。',
   'provider.nativeWebviewMounted': '原生 webview 已掛載於此',

@@ -10,14 +10,14 @@ Stelle eine Frage und lasse deine angemeldeten Web-Sitzungen von **ChatGPT, Clau
 
 > **Projektstatus:** Die Funktionsentwicklung ist abgeschlossen. Das letzte optionale Gedenk-Theme mit allen vier AI-Sister-Figuren und das Brainstorming-Preset mit 12 Runden sind enthalten. Brainstorming behält vier wechselnde Sitze, insgesamt 48 Beiträge und den vollständigen Verlauf derselben Sitzung. Jedes integrierte Preset mit vier Rollen oder Sitzen weist ChatGPT, Claude, Gemini und Grok jeweils genau einmal zu. Danach werden nur Anbieterkompatibilität, Sicherheit und Build-Probleme gepflegt; Snapshot und Replay bleiben unverändert.
 
-## Neuerungen in v1.8.1
+## Neuerungen in v1.8.4
 
-- **Korrekter Grok-Challenge-Status.** Ein Cloudflare-/Turnstile-Widget wird auch bei unverändertem Seitentitel als blockiert gemeldet, ohne die Automatisierungs-Bridge zu starten oder die Challenge-Seite zu verändern.
-- **Alle vier Anbieter in integrierten Vier-Rollen-Setups.** ChatGPT, Claude, Gemini und Grok werden jeweils einmal zugewiesen. Nur exakt übereinstimmende alte Standardwerte werden einmal migriert; benutzerdefinierte Belegungen bleiben erhalten.
-- **Replay-sichere Workflow-Änderungen.** Workflows mit geändertem Provider-Routing erhalten neue Versionen, damit inkompatible Snapshots und Replays ausdrücklich abgelehnt werden.
-- **Bereinigte Source-Toolchain.** Behebbare Sicherheitswarnungen der JavaScript-Entwicklungsabhängigkeiten sind beseitigt; der Agent-ready Source Contract verlangt nun Node.js ^22.13.0 || >=24.0.0.
+- **Vollständige Provider-Antworten.** Der DOM-Text zum Abschluss ist maßgeblich, Codeblöcke mit Replacement-Mustern bleiben unverändert und ein unfertiger ChatGPT-Turn wird nicht stillschweigend als erfolgreiche Teilantwort übernommen.
+- **Begrenzte Grok-Login-Wiederherstellung.** Nach dem Schließen eines erlaubten Authentifizierungs-Popups wird höchstens einmal nativ neu geladen, solange dasselbe Dokument blockiert bleibt. Lifecycle-Ownership und Start-Lease verhindern doppelte oder dauerhaft festhängende Reloads.
+- **Anbieterspezifische Challenge-Hinweise.** Grok verweist auf die lösbare Prüfung im Pane; Gemini behält bei Google-`/sorry`-Sperren den notwendigen Hinweis auf den Systembrowser.
+- **Korrekte Update-Hinweise für Portable.** Da Portable die Update-Steuerung in der App ausblendet, verweist die README direkt auf GitHub Releases.
 
-Validierung, Grok-Einschränkungen und ausstehende manuelle Release-Prüfungen stehen in den zweisprachigen [`v1.8.1 Release Notes`](./docs/RELEASE_NOTES_v1.8.1.md).
+Validierung, Beiträge und ausstehende manuelle Release-Prüfungen stehen in den zweisprachigen [`v1.8.4 Release Notes`](./docs/RELEASE_NOTES_v1.8.4.md).
 
 ## Edition wählen
 

@@ -26,11 +26,19 @@ interface SerializationContext {
   protectedBlocks: string[];
 }
 
+// The finish-time DOM read is authoritative even when the provider revised or shortened its
+// answer. The streamed cache is only a fallback when the current response node disappeared.
+export function finalResponseText(cached: string, fresh: string | null): string {
+  return fresh ?? cached;
+}
+
 export function serializeResponseText(root: Element): string {
   const context: SerializationContext = { protectedBlocks: [] };
   const serialized = normalizeDocument(serializeNode(root, context));
+  // A replacer function, not a replacement string: $&, $', $` and $$ inside a code block are
+  // expanded by String.replace substitution rules and would rewrite the block with other content.
   return context.protectedBlocks.reduce(
-    (text, block, index) => text.replace(protectedToken(index), block),
+    (text, block, index) => text.replace(protectedToken(index), () => block),
     serialized,
   );
 }

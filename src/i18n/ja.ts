@@ -121,6 +121,7 @@ export const ja: Record<I18nKey, string> = {
   'provider.adapterBroken': 'アダプター破損',
   'provider.bridgeDegradedReload': 'ブリッジに問題があります。再読み込みをお勧めします。',
   'provider.embeddedLoginBlocked': 'サイトのセキュリティ検証により、アプリ内でのログインがブロックされています。ブラウザーでこの AI をご利用いただくか、後でもう一度このページをお試しください。',
+  'provider.grokChallengeActive': 'サイトがセキュリティ検証を実行中です。このパネル内で完了してください。完了後に状態が更新されない場合は再読み込みしてください。',
   'provider.openInBrowser': 'ブラウザーで開く',
   'provider.nativeWebviewHidden': 'ネイティブWebviewは非表示です。バックグラウンド処理は続行します。',
   'provider.nativeWebviewMounted': 'ネイティブWebviewをここに表示中',

@@ -119,6 +119,7 @@ export const en: Record<I18nKey, string> = {
   'provider.adapterBroken': 'Adapter broken',
   'provider.bridgeDegradedReload': 'Bridge degraded. Reload suggested.',
   'provider.embeddedLoginBlocked': 'Security checks on this site prevent sign-in within the app. Use this AI in your browser, or retry this page later.',
+  'provider.grokChallengeActive': 'This site is running a security check. Complete it in this pane; if the status does not update afterwards, reload.',
   'provider.openInBrowser': 'Open in browser',
   'provider.nativeWebviewHidden': 'Native webview hidden; background activity continues.',
   'provider.nativeWebviewMounted': 'Native webview mounted here',

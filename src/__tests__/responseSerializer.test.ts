@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { serializeResponseText } from '../../injected/responseSerializer';
+import { finalResponseText, serializeResponseText } from '../../injected/responseSerializer';
 
 interface FakeNode {
   nodeType: number;
@@ -89,6 +89,19 @@ describe('serializeResponseText', () => {
     expect(serialize(root)).toBe('```\nif x:\n    y()\n```');
   });
 
+  it('restores code blocks verbatim when they contain String.replace substitution patterns', () => {
+    // $&, $' and $` are special inside a replacement string and rewrite the block with the
+    // placeholder or the surrounding text. The result still looks like valid code, and it is
+    // forwarded verbatim to the next AI in the workflow.
+    const code = 'echo "$&" && echo \'$`\' && echo "$\'" && echo "100$$"';
+    const root = element('div', [
+      element('p', [text('Run this:')]),
+      element('pre', [element('code', [text(code)])]),
+    ]);
+
+    expect(serialize(root)).toBe(`Run this:\n\n\`\`\`\n${code}\n\`\`\``);
+  });
+
   it('ignores non-elements safely and falls back when childNodes is unavailable', () => {
     const root = element('div', [
       { nodeType: 8, textContent: 'hidden comment' },
@@ -99,5 +112,14 @@ describe('serializeResponseText', () => {
 
     expect(serialize(root)).toBe('visible');
     expect(serializeResponseText(bare as unknown as Element)).toBe('native answer');
+  });
+});
+
+describe('finalResponseText', () => {
+  it('uses the finish-time DOM read as authoritative and falls back only when it is absent', () => {
+    expect(finalResponseText('opening line', 'opening line and the rest')).toBe('opening line and the rest');
+    expect(finalResponseText('a longer streamed draft', 'short final answer')).toBe('short final answer');
+    expect(finalResponseText('same length A', 'same length B')).toBe('same length B');
+    expect(finalResponseText('the cached answer', null)).toBe('the cached answer');
   });
 });

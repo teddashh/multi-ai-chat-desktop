@@ -115,15 +115,32 @@ describe('FocusPane provider header', () => {
     expect(html).not.toContain('aria-label="ChatGPT: Ready · Currently reading"');
   });
 
-  it('offers an honest browser escape hatch when Grok embedded login is blocked', () => {
+  it('points the user at the in-pane challenge when Grok is blocked, keeping the browser as a fallback only', () => {
     const html = renderFocusPane({
       centeredProvider: 'grok',
       stateOverrides: { grok: { login: 'blocked' } },
     });
 
     expect(html).toContain(
+      'This site is running a security check. Complete it in this pane; if the status does not update afterwards, reload.',
+    );
+    // The challenge is solvable in the embedded webview now that the app keeps
+    // script evaluation out of challenge documents. Copy that sends the user to
+    // the browser instead makes them abandon a login that would have worked.
+    expect(html).not.toContain('Use this AI in your browser');
+    expect(html).toContain('Open in browser');
+  });
+
+  it('keeps system-browser guidance when Gemini embedded login is blocked', () => {
+    const html = renderFocusPane({
+      centeredProvider: 'gemini',
+      stateOverrides: { gemini: { login: 'blocked' } },
+    });
+
+    expect(html).toContain(
       'Security checks on this site prevent sign-in within the app. Use this AI in your browser, or retry this page later.',
     );
+    expect(html).not.toContain('Complete it in this pane');
     expect(html).toContain('Open in browser');
   });
 

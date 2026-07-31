@@ -1,7 +1,7 @@
 import type { AIProvider, BridgeMessage } from '../shared/types';
 import { isProviderChallengeActive } from './challenge';
 import { buildReportDigest, type ReportElement } from './reportDigest';
-import { serializeResponseText } from './responseSerializer';
+import { finalResponseText, serializeResponseText } from './responseSerializer';
 
 type InputStrategyName = 'default' | 'prosemirror-paste' | 'quill-angular';
 type SendStrategy = 'click' | 'enter';
@@ -66,6 +66,26 @@ const USER_MESSAGE_ANCESTOR_SELECTOR = [
   'div[id^="response-"].items-end',
   '.message-bubble.user',
 ].join(', ');
+
+// A finished ChatGPT turn grows a copy button, without needing hover. The stop button is removed
+// before the last render batch lands, and multi-step answers (search, reasoning) can drop it
+// entirely during an intermediate pause, so relying on it alone reads a pause as "finished".
+// This second signal covers the window the stop button cannot see.
+//
+// This lives in the engine rather than the adapter JSON on purpose: thinkingDetectors is a flat
+// selector array that cannot express "the last turn is missing this element", and its seed values
+// are pinned by the SPEC 5.1 frozen table and by scripts/check-adapters.mjs.
+const TURN_COMPLETION_SIGNALS: Partial<Record<AIProvider, { turn: string; complete: string }>> = {
+  chatgpt: {
+    turn: '[data-testid^="conversation-turn-"]',
+    complete: '[data-testid="copy-turn-action-button"]',
+  },
+};
+
+// Fail closed after the shipped 10-minute inactivity window if the positive completion signal
+// never arrives. A selector rename must surface a retryable error instead of silently returning a
+// partial answer, while fresh response text or the ordinary thinking detectors keep the wait alive.
+const TURN_COMPLETION_CONFIRM_TIMEOUT_MS = 600_000;
 
 export function isLikelyPromptEcho(responseText: string, promptText: string): boolean {
   const trimmedResponse = responseText.trim();
@@ -163,6 +183,7 @@ class InactiveSendOperationError extends Error {
   let activeSendOperation: number | undefined;
   let draftStaging = false;
   let lastResponseText = '';
+  let lastCompletionActivityAt = 0;
   let pendingPromptText = '';
   let lastChunkTime = 0;
 
@@ -288,7 +309,7 @@ class InactiveSendOperationError extends Error {
       v: 1,
       action: 'STATUS_REPORT',
       provider: adapter.provider,
-      payload: { dom: 'ready', login, thinking: isThinking(), bootId: bridge.bootId },
+      payload: { dom: 'ready', login, thinking: isGenerating(), bootId: bridge.bootId },
     });
   }
 
@@ -401,6 +422,7 @@ class InactiveSendOperationError extends Error {
     activeResponseGeneration = responseGeneration;
     waitingForResponse = true;
     lastResponseText = '';
+    lastCompletionActivityAt = Date.now();
     pendingPromptText = text;
     startResponsePolling();
 
@@ -804,26 +826,66 @@ class InactiveSendOperationError extends Error {
     return hasDetector(adapter?.thinkingDetectors);
   }
 
+  // Response completion asks this instead of isThinking(). The split is deliberate: sendStarted()
+  // uses isThinking() to decide whether a send landed, and right after a send the last turn is the
+  // user message, which carries no copy button. Letting the turn signal reach sendStarted() would
+  // make a failed send look accepted and leave the step waiting on a response that never comes.
+  function isGenerating(): boolean {
+    return isThinking() || lastTurnIncomplete();
+  }
+
+  function lastTurnIncomplete(): boolean {
+    if (!waitingForResponse || !adapter || !lastResponseText) return false;
+    const signal = TURN_COMPLETION_SIGNALS[adapter.provider];
+    if (!signal) return false;
+    const turns = document.querySelectorAll(signal.turn);
+    const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
+    if (!lastTurn || typeof lastTurn.querySelector !== 'function') return false;
+    return !lastTurn.querySelector(signal.complete);
+  }
+
+  function failIfTurnCompletionTimedOut(expectedGeneration: number): boolean {
+    const thinking = isThinking();
+    if (thinking) {
+      lastCompletionActivityAt = Date.now();
+    }
+    if (
+      !waitingForResponse ||
+      expectedGeneration !== activeResponseGeneration ||
+      thinking ||
+      !lastTurnIncomplete() ||
+      Date.now() - lastCompletionActivityAt < TURN_COMPLETION_CONFIRM_TIMEOUT_MS
+    ) {
+      return false;
+    }
+    const activeProvider = adapter?.provider;
+    if (!activeProvider) return false;
+    clearCheckDone();
+    doneWithError(`${activeProvider} response completion could not be confirmed`, activeProvider, activeSendOperation);
+    return true;
+  }
+
   function checkIfDone(expectedGeneration = activeResponseGeneration) {
     if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) return;
-    if (isThinking()) {
+    if (failIfTurnCompletionTimedOut(expectedGeneration)) return;
+    if (isGenerating()) {
       if (checkDoneInterval === undefined) {
         checkDoneInterval = window.setInterval(() => {
           if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) {
             clearCheckDone();
             return;
           }
-          if (!isThinking()) {
+          if (failIfTurnCompletionTimedOut(expectedGeneration)) return;
+          if (!isGenerating()) {
             clearCheckDone();
             finishResponseTimeout = window.setTimeout(() => {
               finishResponseTimeout = undefined;
               if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) return;
-              if (isThinking()) {
+              if (failIfTurnCompletionTimedOut(expectedGeneration)) return;
+              if (isGenerating()) {
                 checkIfDone(expectedGeneration);
                 return;
               }
-              const finalText = getLatestResponseText();
-              if (finalText) lastResponseText = finalText;
               finishResponse(expectedGeneration);
             }, timing('doneDelayMs', 3000));
           }
@@ -836,7 +898,10 @@ class InactiveSendOperationError extends Error {
 
   function finishResponse(expectedGeneration = activeResponseGeneration) {
     if (!waitingForResponse || expectedGeneration !== activeResponseGeneration || !adapter) return;
-    const payload = lastResponseText;
+    // Must re-read before cancelResponseWait(): getLatestResponseText filters the send-time
+    // baseline through waitingForResponse and responseBaselineEls, so after the reset it would
+    // return a message that already existed before the send.
+    const payload = finalResponseText(lastResponseText, getLatestResponseText());
     const sendOperation = activeSendOperation;
     cancelResponseWait();
     bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider: adapter.provider, payload });
@@ -880,6 +945,7 @@ class InactiveSendOperationError extends Error {
       if (!currentText || currentText === lastResponseText) return;
       clearFinishResponseTimeout();
       lastResponseText = currentText;
+      lastCompletionActivityAt = Date.now();
 
       const now = Date.now();
       if (now - lastChunkTime >= timing('chunkDebounceMs', 500)) {
@@ -909,6 +975,7 @@ class InactiveSendOperationError extends Error {
       if (!currentText || currentText === lastResponseText) return;
       clearFinishResponseTimeout();
       lastResponseText = currentText;
+      lastCompletionActivityAt = Date.now();
       if (adapter) bridge.emit({ v: 1, action: 'RESPONSE_CHUNK', provider: adapter.provider, payload: currentText });
       if (responseTimeout !== undefined) window.clearTimeout(responseTimeout);
       const expectedGeneration = activeResponseGeneration;

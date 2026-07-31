@@ -974,6 +974,152 @@ describe('injected engine input hardening', () => {
     expect(env.emitted).toContainEqual({ v: 1, action: 'RESPONSE_DONE', provider: 'grok', payload: 'sent response' });
     expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(1);
   });
+
+  it('collects text that lands after the last cached chunk instead of sending a half answer', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      thinkingDetectors: ['.thinking'],
+      timing: {
+        doneDelayMs: 100,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 1_000,
+      },
+    });
+
+    env.thinking = true;
+    send(handler, 'ask something');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'opening line')];
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    // The last render batch lands as the "still generating" signal clears. The cache still holds
+    // only the opening line, the next backup poll is 1000ms away, and the done timer fires in
+    // 100ms — so finishing from the cache would drop the tail.
+    env.responses = [new FakeElement(env.document, 'div', 'opening line and everything after it')];
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: 'opening line and everything after it',
+    });
+  });
+
+  it('keeps waiting while a ChatGPT turn has not grown its copy button, then finishes once it does', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    const turn = new FakeElement(env.document, 'article');
+    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      thinkingDetectors: ['.thinking'],
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
+    });
+
+    env.thinking = true;
+    send(handler, 'ask something', 'chatgpt');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'the full answer')];
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    // The stop button goes away while the turn is still rendering. Finishing here is what used to
+    // cut multi-step answers short, because a pause reads exactly like a finished answer.
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', 'copy-turn-action-button');
+    turn.appendChild(copyButton);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'the full answer',
+    });
+  });
+
+  it('does not time out immediately after a ChatGPT turn spends over ten minutes thinking', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    const turn = new FakeElement(env.document, 'article');
+    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      thinkingDetectors: ['.thinking'],
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
+    });
+
+    env.thinking = true;
+    send(handler, 'take your time', 'chatgpt');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'working draft')];
+    await vi.advanceTimersByTimeAsync(601_000);
+
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    env.responses = [new FakeElement(env.document, 'div', 'finished answer')];
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', 'copy-turn-action-button');
+    turn.appendChild(copyButton);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'finished answer',
+    });
+  });
+
+  it('fails closed instead of returning partial text when ChatGPT completion cannot be confirmed', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    // A turn that never grows a copy button stands in for the testid being renamed upstream.
+    env.detectorElements.set('[data-testid^="conversation-turn-"]', [new FakeElement(env.document, 'article')]);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      thinkingDetectors: ['.thinking'],
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
+    });
+
+    env.thinking = true;
+    send(handler, 'ask something', 'chatgpt');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'the full answer')];
+    await vi.advanceTimersByTimeAsync(1_000);
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(100);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    // Selector drift must not convert an unfinished answer into a successful partial response.
+    await vi.advanceTimersByTimeAsync(599_000);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: '[Error: chatgpt response completion could not be confirmed]',
+    });
+  });
 });
 
 function createEnv(options: { inputKind: 'textarea' | 'contenteditable'; sendButton?: FakeElement | null }): FakeDomEnv {
@@ -1118,6 +1264,10 @@ class FakeElement {
   querySelector(selector: string): FakeElement | null {
     if (selector === 'img, canvas, video') {
       return this.children.find((child) => ['img', 'canvas', 'video'].includes(child.tagName)) ?? null;
+    }
+    const attribute = /^\[([\w-]+)="(.+)"\]$/.exec(selector);
+    if (attribute) {
+      return this.children.find((child) => child.getAttribute(attribute[1]) === attribute[2]) ?? null;
     }
     return null;
   }

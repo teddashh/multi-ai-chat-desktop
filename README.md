@@ -10,14 +10,14 @@ Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** 
 
 > **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Brainstorm keeps four rotating seats and 48 contributions with full same-session history. Every built-in four-role or four-seat setup assigns ChatGPT, Claude, Gemini, and Grok once each. The shipped snapshot/replay tools remain available as-is with no further roadmap.
 
-## v1.8.1 highlights
+## v1.8.4 highlights
 
-- **Accurate Grok challenge status.** A title-preserving Cloudflare/Turnstile widget is reported as blocked without starting the automation bridge or changing the challenge page.
-- **All four providers in built-in four-role setups.** ChatGPT, Claude, Gemini, and Grok are assigned once each; exact legacy defaults migrate once, while customized role maps remain unchanged.
-- **Replay-safe workflow changes.** Updated workflow graphs carry new versions, so incompatible snapshots and replays fail explicitly instead of silently changing provider routing.
-- **A cleaner source toolchain.** Actionable JavaScript development-dependency advisories are cleared, and the Agent-ready source contract now enforces Node.js ^22.13.0 || >=24.0.0.
+- **Complete provider answers.** Finish-time DOM text is authoritative, code blocks containing replacement patterns remain intact, and an unfinished ChatGPT turn cannot silently become a successful partial response.
+- **Bounded Grok login recovery.** Closing an allowed Grok authentication popup can trigger one native reload only while the same document remains blocked; lifecycle ownership and a start lease prevent duplicate or permanently wedged reloads.
+- **Provider-specific challenge guidance.** Grok directs users to complete the solvable check in its pane, while Gemini keeps the required system-browser guidance for Google `/sorry` blocks.
+- **Correct portable update instructions.** The portable README links directly to GitHub Releases because portable mode hides the in-app update controls.
 
-See the bilingual [`v1.8.1 release notes`](./docs/RELEASE_NOTES_v1.8.1.md) for validation evidence, the Grok limitation, and the remaining manual release gates.
+See the bilingual [`v1.8.4 release notes`](./docs/RELEASE_NOTES_v1.8.4.md) for validation evidence, contributor credit, and the remaining manual release gates.
 
 ## Choose the right edition
 
