@@ -102,6 +102,7 @@ export const I18N_KEYS = [
   'provider.adapterBroken',
   'provider.bridgeDegradedReload',
   'provider.embeddedLoginBlocked',
+  'provider.grokChallengeActive',
   'provider.openInBrowser',
   'provider.nativeWebviewHidden',
   'provider.nativeWebviewMounted',

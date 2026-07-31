@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { longerResponseText, serializeResponseText } from '../../injected/responseSerializer';
+import { finalResponseText, serializeResponseText } from '../../injected/responseSerializer';
 
 interface FakeNode {
   nodeType: number;
@@ -115,13 +115,11 @@ describe('serializeResponseText', () => {
   });
 });
 
-describe('longerResponseText', () => {
-  it('takes the freshly read DOM text only when it adds content to the cache', () => {
-    // Streaming is append-only, so the longer text is the complete one.
-    expect(longerResponseText('opening line', 'opening line and the rest')).toBe('opening line and the rest');
-    // The reverse has to hold too: a cleared or replaced container must not overwrite a complete
-    // answer with a shorter read.
-    expect(longerResponseText('the whole answer', 'the')).toBe('the whole answer');
-    expect(longerResponseText('the whole answer', null)).toBe('the whole answer');
+describe('finalResponseText', () => {
+  it('uses the finish-time DOM read as authoritative and falls back only when it is absent', () => {
+    expect(finalResponseText('opening line', 'opening line and the rest')).toBe('opening line and the rest');
+    expect(finalResponseText('a longer streamed draft', 'short final answer')).toBe('short final answer');
+    expect(finalResponseText('same length A', 'same length B')).toBe('same length B');
+    expect(finalResponseText('the cached answer', null)).toBe('the cached answer');
   });
 });

@@ -1033,7 +1033,7 @@ describe('injected engine input hardening', () => {
     env.thinking = false;
     await vi.advanceTimersByTimeAsync(100);
     expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
-    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(31_000);
     expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
 
     const copyButton = new FakeElement(env.document, 'button');
@@ -1050,7 +1050,44 @@ describe('injected engine input hardening', () => {
     });
   });
 
-  it('stops trusting the missing copy button once the response text has gone stale', async () => {
+  it('does not time out immediately after a ChatGPT turn spends over ten minutes thinking', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    const turn = new FakeElement(env.document, 'article');
+    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      thinkingDetectors: ['.thinking'],
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
+    });
+
+    env.thinking = true;
+    send(handler, 'take your time', 'chatgpt');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'working draft')];
+    await vi.advanceTimersByTimeAsync(601_000);
+
+    env.thinking = false;
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    env.responses = [new FakeElement(env.document, 'div', 'finished answer')];
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', 'copy-turn-action-button');
+    turn.appendChild(copyButton);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'finished answer',
+    });
+  });
+
+  it('fails closed instead of returning partial text when ChatGPT completion cannot be confirmed', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
     const handler = await installEngine(env);
@@ -1071,14 +1108,16 @@ describe('injected engine input hardening', () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
 
-    // Without a ceiling the step would hold open to the host keepalive's 60-minute cap.
-    await vi.advanceTimersByTimeAsync(31_000);
+    // Selector drift must not convert an unfinished answer into a successful partial response.
+    await vi.advanceTimersByTimeAsync(599_000);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(2_000);
 
     expect(env.emitted).toContainEqual({
       v: 1,
       action: 'RESPONSE_DONE',
       provider: 'chatgpt',
-      payload: 'the full answer',
+      payload: '[Error: chatgpt response completion could not be confirmed]',
     });
   });
 });

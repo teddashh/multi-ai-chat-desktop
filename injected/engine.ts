@@ -1,7 +1,7 @@
 import type { AIProvider, BridgeMessage } from '../shared/types';
 import { isProviderChallengeActive } from './challenge';
 import { buildReportDigest, type ReportElement } from './reportDigest';
-import { longerResponseText, serializeResponseText } from './responseSerializer';
+import { finalResponseText, serializeResponseText } from './responseSerializer';
 
 type InputStrategyName = 'default' | 'prosemirror-paste' | 'quill-angular';
 type SendStrategy = 'click' | 'enter';
@@ -82,12 +82,10 @@ const TURN_COMPLETION_SIGNALS: Partial<Record<AIProvider, { turn: string; comple
   },
 };
 
-// Ceiling on the signal above. If the copy-button testid is renamed, "still generating" would
-// latch forever, and because the host keepalive refreshes on every thinking report it would hold
-// the step open to its 60-minute absolute cap. So trust the signal only while the response text is
-// still fresh; past that, let the response finish on the ordinary path. Raising this trades a
-// longer worst-case wait for a smaller chance of cutting a slow multi-step answer short.
-const TURN_INCOMPLETE_GRACE_MS = 30_000;
+// Fail closed after the shipped 10-minute inactivity window if the positive completion signal
+// never arrives. A selector rename must surface a retryable error instead of silently returning a
+// partial answer, while fresh response text or the ordinary thinking detectors keep the wait alive.
+const TURN_COMPLETION_CONFIRM_TIMEOUT_MS = 600_000;
 
 export function isLikelyPromptEcho(responseText: string, promptText: string): boolean {
   const trimmedResponse = responseText.trim();
@@ -185,7 +183,7 @@ class InactiveSendOperationError extends Error {
   let activeSendOperation: number | undefined;
   let draftStaging = false;
   let lastResponseText = '';
-  let lastResponseChangeAt = 0;
+  let lastCompletionActivityAt = 0;
   let pendingPromptText = '';
   let lastChunkTime = 0;
 
@@ -424,7 +422,7 @@ class InactiveSendOperationError extends Error {
     activeResponseGeneration = responseGeneration;
     waitingForResponse = true;
     lastResponseText = '';
-    lastResponseChangeAt = Date.now();
+    lastCompletionActivityAt = Date.now();
     pendingPromptText = text;
     startResponsePolling();
 
@@ -837,18 +835,39 @@ class InactiveSendOperationError extends Error {
   }
 
   function lastTurnIncomplete(): boolean {
-    if (!waitingForResponse || !adapter) return false;
+    if (!waitingForResponse || !adapter || !lastResponseText) return false;
     const signal = TURN_COMPLETION_SIGNALS[adapter.provider];
     if (!signal) return false;
-    if (Date.now() - lastResponseChangeAt > TURN_INCOMPLETE_GRACE_MS) return false;
     const turns = document.querySelectorAll(signal.turn);
     const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
     if (!lastTurn || typeof lastTurn.querySelector !== 'function') return false;
     return !lastTurn.querySelector(signal.complete);
   }
 
+  function failIfTurnCompletionTimedOut(expectedGeneration: number): boolean {
+    const thinking = isThinking();
+    if (thinking) {
+      lastCompletionActivityAt = Date.now();
+    }
+    if (
+      !waitingForResponse ||
+      expectedGeneration !== activeResponseGeneration ||
+      thinking ||
+      !lastTurnIncomplete() ||
+      Date.now() - lastCompletionActivityAt < TURN_COMPLETION_CONFIRM_TIMEOUT_MS
+    ) {
+      return false;
+    }
+    const activeProvider = adapter?.provider;
+    if (!activeProvider) return false;
+    clearCheckDone();
+    doneWithError(`${activeProvider} response completion could not be confirmed`, activeProvider, activeSendOperation);
+    return true;
+  }
+
   function checkIfDone(expectedGeneration = activeResponseGeneration) {
     if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) return;
+    if (failIfTurnCompletionTimedOut(expectedGeneration)) return;
     if (isGenerating()) {
       if (checkDoneInterval === undefined) {
         checkDoneInterval = window.setInterval(() => {
@@ -856,11 +875,13 @@ class InactiveSendOperationError extends Error {
             clearCheckDone();
             return;
           }
+          if (failIfTurnCompletionTimedOut(expectedGeneration)) return;
           if (!isGenerating()) {
             clearCheckDone();
             finishResponseTimeout = window.setTimeout(() => {
               finishResponseTimeout = undefined;
               if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) return;
+              if (failIfTurnCompletionTimedOut(expectedGeneration)) return;
               if (isGenerating()) {
                 checkIfDone(expectedGeneration);
                 return;
@@ -880,7 +901,7 @@ class InactiveSendOperationError extends Error {
     // Must re-read before cancelResponseWait(): getLatestResponseText filters the send-time
     // baseline through waitingForResponse and responseBaselineEls, so after the reset it would
     // return a message that already existed before the send.
-    const payload = longerResponseText(lastResponseText, getLatestResponseText());
+    const payload = finalResponseText(lastResponseText, getLatestResponseText());
     const sendOperation = activeSendOperation;
     cancelResponseWait();
     bridge.emit({ v: 1, action: 'RESPONSE_DONE', provider: adapter.provider, payload });
@@ -924,7 +945,7 @@ class InactiveSendOperationError extends Error {
       if (!currentText || currentText === lastResponseText) return;
       clearFinishResponseTimeout();
       lastResponseText = currentText;
-      lastResponseChangeAt = Date.now();
+      lastCompletionActivityAt = Date.now();
 
       const now = Date.now();
       if (now - lastChunkTime >= timing('chunkDebounceMs', 500)) {
@@ -954,7 +975,7 @@ class InactiveSendOperationError extends Error {
       if (!currentText || currentText === lastResponseText) return;
       clearFinishResponseTimeout();
       lastResponseText = currentText;
-      lastResponseChangeAt = Date.now();
+      lastCompletionActivityAt = Date.now();
       if (adapter) bridge.emit({ v: 1, action: 'RESPONSE_CHUNK', provider: adapter.provider, payload: currentText });
       if (responseTimeout !== undefined) window.clearTimeout(responseTimeout);
       const expectedGeneration = activeResponseGeneration;

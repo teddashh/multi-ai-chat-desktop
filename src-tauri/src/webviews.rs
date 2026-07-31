@@ -32,6 +32,8 @@ const CHALLENGE_SIGNALS_JSON: &str = include_str!(concat!(
 const PROVIDER_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows";
 const NEW_SESSION_READY_TIMEOUT_SECS: u64 = 30;
 const NEW_SESSION_READY_POLL_MS: u64 = 150;
+const GROK_POPUP_RECOVERY_DELAY_MS: u64 = 500;
+const GROK_NAVIGATION_START_LEASE_MS: u64 = 15_000;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -224,12 +226,30 @@ struct ProviderRuntime {
     watchdog_started: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GrokNavigationOwner {
+    Lifecycle,
+    PopupReserved,
+    PopupClaimed,
+}
+
+#[derive(Debug, Clone)]
+struct GrokPopupRecoveryRollback {
+    state: ProviderState,
+    engine_boot: Option<String>,
+    bridge_boot: Option<String>,
+    last_push_ms: Option<u64>,
+    stale_check_sent: Option<u64>,
+}
+
 #[derive(Debug, Clone)]
 struct GrokNavigationPreparation {
     epoch: u64,
     previous_epoch: u64,
     previous_adopted_boot: Option<(u64, String)>,
     previous_status_boot: Option<String>,
+    owner: GrokNavigationOwner,
+    popup_rollback: Option<GrokPopupRecoveryRollback>,
 }
 
 static RUNTIME: OnceLock<Mutex<ProviderRuntime>> = OnceLock::new();
@@ -260,16 +280,37 @@ enum GrokBridgeHostAction {
     MarkBlocked,
 }
 
-fn prepare_grok_navigation(provider: &str) -> u64 {
+fn prepare_grok_navigation(provider: &str) -> Result<u64, String> {
     if provider != "grok" {
-        return 0;
+        return Ok(0);
     }
-    let Ok(mut guard) = runtime().lock() else {
-        return 0;
-    };
-    if let Some(pending) = guard.grok_pending_navigation.get(provider) {
-        return pending.epoch;
+    let mut guard = runtime()
+        .lock()
+        .map_err(|_| "provider state poisoned".to_string())?;
+    prepare_grok_navigation_locked(&mut guard, provider)
+        .ok_or_else(|| format!("provider navigation is already in progress: {provider}"))
+}
+
+fn prepare_grok_navigation_locked(guard: &mut ProviderRuntime, provider: &str) -> Option<u64> {
+    if let Some(pending) = guard.grok_pending_navigation.get_mut(provider) {
+        if pending.owner == GrokNavigationOwner::PopupReserved {
+            pending.owner = GrokNavigationOwner::Lifecycle;
+            return Some(pending.epoch);
+        }
+        return None;
     }
+    Some(insert_grok_navigation_locked(
+        guard,
+        provider,
+        GrokNavigationOwner::Lifecycle,
+    ))
+}
+
+fn insert_grok_navigation_locked(
+    guard: &mut ProviderRuntime,
+    provider: &str,
+    owner: GrokNavigationOwner,
+) -> u64 {
     let previous_epoch = guard
         .grok_document_epoch
         .get(provider)
@@ -285,9 +326,122 @@ fn prepare_grok_navigation(provider: &str) -> u64 {
             previous_epoch,
             previous_adopted_boot,
             previous_status_boot,
+            owner,
+            popup_rollback: None,
         },
     );
     next_epoch
+}
+
+fn grok_auth_popup_may_complete_login(provider: &str, url: &tauri::Url) -> bool {
+    if provider != "grok" || !adapters::url_allowed_for_sso(provider, url).unwrap_or(false) {
+        return false;
+    }
+    !url.host_str().is_some_and(|host| {
+        host == "challenges.cloudflare.com" || host.ends_with(".challenges.cloudflare.com")
+    })
+}
+
+fn grok_popup_recovery_needed(
+    state: &ProviderState,
+    observed_epoch: u64,
+    current_epoch: u64,
+    navigation_pending: bool,
+) -> bool {
+    state.provider == "grok"
+        && state.webview == "loaded"
+        && state.dom == "unknown"
+        && state.login == "blocked"
+        && observed_epoch != 0
+        && observed_epoch == current_epoch
+        && !navigation_pending
+}
+
+fn prepare_grok_popup_recovery(provider: &str, observed_epoch: u64) -> Option<u64> {
+    let Ok(mut guard) = runtime().lock() else {
+        return None;
+    };
+    let current_epoch = guard
+        .grok_document_epoch
+        .get(provider)
+        .copied()
+        .unwrap_or_default();
+    let state = guard.states.get(provider)?.clone();
+    if !grok_popup_recovery_needed(
+        &state,
+        observed_epoch,
+        current_epoch,
+        guard.grok_pending_navigation.contains_key(provider),
+    ) {
+        return None;
+    }
+    Some(insert_grok_navigation_locked(
+        &mut guard,
+        provider,
+        GrokNavigationOwner::PopupReserved,
+    ))
+}
+
+fn claim_grok_popup_recovery(provider: &str, observed_epoch: u64, prepared_epoch: u64) -> bool {
+    let Ok(mut guard) = runtime().lock() else {
+        return false;
+    };
+    let Some(pending) = guard.grok_pending_navigation.get(provider) else {
+        return false;
+    };
+    if pending.owner != GrokNavigationOwner::PopupReserved
+        || pending.epoch != prepared_epoch
+        || pending.previous_epoch != observed_epoch
+    {
+        return false;
+    }
+    let current_epoch = guard
+        .grok_document_epoch
+        .get(provider)
+        .copied()
+        .unwrap_or_default();
+    let Some(previous_state) = guard.states.get(provider).cloned() else {
+        return false;
+    };
+    if !grok_popup_recovery_needed(&previous_state, observed_epoch, current_epoch, false) {
+        return false;
+    }
+
+    let rollback = GrokPopupRecoveryRollback {
+        state: previous_state.clone(),
+        engine_boot: guard.engine_boot.remove(provider),
+        bridge_boot: guard.bridge_boot.remove(provider),
+        last_push_ms: guard.last_push_ms.remove(provider),
+        stale_check_sent: guard.stale_check_sent.remove(provider),
+    };
+    let mut next_state = previous_state;
+    reset_state_for_page_load(&mut next_state);
+    guard.states.insert(provider.to_string(), next_state);
+    let Some(pending) = guard.grok_pending_navigation.get_mut(provider) else {
+        return false;
+    };
+    pending.owner = GrokNavigationOwner::PopupClaimed;
+    pending.popup_rollback = Some(rollback);
+    true
+}
+
+fn grok_popup_recovery_claim_is_current(provider: &str, prepared_epoch: u64) -> bool {
+    runtime().lock().ok().is_some_and(|guard| {
+        let Some(pending) = guard.grok_pending_navigation.get(provider) else {
+            return false;
+        };
+        pending.owner == GrokNavigationOwner::PopupClaimed
+            && pending.epoch == prepared_epoch
+            && guard.grok_document_epoch.get(provider).copied() == Some(pending.previous_epoch)
+            && guard.states.get(provider).is_some_and(|state| {
+                grok_popup_recovery_needed(
+                    state,
+                    pending.previous_epoch,
+                    pending.previous_epoch,
+                    false,
+                )
+            })
+    })
 }
 
 fn confirm_grok_page_load(provider: &str) -> u64 {
@@ -313,7 +467,11 @@ fn confirm_grok_page_load(provider: &str) -> u64 {
     *epoch
 }
 
-fn cancel_grok_navigation(provider: &str, prepared_epoch: u64) {
+fn cancel_grok_navigation_owned(
+    provider: &str,
+    prepared_epoch: u64,
+    expected_owners: &[GrokNavigationOwner],
+) {
     if provider != "grok" || prepared_epoch == 0 {
         return;
     }
@@ -323,7 +481,7 @@ fn cancel_grok_navigation(provider: &str, prepared_epoch: u64) {
     let Some(pending) = guard.grok_pending_navigation.get(provider).cloned() else {
         return;
     };
-    if pending.epoch != prepared_epoch {
+    if pending.epoch != prepared_epoch || !expected_owners.contains(&pending.owner) {
         return;
     }
     if guard
@@ -336,6 +494,46 @@ fn cancel_grok_navigation(provider: &str, prepared_epoch: u64) {
         return;
     }
     guard.grok_pending_navigation.remove(provider);
+    if pending.owner == GrokNavigationOwner::Lifecycle {
+        guard.pending_session_boot.remove(provider);
+    }
+    if let Some(rollback) = pending.popup_rollback {
+        guard.states.insert(provider.to_string(), rollback.state);
+        match rollback.engine_boot {
+            Some(previous) => {
+                guard.engine_boot.insert(provider.to_string(), previous);
+            }
+            None => {
+                guard.engine_boot.remove(provider);
+            }
+        }
+        match rollback.bridge_boot {
+            Some(previous) => {
+                guard.bridge_boot.insert(provider.to_string(), previous);
+            }
+            None => {
+                guard.bridge_boot.remove(provider);
+            }
+        }
+        match rollback.last_push_ms {
+            Some(previous) => {
+                guard.last_push_ms.insert(provider.to_string(), previous);
+            }
+            None => {
+                guard.last_push_ms.remove(provider);
+            }
+        }
+        match rollback.stale_check_sent {
+            Some(previous) => {
+                guard
+                    .stale_check_sent
+                    .insert(provider.to_string(), previous);
+            }
+            None => {
+                guard.stale_check_sent.remove(provider);
+            }
+        }
+    }
     match pending.previous_adopted_boot {
         Some(previous) => {
             guard
@@ -354,6 +552,44 @@ fn cancel_grok_navigation(provider: &str, prepared_epoch: u64) {
             guard.status_boot.remove(provider);
         }
     }
+}
+
+fn cancel_grok_navigation(provider: &str, prepared_epoch: u64) {
+    cancel_grok_navigation_owned(provider, prepared_epoch, &[GrokNavigationOwner::Lifecycle]);
+}
+
+fn cancel_grok_popup_recovery(provider: &str, prepared_epoch: u64) {
+    cancel_grok_navigation_owned(
+        provider,
+        prepared_epoch,
+        &[
+            GrokNavigationOwner::PopupReserved,
+            GrokNavigationOwner::PopupClaimed,
+        ],
+    );
+}
+
+fn expire_grok_navigation_start_lease(
+    provider: &str,
+    prepared_epoch: u64,
+    owner: GrokNavigationOwner,
+) {
+    cancel_grok_navigation_owned(provider, prepared_epoch, &[owner]);
+}
+
+fn schedule_grok_navigation_start_lease(
+    provider: &str,
+    prepared_epoch: u64,
+    owner: GrokNavigationOwner,
+) {
+    if provider != "grok" || prepared_epoch == 0 {
+        return;
+    }
+    let provider = provider.to_string();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(GROK_NAVIGATION_START_LEASE_MS)).await;
+        expire_grok_navigation_start_lease(&provider, prepared_epoch, owner);
+    });
 }
 
 fn retire_grok_document(provider: &str) {
@@ -912,14 +1148,17 @@ pub async fn provider_open(
         .on_new_window(move |url, features| {
             // Challenge auxiliary about: documents are allowed only as in-webview navigation.
             // Keep all non-HTTP(S) popups fail-closed; Turnstile does not require popup windows.
-            let allowlisted = adapters::url_allowed_for_provider(&popup_provider, &url)
-                .unwrap_or(false)
-                || adapters::url_allowed_for_sso(&popup_provider, &url).unwrap_or(false);
+            let provider_allowed =
+                adapters::url_allowed_for_provider(&popup_provider, &url).unwrap_or(false);
+            let sso_allowed = adapters::url_allowed_for_sso(&popup_provider, &url).unwrap_or(false);
+            let allowlisted = provider_allowed || sso_allowed;
             match decide_new_window_action(&url, allowlisted) {
                 // Host popups in our own decorated window: the platform-default popup
                 // (WebView2) is undecorated, so it can't be dragged off the page it covers.
                 // window_features() wires the opener environment, so OAuth flows keep working.
                 NewWindowAction::AllowPopup => {
+                    let recovery_epoch = grok_auth_popup_may_complete_login(&popup_provider, &url)
+                        .then(|| current_grok_document_epoch(&popup_provider));
                     static POPUP_SEQ: AtomicUsize = AtomicUsize::new(0);
                     let label = format!(
                         "provider-popup-{}",
@@ -936,7 +1175,31 @@ pub async fn provider_open(
                         let _ = window.set_title(&title);
                     });
                     match builder.build() {
-                        Ok(window) => NewWindowResponse::Create { window },
+                        Ok(window) => {
+                            if let Some(observed_epoch) = recovery_epoch {
+                                let recovery_app = popup_app.clone();
+                                let recovery_provider = popup_provider.clone();
+                                window.on_window_event(move |event| {
+                                    if !matches!(event, tauri::WindowEvent::Destroyed) {
+                                        return;
+                                    }
+                                    let recovery_app = recovery_app.clone();
+                                    let recovery_provider = recovery_provider.clone();
+                                    tauri::async_runtime::spawn(async move {
+                                        tokio::time::sleep(Duration::from_millis(
+                                            GROK_POPUP_RECOVERY_DELAY_MS,
+                                        ))
+                                        .await;
+                                        recover_grok_after_auth_popup(
+                                            &recovery_app,
+                                            &recovery_provider,
+                                            observed_epoch,
+                                        );
+                                    });
+                                });
+                            }
+                            NewWindowResponse::Create { window }
+                        }
                         Err(_) => NewWindowResponse::Allow,
                     }
                 }
@@ -955,7 +1218,7 @@ pub async fn provider_open(
             }
         });
 
-    let prepared_epoch = prepare_grok_navigation(&provider);
+    let prepared_epoch = prepare_grok_navigation(&provider)?;
     let webview = match window.add_child(builder, position, size) {
         Ok(webview) => webview,
         Err(error) => {
@@ -963,7 +1226,11 @@ pub async fn provider_open(
             return Err(error.to_string());
         }
     };
-    webview.show().map_err(|error| error.to_string())?;
+    if let Err(error) = webview.show() {
+        cancel_grok_navigation(&provider, prepared_epoch);
+        return Err(error.to_string());
+    }
+    schedule_grok_navigation_start_lease(&provider, prepared_epoch, GrokNavigationOwner::Lifecycle);
     let current = current_state(&provider);
     let state = if current.webview == "loaded" {
         current
@@ -1147,6 +1414,47 @@ pub async fn provider_open_login_external(
         .map_err(|error| error.to_string())
 }
 
+fn reload_provider_document_after_prepare(
+    app: &AppHandle,
+    provider: &str,
+    prepared_epoch: u64,
+) -> Result<(), String> {
+    reset_bridge_state(app, provider);
+    let reload_result = get_provider_webview(app, provider)
+        .and_then(|provider_webview| provider_webview.reload().map_err(|error| error.to_string()));
+    if let Err(error) = reload_result {
+        cancel_grok_navigation(provider, prepared_epoch);
+        return Err(error);
+    }
+    schedule_grok_navigation_start_lease(provider, prepared_epoch, GrokNavigationOwner::Lifecycle);
+    Ok(())
+}
+
+fn recover_grok_after_auth_popup(app: &AppHandle, provider: &str, observed_epoch: u64) {
+    let Some(prepared_epoch) = prepare_grok_popup_recovery(provider, observed_epoch) else {
+        return;
+    };
+    let Ok(provider_webview) = get_provider_webview(app, provider) else {
+        cancel_grok_popup_recovery(provider, prepared_epoch);
+        return;
+    };
+    if !claim_grok_popup_recovery(provider, observed_epoch, prepared_epoch)
+        || !grok_popup_recovery_claim_is_current(provider, prepared_epoch)
+    {
+        cancel_grok_popup_recovery(provider, prepared_epoch);
+        return;
+    }
+    if provider_webview.reload().is_err() {
+        cancel_grok_popup_recovery(provider, prepared_epoch);
+        return;
+    }
+    schedule_grok_navigation_start_lease(
+        provider,
+        prepared_epoch,
+        GrokNavigationOwner::PopupClaimed,
+    );
+}
+
 #[tauri::command]
 pub async fn provider_reload(
     app: AppHandle,
@@ -1154,15 +1462,8 @@ pub async fn provider_reload(
     provider: String,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
-    let prepared_epoch = prepare_grok_navigation(&provider);
-    reset_bridge_state(&app, &provider);
-    let reload_result = get_provider_webview(&app, &provider)
-        .and_then(|provider_webview| provider_webview.reload().map_err(|error| error.to_string()));
-    if let Err(error) = reload_result {
-        cancel_grok_navigation(&provider, prepared_epoch);
-        return Err(error);
-    }
-    Ok(())
+    let prepared_epoch = prepare_grok_navigation(&provider)?;
+    reload_provider_document_after_prepare(&app, &provider, prepared_epoch)
 }
 
 #[tauri::command]
@@ -1178,7 +1479,7 @@ pub async fn provider_new_session(
     let adapter = adapters::get_adapter(&provider)?;
     let app_url = tauri::Url::parse(&adapter.urls.app)
         .map_err(|error| format!("invalid provider app URL: {error}"))?;
-    let prepared_epoch = prepare_grok_navigation(&provider);
+    let prepared_epoch = prepare_grok_navigation(&provider)?;
     if let Err(error) = begin_session_reset(&app, &provider) {
         cancel_grok_navigation(&provider, prepared_epoch);
         return Err(error);
@@ -1193,6 +1494,8 @@ pub async fn provider_new_session(
         cancel_grok_navigation(&provider, prepared_epoch);
         return Err(error);
     }
+    // This command's ready deadline is also its navigation-start lease. Keeping one owner here
+    // avoids a shorter background lease releasing the token while this async command still polls.
 
     let deadline =
         tokio::time::Instant::now() + Duration::from_secs(NEW_SESSION_READY_TIMEOUT_SECS);
@@ -1900,21 +2203,24 @@ mod tests {
 
     use super::{
         accept_status_for_session_reset, adopt_grok_bridge_boot, bridge_resets_on_boot_rotation,
-        cancel_grok_navigation, cancel_session_reset, challenge_auxiliary_navigation_allowed,
-        confirm_grok_page_load, decide_new_window_action, delayed_grok_bridge_script,
-        eval_callback_reports_true, fresh_session_boot, gemini_sorry_navigation_active,
-        generic_staleness_dispatch_allowed, grok_app_title_ready, grok_bridge_drive_allowed,
-        grok_bridge_host_action, grok_bridge_install_ready, grok_bridge_result_is_current,
-        grok_challenge_title_active, grok_document_title_signal, parse_grok_bridge_drive_outcome,
-        physical_bounds, popup_initial_title, prepare_grok_navigation,
+        cancel_grok_navigation, cancel_grok_popup_recovery, cancel_session_reset,
+        challenge_auxiliary_navigation_allowed, claim_grok_popup_recovery, confirm_grok_page_load,
+        decide_new_window_action, delayed_grok_bridge_script, eval_callback_reports_true,
+        expire_grok_navigation_start_lease, fresh_session_boot, gemini_sorry_navigation_active,
+        generic_staleness_dispatch_allowed, grok_app_title_ready,
+        grok_auth_popup_may_complete_login, grok_bridge_drive_allowed, grok_bridge_host_action,
+        grok_bridge_install_ready, grok_bridge_result_is_current, grok_challenge_title_active,
+        grok_document_title_signal, grok_popup_recovery_claim_is_current,
+        grok_popup_recovery_needed, parse_grok_bridge_drive_outcome, physical_bounds,
+        popup_initial_title, prepare_grok_navigation, prepare_grok_popup_recovery,
         provider_document_allows_generic_eval, provider_show_should_focus,
         provider_state_allows_control_eval, provider_uses_document_start_bridge,
         provider_uses_permission_shim, record_grok_bridge_challenge, reset_state_for_page_load,
-        runtime, should_drive_grok_bridge, should_drive_grok_bridge_from_background,
-        should_reset_bridge_on_boot_rotation, staleness_action, state_with, Bounds,
-        GrokBridgeDriveOutcome, GrokBridgeDriveResult, GrokBridgeHostAction,
-        GrokDocumentTitleSignal, NewWindowAction, StalenessAction, CHALLENGE_SIGNALS_JSON,
-        PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
+        retire_grok_document, runtime, should_drive_grok_bridge,
+        should_drive_grok_bridge_from_background, should_reset_bridge_on_boot_rotation,
+        staleness_action, state_with, Bounds, GrokBridgeDriveOutcome, GrokBridgeDriveResult,
+        GrokBridgeHostAction, GrokDocumentTitleSignal, GrokNavigationOwner, NewWindowAction,
+        StalenessAction, CHALLENGE_SIGNALS_JSON, PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
     };
 
     static GROK_RUNTIME_TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -2024,6 +2330,45 @@ mod tests {
             ),
             NewWindowAction::AllowPopup
         );
+    }
+
+    #[test]
+    fn grok_popup_recovery_is_limited_to_auth_hosts() {
+        assert!(grok_auth_popup_may_complete_login(
+            "grok",
+            &url("https://accounts.google.com/o/oauth2/v2/auth?client_id=test")
+        ));
+        assert!(grok_auth_popup_may_complete_login(
+            "grok",
+            &url("https://auth.grokusercontent.com/api/auth/callback/google")
+        ));
+        assert!(!grok_auth_popup_may_complete_login(
+            "grok",
+            &url("https://grok.com/chat")
+        ));
+        assert!(!grok_auth_popup_may_complete_login(
+            "grok",
+            &url("https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b")
+        ));
+        assert!(!grok_auth_popup_may_complete_login(
+            "chatgpt",
+            &url("https://accounts.google.com/o/oauth2/v2/auth")
+        ));
+    }
+
+    #[test]
+    fn grok_popup_recovery_requires_the_same_blocked_document() {
+        let blocked = state_with("grok", "loaded", "unknown", "blocked", false);
+        assert!(grok_popup_recovery_needed(&blocked, 7, 7, false));
+        assert!(!grok_popup_recovery_needed(&blocked, 6, 7, false));
+        assert!(!grok_popup_recovery_needed(&blocked, 7, 7, true));
+
+        let ready = state_with("grok", "loaded", "ready", "logged_in", false);
+        assert!(!grok_popup_recovery_needed(&ready, 7, 7, false));
+        let logged_out = state_with("grok", "loaded", "unknown", "logged_out", false);
+        assert!(!grok_popup_recovery_needed(&logged_out, 7, 7, false));
+        let other_provider = state_with("chatgpt", "loaded", "unknown", "blocked", false);
+        assert!(!grok_popup_recovery_needed(&other_provider, 7, 7, false));
     }
 
     #[test]
@@ -2582,12 +2927,12 @@ mod tests {
             guard.pending_session_boot.remove(provider);
         }
 
-        let first_epoch = prepare_grok_navigation(provider);
+        let first_epoch = prepare_grok_navigation(provider).expect("first navigation reservation");
         assert_eq!(confirm_grok_page_load(provider), first_epoch);
         assert!(adopt_grok_bridge_boot(provider, first_epoch, "old-boot"));
         assert!(accept_status_for_session_reset(provider, Some("old-boot")));
 
-        let next_epoch = prepare_grok_navigation(provider);
+        let next_epoch = prepare_grok_navigation(provider).expect("next navigation reservation");
         assert!(!grok_bridge_result_is_current(provider, first_epoch));
         assert!(!adopt_grok_bridge_boot(provider, first_epoch, "old-boot"));
         assert!(!accept_status_for_session_reset(provider, Some("old-boot")));
@@ -2598,7 +2943,8 @@ mod tests {
         assert!(accept_status_for_session_reset(provider, Some("new-boot")));
         assert!(accept_status_for_session_reset(provider, Some("new-boot")));
 
-        let restored_epoch = prepare_grok_navigation(provider);
+        let restored_epoch =
+            prepare_grok_navigation(provider).expect("restored navigation reservation");
         assert_eq!(confirm_grok_page_load(provider), restored_epoch);
         assert!(adopt_grok_bridge_boot(provider, restored_epoch, "old-boot"));
         assert!(accept_status_for_session_reset(provider, Some("old-boot")));
@@ -2623,12 +2969,13 @@ mod tests {
             guard.pending_session_boot.remove(provider);
         }
 
-        let live_epoch = prepare_grok_navigation(provider);
+        let live_epoch = prepare_grok_navigation(provider).expect("live navigation reservation");
         assert_eq!(confirm_grok_page_load(provider), live_epoch);
         assert!(adopt_grok_bridge_boot(provider, live_epoch, "live-boot"));
         assert!(accept_status_for_session_reset(provider, Some("live-boot")));
 
-        let failed_epoch = prepare_grok_navigation(provider);
+        let failed_epoch =
+            prepare_grok_navigation(provider).expect("failed navigation reservation");
         assert!(!accept_status_for_session_reset(
             provider,
             Some("live-boot")
@@ -2641,6 +2988,185 @@ mod tests {
         guard.grok_adopted_boot.remove(provider);
         guard.grok_pending_navigation.remove(provider);
         guard.grok_document_epoch.remove(provider);
+    }
+
+    #[test]
+    fn navigation_start_lease_reopens_manual_recovery_and_ignores_stale_tokens() {
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.grok_document_epoch.insert(provider.into(), 50);
+            guard.grok_pending_navigation.remove(provider);
+            guard
+                .pending_session_boot
+                .insert(provider.into(), Some("old-session".into()));
+        }
+
+        let timed_out = prepare_grok_navigation(provider).expect("timed-out lifecycle reservation");
+        expire_grok_navigation_start_lease(provider, timed_out, GrokNavigationOwner::PopupClaimed);
+        assert!(prepare_grok_navigation(provider).is_err());
+
+        expire_grok_navigation_start_lease(provider, timed_out, GrokNavigationOwner::Lifecycle);
+        {
+            let guard = runtime().lock().expect("provider runtime lock");
+            assert!(!guard.grok_pending_navigation.contains_key(provider));
+            assert!(!guard.pending_session_boot.contains_key(provider));
+        }
+
+        let retry = prepare_grok_navigation(provider).expect("retry after lease expiry");
+        assert_eq!(confirm_grok_page_load(provider), retry);
+        let newer = prepare_grok_navigation(provider).expect("newer lifecycle reservation");
+        expire_grok_navigation_start_lease(provider, retry, GrokNavigationOwner::Lifecycle);
+        assert!(prepare_grok_navigation(provider).is_err());
+        cancel_grok_navigation(provider, newer);
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.grok_document_epoch.remove(provider);
+        guard.grok_pending_navigation.remove(provider);
+        guard.pending_session_boot.remove(provider);
+    }
+
+    #[test]
+    fn popup_recovery_reservation_is_single_owner_and_manual_navigation_supersedes_it() {
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.states.insert(
+                provider.into(),
+                state_with(provider, "loaded", "unknown", "blocked", false),
+            );
+            guard.grok_document_epoch.insert(provider.into(), 41);
+            guard.grok_pending_navigation.remove(provider);
+            guard.grok_adopted_boot.remove(provider);
+            guard.status_boot.remove(provider);
+        }
+
+        assert!(prepare_grok_popup_recovery(provider, 40).is_none());
+        let prepared = prepare_grok_popup_recovery(provider, 41)
+            .expect("current blocked popup should recover");
+        assert_eq!(prepared, 42);
+        assert!(prepare_grok_popup_recovery(provider, 41).is_none());
+        let manual = prepare_grok_navigation(provider)
+            .expect("manual navigation should supersede an unclaimed popup recovery");
+        assert_eq!(manual, prepared);
+        assert!(!claim_grok_popup_recovery(provider, 41, prepared));
+        assert!(prepare_grok_navigation(provider).is_err());
+        cancel_grok_navigation(provider, manual);
+
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.states.insert(
+                provider.into(),
+                state_with(provider, "loaded", "ready", "logged_in", false),
+            );
+        }
+        assert!(prepare_grok_popup_recovery(provider, 41).is_none());
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.states.remove(provider);
+        guard.grok_document_epoch.remove(provider);
+        guard.grok_pending_navigation.remove(provider);
+        guard.grok_adopted_boot.remove(provider);
+        guard.status_boot.remove(provider);
+    }
+
+    #[test]
+    fn claimed_popup_recovery_rolls_back_on_failure_and_close_invalidates_it() {
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        let mut previous_state = state_with(provider, "loaded", "unknown", "blocked", false);
+        previous_state.bridge = "degraded".into();
+        previous_state.bridge_reason = Some("previous bridge".into());
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.states.insert(provider.into(), previous_state.clone());
+            guard.grok_document_epoch.insert(provider.into(), 41);
+            guard
+                .grok_adopted_boot
+                .insert(provider.into(), (41, "old-adopted".into()));
+            guard
+                .status_boot
+                .insert(provider.into(), "old-status".into());
+            guard
+                .engine_boot
+                .insert(provider.into(), "old-engine".into());
+            guard
+                .bridge_boot
+                .insert(provider.into(), "old-bridge".into());
+            guard.last_push_ms.insert(provider.into(), 71);
+            guard.stale_check_sent.insert(provider.into(), 72);
+            guard.grok_pending_navigation.remove(provider);
+        }
+
+        let prepared = prepare_grok_popup_recovery(provider, 41)
+            .expect("current blocked popup should reserve recovery");
+        assert!(claim_grok_popup_recovery(provider, 41, prepared));
+        assert!(grok_popup_recovery_claim_is_current(provider, prepared));
+        assert!(prepare_grok_navigation(provider).is_err());
+        {
+            let guard = runtime().lock().expect("provider runtime lock");
+            assert!(!provider_document_allows_generic_eval(
+                provider,
+                true,
+                guard.states.get(provider),
+                41,
+                Some(41),
+                Some(41),
+                guard.grok_pending_navigation.contains_key(provider),
+            ));
+        }
+
+        // Reload enqueue can succeed without a Started event. Lease expiry must restore the live
+        // blocked document's full runtime snapshot and reopen manual recovery.
+        expire_grok_navigation_start_lease(provider, prepared, GrokNavigationOwner::PopupClaimed);
+        {
+            let guard = runtime().lock().expect("provider runtime lock");
+            assert_eq!(guard.states.get(provider), Some(&previous_state));
+            assert_eq!(
+                guard.grok_adopted_boot.get(provider),
+                Some(&(41, "old-adopted".into()))
+            );
+            assert_eq!(
+                guard.status_boot.get(provider).map(String::as_str),
+                Some("old-status")
+            );
+            assert_eq!(
+                guard.engine_boot.get(provider).map(String::as_str),
+                Some("old-engine")
+            );
+            assert_eq!(
+                guard.bridge_boot.get(provider).map(String::as_str),
+                Some("old-bridge")
+            );
+            assert_eq!(guard.last_push_ms.get(provider), Some(&71));
+            assert_eq!(guard.stale_check_sent.get(provider), Some(&72));
+            assert!(!guard.grok_pending_navigation.contains_key(provider));
+        }
+
+        // Closing the provider retires the claimed token before any delayed reload can run.
+        let close_prepared =
+            prepare_grok_popup_recovery(provider, 41).expect("second popup recovery reservation");
+        assert!(claim_grok_popup_recovery(provider, 41, close_prepared));
+        retire_grok_document(provider);
+        assert!(!grok_popup_recovery_claim_is_current(
+            provider,
+            close_prepared
+        ));
+        cancel_grok_popup_recovery(provider, close_prepared);
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.states.remove(provider);
+        guard.engine_boot.remove(provider);
+        guard.bridge_boot.remove(provider);
+        guard.status_boot.remove(provider);
+        guard.grok_document_epoch.remove(provider);
+        guard.grok_app_title_epoch.remove(provider);
+        guard.grok_adopted_boot.remove(provider);
+        guard.grok_pending_navigation.remove(provider);
+        guard.last_push_ms.remove(provider);
+        guard.stale_check_sent.remove(provider);
     }
 
     #[test]

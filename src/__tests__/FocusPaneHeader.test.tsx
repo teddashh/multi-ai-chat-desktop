@@ -131,6 +131,19 @@ describe('FocusPane provider header', () => {
     expect(html).toContain('Open in browser');
   });
 
+  it('keeps system-browser guidance when Gemini embedded login is blocked', () => {
+    const html = renderFocusPane({
+      centeredProvider: 'gemini',
+      stateOverrides: { gemini: { login: 'blocked' } },
+    });
+
+    expect(html).toContain(
+      'Security checks on this site prevent sign-in within the app. Use this AI in your browser, or retry this page later.',
+    );
+    expect(html).not.toContain('Complete it in this pane');
+    expect(html).toContain('Open in browser');
+  });
+
   it('hides the connection strip while the stage is temporarily expanded so the webview gets the full pane', () => {
     const collapsed = renderFocusPane({ stageExpanded: false });
     const expanded = renderFocusPane({ stageExpanded: true });

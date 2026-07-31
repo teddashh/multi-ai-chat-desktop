@@ -26,13 +26,10 @@ interface SerializationContext {
   protectedBlocks: string[];
 }
 
-// Which text to send when a response finishes. Measured against ChatGPT: the answer was 39
-// characters at the moment the stop button disappeared and 301 characters 1.07s later. The
-// "still generating" signal ends before the last render batch, so sending only the text cached
-// during streaming loses the tail — and when the cache holds just the opening line, that line
-// becomes the whole answer. Streaming is append-only, so the longer text is the complete one.
-export function longerResponseText(cached: string, fresh: string | null): string {
-  return fresh && fresh.length > cached.length ? fresh : cached;
+// The finish-time DOM read is authoritative even when the provider revised or shortened its
+// answer. The streamed cache is only a fallback when the current response node disappeared.
+export function finalResponseText(cached: string, fresh: string | null): string {
+  return fresh ?? cached;
 }
 
 export function serializeResponseText(root: Element): string {
