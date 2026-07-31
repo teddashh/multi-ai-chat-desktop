@@ -10,14 +10,14 @@
 
 > **專案狀態：** 功能開發已完成，最後一套可選的 AI-Sister 四角色同框紀念 Theme 與 12 輪「腦力激盪」預設已加入；之後僅維護 provider 相容性、安全問題與 build 失敗。腦力激盪保留四個輪換席位、48 次發言與同一 session 的完整前文。所有內建的四角色或四席預設都會讓 ChatGPT、Claude、Gemini、Grok 各擔任一次。現有 snapshot／replay 會原樣保留且不再擴充。
 
-## v1.8.1 更新重點
+## v1.8.4 更新重點
 
-- **正確顯示 Grok 驗證狀態。** 即使 Cloudflare／Turnstile widget 保留原本頁面標題，app 仍會回報 blocked，且不啟動自動化 bridge、不修改驗證頁面。
-- **內建四角色配置完整使用四家 provider。** ChatGPT、Claude、Gemini、Grok 各擔任一次；完全符合舊預設的設定只遷移一次，使用者自訂配置則保持不變。
-- **保護 snapshot／replay 相容性。** Provider routing 有變更的 workflow graph 會使用新版號；不相容的 snapshot 或 replay 會明確失敗，不會悄悄改用新路由。
-- **更乾淨的原始碼工具鏈。** 已清除可處理的 JavaScript 開發依賴警示，Agent-ready source contract 現在明確要求 Node.js ^22.13.0 || >=24.0.0。
+- **完整保留 provider 回答。** 完成當下的 DOM 文字是最終依據；含 replacement pattern 的 code block 不會被改寫，未完成的 ChatGPT turn 也不會悄悄變成成功的殘缺回答。
+- **有界的 Grok 登入恢復。** 關閉允許的 Grok 驗證 popup 後，只有同一份 document 仍為 blocked 時才會觸發一次原生 reload；生命週期 ownership 與 start lease 會避免重複 reload 或永久卡住。
+- **依 provider 分流驗證提示。** Grok 會引導使用者在 pane 內完成可解的驗證；Gemini 遇到 Google `/sorry` block 時則保留必要的系統瀏覽器指引。
+- **正確的 portable 更新說明。** Portable mode 會隱藏 app 內更新控制，因此 portable README 現在直接連到 GitHub Releases。
 
-完整驗證證據、Grok 限制與尚待完成的人工發布門檻，請見雙語版 [`v1.8.1 發布說明`](./docs/RELEASE_NOTES_v1.8.1.md)。
+完整驗證證據、貢獻者資訊與尚待完成的人工發布門檻，請見雙語版 [`v1.8.4 發布說明`](./docs/RELEASE_NOTES_v1.8.4.md)。
 
 ## 選擇適合的版本
 
