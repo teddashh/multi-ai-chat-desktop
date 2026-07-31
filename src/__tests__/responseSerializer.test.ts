@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { serializeResponseText } from '../../injected/responseSerializer';
+import { longerResponseText, serializeResponseText } from '../../injected/responseSerializer';
 
 interface FakeNode {
   nodeType: number;
@@ -89,6 +89,19 @@ describe('serializeResponseText', () => {
     expect(serialize(root)).toBe('```\nif x:\n    y()\n```');
   });
 
+  it('restores code blocks verbatim when they contain String.replace substitution patterns', () => {
+    // $&, $' and $` are special inside a replacement string and rewrite the block with the
+    // placeholder or the surrounding text. The result still looks like valid code, and it is
+    // forwarded verbatim to the next AI in the workflow.
+    const code = 'echo "$&" && echo \'$`\' && echo "$\'" && echo "100$$"';
+    const root = element('div', [
+      element('p', [text('Run this:')]),
+      element('pre', [element('code', [text(code)])]),
+    ]);
+
+    expect(serialize(root)).toBe(`Run this:\n\n\`\`\`\n${code}\n\`\`\``);
+  });
+
   it('ignores non-elements safely and falls back when childNodes is unavailable', () => {
     const root = element('div', [
       { nodeType: 8, textContent: 'hidden comment' },
@@ -99,5 +112,16 @@ describe('serializeResponseText', () => {
 
     expect(serialize(root)).toBe('visible');
     expect(serializeResponseText(bare as unknown as Element)).toBe('native answer');
+  });
+});
+
+describe('longerResponseText', () => {
+  it('takes the freshly read DOM text only when it adds content to the cache', () => {
+    // Streaming is append-only, so the longer text is the complete one.
+    expect(longerResponseText('opening line', 'opening line and the rest')).toBe('opening line and the rest');
+    // The reverse has to hold too: a cleared or replaced container must not overwrite a complete
+    // answer with a shorter read.
+    expect(longerResponseText('the whole answer', 'the')).toBe('the whole answer');
+    expect(longerResponseText('the whole answer', null)).toBe('the whole answer');
   });
 });
