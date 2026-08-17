@@ -173,13 +173,24 @@ function serializeTableCellChildren(element: Element): string {
 
 function protectCodeBlock(element: Element, context: SerializationContext): string {
   const codeElement = firstDescendantByTag(element, 'CODE');
-  const code = (codeElement?.textContent ?? element.textContent ?? '').replace(/\r\n?/g, '\n');
+  const code = preformattedText(codeElement ?? element).replace(/\r\n?/g, '\n');
   const language = codeLanguage(codeElement ?? element);
   const longestFence = Math.max(0, ...Array.from(code.matchAll(/`+/g), (match) => match[0].length));
   const fence = '`'.repeat(Math.max(3, longestFence + 1));
   const blockText = `${fence}${language ? language : ''}\n${code}${code.endsWith('\n') ? '' : '\n'}${fence}`;
   const index = context.protectedBlocks.push(blockText) - 1;
   return protectedToken(index);
+}
+
+// A highlighter that gives every code line its own element leaves no newline character behind,
+// so textContent runs the whole block together while each line keeps its indentation. innerText
+// follows the rendered layout and restores those line breaks. It is absent outside a rendered
+// document, and a single-line block needs no repair, so textContent stays the fallback.
+function preformattedText(element: Element): string {
+  const raw = element.textContent ?? '';
+  const rendered = (element as { innerText?: unknown }).innerText;
+  if (typeof rendered !== 'string' || !rendered.includes('\n')) return raw;
+  return raw.includes('\n') ? raw : rendered;
 }
 
 function inlineCode(value: string): string {

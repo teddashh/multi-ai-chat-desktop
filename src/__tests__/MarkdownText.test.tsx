@@ -62,6 +62,17 @@ second line
     expect(html).not.toContain('<strong');
   });
 
+  it('scrolls a fenced block sideways instead of wrapping it', () => {
+    // An ASCII diagram loses its meaning when a long row folds onto the next line, because the
+    // folded part lands under the wrong column. Horizontal scrolling keeps the rows aligned.
+    const html = renderMarkdown('```\nUser ──────────────────────────────────► Memory Manager\n```');
+
+    const preClass = html.match(/<pre class="([^"]*)"/)?.[1] ?? '';
+    expect(preClass.split(' ')).toContain('whitespace-pre');
+    expect(preClass.split(' ')).not.toContain('break-words');
+    expect(preClass.split(' ')).toContain('overflow-x-auto');
+  });
+
   it('renders serialized GFM tables with escaped cell pipes', () => {
     const html = renderMarkdown('| Name | Value |\n| --- | --- |\n| alpha | a\\|b |');
 

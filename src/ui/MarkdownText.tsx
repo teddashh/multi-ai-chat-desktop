@@ -430,7 +430,7 @@ function renderBlocks(text: string): ReactNode[] {
       blocks.push(
         <pre
           key={key}
-          className="my-3 overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-zinc-100 p-3 text-sm leading-relaxed dark:bg-zinc-900"
+          className="my-3 overflow-x-auto whitespace-pre rounded-md bg-zinc-100 p-3 text-sm leading-relaxed dark:bg-zinc-900"
         >
           <code className="font-mono">{codeLines.join('\n')}</code>
         </pre>,
