@@ -20,6 +20,8 @@ fn main() {
             "settings_get",
             "settings_set",
             "export_markdown",
+            "run_archive_script",
+            "pick_archive_script",
             "open_external_url",
             "snapshot_save",
             "snapshot_list",

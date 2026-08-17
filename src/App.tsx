@@ -1683,6 +1683,50 @@ export default function App() {
     }
   };
 
+  // Hands ONE run to the user's script. matchingSnapshotForConversation is what makes it one run
+  // rather than the whole vault: it returns the snapshot only when it belongs to the question
+  // currently on screen, so a stale snapshot from an earlier session cannot be archived by mistake.
+  const archiveConversation = async () => {
+    if (sharing) return;
+    const snapshot = matchingSnapshotForConversation(messages, getLastSnapshot());
+    if (!snapshot) {
+      setShareNotice({ kind: 'error', text: translateKey('archive.noSnapshot', localeRef.current) });
+      return;
+    }
+    const confirmPrompt = settingsRef.current.archiveConfirm
+      ? formatI18n(translateKey('archive.confirmMessage', localeRef.current), {
+          script: settingsRef.current.archiveScript,
+          snapshot: snapshot.snapshotId,
+        })
+      : undefined;
+    setSharing(true);
+    setShareNotice({ kind: 'ok', text: translateKey('archive.running', localeRef.current) });
+    try {
+      const detail = await host.share.runArchiveScript(snapshot.snapshotId, confirmPrompt);
+      // null means the confirmation was declined -- nothing ran, so say nothing rather than
+      // leaving "正在存檔…" on screen as if it were still going.
+      setShareNotice(
+        detail === null
+          ? undefined
+          : {
+              kind: 'ok',
+              text: formatI18n(translateKey('archive.done', localeRef.current), { detail: detail || snapshot.snapshotId }),
+            },
+      );
+    } catch (reason) {
+      const detail = reason instanceof Error ? reason.message : String(reason);
+      recordEventLog({
+        ts: Date.now(),
+        kind: 'workflow-error',
+        summary: translateKey('archive.failed', localeRef.current),
+        detail: { operation: 'archive', error: detail },
+      });
+      setShareNotice({ kind: 'error', text: formatI18n(translateKey('archive.failed', localeRef.current), { detail }) });
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const reportProvider = useCallback(
     async (provider: AIProvider) => {
       if (reportBusy) return;
@@ -2002,6 +2046,16 @@ export default function App() {
               >
                 {translate('header.exportMarkdown')}
               </button>
+              {appSettings.archiveScript ? (
+                <button
+                  type="button"
+                  className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void archiveConversation()}
+                  disabled={messages.length === 0 || sharing}
+                >
+                  {appSettings.archiveLabel || translate('header.runArchive')}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={`flex h-7 w-7 items-center justify-center border text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${

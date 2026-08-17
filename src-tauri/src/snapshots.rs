@@ -131,9 +131,14 @@ fn snapshot_path(dir: &Path, snapshot_id: &str) -> Result<PathBuf, String> {
     Ok(dir.join(format!("{snapshot_id}.json")))
 }
 
-fn validate_snapshot_id(snapshot_id: &str) -> Result<(), String> {
+pub(crate) fn validate_snapshot_id(snapshot_id: &str) -> Result<(), String> {
     if snapshot_id.is_empty() || snapshot_id.len() > 80 || snapshot_id == "." || snapshot_id == ".."
     {
+        return Err("invalid snapshot id".to_string());
+    }
+    // A leading '-' would reach PowerShell as a parameter name instead of the value of -SnapshotId.
+    // Real ids are `snapshot-<uuid>`, so rejecting it costs nothing.
+    if snapshot_id.starts_with('-') {
         return Err("invalid snapshot id".to_string());
     }
     if snapshot_id

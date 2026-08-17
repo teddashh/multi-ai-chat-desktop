@@ -18,6 +18,7 @@ const RESIZER_WIDTH: f64 = 6.0;
 const SETTINGS_NORMALIZATION_CONTAINER_WIDTH: f64 = 1400.0;
 const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
 const SNAPSHOT_REDACTION_TIERS: &[&str] = &["metadata-only", "hashes", "prompt-text", "full-local"];
+const ARCHIVE_LABEL_MAX_CHARS: usize = 16;
 const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok"];
 const PRESENTATION_STATES: &[&str] = &["chip", "side", "center"];
 
@@ -119,10 +120,58 @@ pub fn normalize_settings_value(settings: Value) -> Value {
             Value::String(tier.to_string()),
         );
 
+        // Path of a script the user points the archive button at. Only the shape is checked here;
+        // run_archive_script re-checks existence, because the file can vanish after it was set.
+        let archive_script = map
+            .get("archiveScript")
+            .and_then(|value| value.as_str())
+            .filter(|value| is_archive_script_path(value))
+            .unwrap_or("");
+        map.insert(
+            "archiveScript".to_string(),
+            Value::String(archive_script.to_string()),
+        );
+
+        // The button's caption. Empty falls back to the translated default. Capped and stripped of
+        // line breaks because this lands in a toolbar that already has to wrap at narrow widths.
+        let archive_label = map
+            .get("archiveLabel")
+            .and_then(|value| value.as_str())
+            .map(|value| {
+                value
+                    .chars()
+                    .filter(|character| !character.is_control())
+                    .take(ARCHIVE_LABEL_MAX_CHARS)
+                    .collect::<String>()
+                    .trim()
+                    .to_string()
+            })
+            .unwrap_or_default();
+        map.insert("archiveLabel".to_string(), Value::String(archive_label));
+
+        // Defaults to ON: the button starts a child process, and an unasked first click is a worse
+        // surprise than one extra dialog. Absent in an older settings.json therefore means "ask".
+        let archive_confirm = map
+            .get("archiveConfirm")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(true);
+        map.insert("archiveConfirm".to_string(), Value::Bool(archive_confirm));
+
         let presentation = normalize_presentation_value(map.get("presentation"));
         map.insert("presentation".to_string(), presentation);
     }
     settings
+}
+
+/// An absolute path to a `.ps1`. Absolute because the app's working directory is not somewhere the
+/// user can reason about, so a relative path would resolve somewhere they did not mean.
+fn is_archive_script_path(value: &str) -> bool {
+    let path = Path::new(value);
+    path.is_absolute()
+        && path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("ps1"))
 }
 
 fn clamp_focus_pane_width(width: f64, container_width: f64) -> f64 {
@@ -298,6 +347,170 @@ pub async fn export_markdown(
     }
 }
 
+// Native picker for the archive script, so the path never has to be typed. Returns None when the
+// dialog is dismissed. Nothing is saved here -- the caller puts the path in the settings draft, so
+// the choice is still discarded if the user closes Settings without saving.
+#[tauri::command]
+pub async fn pick_archive_script(
+    app: AppHandle,
+    webview: tauri::Webview,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    crate::webviews::ensure_control_webview(&webview)?;
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .add_filter("PowerShell", &["ps1"])
+        .pick_file(move |chosen| {
+            let _ = tx.send(chosen);
+        });
+
+    match rx.await.map_err(|error| error.to_string())? {
+        Some(file_path) => {
+            let path = file_path.into_path().map_err(|error| error.to_string())?;
+            Ok(Some(path.to_string_lossy().into_owned()))
+        }
+        None => Ok(None),
+    }
+}
+
+// Run the user's archive script for one recorded run. The script path comes from settings and is
+// never assembled from anything the app received over the network; the snapshot id is the only
+// argument and is checked against the same shape snapshot_save enforces for file names.
+//
+// Reachable from the control pane only (SPEC 6.1 gives provider webviews no permissions), so the
+// pages loaded from chatgpt.com and friends cannot invoke this.
+//
+// `confirm` carries the already-translated prompt, or None to run straight away. The wording comes
+// from the frontend because that is where the i18n table lives; the decision to ask is the
+// archiveConfirm setting. Returns Ok(None) when the user answers no.
+#[tauri::command]
+pub async fn run_archive_script(
+    app: AppHandle,
+    webview: tauri::Webview,
+    snapshot_id: String,
+    confirm: Option<String>,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+    crate::webviews::ensure_control_webview(&webview)?;
+    crate::snapshots::validate_snapshot_id(&snapshot_id)?;
+
+    let settings = read_settings(&settings_path(&app)?)?;
+    let script = settings
+        .get("archiveScript")
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+        .to_string();
+    if script.is_empty() || !is_archive_script_path(&script) {
+        return Err("no archive script configured".to_string());
+    }
+    if !Path::new(&script).is_file() {
+        return Err(format!("archive script not found: {script}"));
+    }
+
+    // Asked after the checks, so a misconfigured path fails with the real reason instead of making
+    // the user approve a run that was never going to start.
+    if let Some(message) = confirm {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        app.dialog()
+            .message(message)
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancel)
+            .show(move |approved| {
+                let _ = tx.send(approved);
+            });
+        if !rx.await.map_err(|error| error.to_string())? {
+            return Ok(None);
+        }
+    }
+
+    let output = tauri::async_runtime::spawn_blocking(move || run_in_powershell(&script, &snapshot_id))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())?;
+
+    // The script's own last words, not a generic "failed" -- when an unattended-looking button goes
+    // wrong the reason has to reach the user, and stderr is where PowerShell puts it.
+    //
+    // UTF-8 or nothing. A script whose stdout is redirected with no console attached gets encoded in
+    // the system ANSI codepage unless it says otherwise, and lossy-decoding that paints the notice
+    // with replacement characters. Empty instead: the caller then falls back to the snapshot id,
+    // which at least names the run.
+    let tail = |bytes: &[u8]| {
+        std::str::from_utf8(bytes)
+            .unwrap_or("")
+            .lines()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("")
+            .trim()
+            .to_string()
+    };
+    if output.status.success() {
+        Ok(Some(tail(&output.stdout)))
+    } else {
+        let reason = tail(&output.stderr);
+        let reason = if reason.is_empty() { tail(&output.stdout) } else { reason };
+        Err(format!("exit {}: {reason}", output.status.code().unwrap_or(-1)))
+    }
+}
+
+/// pwsh (PowerShell 7) first, powershell.exe only if it is missing.
+///
+/// Windows PowerShell 5.1 decodes a `.ps1` that carries no UTF-8 BOM using the ANSI codepage, so a
+/// script holding any non-ASCII -- a path, a message -- arrives as mojibake and normally dies as a
+/// parser error rather than anything that names encoding. pwsh reads UTF-8 whether or not there is a
+/// BOM. Preferring it means the user's script does not have to be saved a particular way.
+#[cfg(windows)]
+fn run_in_powershell(script: &str, snapshot_id: &str) -> std::io::Result<std::process::Output> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let mut missing = None;
+    for shell in ["pwsh.exe", "powershell.exe"] {
+        let attempt = std::process::Command::new(shell)
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                script,
+                "-SnapshotId",
+                snapshot_id,
+            ])
+            // Without this a console window flashes up on every click.
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        match attempt {
+            // Only "this shell is not installed" is worth falling through on. A script that ran and
+            // failed is an answer, and retrying it in the other shell would run it twice.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => missing = Some(error),
+            settled => return settled,
+        }
+    }
+    Err(missing.expect("loop records the last NotFound before falling through"))
+}
+
+// notes: pwsh only off Windows -- Windows PowerShell does not exist there. Untested; this build
+//        target has no user for the feature yet. Drop the arm if that stays true.
+#[cfg(not(windows))]
+fn run_in_powershell(script: &str, snapshot_id: &str) -> std::io::Result<std::process::Output> {
+    std::process::Command::new("pwsh")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            script,
+            "-SnapshotId",
+            snapshot_id,
+        ])
+        .output()
+}
+
 // Open an external URL in the OS default browser from the control pane. Tauri does not route
 // `<a target="_blank">` clicks to the OS browser, so the frontend calls this instead. https-only.
 #[tauri::command]
@@ -317,7 +530,7 @@ pub async fn open_external_url(
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_settings_value, read_settings, write_settings};
+    use super::{normalize_settings_value, read_settings, write_settings, ARCHIVE_LABEL_MAX_CHARS};
     use serde_json::json;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -401,6 +614,53 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 
+    // The button hands this path to a child process, so anything but an absolute .ps1 has to be
+    // dropped at normalization -- a relative path resolves against the app's cwd, which is not
+    // anywhere the user chose, and a non-.ps1 means the setting was filled in by mistake.
+    #[test]
+    fn archive_script_setting_keeps_only_absolute_ps1_paths() {
+        let script = if cfg!(windows) {
+            "C:\\Users\\me\\archive.ps1"
+        } else {
+            "/home/me/archive.ps1"
+        };
+        let kept = normalize_settings_value(json!({ "archiveScript": script }));
+        assert_eq!(kept.get("archiveScript").unwrap(), script);
+
+        for rejected in [
+            "archive.ps1",           // relative
+            "..\\archive.ps1",       // relative, climbing
+            "C:\\tools\\archive.js", // not a script we run
+            "C:\\tools\\archive",    // no extension
+            "",
+        ] {
+            let normalized = normalize_settings_value(json!({ "archiveScript": rejected }));
+            assert_eq!(
+                normalized.get("archiveScript").unwrap(),
+                "",
+                "should have been rejected: {rejected}"
+            );
+        }
+    }
+
+    // The caption goes straight into the toolbar, so a pasted paragraph or a newline would either
+    // break the row or smuggle a line break into a flex item.
+    #[test]
+    fn archive_label_is_trimmed_stripped_of_control_chars_and_capped() {
+        let label = |value: &str| {
+            normalize_settings_value(json!({ "archiveLabel": value }))
+                .get("archiveLabel")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        assert_eq!(label("  存到 Obsidian  "), "存到 Obsidian");
+        assert_eq!(label("存到\nObsidian"), "存到Obsidian");
+        assert_eq!(label(&"x".repeat(40)), "x".repeat(ARCHIVE_LABEL_MAX_CHARS));
+        assert_eq!(label(""), "");
+    }
+
     #[test]
     fn normalizes_snapshot_settings_to_opt_in_safe_defaults() {
         assert_eq!(
@@ -412,6 +672,9 @@ mod tests {
                 "focusPaneWidth": 620,
                 "snapshotPersistence": false,
                 "snapshotRedactionTier": "metadata-only",
+                "archiveScript": "",
+                "archiveLabel": "",
+                "archiveConfirm": true,
                 "presentation": {
                     "chatgpt": "side",
                     "claude": "side",
@@ -424,6 +687,9 @@ mod tests {
             normalize_settings_value(json!({
                 "snapshotPersistence": true,
                 "snapshotRedactionTier": "full-local",
+                "archiveScript": "",
+                "archiveLabel": "",
+                "archiveConfirm": true,
                 "presentation": {
                     "chatgpt": "chip",
                     "claude": "center",
@@ -438,6 +704,9 @@ mod tests {
                 "focusPaneWidth": 620,
                 "snapshotPersistence": true,
                 "snapshotRedactionTier": "full-local",
+                "archiveScript": "",
+                "archiveLabel": "",
+                "archiveConfirm": true,
                 "presentation": {
                     "chatgpt": "chip",
                     "claude": "center",
@@ -465,6 +734,9 @@ mod tests {
                 "focusPaneWidth": 620,
                 "snapshotPersistence": false,
                 "snapshotRedactionTier": "metadata-only",
+                "archiveScript": "",
+                "archiveLabel": "",
+                "archiveConfirm": true,
                 "presentation": {
                     "chatgpt": "center",
                     "claude": "side",

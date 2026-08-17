@@ -40,6 +40,12 @@ export interface AppSettings {
   telemetry: 'none';
   snapshotPersistence: boolean;
   snapshotRedactionTier: SnapshotRedactionTier;
+  /** Absolute path of a .ps1 the archive button runs; empty hides the button. Validated in Rust. */
+  archiveScript: string;
+  /** Caption for that button; empty uses the translated default. Rust caps the length. */
+  archiveLabel: string;
+  /** Ask before running the script. Defaults on, including for a settings.json written before it. */
+  archiveConfirm: boolean;
   presentation: PresentationByProvider;
 }
 
@@ -65,6 +71,9 @@ export function defaultSettings(): AppSettings {
     telemetry: 'none',
     snapshotPersistence: false,
     snapshotRedactionTier: 'metadata-only',
+    archiveScript: '',
+    archiveLabel: '',
+    archiveConfirm: true,
     presentation: defaultPresentation(),
   };
 }
@@ -150,6 +159,9 @@ export function normalizeSettings(value: unknown): AppSettings {
     telemetry: 'none',
     snapshotPersistence: input.snapshotPersistence === true,
     snapshotRedactionTier: snapshotRedactionTier(input.snapshotRedactionTier, defaults.snapshotRedactionTier),
+    archiveScript: stringValue(input.archiveScript, defaults.archiveScript).trim(),
+    archiveLabel: stringValue(input.archiveLabel, defaults.archiveLabel).trim(),
+    archiveConfirm: input.archiveConfirm !== false,
     presentation: normalizePresentation(input.presentation, defaults.presentation),
   };
 }

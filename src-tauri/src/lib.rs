@@ -45,6 +45,8 @@ pub fn run() {
             settings::settings_get,
             settings::settings_set,
             settings::export_markdown,
+            settings::run_archive_script,
+            settings::pick_archive_script,
             settings::open_external_url,
             snapshots::snapshot_save,
             snapshots::snapshot_list,

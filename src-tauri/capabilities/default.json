@@ -26,6 +26,8 @@
     "allow-settings-get",
     "allow-settings-set",
     "allow-export-markdown",
+    "allow-run-archive-script",
+    "allow-pick-archive-script",
     "allow-open-external-url",
     "allow-snapshot-save",
     "allow-snapshot-list",

@@ -31,6 +31,8 @@ import { createSettingsPersistence } from './settingsPersistence';
 import { createTrailingDebounce, type TrailingDebounce } from './trailingDebounce';
 
 const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
+/** Keep in step with ARCHIVE_LABEL_MAX_CHARS in src-tauri/src/settings.rs, which trims to the same. */
+const ARCHIVE_LABEL_MAX_CHARS = 16;
 
 type UpdateCheckState =
   | { status: 'idle' }
@@ -161,6 +163,12 @@ export function SettingsModal({
       closeTimerRef.current = undefined;
     }
     setDraft((current) => (current ? { ...current, ...patch } : current));
+  };
+
+  // Only the draft is touched; the dialog being dismissed leaves the current path alone.
+  const pickArchiveScript = async () => {
+    const chosen = await host.share.pickArchiveScript();
+    if (chosen) updateDraft({ archiveScript: chosen });
   };
 
   const persistSettingsPatch = (patch: Partial<AppSettings>): Promise<AppSettings> =>
@@ -461,6 +469,57 @@ export function SettingsModal({
                     <option value="full-local">{t('settings.snapshotTierFullLocal')}</option>
                   </select>
                 </label>
+              ) : null}
+              {/* Only reachable once snapshots hold real text -- the script reads the snapshot file,
+                  so offering it at a redacting tier would just archive placeholders. */}
+              {draft.snapshotPersistence && draft.snapshotRedactionTier === 'full-local' ? (
+                <div className="space-y-3">
+                  <label className="block text-xs text-zinc-600 dark:text-zinc-400">
+                    <span className="mb-1 block">{t('settings.archiveScript')}</span>
+                    <span className="flex gap-2">
+                      <input
+                        type="text"
+                        spellCheck={false}
+                        value={draft.archiveScript}
+                        placeholder="C:\\Users\\me\\scripts\\archive.ps1"
+                        onChange={(event) => updateDraft({ archiveScript: event.target.value })}
+                        className="min-w-0 flex-1 border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
+                      />
+                      <button
+                        type="button"
+                        className="shrink-0 border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-xs text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        onClick={() => void pickArchiveScript()}
+                      >
+                        {t('settings.archiveScriptBrowse')}
+                      </button>
+                    </span>
+                    <span className="mt-1 block leading-relaxed">{t('settings.archiveScriptDescription')}</span>
+                  </label>
+                  <label className="block text-xs text-zinc-600 dark:text-zinc-400">
+                    <span className="mb-1 block">{t('settings.archiveLabel')}</span>
+                    <input
+                      type="text"
+                      value={draft.archiveLabel}
+                      maxLength={ARCHIVE_LABEL_MAX_CHARS}
+                      placeholder={t('header.runArchive')}
+                      onChange={(event) => updateDraft({ archiveLabel: event.target.value })}
+                      className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
+                    />
+                    <span className="mt-1 block leading-relaxed">{t('settings.archiveLabelDescription')}</span>
+                  </label>
+                  <label className="flex items-start gap-3 text-xs text-zinc-600 dark:text-zinc-400">
+                    <input
+                      type="checkbox"
+                      checked={draft.archiveConfirm}
+                      onChange={(event) => updateDraft({ archiveConfirm: event.target.checked })}
+                      className="mt-0.5 h-4 w-4 accent-sky-700"
+                    />
+                    <span>
+                      <span className="block font-medium text-zinc-700 dark:text-zinc-300">{t('settings.archiveConfirm')}</span>
+                      <span className="mt-1 block leading-relaxed">{t('settings.archiveConfirmDescription')}</span>
+                    </span>
+                  </label>
+                </div>
               ) : null}
             </section>
 

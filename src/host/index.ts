@@ -141,5 +141,13 @@ export const host = {
   share: {
     exportMarkdown: (suggestedName: string, content: string): Promise<string | null> =>
       invoke('export_markdown', { suggestedName, content }),
+    /** Resolves with the chosen .ps1 path, or null when the dialog was dismissed. */
+    pickArchiveScript: (): Promise<string | null> => invoke('pick_archive_script'),
+    /**
+     * Resolves with the script's last line of output, or null when `confirm` was shown and declined.
+     * Rejects with the script's exit code and stderr. Pass `confirm` to require approval first.
+     */
+    runArchiveScript: async (snapshotId: string, confirm?: string): Promise<string | null> =>
+      invoke('run_archive_script', { snapshotId: safeSnapshotId(snapshotId), confirm: confirm ?? null }),
   },
 };
