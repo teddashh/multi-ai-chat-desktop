@@ -250,6 +250,7 @@ struct GrokNavigationPreparation {
     previous_status_boot: Option<String>,
     owner: GrokNavigationOwner,
     popup_rollback: Option<GrokPopupRecoveryRollback>,
+    carry_app_title_signal: bool,
 }
 
 static RUNTIME: OnceLock<Mutex<ProviderRuntime>> = OnceLock::new();
@@ -328,9 +329,67 @@ fn insert_grok_navigation_locked(
             previous_status_boot,
             owner,
             popup_rollback: None,
+            carry_app_title_signal: false,
         },
     );
     next_epoch
+}
+
+/// Let a control-initiated navigation keep the app-title signal this host already confirmed.
+///
+/// That signal is edge-triggered: it exists only because the document title changed. The engine
+/// reports status by writing frames into `document.title`, so the title alternates between the
+/// app's own "Grok" and a frame. Navigate while it happens to sit on "Grok" and the next document
+/// sets the identical title, no event fires, and the new epoch is never authorized - page load,
+/// the watchdog, and every later click all refuse to install the bridge, with no route back.
+/// Whether it fires is pure timing, which is why the provider recovers from some navigations and
+/// not others. Carrying the confirmed signal across the navigation is what removes the coin flip.
+///
+/// Only the control webview's own reload and new-session commands carry it, and only while the
+/// destination stays on the provider app. Automatic recovery keeps waiting for a title it verified
+/// itself.
+///
+/// notes: a challenge document served on this navigation is caught by its own title event, which
+///        clears the signal - but page-load can drive the bridge before that event arrives. To
+///        close that window, mark the carried signal provisional and let only the 5s watchdog act
+///        on it, so the challenge title always lands first.
+fn carry_grok_app_title_signal(provider: &str, prepared_epoch: u64) {
+    if provider != "grok" || prepared_epoch == 0 {
+        return;
+    }
+    let Ok(mut guard) = runtime().lock() else {
+        return;
+    };
+    let Some(pending) = guard.grok_pending_navigation.get_mut(provider) else {
+        return;
+    };
+    if pending.epoch == prepared_epoch {
+        pending.carry_app_title_signal = true;
+    }
+}
+
+/// Grok readiness turns on host-side signals that leave no trace anywhere a user can inspect, so a
+/// stuck provider is indistinguishable from a slow one. Debug builds narrate the decisions to the
+/// `pnpm tauri dev` stdout; release builds carry none of this.
+#[cfg(debug_assertions)]
+fn trace_grok(provider: &str, event: &str, detail: &str) {
+    if provider == "grok" {
+        eprintln!("[grok-trace] {event}: {detail}");
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn trace_grok(_provider: &str, _event: &str, _detail: &str) {}
+
+/// The signal only carries when the document it was observed on is the one being reloaded.
+fn carried_app_title_epoch(
+    pending: &GrokNavigationPreparation,
+    stored_app_title_epoch: Option<u64>,
+) -> Option<u64> {
+    if !pending.carry_app_title_signal || stored_app_title_epoch != Some(pending.previous_epoch) {
+        return None;
+    }
+    Some(pending.epoch)
 }
 
 fn grok_auth_popup_may_complete_login(provider: &str, url: &tauri::Url) -> bool {
@@ -452,10 +511,17 @@ fn confirm_grok_page_load(provider: &str) -> u64 {
         return 0;
     };
     if let Some(pending) = guard.grok_pending_navigation.remove(provider) {
+        let carried =
+            carried_app_title_epoch(&pending, guard.grok_app_title_epoch.get(provider).copied());
         guard
             .grok_document_epoch
             .insert(provider.to_string(), pending.epoch);
         guard.grok_adopted_boot.remove(provider);
+        if let Some(epoch) = carried {
+            guard
+                .grok_app_title_epoch
+                .insert(provider.to_string(), epoch);
+        }
         return pending.epoch;
     }
     guard.grok_adopted_boot.remove(provider);
@@ -1042,8 +1108,14 @@ pub async fn provider_open(
                 .ok()
                 .map(|url| grok_document_title_signal(&title_provider, &title, &url))
             else {
+                trace_grok(&title_provider, "title", "url unavailable");
                 return;
             };
+            trace_grok(
+                &title_provider,
+                "title",
+                &format!("epoch={document_epoch} signal={title_signal:?} title={title:?}"),
+            );
             match title_signal {
                 GrokDocumentTitleSignal::Ignore => return,
                 GrokDocumentTitleSignal::Challenge => {
@@ -1083,7 +1155,15 @@ pub async fn provider_open(
             match payload.event() {
                 PageLoadEvent::Started => {
                     if load_provider == "grok" {
-                        confirm_grok_page_load(&load_provider);
+                        let epoch = confirm_grok_page_load(&load_provider);
+                        trace_grok(
+                            &load_provider,
+                            "load-started",
+                            &format!(
+                                "epoch={epoch} title_signal_current={}",
+                                grok_app_title_signal_is_current(&load_provider, epoch)
+                            ),
+                        );
                     }
                     reset_bridge_state(&load_app, &load_provider);
                 }
@@ -1096,6 +1176,18 @@ pub async fn provider_open(
                     };
                     let state = current_state(&load_provider);
                     let document_epoch = current_grok_document_epoch(&load_provider);
+                    trace_grok(
+                        &load_provider,
+                        "load-finished",
+                        &format!(
+                            "epoch={document_epoch} title_signal_current={} url_matches_app={} dom={} login={}",
+                            grok_app_title_signal_is_current(&load_provider, document_epoch),
+                            adapters::url_matches_provider_app(&load_provider, payload.url())
+                                .unwrap_or(false),
+                            state.dom,
+                            state.login
+                        ),
+                    );
                     // While blocked, challenge auto-retries also fire Finished on the grok.com
                     // URL; probing those documents would re-trip Turnstile. The app-title event
                     // is the recovery signal instead. A provider URL alone is insufficient:
@@ -1463,6 +1555,7 @@ pub async fn provider_reload(
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
     let prepared_epoch = prepare_grok_navigation(&provider)?;
+    carry_grok_app_title_signal(&provider, prepared_epoch);
     reload_provider_document_after_prepare(&app, &provider, prepared_epoch)
 }
 
@@ -1480,6 +1573,7 @@ pub async fn provider_new_session(
     let app_url = tauri::Url::parse(&adapter.urls.app)
         .map_err(|error| format!("invalid provider app URL: {error}"))?;
     let prepared_epoch = prepare_grok_navigation(&provider)?;
+    carry_grok_app_title_signal(&provider, prepared_epoch);
     if let Err(error) = begin_session_reset(&app, &provider) {
         cancel_grok_navigation(&provider, prepared_epoch);
         return Err(error);
@@ -2122,6 +2216,16 @@ fn run_staleness_check(app: &AppHandle) {
                 .unwrap_or_default();
             let app_title_signal_is_current =
                 guard.grok_app_title_epoch.get(&state.provider).copied() == Some(document_epoch);
+            if state.provider == "grok" && state.webview == "loaded" && state.dom != "ready" {
+                trace_grok(
+                    &state.provider,
+                    "watchdog",
+                    &format!(
+                        "epoch={document_epoch} title_signal_current={app_title_signal_is_current} dom={} login={}",
+                        state.dom, state.login
+                    ),
+                );
+            }
             if should_drive_grok_bridge_from_background(&state, app_title_signal_is_current) {
                 grok_to_drive.push((state.provider.clone(), document_epoch));
             }
@@ -2204,10 +2308,11 @@ mod tests {
     use super::{
         accept_status_for_session_reset, adopt_grok_bridge_boot, bridge_resets_on_boot_rotation,
         cancel_grok_navigation, cancel_grok_popup_recovery, cancel_session_reset,
-        challenge_auxiliary_navigation_allowed, claim_grok_popup_recovery, confirm_grok_page_load,
+        carry_grok_app_title_signal, challenge_auxiliary_navigation_allowed,
+        claim_grok_popup_recovery, confirm_grok_page_load,
         decide_new_window_action, delayed_grok_bridge_script, eval_callback_reports_true,
         expire_grok_navigation_start_lease, fresh_session_boot, gemini_sorry_navigation_active,
-        generic_staleness_dispatch_allowed, grok_app_title_ready,
+        generic_staleness_dispatch_allowed, grok_app_title_ready, grok_app_title_signal_is_current,
         grok_auth_popup_may_complete_login, grok_bridge_drive_allowed, grok_bridge_host_action,
         grok_bridge_install_ready, grok_bridge_result_is_current, grok_challenge_title_active,
         grok_document_title_signal, grok_popup_recovery_claim_is_current,
@@ -2912,6 +3017,79 @@ mod tests {
         assert!(fresh_session_boot(None, Some("boot-a")));
         assert!(!fresh_session_boot(Some("boot-a"), None));
         assert!(!fresh_session_boot(None, None));
+    }
+
+    #[test]
+    fn a_control_initiated_navigation_carries_the_confirmed_app_title_signal() {
+        // Without this, a navigation that lands on an identical title strands the provider: the
+        // title event never fires, so page load, the watchdog, and every later click all refuse to
+        // install the bridge, and no route back to ready exists.
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.grok_pending_navigation.remove(provider);
+            guard.grok_document_epoch.insert(provider.into(), 4);
+            guard.grok_app_title_epoch.insert(provider.into(), 4);
+        }
+
+        let prepared = prepare_grok_navigation(provider).expect("navigation reservation");
+        carry_grok_app_title_signal(provider, prepared);
+        let epoch = confirm_grok_page_load(provider);
+        assert!(grok_app_title_signal_is_current(provider, epoch));
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.grok_pending_navigation.remove(provider);
+        guard.grok_document_epoch.remove(provider);
+        guard.grok_app_title_epoch.remove(provider);
+    }
+
+    #[test]
+    fn an_automatic_navigation_still_waits_for_a_title_it_can_verify() {
+        // The gate exists so an unattended navigation never probes a challenge document. Only the
+        // control webview's own reload and new-session commands may skip ahead of a fresh title;
+        // popup recovery and anything else the page starts still has to earn one.
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.grok_pending_navigation.remove(provider);
+            guard.grok_document_epoch.insert(provider.into(), 4);
+            guard.grok_app_title_epoch.insert(provider.into(), 4);
+        }
+
+        prepare_grok_navigation(provider).expect("navigation reservation");
+        let epoch = confirm_grok_page_load(provider);
+        assert!(!grok_app_title_signal_is_current(provider, epoch));
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.grok_pending_navigation.remove(provider);
+        guard.grok_document_epoch.remove(provider);
+        guard.grok_app_title_epoch.remove(provider);
+    }
+
+    #[test]
+    fn a_signal_from_some_other_document_never_carries() {
+        // The signal authorizes one document. A reload of a document the host never confirmed
+        // must not inherit an older document's authorization.
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.grok_pending_navigation.remove(provider);
+            guard.grok_document_epoch.insert(provider.into(), 4);
+            guard.grok_app_title_epoch.insert(provider.into(), 2);
+        }
+
+        let prepared = prepare_grok_navigation(provider).expect("navigation reservation");
+        carry_grok_app_title_signal(provider, prepared);
+        let epoch = confirm_grok_page_load(provider);
+        assert!(!grok_app_title_signal_is_current(provider, epoch));
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.grok_pending_navigation.remove(provider);
+        guard.grok_document_epoch.remove(provider);
+        guard.grok_app_title_epoch.remove(provider);
     }
 
     #[test]
