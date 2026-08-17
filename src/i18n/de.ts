@@ -114,6 +114,7 @@ export const de: Record<I18nKey, string> = {
   'provider.connections': 'KI-Verbindungen',
   'provider.connectionsHint': 'KI zum Fokussieren oder Verbinden auswählen',
   'provider.currentlyReading': 'Wird gerade gelesen',
+  'provider.clickToRecover': 'Zum Neuladen und Wiederherstellen klicken',
   'provider.login': 'Anmelden',
   'provider.moreActions': 'Weitere Anbieteraktionen',
   'provider.reload': 'Neu laden',

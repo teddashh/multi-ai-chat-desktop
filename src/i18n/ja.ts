@@ -114,6 +114,7 @@ export const ja: Record<I18nKey, string> = {
   'provider.connections': 'AI接続',
   'provider.connectionsHint': 'フォーカスまたは接続するAIを選択',
   'provider.currentlyReading': '現在読んでいるメッセージ',
+  'provider.clickToRecover': 'クリックで再読み込みして接続を回復',
   'provider.login': 'ログイン',
   'provider.moreActions': 'プロバイダーのその他の操作',
   'provider.reload': '再読み込み',
