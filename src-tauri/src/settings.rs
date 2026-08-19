@@ -13,7 +13,7 @@ const RESPONSE_LANGUAGES: &[&str] = &["auto", "en", "zh-TW", "ja", "de"];
 const DEFAULT_LAYOUT_MODE: &str = "focus";
 const DEFAULT_FOCUS_PANE_WIDTH: f64 = 620.0;
 const MIN_FOCUS_PANE_WIDTH: f64 = 420.0;
-const MIN_CONTROL_PANE_WIDTH: f64 = 360.0;
+const MIN_CONTROL_PANE_WIDTH: f64 = 520.0;
 const RESIZER_WIDTH: f64 = 6.0;
 const SETTINGS_NORMALIZATION_CONTAINER_WIDTH: f64 = 1400.0;
 const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
@@ -545,7 +545,7 @@ mod tests {
                 json!({ "focusPaneWidth": "wide", "columnWidths": { "left": 1200 } })
             )
             .get("focusPaneWidth"),
-            Some(&json!(1034))
+            Some(&json!(874))
         );
     }
 }

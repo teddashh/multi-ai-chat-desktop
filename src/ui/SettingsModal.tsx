@@ -385,6 +385,21 @@ export function SettingsModal({
               </label>
             </section>
 
+            <section>
+              <label className="flex items-start gap-3 text-xs text-zinc-600 dark:text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={draft.autoNewConversationOnStart}
+                  onChange={(event) => updateDraft({ autoNewConversationOnStart: event.target.checked })}
+                  className="mt-0.5 h-4 w-4 accent-sky-700"
+                />
+                <span>
+                  <span className="block font-medium text-zinc-700 dark:text-zinc-300">{t('settings.autoNewConversationOnStart')}</span>
+                  <span className="mt-1 block leading-relaxed">{t('settings.autoNewConversationOnStartDescription')}</span>
+                </span>
+              </label>
+            </section>
+
             <section className="space-y-3 border-t border-zinc-200 dark:border-zinc-800 pt-4">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('settings.modeRoles')}</h3>
               <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">{t('settings.modeRolesDescription')}</p>

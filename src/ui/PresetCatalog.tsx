@@ -1,3 +1,4 @@
+import { CHAT_MODES } from '../../shared/constants';
 import type { AIProvider, ChatMode, ProviderState, WorkflowPresetId } from '../../shared/types';
 import { formatI18n, t } from '../i18n/t';
 import type { Locale } from '../i18n/resolve';
@@ -93,6 +94,7 @@ function renderPresetGrid({
       {presets.map((preset) => {
         const selected = activePresetId === preset.id;
         const displayName = t(preset.displayNameKey, locale);
+        const icon = preset.id === 'brainstorm' ? '✨' : CHAT_MODES[preset.graphId].icon;
         const readiness = states ? presetReadiness(preset, states, locale, modeRoles) : undefined;
         return (
           <button
@@ -106,7 +108,10 @@ function renderPresetGrid({
             aria-pressed={selected}
           >
             <span className="flex w-full items-center justify-between gap-2">
-              <span className="truncate text-sm font-semibold">{displayName}</span>
+              <span className="truncate text-sm font-semibold">
+                <span className="mr-1" aria-hidden="true">{icon}</span>
+                {displayName}
+              </span>
               {readiness ? (
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium ${

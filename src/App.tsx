@@ -1612,6 +1612,13 @@ export default function App() {
     );
   }, [activeSessionId, isProcessing, messages, mode, presetId, sessions]);
 
+  const autoNewConversationAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!settingsLoaded || autoNewConversationAppliedRef.current) return;
+    autoNewConversationAppliedRef.current = true;
+    if (appSettings.autoNewConversationOnStart) startNewConversation();
+  }, [appSettings.autoNewConversationOnStart, settingsLoaded, startNewConversation]);
+
   const selectConversationSession = useCallback(
     (session: ConversationSession) => {
       if (isProcessing || session.id === activeSessionId) return;
@@ -1892,7 +1899,7 @@ export default function App() {
                 <section className="mt-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
                   <div className="mb-2 text-xs font-semibold uppercase text-zinc-600 dark:text-zinc-400">{translate('input.sendSelectedProviders')}</div>
                   <div className="flex flex-wrap gap-1.5">
-                    <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} disabled={isProcessing} locale={locale} />
+                    <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} disabled={isProcessing} />
                   </div>
                 </section>
               ) : null}

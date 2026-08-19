@@ -28,6 +28,7 @@ export interface AppSettings {
   responseLanguage: ResponseLanguageSetting;
   theme: 'light' | 'dark' | 'ai-sister';
   fontSize: number;
+  autoNewConversationOnStart: boolean;
   layoutMode: 'focus';
   focusPaneWidth: number;
   columnWidths: ColumnWidths;
@@ -53,6 +54,7 @@ export function defaultSettings(): AppSettings {
     responseLanguage: 'auto',
     theme: 'light',
     fontSize: DEFAULT_FONT_SIZE,
+    autoNewConversationOnStart: false,
     layoutMode: 'focus',
     focusPaneWidth: DEFAULT_FOCUS_PANE_WIDTH,
     columnWidths: { ...DEFAULT_COLUMN_WIDTHS },
@@ -135,6 +137,7 @@ export function normalizeSettings(value: unknown): AppSettings {
     responseLanguage: normalizeResponseLanguageSetting(input.responseLanguage),
     theme: theme(input.theme, defaults.theme),
     fontSize: fontSize(input.fontSize),
+    autoNewConversationOnStart: input.autoNewConversationOnStart === true,
     layoutMode: 'focus',
     focusPaneWidth: focusPaneWidth(input.focusPaneWidth, input.columnWidths, defaults.focusPaneWidth),
     columnWidths: normalizedColumnWidths,

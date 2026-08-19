@@ -29,13 +29,13 @@ describe('focus layout helpers', () => {
   it('clamps focus pane width while preserving control-pane minimum space', () => {
     expect(clampFocusPaneWidth(100, 1400)).toBe(420);
     expect(clampFocusPaneWidth(620.4, 1400)).toBe(620);
-    expect(clampFocusPaneWidth(1200, 1000)).toBe(634);
+    expect(clampFocusPaneWidth(1200, 1000)).toBe(474);
     expect(clampFocusPaneWidth(900, 700)).toBe(420);
   });
 
   it('emits the focus two-pane grid template string', () => {
-    expect(focusGridTemplateColumns(620)).toBe('620px 6px minmax(360px, 1fr)');
-    expect(focusGridTemplateColumns(620.6)).toBe('621px 6px minmax(360px, 1fr)');
+    expect(focusGridTemplateColumns(620)).toBe('620px 6px minmax(520px, 1fr)');
+    expect(focusGridTemplateColumns(620.6)).toBe('621px 6px minmax(520px, 1fr)');
   });
 
   it('clamps dragged focus pane width', () => {

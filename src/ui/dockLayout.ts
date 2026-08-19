@@ -15,7 +15,7 @@ export const DEFAULT_COLUMN_WIDTHS: ColumnWidths = { left: 280, right: 280 };
 export const DEFAULT_DOCK_CONSTRAINTS: DockConstraints = {
   minProviderWidth: 200,
   maxProviderWidth: 520,
-  minCenterWidth: 360,
+  minCenterWidth: 520,
   resizerWidth: 6,
 };
 

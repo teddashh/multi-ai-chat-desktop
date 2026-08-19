@@ -33,7 +33,7 @@ describe('M4b UI helpers', () => {
     expect(dragColumnWidth(280, -500, 200, 520)).toBe(200);
     expect(dragColumnWidth(280, 500, 200, 520)).toBe(520);
     expect(dragColumnWidth(280, 25, 200, 520)).toBe(305);
-    expect(gridTemplateColumns({ left: 260, right: 340 })).toBe('260px 6px minmax(360px, 1fr) 6px 340px');
+    expect(gridTemplateColumns({ left: 260, right: 340 })).toBe('260px 6px minmax(520px, 1fr) 6px 340px');
   });
 
   it('swaps slot providers and preserves the four-provider permutation', () => {
