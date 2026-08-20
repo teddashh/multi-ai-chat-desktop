@@ -51,12 +51,12 @@ export function PresetCatalog({
         activePresetId,
       })}
       {detailPreset ? (
-        <div className="ai-sister-preset-detail flex flex-wrap items-start justify-between gap-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs dark:border-sky-900 dark:bg-sky-950/30">
-          <div className="min-w-0 flex-1">
-            <div className="font-semibold text-sky-900 dark:text-sky-100">{t(detailPreset.displayNameKey, locale)}</div>
-            <p className="mt-1 leading-relaxed text-zinc-700 dark:text-zinc-300">{t(detailPreset.descriptionKey, locale)}</p>
-          </div>
-          <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[0.6875rem] text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
+        <div className="ai-sister-preset-detail rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs dark:border-sky-900 dark:bg-sky-950/30">
+          <div className="font-semibold text-sky-900 dark:text-sky-100">{t(detailPreset.displayNameKey, locale)}</div>
+          <p className="mt-1 leading-relaxed text-zinc-700 dark:text-zinc-300">{t(detailPreset.descriptionKey, locale)}</p>
+          {/* Own row, wrapping: the cost label runs from a few words to a full line
+              (brainstorm), so an inline pill laid the panel out differently per preset. */}
+          <span className="mt-2 inline-block rounded-full bg-white px-2 py-1 text-[0.6875rem] leading-relaxed text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
             {t(detailPreset.costLabelKey, locale)}
           </span>
         </div>
