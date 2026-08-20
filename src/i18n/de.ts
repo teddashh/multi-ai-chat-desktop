@@ -7,7 +7,7 @@ export const de: Record<I18nKey, string> = {
   'mode.coding.name': 'Programmieren',
   'mode.roundtable.name': 'Diskussionsrunde',
   'preset.catalog.aria': 'Vorlagenkatalog',
-  'preset.free.displayName': 'Parallele Antworten',
+  'preset.free.displayName': 'Frei',
   'preset.free.meta': '< 1 Min.',
   'preset.free.description':
     'Für schnelle, unabhängige Antworten der ausgewählten KIs. Gut zum Vergleichen oder für eine schnelle zweite Meinung.',
@@ -360,7 +360,7 @@ export const de: Record<I18nKey, string> = {
   'fileInsert.attachmentLimit': 'Du kannst bis zu 8 Textdateien mit insgesamt etwa 256 KB anhängen. Entferne eine Datei oder wähle kleinere Dateien.',
   'chat.noMessages': 'Noch keine Nachrichten.',
   'chat.noProviders': 'Öffne links eine KI und melde dich an, um zu chatten.',
-  'chat.readyPrompt': 'Wähle oben einen Modus und gib links deine Nachricht ein.',
+  'chat.readyPrompt': 'Wähle einen Modus und gib unten deine Nachricht ein.',
   'chat.streaming': 'Streaming',
   'chat.thinking': 'Denkt nach…',
   'chat.truncated': '(gekürzt)',

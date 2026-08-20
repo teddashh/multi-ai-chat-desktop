@@ -7,7 +7,7 @@ export const ja: Record<I18nKey, string> = {
   'mode.coding.name': 'コーディング',
   'mode.roundtable.name': 'ラウンドテーブル',
   'preset.catalog.aria': 'プリセット一覧',
-  'preset.free.displayName': '並列回答',
+  'preset.free.displayName': 'フリー',
   'preset.free.meta': '1分未満',
   'preset.free.description':
     '選択したAIから、すばやく独立した回答を得たい場合に使います。比較やセカンドオピニオンに適しています。',
@@ -360,7 +360,7 @@ export const ja: Record<I18nKey, string> = {
   'fileInsert.attachmentLimit': '添付できるテキストファイルは合計約256 KB、最大8件です。ファイルを削除するか、より小さいファイルを選択してください。',
   'chat.noMessages': 'メッセージはまだありません。',
   'chat.noProviders': '左側でAIを開き、ログインしてチャットを始めてください。',
-  'chat.readyPrompt': '上でモードを選び、左側にメッセージを入力してください。',
+  'chat.readyPrompt': 'モードを選び、下にメッセージを入力してください。',
   'chat.streaming': 'ストリーミング中',
   'chat.thinking': '思考中…',
   'chat.truncated': '（省略）',

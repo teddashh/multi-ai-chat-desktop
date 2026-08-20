@@ -7,7 +7,7 @@ export const en: Record<I18nKey, string> = {
   'mode.coding.name': 'Coding',
   'mode.roundtable.name': 'Roundtable',
   'preset.catalog.aria': 'Preset catalog',
-  'preset.free.displayName': 'Free fan-out',
+  'preset.free.displayName': 'Free',
   'preset.free.meta': '< 1 min',
   'preset.free.description':
     'Use this when you want quick independent answers from the AI you pick. Good for comparison or a fast second opinion.',
@@ -358,7 +358,7 @@ export const en: Record<I18nKey, string> = {
   'fileInsert.attachmentLimit': 'You can attach up to 8 text files totaling about 256 KB. Remove a file or choose smaller files.',
   'chat.noMessages': 'No messages yet.',
   'chat.noProviders': 'Open an AI on the left and sign in to start chatting.',
-  'chat.readyPrompt': 'Choose a mode above, then type your message on the left.',
+  'chat.readyPrompt': 'Choose a mode, then type your message below.',
   'chat.streaming': 'streaming',
   'chat.thinking': 'Thinking…',
   'chat.truncated': '(truncated)',
