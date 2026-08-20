@@ -1862,7 +1862,10 @@ export default function App() {
               confirmDeleteConversation: translate('conversation.deleteConfirm'),
             }}
             onToggle={() => setSessionSidebarCollapsed((current) => !current)}
-            onNewConversation={startNewConversation}
+            onNewConversation={() => {
+              startNewConversation();
+              setSessionSidebarCollapsed(true);
+            }}
             onSelectSession={selectConversationSession}
             onDeleteSession={deleteConversationSession}
           />
