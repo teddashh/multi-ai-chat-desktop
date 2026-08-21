@@ -1967,7 +1967,9 @@ export default function App() {
         <section className="ai-sister-conversation-workspace flex min-h-0 min-w-0 flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4">
           <div className="ai-sister-conversation-toolbar border-b border-zinc-200 dark:border-zinc-800 pb-3">
             <div className="flex flex-wrap items-start gap-3">
-              <div className="min-w-0 flex-1">
+              {/* The floor is what makes the row wrap: at min-w-0 this block collapses instead, so the
+                  buttons keep squeezing the badge and flex-wrap never fires. */}
+              <div className="min-w-[11rem] flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="ai-sister-mode-badge shrink-0 border border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-100">
                     <span className="mr-1">{presetId === 'brainstorm' ? '✨' : CHAT_MODES[mode].icon}</span>
@@ -1976,61 +1978,64 @@ export default function App() {
                   <span className="min-w-0 truncate text-xs text-zinc-600 dark:text-zinc-400">{workflowStatus || translate('processTrace.settled')}</span>
                 </div>
               </div>
-              <button
-                type="button"
-                className={`flex h-7 items-center justify-center gap-1.5 border px-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
-                  replayDrawerOpen ? 'border-sky-400 bg-sky-50 dark:border-sky-800 dark:bg-sky-950' : 'border-zinc-300 dark:border-zinc-700'
-                }`}
-                aria-label={translate('replay.historyToggle')}
-                title={translate('replay.historyToggle')}
-                aria-expanded={replayDrawerOpen}
-                aria-controls="replay-history-panel"
-                onClick={() => setReplayDrawerOpen((open) => !open)}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 3-6.7" />
-                  <path d="M3 4v5h5" />
-                  <path d="M12 7v5l3 2" />
-                </svg>
-                <span>{translate('replay.historyToggle')}</span>
-              </button>
-              <button
-                type="button"
-                className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => void exportConversation()}
-                disabled={messages.length === 0 || sharing}
-              >
-                {translate('header.exportMarkdown')}
-              </button>
-              <button
-                type="button"
-                className={`flex h-7 w-7 items-center justify-center border text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
-                  messagesMaximized ? 'border-sky-400 bg-sky-50 dark:border-sky-800 dark:bg-sky-950' : 'border-zinc-300 dark:border-zinc-700'
-                }`}
-                aria-label={translate(messagesMaximized ? 'header.restoreMessages' : 'header.maximizeMessages')}
-                title={translate(messagesMaximized ? 'header.restoreMessages' : 'header.maximizeMessages')}
-                aria-pressed={messagesMaximized}
-                onClick={() => setMessagesMaximized((current) => !current)}
-              >
-                {messagesMaximized ? (
+              {/* One group, so the controls wrap as a block and stay right-aligned on the new row. */}
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={`flex h-7 items-center justify-center gap-1.5 border px-2 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                    replayDrawerOpen ? 'border-sky-400 bg-sky-50 dark:border-sky-800 dark:bg-sky-950' : 'border-zinc-300 dark:border-zinc-700'
+                  }`}
+                  aria-label={translate('replay.historyToggle')}
+                  title={translate('replay.historyToggle')}
+                  aria-expanded={replayDrawerOpen}
+                  aria-controls="replay-history-panel"
+                  onClick={() => setReplayDrawerOpen((open) => !open)}
+                >
                   <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 3v4a2 2 0 0 1-2 2H3" />
-                    <path d="M21 9h-4a2 2 0 0 1-2-2V3" />
-                    <path d="M3 15h4a2 2 0 0 1 2 2v4" />
-                    <path d="M15 21v-4a2 2 0 0 1 2-2h4" />
+                    <path d="M3 12a9 9 0 1 0 3-6.7" />
+                    <path d="M3 4v5h5" />
+                    <path d="M12 7v5l3 2" />
                   </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 9V3h6" />
-                    <path d="M21 9V3h-6" />
-                    <path d="M3 15v6h6" />
-                    <path d="M21 15v6h-6" />
-                  </svg>
-                )}
-              </button>
-              <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
-                {translate('header.settings')}
-              </button>
+                  <span>{translate('replay.historyToggle')}</span>
+                </button>
+                <button
+                  type="button"
+                  className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void exportConversation()}
+                  disabled={messages.length === 0 || sharing}
+                >
+                  {translate('header.exportMarkdown')}
+                </button>
+                <button
+                  type="button"
+                  className={`flex h-7 w-7 items-center justify-center border text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                    messagesMaximized ? 'border-sky-400 bg-sky-50 dark:border-sky-800 dark:bg-sky-950' : 'border-zinc-300 dark:border-zinc-700'
+                  }`}
+                  aria-label={translate(messagesMaximized ? 'header.restoreMessages' : 'header.maximizeMessages')}
+                  title={translate(messagesMaximized ? 'header.restoreMessages' : 'header.maximizeMessages')}
+                  aria-pressed={messagesMaximized}
+                  onClick={() => setMessagesMaximized((current) => !current)}
+                >
+                  {messagesMaximized ? (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 3v4a2 2 0 0 1-2 2H3" />
+                      <path d="M21 9h-4a2 2 0 0 1-2-2V3" />
+                      <path d="M3 15h4a2 2 0 0 1 2 2v4" />
+                      <path d="M15 21v-4a2 2 0 0 1 2-2h4" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 9V3h6" />
+                      <path d="M21 9V3h-6" />
+                      <path d="M3 15v6h6" />
+                      <path d="M21 15v6h-6" />
+                    </svg>
+                  )}
+                </button>
+                <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setSettingsOpen(true)}>
+                  {translate('header.settings')}
+                </button>
+              </div>
             </div>
           </div>
           <div
