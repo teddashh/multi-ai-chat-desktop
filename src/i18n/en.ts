@@ -7,7 +7,7 @@ export const en: Record<I18nKey, string> = {
   'mode.coding.name': 'Coding',
   'mode.roundtable.name': 'Roundtable',
   'preset.catalog.aria': 'Preset catalog',
-  'preset.free.displayName': 'Free',
+  'preset.free.displayName': 'Free fan-out',
   'preset.free.meta': '< 1 min',
   'preset.free.description':
     'Use this when you want quick independent answers from the AI you pick. Good for comparison or a fast second opinion.',

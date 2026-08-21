@@ -7,7 +7,7 @@ export const ja: Record<I18nKey, string> = {
   'mode.coding.name': 'コーディング',
   'mode.roundtable.name': 'ラウンドテーブル',
   'preset.catalog.aria': 'プリセット一覧',
-  'preset.free.displayName': 'フリー',
+  'preset.free.displayName': '並列回答',
   'preset.free.meta': '1分未満',
   'preset.free.description':
     '選択したAIから、すばやく独立した回答を得たい場合に使います。比較やセカンドオピニオンに適しています。',

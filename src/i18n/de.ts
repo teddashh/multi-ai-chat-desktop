@@ -7,7 +7,7 @@ export const de: Record<I18nKey, string> = {
   'mode.coding.name': 'Programmieren',
   'mode.roundtable.name': 'Diskussionsrunde',
   'preset.catalog.aria': 'Vorlagenkatalog',
-  'preset.free.displayName': 'Frei',
+  'preset.free.displayName': 'Parallele Antworten',
   'preset.free.meta': '< 1 Min.',
   'preset.free.description':
     'Für schnelle, unabhängige Antworten der ausgewählten KIs. Gut zum Vergleichen oder für eine schnelle zweite Meinung.',

@@ -7,7 +7,7 @@ export const zhTW: Record<I18nKey, string> = {
   'mode.coding.name': 'Coding 模式',
   'mode.roundtable.name': '道理辯證',
   'preset.catalog.aria': '預設目錄',
-  'preset.free.displayName': '自由模式',
+  'preset.free.displayName': '自由分送',
   'preset.free.meta': '< 1 分鐘',
   'preset.free.description': '想快速比較或取得第二意見時使用。只會發給你選定的 AI，彼此獨立回答。',
   'preset.free.costLabel': '選定的 AI · <1 min · 低 RAM',
