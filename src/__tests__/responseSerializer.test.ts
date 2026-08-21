@@ -139,9 +139,51 @@ describe('serializeResponseText', () => {
     expect(serialize(root)).toBe(`Run this:\n\n\`\`\`\n${code}\n\`\`\``);
   });
 
+  it('keeps rendered math instead of dropping the aria-hidden formula', () => {
+    const katex = (tex: string, glyphs: string) =>
+      element('span', [
+        element('span', [
+          element('math', [
+            element('semantics', [
+              element('mrow', [text(glyphs)]),
+              element('annotation', [text(tex)], { encoding: 'application/x-tex' }),
+            ]),
+          ]),
+        ], { class: 'katex-mathml' }),
+        element('span', [text(glyphs)], { class: 'katex-html', 'aria-hidden': 'true' }),
+      ], { class: 'katex', 'aria-hidden': 'true' });
+
+    const root = element('p', [
+      text('約 '),
+      katex('\\$0.003', '$0.003'),
+      text(' / 分鐘'),
+    ]);
+    const noSource = element('p', [
+      text('約 '),
+      element('span', [element('span', [text('$0.18')], { class: 'katex-html', 'aria-hidden': 'true' })], { class: 'katex' }),
+      text(' / 小時'),
+    ]);
+
+    expect(serialize(root)).toBe('約 $\\$0.003$ / 分鐘');
+    expect(serialize(noSource)).toBe('約 $0.18 / 小時');
+  });
+
+  it('serializes native block MathML as display TeX', () => {
+    const formula = element('math', [
+      element('semantics', [
+        element('mrow', [text('x²')]),
+        element('annotation', [text('x^2')], { encoding: 'application/x-tex' }),
+      ]),
+    ], { display: 'block' });
+    const root = element('div', [text('Before'), formula, text('After')]);
+
+    expect(serialize(root)).toBe('Before\n\n$$x^2$$\n\nAfter');
+  });
+
   it('ignores non-elements safely and falls back when childNodes is unavailable', () => {
     const root = element('div', [
       { nodeType: 8, textContent: 'hidden comment' },
+      element('span', [text('decorative')], { 'aria-hidden': 'true' }),
       element('span', [text('visible')]),
       element('button', [text('Copy')]),
     ]);
