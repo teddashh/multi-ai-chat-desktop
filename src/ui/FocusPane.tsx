@@ -9,7 +9,7 @@ import type { AdapterPermissionSummary } from './adapterPermissions';
 import { AiSisterAvatar } from './AiSisterTheme';
 import { MarkdownText } from './MarkdownText';
 import type { PresentationByProvider, WebviewPresentationState } from './presentation';
-import { chipState } from './providerChipState';
+import { chipState, isStuckProvider } from './providerChipState';
 import { ProcessTrace } from './ProcessTrace';
 import type { ProcessTraceState } from './processTraceModel';
 
@@ -518,11 +518,16 @@ function StatusStripItem({
 }) {
   const { t } = useI18n();
   const status = chipState(state, presentation, t);
+  const stuck = isStuckProvider(state);
   const accessibleLabel = `${AI_PROVIDERS[provider].name}: ${status.label}${
-    scrollFocused ? ` · ${t('provider.currentlyReading')}` : ''
-  }`;
+    stuck ? ` · ${t('provider.clickToRecover')}` : ''
+  }${scrollFocused ? ` · ${t('provider.currentlyReading')}` : ''}`;
   const focusProvider = () => {
     onChipClick?.(provider);
+    if (stuck) {
+      resetProviderBootState(provider);
+      void host.provider.reload(provider);
+    }
     if (centered && state.webview === 'loaded') return;
     void activateProvider(provider);
   };
@@ -533,7 +538,7 @@ function StatusStripItem({
       ref={(el) => setPaneRef(provider, el)}
       aria-label={accessibleLabel}
       aria-pressed={centered}
-      title={scrollFocused ? accessibleLabel : undefined}
+      title={stuck || scrollFocused ? accessibleLabel : undefined}
       disabled={state.webview === 'creating' || openingProvider !== undefined}
       className={`ai-sister-provider-card relative min-w-0 rounded border px-2 py-1.5 text-left transition-colors disabled:cursor-wait disabled:opacity-70 ${
         centered

@@ -112,6 +112,7 @@ export const en: Record<I18nKey, string> = {
   'provider.connections': 'AI connections',
   'provider.connectionsHint': 'Choose an AI to focus or connect',
   'provider.currentlyReading': 'Currently reading',
+  'provider.clickToRecover': 'Click to reload and recover the connection',
   'provider.login': 'Login',
   'provider.moreActions': 'More provider actions',
   'provider.reload': 'Reload',

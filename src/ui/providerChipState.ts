@@ -5,6 +5,28 @@ import type { WebviewPresentationState } from './presentation';
 
 type Translate = (key: I18nKey) => string;
 
+const STUCK_PROVIDER_AGE_MS = 40_000;
+
+/**
+ * Loaded, not answering, explicitly signed in, beyond the watchdog window - and still unusable.
+ * Clicking such a provider reloads it.
+ *
+ * Grok reaches this state and stays: its readiness rides entirely on one document-title event, and
+ * a navigation whose title never changes produces no event, so nothing downstream ever fires. A
+ * reload is what makes a fresh title. Unknown, logged-out, and blocked sessions are excluded on
+ * purpose: they need status, login, or manual challenge handling, and reloading could interrupt
+ * those flows.
+ */
+export function isStuckProvider(state: ProviderState, nowMs = Date.now()): boolean {
+  return (
+    state.webview === 'loaded' &&
+    !state.thinking &&
+    state.login === 'logged_in' &&
+    !isSendable(state) &&
+    nowMs - state.lastStatusAt > STUCK_PROVIDER_AGE_MS
+  );
+}
+
 export function chipState(
   state: ProviderState,
   presentation: WebviewPresentationState = 'side',

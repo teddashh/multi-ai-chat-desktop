@@ -102,6 +102,7 @@ export const zhTW: Record<I18nKey, string> = {
   'provider.connections': 'AI 連線',
   'provider.connectionsHint': '點選 AI 卡片即可切換訊息焦點或連線',
   'provider.currentlyReading': '正在閱讀',
+  'provider.clickToRecover': '點一下重新載入以恢復連線',
   'provider.login': '登入',
   'provider.moreActions': '更多 provider 操作',
   'provider.reload': '重新載入',
