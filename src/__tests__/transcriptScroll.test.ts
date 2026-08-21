@@ -19,28 +19,33 @@ describe('transcript scrolling', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 2_400, behavior: 'auto' });
   });
 
-  const fakeBubble = () => ({
-    scrollIntoView: vi.fn(),
+  const fakeBubble = (top = 0) => ({
+    getBoundingClientRect: () => ({ top }),
     classList: { add: vi.fn(), remove: vi.fn() },
+  });
+
+  const fakeTranscript = (bubbles: ReturnType<typeof fakeBubble>[], scrollTop = 0) => ({
+    scrollTop,
+    scrollTo: vi.fn(),
+    getBoundingClientRect: () => ({ top: 100 }),
+    querySelectorAll: vi.fn((selector: string) => (selector === 'article[data-provider="chatgpt"]' ? bubbles : [])),
   });
 
   it('jumps to the latest message of the clicked provider so the user sees its part of the conversation', () => {
     vi.useFakeTimers();
-    const older = fakeBubble();
-    const latest = fakeBubble();
-    const container = {
-      querySelectorAll: vi.fn((selector: string) => (selector === 'article[data-provider="chatgpt"]' ? [older, latest] : [])),
-    };
+    const older = fakeBubble(150);
+    const latest = fakeBubble(940);
+    const container = fakeTranscript([older, latest], 300);
 
     expect(scrollTranscriptToProviderMessage(container, 'chatgpt')).toBe(true);
-    expect(older.scrollIntoView).not.toHaveBeenCalled();
-    expect(latest.scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+    // The container scrolls to the latest bubble and nothing outside it moves, so the toolbar stays put.
+    expect(container.scrollTo).toHaveBeenCalledWith({ top: 1_140 });
   });
 
   it('flashes a temporary highlight on the target message so the user can spot it', () => {
     vi.useFakeTimers();
     const bubble = fakeBubble();
-    const container = { querySelectorAll: () => [bubble] };
+    const container = fakeTranscript([bubble]);
 
     scrollTranscriptToProviderMessage(container, 'chatgpt');
 
@@ -53,7 +58,7 @@ describe('transcript scrolling', () => {
   it('restarts the full highlight duration when the same provider is clicked again', () => {
     vi.useFakeTimers();
     const bubble = fakeBubble();
-    const container = { querySelectorAll: () => [bubble] };
+    const container = fakeTranscript([bubble]);
 
     scrollTranscriptToProviderMessage(container, 'chatgpt');
     vi.advanceTimersByTime(1_000);
@@ -67,7 +72,7 @@ describe('transcript scrolling', () => {
 
   it('leaves the transcript alone when the provider never joined the conversation', () => {
     vi.useFakeTimers();
-    const container = { querySelectorAll: () => [] };
+    const container = fakeTranscript([]);
 
     expect(scrollTranscriptToProviderMessage(container, 'gemini')).toBe(false);
   });

@@ -180,7 +180,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
               <div>
                 <h4 className="text-xs font-semibold uppercase text-zinc-700 dark:text-zinc-300">{this.t('replay.lastRun')}</h4>
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                  {lastSnapshot ? `${lastSnapshot.graphId} - ${lastSnapshot.createdAt}` : this.t('replay.noInMemorySnapshot')}
+                  {lastSnapshot ? `${lastSnapshot.graphId} - ${localTime(lastSnapshot.createdAt, this.locale())}` : this.t('replay.noInMemorySnapshot')}
                 </p>
               </div>
               {lastSnapshot ? (
@@ -221,14 +221,14 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
               </div>
             ) : null}
             {!loadingStored && storedSnapshots.length > 0 ? (
-              <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800">
+              <div className="max-h-72 overflow-y-auto divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800">
                 {storedSnapshots.map((snapshot) => {
                   const replaySource: ReplaySource = { kind: 'stored', snapshotId: snapshot.id, info: snapshot };
                   return (
                     <div key={snapshot.id} className="grid gap-2 p-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                       <div className="min-w-0">
                         <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">{snapshot.graphId ?? this.t('replay.unknownGraph')}</div>
-                        <div className="truncate text-zinc-500 dark:text-zinc-500">{snapshot.createdAt ?? this.t('replay.createdTimeUnknown')}</div>
+                        <div className="truncate text-zinc-500 dark:text-zinc-500">{localTime(snapshot.createdAt, this.locale()) ?? this.t('replay.createdTimeUnknown')}</div>
                       </div>
                       <div className="flex gap-2">
                         <button
@@ -426,6 +426,14 @@ function sourceKey(source: ReplaySource): string {
 
 function sourceLabel(source: ReplaySource, locale: Locale): string {
   return source.kind === 'last' ? t('replay.sourceLastRun', locale) : source.snapshotId;
+}
+
+// Snapshots are stored as UTC ISO strings; showing them raw makes every row read as a foreign
+// clock. Fall back to the raw string when the value is missing or unparseable.
+function localTime(value: string | undefined, locale: Locale): string | undefined {
+  const parsed = Date.parse(value ?? '');
+  if (!Number.isFinite(parsed)) return value;
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' }).format(parsed);
 }
 
 function snapshotTime(snapshot: StoredSnapshotInfo): number {
