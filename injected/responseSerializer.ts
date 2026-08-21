@@ -190,7 +190,7 @@ function preformattedText(element: Element): string {
   const raw = element.textContent ?? '';
   const rendered = (element as { innerText?: unknown }).innerText;
   if (typeof rendered !== 'string' || !rendered.includes('\n')) return raw;
-  return raw.includes('\n') ? raw : rendered;
+  return raw.trim().includes('\n') ? raw : rendered;
 }
 
 function inlineCode(value: string): string {

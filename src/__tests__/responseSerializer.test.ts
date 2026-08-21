@@ -102,6 +102,20 @@ describe('serializeResponseText', () => {
     expect(serialize(element('pre', [code]))).toBe('```\nPostgreSQL\n├── users\n└── memories\n```');
   });
 
+  it('ignores incidental outer whitespace when checking line-wrapped code markup', () => {
+    const lines = ['PostgreSQL', '├── users', '└── memories'];
+    const code = Object.assign(
+      element('code', [
+        text('\n  '),
+        ...lines.map((line) => element('span', [text(line)])),
+        text('  \n'),
+      ]),
+      { innerText: lines.join('\n') },
+    );
+
+    expect(serialize(element('pre', [code]))).toBe('```\nPostgreSQL\n├── users\n└── memories\n```');
+  });
+
   it('keeps the literal markup when the code block already carries its own newlines', () => {
     // innerText reports what the layout shows, which can drop leading indentation. Markup that
     // already has the line breaks is the more faithful source, so it wins.
