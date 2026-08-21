@@ -89,6 +89,43 @@ describe('serializeResponseText', () => {
     expect(serialize(root)).toBe('```\nif x:\n    y()\n```');
   });
 
+  it('recovers code-block line breaks from the rendered layout when the markup has none', () => {
+    // A highlighter that wraps every line in its own element leaves no newline character in the
+    // markup. textContent then joins the lines into one run-on string that still carries their
+    // indentation, which flattens an ASCII diagram into a single unreadable line in the export.
+    const lines = ['PostgreSQL', '├── users', '└── memories'];
+    const code = Object.assign(
+      element('code', lines.map((line) => element('span', [text(line)]))),
+      { innerText: lines.join('\n') },
+    );
+
+    expect(serialize(element('pre', [code]))).toBe('```\nPostgreSQL\n├── users\n└── memories\n```');
+  });
+
+  it('ignores incidental outer whitespace when checking line-wrapped code markup', () => {
+    const lines = ['PostgreSQL', '├── users', '└── memories'];
+    const code = Object.assign(
+      element('code', [
+        text('\n  '),
+        ...lines.map((line) => element('span', [text(line)])),
+        text('  \n'),
+      ]),
+      { innerText: lines.join('\n') },
+    );
+
+    expect(serialize(element('pre', [code]))).toBe('```\nPostgreSQL\n├── users\n└── memories\n```');
+  });
+
+  it('keeps the literal markup when the code block already carries its own newlines', () => {
+    // innerText reports what the layout shows, which can drop leading indentation. Markup that
+    // already has the line breaks is the more faithful source, so it wins.
+    const code = Object.assign(element('code', [text('first()\n    second()')]), {
+      innerText: 'first()\nsecond()',
+    });
+
+    expect(serialize(element('pre', [code]))).toBe('```\nfirst()\n    second()\n```');
+  });
+
   it('restores code blocks verbatim when they contain String.replace substitution patterns', () => {
     // $&, $' and $` are special inside a replacement string and rewrite the block with the
     // placeholder or the surrounding text. The result still looks like valid code, and it is
