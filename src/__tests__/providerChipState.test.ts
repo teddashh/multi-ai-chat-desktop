@@ -41,7 +41,21 @@ describe('provider chip state', () => {
 describe('stuck provider detection', () => {
   it('reports a loaded provider whose bridge never came up', () => {
     // Grok after a navigation that produced no document-title event: loaded, signed in, no dom.
-    expect(isStuckProvider(state({ webview: 'loaded', dom: 'unknown', login: 'logged_in' }))).toBe(true);
+    expect(
+      isStuckProvider(
+        state({ webview: 'loaded', dom: 'unknown', login: 'logged_in', lastStatusAt: 10_000 }),
+        50_001,
+      ),
+    ).toBe(true);
+  });
+
+  it('spares a newly loaded signed-in provider while its bridge is still starting', () => {
+    expect(
+      isStuckProvider(
+        state({ webview: 'loaded', dom: 'unknown', login: 'logged_in', lastStatusAt: 10_000 }),
+        50_000,
+      ),
+    ).toBe(false);
   });
 
   it('spares blocked and unknown sessions so challenge and status handling stay passive', () => {

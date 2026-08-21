@@ -5,9 +5,11 @@ import type { WebviewPresentationState } from './presentation';
 
 type Translate = (key: I18nKey) => string;
 
+const STUCK_PROVIDER_AGE_MS = 40_000;
+
 /**
- * Loaded, not answering, explicitly signed in - and still unusable. Clicking such a provider
- * reloads it.
+ * Loaded, not answering, explicitly signed in, beyond the watchdog window - and still unusable.
+ * Clicking such a provider reloads it.
  *
  * Grok reaches this state and stays: its readiness rides entirely on one document-title event, and
  * a navigation whose title never changes produces no event, so nothing downstream ever fires. A
@@ -15,9 +17,13 @@ type Translate = (key: I18nKey) => string;
  * purpose: they need status, login, or manual challenge handling, and reloading could interrupt
  * those flows.
  */
-export function isStuckProvider(state: ProviderState): boolean {
+export function isStuckProvider(state: ProviderState, nowMs = Date.now()): boolean {
   return (
-    state.webview === 'loaded' && !state.thinking && state.login === 'logged_in' && !isSendable(state)
+    state.webview === 'loaded' &&
+    !state.thinking &&
+    state.login === 'logged_in' &&
+    !isSendable(state) &&
+    nowMs - state.lastStatusAt > STUCK_PROVIDER_AGE_MS
   );
 }
 
