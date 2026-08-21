@@ -48,11 +48,12 @@ function serializeNode(node: Node, context: SerializationContext): string {
   const element = node as Element;
   if (node.nodeType !== ELEMENT_NODE && node.nodeType !== undefined) return '';
   if (typeof element.tagName !== 'string') return '';
-  if (OMITTED_TAGS.has(tagName(element)) || attribute(element, 'aria-hidden') === 'true') return '';
+  const tag = tagName(element);
+  if (OMITTED_TAGS.has(tag)) return '';
+  if (isMathRoot(element, tag)) return mathText(element, tag);
+  if (attribute(element, 'aria-hidden') === 'true') return '';
   if (!element.childNodes) return normalizeText(element.textContent ?? '');
 
-  const tag = tagName(element);
-  if (isMathRoot(element, tag)) return mathText(element, tag);
   if (tag === 'BR') return '\n';
   if (tag === 'HR') return block('---');
   if (tag === 'PRE') return block(protectCodeBlock(element, context));
@@ -75,9 +76,10 @@ function serializeNode(node: Node, context: SerializationContext): string {
   return BLOCK_TAGS.has(tag) ? block(content) : content;
 }
 
-// KaTeX and MathJax mark the rendered glyphs aria-hidden, so the generic aria-hidden drop above
-// erases a whole formula and leaves "約 / 分鐘". Rebuild it from the MathML <annotation> that
-// carries the original TeX, and fall back to the rendered glyphs when the markup has no MathML.
+// KaTeX and MathJax can mark a math root or its rendered glyphs aria-hidden, so the generic
+// aria-hidden drop would erase a whole formula and leave "約 / 分鐘". Rebuild it from the MathML
+// <annotation> that carries the original TeX, and fall back to the rendered glyphs when the markup
+// has no MathML.
 function isMathRoot(element: Element, tag: string): boolean {
   if (tag === 'MATH' || tag === 'MJX-CONTAINER') return true;
   const classes = classList(element);
@@ -89,7 +91,8 @@ function mathText(element: Element, tag: string): string {
   if (tex) {
     const display =
       classList(element).includes('katex-display') ||
-      (tag === 'MJX-CONTAINER' && attribute(element, 'display') === 'true');
+      (tag === 'MJX-CONTAINER' && attribute(element, 'display') === 'true') ||
+      (tag === 'MATH' && attribute(element, 'display') === 'block');
     return display ? block('$$' + tex + '$$') : '$' + tex + '$';
   }
   // notes: without a TeX source we keep the rendered characters, which doubles a formula that

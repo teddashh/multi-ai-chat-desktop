@@ -114,7 +114,7 @@ describe('serializeResponseText', () => {
           ]),
         ], { class: 'katex-mathml' }),
         element('span', [text(glyphs)], { class: 'katex-html', 'aria-hidden': 'true' }),
-      ], { class: 'katex' });
+      ], { class: 'katex', 'aria-hidden': 'true' });
 
     const root = element('p', [
       text('約 '),
@@ -131,9 +131,22 @@ describe('serializeResponseText', () => {
     expect(serialize(noSource)).toBe('約 $0.18 / 小時');
   });
 
+  it('serializes native block MathML as display TeX', () => {
+    const formula = element('math', [
+      element('semantics', [
+        element('mrow', [text('x²')]),
+        element('annotation', [text('x^2')], { encoding: 'application/x-tex' }),
+      ]),
+    ], { display: 'block' });
+    const root = element('div', [text('Before'), formula, text('After')]);
+
+    expect(serialize(root)).toBe('Before\n\n$$x^2$$\n\nAfter');
+  });
+
   it('ignores non-elements safely and falls back when childNodes is unavailable', () => {
     const root = element('div', [
       { nodeType: 8, textContent: 'hidden comment' },
+      element('span', [text('decorative')], { 'aria-hidden': 'true' }),
       element('span', [text('visible')]),
       element('button', [text('Copy')]),
     ]);
