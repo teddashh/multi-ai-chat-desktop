@@ -6,16 +6,18 @@ import type { WebviewPresentationState } from './presentation';
 type Translate = (key: I18nKey) => string;
 
 /**
- * Loaded, not answering, signed in - and still unusable. Clicking such a provider reloads it.
+ * Loaded, not answering, explicitly signed in - and still unusable. Clicking such a provider
+ * reloads it.
  *
  * Grok reaches this state and stays: its readiness rides entirely on one document-title event, and
  * a navigation whose title never changes produces no event, so nothing downstream ever fires. A
- * reload is what makes a fresh title. Logged_out is excluded on purpose - that needs the login
- * flow, and reloading would only throw away the page the user is about to sign in on.
+ * reload is what makes a fresh title. Unknown, logged-out, and blocked sessions are excluded on
+ * purpose: they need status, login, or manual challenge handling, and reloading could interrupt
+ * those flows.
  */
 export function isStuckProvider(state: ProviderState): boolean {
   return (
-    state.webview === 'loaded' && !state.thinking && state.login !== 'logged_out' && !isSendable(state)
+    state.webview === 'loaded' && !state.thinking && state.login === 'logged_in' && !isSendable(state)
   );
 }
 

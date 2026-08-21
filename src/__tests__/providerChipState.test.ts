@@ -44,8 +44,9 @@ describe('stuck provider detection', () => {
     expect(isStuckProvider(state({ webview: 'loaded', dom: 'unknown', login: 'logged_in' }))).toBe(true);
   });
 
-  it('reports a blocked provider, because reloading is what clears a stale challenge', () => {
-    expect(isStuckProvider(state({ webview: 'loaded', dom: 'unknown', login: 'blocked' }))).toBe(true);
+  it('spares blocked and unknown sessions so challenge and status handling stay passive', () => {
+    expect(isStuckProvider(state({ webview: 'loaded', dom: 'unknown', login: 'blocked' }))).toBe(false);
+    expect(isStuckProvider(state({ webview: 'loaded', dom: 'unknown', login: 'unknown' }))).toBe(false);
   });
 
   it('spares a provider that is answering, so a reload cannot cut off a reply in flight', () => {
