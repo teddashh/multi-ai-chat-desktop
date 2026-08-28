@@ -242,14 +242,14 @@ describe('injected engine input hardening', () => {
     expect(errorDone(env)).toBeUndefined();
   });
 
-  it('reports ChatGPT logged out when login controls and a stale composer coexist', async () => {
+  it('reports ChatGPT logged out when the login form and a stale composer coexist', async () => {
     const env = createEnv({ inputKind: 'textarea' });
-    env.detectorElements.set('[data-testid="login-button"]', [new FakeElement(env.document, 'button', 'Log in')]);
+    env.detectorElements.set('[data-testid="login-form"]', [new FakeElement(env.document, 'form')]);
     const handler = await installEngine(env);
 
     dispatchAdapter(handler, {
       provider: 'chatgpt',
-      loggedOutDetectors: ['[data-testid="login-button"]'],
+      loggedOutDetectors: ['[data-testid="login-form"]'],
     });
 
     expect(env.emitted).toContainEqual({
