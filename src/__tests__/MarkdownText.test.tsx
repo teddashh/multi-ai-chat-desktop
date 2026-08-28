@@ -97,4 +97,12 @@ second line
     expect(html).not.toContain('href="data:');
     expect(html).not.toContain('target="_blank"');
   });
+
+  it('stays memoised so poll-driven re-renders do not re-parse finished messages', () => {
+    // Provider polling replaces the states object every POLL_PULL_MS while a
+    // workflow runs, re-rendering the whole transcript. Markdown parsing is the
+    // dominant cost there, so dropping memo would silently regress long
+    // Roundtable and Brainstorm runs.
+    expect((MarkdownText as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+  });
 });

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 
 export interface MarkdownTextProps {
   text: string;
@@ -568,6 +568,11 @@ function renderBlocks(text: string): ReactNode[] {
   return blocks;
 }
 
-export function MarkdownText({ text }: MarkdownTextProps) {
+function MarkdownTextView({ text }: MarkdownTextProps) {
   return <div className="min-w-0 break-words leading-relaxed">{renderBlocks(text)}</div>;
 }
+
+// Rendering is a pure function of `text`, and parsing dominates transcript cost.
+// Provider polling re-renders the conversation every POLL_PULL_MS while a workflow
+// runs, so without memoisation every finished message is re-parsed twice a second.
+export const MarkdownText = memo(MarkdownTextView);
