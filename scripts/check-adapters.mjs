@@ -12,7 +12,7 @@ const validate = ajv.compile(schema);
 const expected = {
   chatgpt: {
     schemaVersion: 1,
-    adapterVersion: 6,
+    adapterVersion: 7,
     urls: {
       app: 'https://chatgpt.com',
       login: 'https://chatgpt.com/auth/login',
@@ -26,7 +26,7 @@ const expected = {
     sendButtonSelectors: ['[data-testid="send-button"]', 'button[aria-label="Send prompt"]', 'button[aria-label="Send"]'],
     responseSelectors: ['[data-message-author-role="assistant"] .markdown', '[data-message-author-role="assistant"]'],
     loginDetectors: ['#prompt-textarea', '[data-testid="send-button"]'],
-    loggedOutDetectors: ['[data-testid="login-button"]', '[data-testid="signup-button"]'],
+    loggedOutDetectors: ['[data-testid="login-button"]', '[data-testid="signup-button"]', '[data-testid="login-form"]'],
     thinkingDetectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
     stopButtonSelectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
   },
