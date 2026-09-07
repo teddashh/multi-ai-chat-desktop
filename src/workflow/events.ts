@@ -1,7 +1,8 @@
 import type { AIProvider, BridgeMessage } from '../../shared/types';
 import { publishBridgeMessage } from '../bridge/bus';
 
-// Provider failures are "[Error: <reason>]" and terminate structured workflows.
+// Provider failures are "[Error: <reason>]" and terminate structured workflows by default.
+// Brainstorm may offer explicit recovery, but only SKIP_RESPONSE can flow downstream.
 // User skip is "(no response — skipped)" and also flows downstream.
 // Top-level workflow failure is "Error: <msg>" from provider "system" and is terminal.
 

@@ -148,7 +148,7 @@ describe('snapshot replay', () => {
   it('replays Brainstorm snapshots with the fixed four-seat rotation', () => {
     const snapshot = buildSnapshot({
       graphId: 'brainstorm',
-      graphVersion: 3,
+      graphVersion: 4,
       roleMap: { ...DEFAULT_ROUNDTABLE_ROLES },
       userQuestion: inlineRef('brainstorm question'),
       steps: [
@@ -165,6 +165,24 @@ describe('snapshot replay', () => {
     expect(plan.roles).toEqual(DEFAULT_ROUNDTABLE_ROLES);
     expect(plan.targets).toBeUndefined();
     expect(plan.question).toBe('brainstorm question');
+  });
+
+  it('blocks pre-recovery Brainstorm snapshots unless the caller opts into graph v4', () => {
+    const snapshot = buildSnapshot({
+      graphId: 'brainstorm',
+      graphVersion: 3,
+      roleMap: { ...DEFAULT_ROUNDTABLE_ROLES },
+      userQuestion: inlineRef('legacy brainstorm question'),
+    });
+
+    expect(planReplay(snapshot)).toMatchObject({
+      blocked: 'graph-version-mismatch',
+      detail: { snapshotVersion: 3, currentVersion: 4 },
+    });
+
+    const currentPlan = planReplay(snapshot, { replayWithCurrentGraph: true });
+    expect(currentPlan.blocked).toBeUndefined();
+    expect(currentPlan.graph).toBe(workflowGraphs.brainstorm);
   });
 
   it('blocks graph version mismatches unless the caller opts into the current graph', async () => {

@@ -16,8 +16,13 @@ export function resetWorkflowState(): void {
 
 export function reserveTurn(provider: AIProvider): number {
   nextTurn += 1;
-  activeTurns.set(provider, nextTurn);
+  activateTurn(provider, nextTurn);
   return nextTurn;
+}
+
+export function activateTurn(provider: AIProvider, turn: number): void {
+  nextTurn = Math.max(nextTurn, turn);
+  activeTurns.set(provider, turn);
 }
 
 export function getActiveTurn(provider: AIProvider): number | undefined {
