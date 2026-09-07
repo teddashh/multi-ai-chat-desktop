@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-07-31 for the v1.8.4 release candidate. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-09-07 for the v1.8.6 release candidate. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -37,7 +37,7 @@ The v2.0.0 source contract supports Node.js `^22.13.0 || >=24.0.0`, matching the
 
 | Provider | Bundled adapter | Windows text workflow evidence | Image-only completion |
 |---|---:|---|---|
-| ChatGPT | v6 | v4 text workflow **Verified**; v5 mismatch recovery and v6 logged-out precedence have automated coverage and await live retest | Partial manual coverage; recheck after provider UI changes |
+| ChatGPT | v7 | v4 text workflow **Verified**; v5 mismatch recovery and v6 logged-out precedence have automated coverage; the v7 login-form detector was checked against live `/auth/login`, logged-out root, and logged-in DOM states on Windows, while a full in-app logged-out smoke awaits retest | Partial manual coverage; recheck after provider UI changes |
 | Claude | v4 | v3 text workflow **Verified**; v4 login-page detection and explicit Google SSO scope have automated coverage and await live retest | Not a compatibility claim |
 | Gemini | v2 | Base text workflow **Verified**; bounded Google `/sorry` navigation, blocked status, and passive bridge behavior have automated coverage and await live retest | Not a compatibility claim |
 | Grok | v7 | Base text workflow **Verified**; a Windows 11 / WebView2 150 fresh-profile prototype completed Turnstile and embedded login; challenge-first delayed handoff, watchdog recovery, mutation refusal, and same-document auth-popup reload coordination have automated coverage and await a live retest | Not a compatibility claim |
@@ -57,7 +57,7 @@ Gemini may redirect an embedded session to `https://www.google.com/sorry/index?.
 | Free mode | Four-provider fan-out tests | Send to all selected providers; verify each final response |
 | Debate / consultation / coding | Golden graph ordering, prompt threading, four-provider default assignment, unavailable-provider preflight, configurable roles, bounded retry, and terminal provider-error tests | Complete one default run; verify role labels and final summary |
 | Roundtable | Five-round, four-seat history, four-provider default coverage, configurable assignment, repeated-seat preflight, and unavailable-provider tests | Complete one run; verify prior same-session speeches remain available |
-| Brainstorm | Twelve rounds × four rotating seats, four-provider defaults, four distinct lenses, 48-step history threading, five phase prompts, preflight, localization, and snapshot tests | Allow 45–90 minutes; verify four contributions per round and a consolidated portfolio from the final speaker |
+| Brainstorm | Twelve rounds × four rotating seats, four-provider defaults, four distinct lenses, 48-step history threading, five phase prompts, preflight, localization, graph-v4 snapshot compatibility, and explicit Retry/Skip/Cancel recovery tests that keep raw provider errors out of downstream prompts | Allow 45–90 minutes; verify four contributions per round, explicitly skip one limited provider, and confirm the next seat continues toward a consolidated portfolio |
 | Long provider work | Thinking, pulled chunks, bulk-ready, and done-ready activity refresh a 10-minute inactivity window; ChatGPT completion-marker tests cover more than 10 minutes of active thinking and fail closed after true completion inactivity; tests also enforce a 60-minute bridge hard cap | Run one provider task beyond 10 minutes, then verify a truly stalled task still terminates |
 | Session isolation | Conversation persistence and latest-snapshot matching tests | Create two sessions; confirm no messages or export provenance cross over |
 | Restored-session continuity | Stable response-identity and bounded same-session replay tests | Reopen a session, ask a follow-up, and confirm old context is available without cross-session leakage |
