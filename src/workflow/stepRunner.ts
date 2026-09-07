@@ -9,6 +9,10 @@ import { tearDownWaiters } from './teardown';
 
 export const SEND_REJECTION_RETRY_DELAY_MS = 1_500;
 
+export interface RunStepOptions {
+  recoverProviderErrors?: boolean;
+}
+
 function waitForSendRetry(): Promise<void> {
   checkAborted();
   return new Promise((resolve, reject) => {
@@ -24,7 +28,12 @@ function waitForSendRetry(): Promise<void> {
   });
 }
 
-export async function runStep(provider: AIProvider, prompt: string, reservedTurn?: number): Promise<{ response: string; turn: number }> {
+export async function runStep(
+  provider: AIProvider,
+  prompt: string,
+  reservedTurn?: number,
+  options: RunStepOptions = {},
+): Promise<{ response: string; turn: number }> {
   let sendRejectionRetries = 0;
   for (;;) {
     checkAborted();
@@ -41,7 +50,7 @@ export async function runStep(provider: AIProvider, prompt: string, reservedTurn
       throw responseError;
     } catch (error) {
       checkAborted();
-      if (error instanceof ProviderResponseError) throw error;
+      if (error instanceof ProviderResponseError && options.recoverProviderErrors !== true) throw error;
       emitCountdown(provider, 0, true);
       const action = await awaitStepTimeoutAction();
       if (action === 'retry') {

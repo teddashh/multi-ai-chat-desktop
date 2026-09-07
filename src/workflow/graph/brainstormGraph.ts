@@ -79,7 +79,7 @@ const brainstormOrder = orderedBrainstormSeats();
 export const brainstormGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'brainstorm',
-  version: 3,
+  version: 4,
   mode: 'free',
   start: nodeId(brainstormOrder[0].round, brainstormOrder[0].role),
   roles: {

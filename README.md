@@ -53,7 +53,7 @@ See the bilingual [`v1.8.4 release notes`](./docs/RELEASE_NOTES_v1.8.4.md) for v
 | **Roundtable** | 5 rounds × 4 seats = 20 turns; all 4 providers by default | Slow, adversarial convergence on difficult questions |
 | **Brainstorm** | 12 rounds × 4 rotating seats = 48 contributions; framing → divergence → cross-pollination → harvesting → concept tests | Full-context idea development, a balanced portfolio, and concrete first experiments |
 
-Structured workflows retry a provider once when its page rejects a just-finished back-to-back send. Any remaining engine error stops the workflow instead of being passed to later roles as if it were an answer.
+Structured workflows retry a provider once when its page rejects a just-finished back-to-back send. By default, any remaining engine error stops the workflow instead of being passed to later roles as if it were an answer. Brainstorm instead pauses with Retry, Skip, and Cancel choices; Skip records a safe placeholder and continues to the next seat without relaying the error text.
 
 Brainstorm is intentionally the heaviest preset: keep all four default provider sessions authenticated and allow roughly 45–90 minutes. If a provider is unavailable, preflight identifies it and you can customize the role assignments. Claude's current consumer site requires an account login; this app detects and guides that flow but never bypasses provider login or security checks.
 

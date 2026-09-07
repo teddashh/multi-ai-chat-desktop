@@ -275,7 +275,7 @@ describe('workflow engine', () => {
     expect(statuses).toEqual(['']);
   });
 
-  it('routes Brainstorm through twelve rounds of four rotating seats and records graph v3', async () => {
+  it('routes Brainstorm through twelve rounds of four rotating seats and records graph v4', async () => {
     const order: AIProvider[] = [];
     const prompts: string[] = [];
     const statuses: string[] = [];
@@ -328,9 +328,49 @@ describe('workflow engine', () => {
       '',
     ]);
     expect(getLastSnapshot()?.graphId).toBe('brainstorm');
-    expect(getLastSnapshot()?.graphVersion).toBe(3);
+    expect(getLastSnapshot()?.graphVersion).toBe(4);
     expect(getLastSnapshot()?.steps).toHaveLength(48);
     expect(getLastSnapshot()?.userQuestion).toMatchObject({ kind: 'inline', text: 'Invent a better new-user tutorial' });
+  });
+
+  it('lets Brainstorm skip a provider limit and continue without relaying the error text', async () => {
+    const prompts: string[] = [];
+    const timeoutEvents: { provider: string; remainingMs: number; timedOut: boolean }[] = [];
+    const bridgeMessages: BridgeMessage[] = [];
+    const unsubscribeTimeout = onStepTimeoutEvent((event) => timeoutEvents.push(event));
+    const unsubscribeBridge = onBridgeMessage((message) => bridgeMessages.push(message));
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      prompts.push(prompt);
+      const response = prompts.length === 1 ? '[Error: provider rate limited]' : `answer-${prompts.length}`;
+      publishBridgeMessage(done(provider, response));
+    });
+
+    const run = runWorkflow({
+      text: 'Generate launch ideas',
+      mode: 'free',
+      presetId: 'brainstorm',
+    });
+    await vi.waitFor(() => expect(timeoutEvents.some((event) => event.timedOut)).toBe(true));
+    expect(host.provider.send).toHaveBeenCalledTimes(1);
+
+    chooseStepTimeoutAction('skip');
+    await expect(run).resolves.toEqual({ ok: true });
+    unsubscribeTimeout();
+    unsubscribeBridge();
+
+    expect(host.provider.send).toHaveBeenCalledTimes(48);
+    expect(prompts[1]).toContain(SKIP_RESPONSE);
+    expect(prompts[1]).not.toContain('[Error: provider rate limited]');
+    expect(bridgeMessages).not.toContainEqual(
+      expect.objectContaining({ provider: 'system', payload: expect.stringContaining('provider rate limited') }),
+    );
+    expect(getLastSnapshot()?.graphVersion).toBe(4);
+    expect(getLastSnapshot()?.steps).toHaveLength(48);
+    expect(getLastSnapshot()?.steps[0]).toMatchObject({
+      nodeId: 'round1_first',
+      status: 'skipped',
+      outputRef: { text: SKIP_RESPONSE },
+    });
   });
 
   it('blocks Brainstorm before turn one when a required provider is unavailable', async () => {
@@ -510,6 +550,27 @@ describe('workflow engine', () => {
     expect(hasWaiter('chatgpt', 42)).toBe(true);
     publishBridgeMessage(done('chatgpt', 'reserved retry final'));
     await expect(step).resolves.toEqual({ response: 'reserved retry final', turn: 42 });
+  });
+
+  it('reactivates a reserved turn so cancellation tears down a provider-error retry', async () => {
+    vi.mocked(host.provider.send).mockImplementationOnce(async (provider) => {
+      publishBridgeMessage(done(provider, '[Error: provider rate limited]'));
+    }).mockResolvedValueOnce(undefined);
+
+    const step = runStep('chatgpt', 'retry after provider limit', 42, { recoverProviderErrors: true });
+    const rejection = step.catch((error: unknown) => error);
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(1));
+    chooseStepTimeoutAction('retry');
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(2));
+
+    expect(getActiveTurn('chatgpt')).toBe(42);
+    expect(hasWaiter('chatgpt', 42)).toBe(true);
+    abortWorkflow();
+    await tearDownWaiters(getInFlightProviders(), { stopClick: true });
+
+    await expect(rejection).resolves.toMatchObject({ message: 'Workflow cancelled by user' });
+    expect(hasWaiter('chatgpt', 42)).toBe(false);
+    expect(getActiveTurn('chatgpt')).toBeUndefined();
   });
 
   it('retry after degraded clears degraded state, re-arms polling, and resolves via real pull', async () => {

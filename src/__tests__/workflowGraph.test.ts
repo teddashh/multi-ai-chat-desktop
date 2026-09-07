@@ -241,7 +241,7 @@ describe('workflow graph foundation', () => {
       consult: 4,
       coding: 3,
       roundtable: 3,
-      brainstorm: 3,
+      brainstorm: 4,
       free: 2,
     });
   });

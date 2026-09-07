@@ -51,7 +51,7 @@ Validierung, Beiträge und ausstehende manuelle Release-Prüfungen stehen in den
 | **Rundtisch** | 5 Runden × 4 Sitze = 20 Beiträge; standardmäßig alle 4 Anbieter | Schwierige Fragen kontrovers konvergieren lassen |
 | **Brainstorming** | 12 Runden × 4 wechselnde Sitze = 48 Beiträge; Problemrahmen → Divergenz → gegenseitige Anregung → Auswahl → Konzepttests | Ideenentwicklung mit vollständigem Verlauf, ausgewogenes Portfolio und erste Experimente |
 
-Lehnt eine Anbieter-Seite eine direkt aufeinanderfolgende Sendung nach dem vorherigen Abschluss ab, versucht der strukturierte Workflow sie einmal erneut. Bleibt der Fehler bestehen oder tritt ein anderer Engine-Fehler auf, endet der Workflow, statt den Fehlertext als Antwort an spätere Rollen weiterzugeben.
+Lehnt eine Anbieter-Seite eine direkt aufeinanderfolgende Sendung nach dem vorherigen Abschluss ab, versucht der strukturierte Workflow sie einmal erneut. Standardmäßig endet der Workflow, wenn der Fehler bestehen bleibt oder ein anderer Engine-Fehler auftritt, statt den Fehlertext als Antwort an spätere Rollen weiterzugeben. Brainstorming pausiert stattdessen und bietet Erneut versuchen, Überspringen oder Abbrechen an. Beim Überspringen wird ein sicherer Platzhalter protokolliert und ohne Weitergabe des Fehlertexts mit dem nächsten Sitz fortgefahren.
 
 Brainstorming ist absichtlich das aufwendigste Preset: Alle vier standardmäßigen Web-Sitzungen müssen angemeldet sein, und der Lauf kann etwa 45–90 Minuten dauern. Ist ein Anbieter nicht verfügbar, benennt die Vorprüfung ihn und die Rollenzuweisung kann angepasst werden. Die aktuelle Claude-Webseite verlangt eine Kontoanmeldung; die App erkennt und begleitet den offiziellen Ablauf, umgeht aber weder Anmeldung noch Sicherheitsprüfung des Anbieters.
 
