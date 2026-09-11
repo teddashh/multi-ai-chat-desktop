@@ -56,6 +56,7 @@ function collectMessages() {
 describe('pull transport', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     vi.useRealTimers();
     resetBridgePullForTests();
     vi.mocked(host.provider.eval).mockResolvedValue(undefined);
