@@ -77,6 +77,7 @@ describe('workflow graph foundation', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     resetBusForTests();
     resetBridgePullForTests();
     resetWorkflowStateForTests();

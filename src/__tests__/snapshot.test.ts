@@ -71,6 +71,7 @@ function adapterUpdate(provider: AIProvider, adapterVersion: number): BridgeMess
 describe('workflow execution snapshots', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     resetBusForTests();
     resetAdapterVersionsForTests();
     resetBridgePullForTests();

@@ -47,6 +47,7 @@ describe('injected engine input hardening', () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     vi.resetModules();
   });
 

@@ -72,6 +72,7 @@ function savedCheckpoints(): SessionCheckpoint[] {
 describe('session checkpoint controller', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     resetBusForTests();
     resetBridgePullForTests();
     resetWorkflowStateForTests();
