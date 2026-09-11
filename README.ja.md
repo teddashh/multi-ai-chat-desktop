@@ -2,173 +2,157 @@
 
 [English](./README.md) · [繁體中文](./README.zh-TW.md) · **日本語** · [Deutsch](./README.de.md)
 
-ログイン済みの **ChatGPT、Claude、Gemini、Grok** に同じ質問を送り、回答・レビュー・反論・統合を自動で進める Tauri 2 デスクトップハブです。4つのチャットを並べるだけではなく、複数AIの workflow を実行します。
+一度質問するだけで、ログイン済みの **ChatGPT、Claude、Gemini、Grok** のWebセッションが回答し、レビューし、反論しながら結果を磨きます。Multi-AI Chat Desktopは、4つのチャットを横に並べただけではない、Tauri 2製のマルチAIワークフローハブです。
 
-**最新版：[最新の安定版をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)** · MIT · APIキー不要 · 解析なし
+[**公式サイトを見る →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=ja) · [v1.8.6をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6) · [すべてのリリース](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · APIキー不要 · アナリティクスなし
 
-> 本アプリは各プロバイダーのWebページを自動操作します。ページ構造の変更で adapter が一時的に動かなくなる場合があります。各サービスの利用規約と、利用権限のあるアカウント・コンテンツを使用してください。
+> このアプリは、普段利用しているプロバイダーのWebページを自動操作します。プロバイダー側のUI変更でアダプターが一時的に動かなくなる場合があり、自動操作には各サービスの利用規約が適用されることがあります。利用権限のあるアカウントとコンテンツだけを使用してください。ログイン、契約、年齢、利用上限、セキュリティ確認を回避する機能はありません。
 
-> **プロジェクト状況：** 機能開発は完了し、最後のオプションとして4人のAI-Sister記念Themeと12ラウンドのブレインストーミングpresetを追加しました。ブレインストーミングは4つの交代制の席、合計48発言、同一sessionの全履歴を維持します。組み込みの4役または4席のpresetはすべて、ChatGPT、Claude、Gemini、Grokを1回ずつ割り当てます。今後はprovider互換性、セキュリティ、build障害のみを保守し、既存のsnapshot／replayは拡張しません。
+> **プロジェクト状況：** Webセッション版Desktopは機能凍結済みです。4プロバイダー、6プリセット、基盤となる5ワークフローモード、snapshot／replay、任意のAI-Sister 4キャラクター記念版は完成しています。今後の変更は、プロバイダー互換性、セキュリティ、データ損失／クラッシュ防止、アクセシビリティ、パッケージ、ビルド障害に限られます。
 
-## v1.8.4 の更新点
+## まずインストール
 
-- **Provider回答を完全に保存。** 完了時のDOM textを最終結果として扱い、replacement patternを含むcode blockを維持します。未完了のChatGPT turnを成功した部分回答として確定することもありません。
-- **有界なGrok login recovery。** 許可された認証popupを閉じた際、同じdocumentがまだblockedの場合に限りnative reloadを1回実行します。Lifecycle ownershipとstart leaseにより、重複reloadや永久停止を防ぎます。
-- **Provider別のchallenge案内。** Grokではpane内で解決可能な検証を完了するよう案内し、GeminiのGoogle `/sorry` blockでは必要なsystem browser案内を維持します。
-- **Portable版の更新案内を修正。** Portable modeではapp内の更新操作が非表示になるため、READMEからGitHub Releasesへ直接案内します。
+現在の安定版は[**v1.8.6ダウンロードページ**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6)から入手できます。
 
-検証結果、contributor情報、残っている手動release gateは、日英併記の [`v1.8.4 release notes`](./docs/RELEASE_NOTES_v1.8.4.md) を参照してください。
-
-## エディション
-
-| エディション | 用途 | 実行方法 |
+| プラットフォーム | ダウンロード | 初回起動時の注意 |
 |---|---|---|
-| **Desktop（このrepo）** | 完全な workflow、ライブ表示、replay、snapshot、ローカルファイル | 独立したローカルプロファイルを持つ Tauri app |
-| [Browser extension](https://github.com/teddashh/multi-ai-chat) | Chrome 内で軽量に使う | Side Panel から既存のAIタブを操作 |
+| **Windows 10/11 x64** | `x64-setup.exe` またはportable `.zip` | 署名されていないため、SmartScreenの警告が出る場合があります。通常WebView2は導入済みで、ない場合はインストーラーが取得できます。 |
+| **macOS Apple Silicon** | `aarch64.dmg` | Ad-hoc署名済みですが、Appleのnotarizationは未実施です。Intel版はありません。初回は下記の手順に従ってください。 |
+| **Linux x86_64** | `.AppImage` | `chmod +x Multi-AI*.AppImage` を実行してください。Ubuntu 22.04／Debian 12以降を推奨します。 |
 
-## デスクトップ版の主な機能
-
-- 非表示のプロバイダーにも安定して送信し、失敗時は再試行または明確なエラーを表示。
-- workflow コントロールを左側 WebView の上へ移動し、右側の会話をwindow全体へ拡大可能。Provider chipがreading line上の回答を示します。
-- 6つのguided presetと5つの安定したmode：自由送信、四者討論、多角相談、Coding、5ラウンド円卓討論、12ラウンド × 4席で合計48発言の多視点ブレインストーミング。
-- 組み込みの4役presetは4つのproviderを1回ずつ使用します。設定画面では各役割を変更でき、直列の役割は同じproviderを再利用できますが、並列の役割は別々に保つ必要があります。
-- 最大30件のローカル会話履歴と「新しい会話」。復元後の追質問には同一sessionだけの制限付きcontextを渡します。
-- 見出し、ネストしたlist、link、fenced code、scroll可能なtableを安全に表示するMarkdown、画像のみの回答完了判定、snapshot／replay、2,000件の診断ログ。
-- English、繁體中文、日本語、Deutsch。
-- 応答言語はインターフェース言語から独立。自動では、明示的な指定、質問、会話の言語を優先し、インターフェース言語は最後のフォールバックとして使用。固定の応答言語も選択可能。
-- 4人のキャラクターをproviderカード、発言状態、process row、app shellに表示する唯一のオプションTheme「AI-Sister 記念版」。第三者ページ自体は変更しません。
-- Codex／Claude Code 用の repo Skill から、インストーラーなしでソース版を起動。
-- Apple Silicon DMGをad-hoc署名し、release CIがアップロード前にアプリ署名を検証。
-
-## 6つの workflow preset
-
-| preset | 流れ | 向いている用途 |
-|---|---|---|
-| **自由送信** | 選択したAIが並列回答 | 比較、画像生成 |
-| **四者討論** | 賛成 → 反対 → 判定 → 統合 | 主張や判断の検証 |
-| **多角相談** | 独立回答2件 → レビュー → 最終回答 | 調査、セカンドオピニオン |
-| **Coding** | 仕様 → Review → v1 → Test → v2 → 受入 → 最終版 | ソフトウェア設計とレビュー |
-| **円卓討論** | 5ラウンド × 4席 = 20発言。標準は4 provider各1席 | 難題を対立させながら収束 |
-| **ブレインストーミング** | 12ラウンド × 4つの交代制の席 = 48発言。課題設定 → 発散 → 相互発展 → 分類・選択 → コンセプト検証 | 全履歴を使ったアイデア深化、バランスの取れた候補群、最初の実験 |
-
-構造化workflowで、直前の回答後にproviderページが連続送信を拒否した場合は1回だけ自動再試行します。通常、それでも失敗する場合や別のengine errorが発生した場合は、エラー文字列を後続の役割へ回答として渡さず、その場でworkflowを停止します。ブレインストーミングでは代わりに一時停止し、「再試行／スキップ／キャンセル」を表示します。「スキップ」を選ぶと安全なプレースホルダーを記録して次の席へ進み、元のエラー文字列は渡しません。
-
-ブレインストーミングは意図的に最も重いpresetです。標準の4つのWeb sessionへ先にログインし、約45～90分を見込んでください。providerが利用できない場合は事前チェックで明示され、役割の割り当ても変更できます。現在のClaude consumer siteはアカウントログインが必須です。本appは公式ログインを検出・案内しますが、providerのログインやsecurity checkを回避しません。
-
-workflow 完了後も右下の入力欄から会話を続けられます。文脈をリセットする場合は「新しい会話」を選びます。
-
-## リリース版をインストール
-
-[Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest) から取得します。
-
-- **Windows x64：** portable `.zip` または `x64-setup.exe`。Windows 10/11 は通常 WebView2 を含みます。
-- **macOS Apple Silicon：** `aarch64.dmg`。`v1.0.1` 以降はad-hoc署名済みですが、Appleのnotarizationは未実施です。Intel版は未提供です。
-- **Linux x64：** `.AppImage` に `chmod +x Multi-AI*.AppImage` を実行。Ubuntu 22.04／Debian 12 以降を推奨します。
-
-初回だけ各 provider を開いてログインします。パスワードは provider ページにのみ入力され、アプリは取得しません。
+初回は各プロバイダーのpaneを開き、実際のプロバイダーページでログインします。認証情報とcookieはプロバイダーごとに分離されたローカルWebView profileに残り、Multi-AI Chat Desktopがパスワードを尋ねることはありません。
 
 ### macOSでの初回起動
 
-1. 古い `v1.0.0` を削除し、`v1.0.1` 以降をダウンロードします。DMGを開き、アプリを **Applications** に移動します。
-2. アプリを一度開いてみます。
-3. 約1時間以内に **システム設定 → プライバシーとセキュリティ** の「セキュリティ」へ移動し、**このまま開く（Open Anyway）** を選んで確認します。
+1. 古い `v1.0.0` があれば削除し、現在のDMGを開いてアプリを「**アプリケーション**」へ移動します。
+2. 一度アプリを開こうとします。
+3. 約1時間以内に「**システム設定 → プライバシーとセキュリティ**」を開き、「セキュリティ」までスクロールして「**このまま開く**」を選び、確認します。
 
-ad-hoc署名により誤った「アプリが破損しています」というbundle整合性エラーは防げますが、初回のセキュリティ例外を完全になくすにはApple Developer ID署名とnotarizationが必要です。管理対象Macでは例外が禁止される場合があります。
+Ad-hoc署名はbundleの完全性を守り、`v1.0.0` で発生した誤った「アプリが壊れています」判定を防ぎます。ただし、この例外を完全になくせるのはDeveloper ID署名とnotarizationだけです。管理対象Macでは利用者による例外指定が禁止されている場合があります。
 
-## Codex／Claude Code からソース版を起動
+Windows portable版にはアプリ内更新UIがありません。[GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)から手動で更新してください。インストール版は新しいリリースを確認してダウンロードページを開けますが、アプリ自身が更新をダウンロード／インストールすることはありません。
 
-- Codex Skill： [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md)
-- Claude Code Skill： [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md)
+## v1.8.6の主な変更
 
-ディレクトリ構成は公式の [Codex Agent Skills](https://developers.openai.com/codex/skills) と [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills) に準拠します。
+- **Brainstormの上限・エラーから復旧可能に。** 利用上限、bridgeのdegraded／timeout、構造化されたプロバイダーエラーで一時停止し、**再試行・スキップ・キャンセル**を選べます。スキップ時は安全なplaceholderを記録し、生のエラー文を後続promptへ渡さず次の席へ進みます。
+- **Brainstorm graph v4。** 古いv3 snapshotが新しい復旧動作を暗黙に採用することはありません。再試行後のキャンセルでも予約turnを安全に片付けます。
+- **ChatGPT adapter v7。** URLや権限範囲を広げず、刷新された `/auth/login` formを認識します。
+- **開発依存関係のセキュリティ更新。** 修正版 `fast-uri` により4件のHigh Dependabot alertをすべて解消し、公開時点のproduction／全依存auditはいずれも既知の脆弱性0件でした。
 
-機械可読の正本は [`agent-release.json`](./agent-release.json) で、[`agent-release.schema.json`](./agent-release.schema.json) により検証されます。信頼境界、権限、副作用、READY、audit の詳細は、バイリンガルの [`Agent-Ready Source Release contract`](./docs/AGENT-READY-SOURCE-RELEASE.md) を参照してください。
+詳細と検証範囲は[日英併記のリリースノート](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6)をご覧ください。[#78](https://github.com/teddashh/multi-ai-chat-desktop/pull/78)でChatGPT adapter修正を提供した[@Rumi-3653](https://github.com/Rumi-3653)と、[#80](https://github.com/teddashh/multi-ai-chat-desktop/issues/80)でBrainstorm中断を報告した[@ufgeorge](https://github.com/ufgeorge)に感謝します。
 
-repoを開いただけではコードを実行しません。ソース起動ではcheckout本体、JavaScript依存関係のlifecycle code、Rust build script／procedural macroが実行されるため、先にrepoを確認し信頼してください。明示的なSkillは、このproject内のlocked dependencies、generated code、`tauri dev` だけを扱います。host toolchain／global packageの導入・削除、`PATH`／security設定の変更、installer生成、provider資格情報の読み取りは行いません。hostへの導入は別の操作として、別途明示的な承認が必要です。
+## Desktopとブラウザー拡張のどちらを選ぶ？
 
-### Codex app／CLI／IDE
+| | **Desktop（このrepo）** | [**ブラウザー拡張**](https://teddashh.github.io/multi-ai-chat/?lang=ja) |
+|---|---|---|
+| 最適な用途 | 完全なガイド付きworkflow、実プロバイダーのfocus表示、local session、snapshot／replay、ローカルテキストファイル | Chromeと既存のプロバイダータブ内で軽量に利用 |
+| 実行方式 | プロバイダーごとに独立したローカルprofileを持つTauriアプリ | Chrome Side Panelと通常のブラウザータブ |
+| インストール | Windows、Apple Silicon macOS、Linux向けrelease | Chrome extensionをインストール／読み込み |
+| 共通する核 | APIキー不要、実際のログイン済みWebページ、複数プロバイダー連携 | APIキー不要、実際のログイン済みWebページ、複数プロバイダー連携 |
 
-1. このrepoをダウンロード／cloneし、**ローカル**の Codex project/task で開きます。
-2. `$launch-multi-ai-chat` と入力するか、`/skills` から **Launch Multi-AI Chat** を選択します。
-3. 必要に応じてローカルコマンド実行を許可します。
-4. 初回の Rust build が終わると Tauri ウィンドウが開きます。
+専用ワークスペースと完全なローカルworkflow機能が必要ならDesktop、すべてをChrome内で完結したいなら拡張版が適しています。
 
-Codex repo Skill は app、CLI、IDE で利用できます。remote/cloud task からは手元PCにGUIを表示できません。
+## Desktop版に含まれるもの
 
-### Claude Code desktop／CLI／IDE
+- **1つの質問から連携した回答へ。** 選択したプロバイダーへ並列送信するか、構造化workflowで割り当て済みrole間に結果を受け渡します。
+- **信頼性の高いバックグラウンド自動操作。** Focusしていないprovider paneも動作し、直前の完了直後に拒否された送信は1回再試行、恒久的な失敗は明示します。
+- **会話中心のワークスペース。** Transcriptを画面全体へ拡大でき、provider chipで実ページと現在の読書位置を識別できます。
+- **6プリセット、5つの安定モード。** Free、Debate、Consult、Coding、Roundtableと、凍結済みruntime上に追加されたBrainstorm presetです。
+- **Roleを設定可能。** 4-roleの初期設定ではChatGPT、Claude、Gemini、Grokを1回ずつ使います。順次roleは同じプロバイダーを再利用できますが、並列roleは別々である必要があります。
+- **ローカルで会話を継続。** 新しい会話を始めるか、このPCだけに保存された最大30件のtranscriptを再開できます。再開後のfollow-upには同じsessionの限定的な文脈だけが渡ります。
+- **読みやすく忠実な出力。** 安全なsemantic Markdownで見出し、ネストしたlist、link、quote、fenced code、数式source、横scroll可能なtableを保持します。ChatGPTの画像のみの回答も完了できます。
+- **再現可能な作業。** Opt-in snapshotと固定済みprivacy tier、replay、checkpoint、Markdown export、provider診断、重複除去された2,000件のin-memory logを利用できます。
+- **UI言語と回答言語を分離。** UIはEnglish、繁體中文、日本語、Deutschに対応。回答言語Autoは明示指定、現在の質問、会話の順に従い、UI言語は最後のfallbackにだけ使います。
+- **AI-Sister 4キャラクター記念版。** 任意のThemeはアプリ所有のUIだけを装飾し、第三者のprovider pageを変更しません。
+- **Agent-ready source launch。** 明示的なCodex／Claude Code repo Skillで、installerをbuildせず前提条件を監査し、ローカルsource appを起動できます。
 
-1. このrepoを、グラフィカルPC上の**ローカルshell**を持つ Claude Code surface で開きます。
-2. `/launch-multi-ai-chat` を実行します。
-3. dev app の実行中はrepoフォルダを移動しないでください。
+## Workflows
 
-desktop/browser session が remote の場合は、local Claude Code session を使うか、このフォルダで `claude` を起動して `/launch-multi-ai-chat` を実行します。
+| プリセット | 流れ | 適した用途 |
+|---|---|---|
+| **Free** | 選択したAIが並列回答 | すばやい比較と画像prompt |
+| **Debate** | 賛成 → 反対 → 判定 → 統合 | 意思決定や主張のstress test |
+| **Consult** | 2つの独立回答 → Review → 最終回答 | 調査とsecond opinion |
+| **Coding** | 仕様 → Reviews → v1 → Tests → v2 → Acceptance → Final | 構造化されたソフトウェア計画とreview |
+| **Roundtable** | 5ラウンド × 4席 = 20件の発言 | 難しい問いを対立も含めて慎重に収束 |
+| **Brainstorm** | 12ラウンド × 4つの交代席 = 48件、5段階 | 全文脈を使う発想、バランスのよい案、具体的な実験 |
 
-### OS別の前提条件
+構造化workflowは開始前に必要な全roleを確認します。利用できないプロバイダーがあれば、その名前を示し、open／login、role再割り当て、別modeへの切り替えを案内します。暗黙のプロバイダー置換はしません。通常の構造化workflowは継続するprovider errorで停止し、Brainstormだけは再試行・スキップ・キャンセルの明示選択まで一時停止します。
 
-共通：**Node.js ^22.13.0 || >=24.0.0**、pnpm（または Corepack）、stable Rust。以下は手動で前提条件を用意する例であり、Skill自体は不足項目を報告して停止します。
+Brainstormは意図的に最も重いpresetです。標準の4 provider sessionをすべてログイン済みにし、約 **45〜90分** を見込んでください。48件すべてを含むlive復旧経路には自動テストがありますが、v1.8.6では完全な手動実行を行っていません。
 
-**Windows 10/11**
+Workflow完了後は画面下のcomposerから同じapp conversationを続けられます。文脈を一新する場合は「**新しい会話**」を選んでください。
 
-1. Node.js LTS をインストール。
-2. `winget install --id Rustlang.Rustup` を実行し、MSVC toolchain を選択。
-3. **Visual Studio Build Tools → Desktop development with C++** をインストール。
-4. 不足している場合のみ Microsoft Edge WebView2 Evergreen Runtime を追加。
+## プライバシーとセキュリティ
 
-**macOS 10.15+**
+- APIキー、Multi-AI Chatアカウント、telemetry、analytics、独自の会話backendはありません。
+- Promptは選択したprovider pageへ直接送られます。各providerは自身のpolicyに従って受信・処理します。
+- Providerごとのcookieとbrowser profileはローカルapp dataに留まり、snapshotや診断へコピーされません。
+- Remote provider webviewは信頼しないcontentとして扱われ、**Tauri権限は0**です。App commandを呼べるのはbundled local control paneだけです。
+- 任意のadapter updateはdata-only JSONで、schema検証され、app同梱のprovider／login／SSO URL範囲を拡張できません。
+- Snapshotはopt-inでローカル保存され、既存の `metadata-only`、`hashes`、`prompt-text`、`full-local` privacy tierを使います。会話全文の自動uploadや共有channelはありません。
+- Debug bundle、Markdown export、share／publishは利用者の明示操作でのみ実行されます。Adapter診断からはページ本文、入力値、cookie、storage、URL query／fragmentが除外されます。
 
-1. `xcode-select --install` を実行（desktop開発だけなら完全なXcodeは不要）。
-2. Node.js LTS と Rust stable をインストール。
-3. SSHではなくローカルのGUI sessionからSkillを実行。
+脆弱性は [SECURITY.md](./SECURITY.md) に従って非公開で報告し、公開Issueへcookie、token、アカウント情報、会話、provider HTML、local profileを載せないでください。Provider自動操作のregressionは、アプリ内diagnostic previewを確認してから **Adapter broken** issue formで報告できます。
 
-**Ubuntu／Debian**
+## 既知の制限と検証状況
 
-```sh
-sudo apt update
-sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
-  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-```
+- Provider siteは予告なく変わります。DOMやlogin flowの変更により、adapter更新まで自動入力、送信、完了検出が一時的に動かない場合があります。
+- Provider account、契約、quota、地域、規約、security challengeはそのまま適用され、アプリは自動化も回避もしません。Claudeはaccount login必須、GeminiのGoogle `/sorry` blockはsystem browserの案内が必要な場合があり、Grok challengeはpane内で手動完了する必要があります。
+- **Windows x64** はpackaged launchの検証実績がありますが、未署名artifactがSmartScreenを表示する場合があります。
+- **macOS Apple Silicon** は部分検証です。DMGはad-hoc署名済み・notarize未実施です。以前の実機報告ではアプリを開きChatGPT、Claude、Geminiへloginできましたが、GrokはCloudflareで停止しました。現在のGrok復旧もApple Siliconでlive retestが必要です。Intel artifactはありません。
+- **Linux x86_64** はCI packagingのみ検証済みで、maintainerによる新しい実機起動報告はありません。
+- v1.8.6では、Grok challengeを含むlive provider loginと完全な48件Brainstorm復旧runを手動で再検証していません。ChatGPT adapter v7は焦点を絞ったlive-DOM selector evidenceのみで、アプリ内logged-out workflow全体の検証ではありません。
+- Snapshot／replay／checkpointは既存互換性だけを保守します。この機能凍結版にmarketplace、graph editor、第5のprovider、新persistence schema、組み込みterminal agent、telemetry、Developer ID／notarization program、self-updaterを追加する予定はありません。
 
-Node.js ^22.13.0 || >=24.0.0 と Rust stable を追加し、X11／Wayland session でSkillを実行します。他のdistributionは [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) を参照してください。
+根拠は[互換性マトリクス](./docs/COMPATIBILITY.md)をご覧ください。CIや自動テストを、実際のprovider accountやdesktop deviceを操作した証拠として扱うことはありません。
 
-### Skill コマンド
+## CodexまたはClaude Codeからsource起動
 
-```sh
-node scripts/agent/audit.mjs --phase before --write --json
-node scripts/agent/doctor.mjs --json
-node scripts/agent/launch.mjs --dry-run --json
-node scripts/agent/launch.mjs --wait --timeout-ms 600000 --json
-node scripts/agent/status.mjs --json --lines 80
-node scripts/agent/audit.mjs --phase after --write --json
-node scripts/agent/stop.mjs --json
-pnpm agent:verify
-```
+このrepoを開く／cloneするだけでコードが実行されることはありません。Source launchでは、信頼したcheckout、JavaScript dependency lifecycle scripts、Rust build scripts／procedural macrosが実行されるため、先にrepoをreviewしてください。
 
-初回buildには数分かかる場合があります。`accepted`／`building` はREADYではなく、現在のrunが `[MAC_AGENT] READY control-pane` を出した場合だけ `state: "ready"` になります。log、process identity、before／after audit receipt はgitignored `.agent-runtime/` にだけ保存され、自動uploadされません。このローカルGUI／WebView laneには意図的にDocker版を設けません。
+Repoには明示的に呼び出す2つのlocal Skillがあります。
+
+- Codex：[`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md) — local Codex app／CLI／IDE taskで `$launch-multi-ai-chat` を実行。
+- Claude Code：[`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md) — local graphical Claude Code sessionで `/launch-multi-ai-chat` を実行。
+
+Skillが行えるのはlocked project dependencyのinstall、generated codeのbuild、`tauri dev` の起動だけです。Host toolchain／global packageのinstall・remove、`PATH`／security settingの変更、release installerのbuild、provider credentialの読み取り、receiptのupload、host変更のrollbackは行いません。Remote／cloud agentはあなたのPCにGUIを表示できず、Docker laneは意図的に用意していません。
+
+共通の前提条件は **Node.js ^22.13.0 || >=24.0.0**、pnpm／Corepack、stable Rust、[Tauri 2の各platform prerequisites](https://v2.tauri.app/start/prerequisites/)です。最初のRust buildには数分かかる場合があります。Versioned contractは [`agent-release.json`](./agent-release.json) と [`docs/AGENT-READY-SOURCE-RELEASE.md`](./docs/AGENT-READY-SOURCE-RELEASE.md) にあります。
 
 ## 開発
 
 ```sh
-corepack enable
+corepack enable # pnpmがない場合のみ
 pnpm install --frozen-lockfile
-pnpm build:injected
 pnpm verify
 pnpm tauri dev
 ```
 
-仕様：[`docs/SPEC.md`](./docs/SPEC.md) · 構成：[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · Release：[`docs/RELEASE.md`](./docs/RELEASE.md) · 検証状況：[`docs/COMPATIBILITY.md`](./docs/COMPATIBILITY.md)
+よく使うlifecycle check：
 
-## プライバシー
+```sh
+node scripts/agent/doctor.mjs --json
+node scripts/agent/launch.mjs --dry-run --json
+node scripts/agent/launch.mjs --wait --timeout-ms 600000 --json
+node scripts/agent/status.mjs --json --lines 80
+node scripts/agent/stop.mjs --json
+```
 
-APIキー、独自アカウント、telemetry、会話backendはありません。promptは選択したproviderページへ直接送信され、cookieとprofileはローカルに残ります。adapter更新は任意のデータ専用JSONで、schema検証され、同梱URL範囲を拡張できません。debug bundle、export、shareは利用者が明示的に実行した場合だけ動作します。
+Source appがreadyであることを示すのは、現在runのidentity検証済み `[MAC_AGENT] READY control-pane` markerだけです。Runtime stateとbefore／after audit receiptはgitignored `.agent-runtime/` にだけ残り、自動uploadされません。`pnpm tauri build` は現在のplatform向けpackageを作成します。
 
-脆弱性は [`SECURITY.md`](./SECURITY.md) に従って非公開で報告してください。Provider自動化の不具合は、アプリ内診断を確認してからGitHubの **Adapter broken** フォームで報告できます。
+動作を変更する前に[仕様](./docs/SPEC.md)、[アーキテクチャ](./docs/ARCHITECTURE.md)、[リリースガイド](./docs/RELEASE.md)、[source-launch contract](./docs/AGENT-READY-SOURCE-RELEASE.md)、[contributing guide](./CONTRIBUTING.md)を読んでください。Adapter変更はschemaとURL boundaryを維持する必要があります。
 
-### コントリビューターと謝辞
+## プロジェクトと謝辞
 
-[Dave Tseng（`@DaveTseng2019`）](https://github.com/DaveTseng2019) に特別な感謝を表します。`v1.3.1` のoverlay信頼性修正、[#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10)・[#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11)・[#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12)での詳細な再現と初期案、[#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14) のserializer regression test、[#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39)・[#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40) のGrok challenge表示とfocus stage拡大、そして [#51](https://github.com/teddashh/multi-ai-chat-desktop/pull/51) の全幅transcriptとscroll連動provider focusに貢献しました。
+Multi-AI Chat Desktopは **Ted Huang／TED-H**（[TED@TED-H.com](mailto:TED@TED-H.com)、[ted-h.com](https://ted-h.com)）が制作し、[AI-Sister.com](https://ai-sister.com)がスポンサーを務めるMITソフトウェアです。記念版artworkはこのプロジェクト専用の許諾で収録され、ソフトウェアのMIT Licenseで独立利用できるものではありません。[artwork notice](./src/assets/themes/ai-sister/NOTICE.md)をご確認ください。
 
-[CE Lin（`@ChingEnLin`）](https://github.com/ChingEnLin) にも感謝します。[#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) の詳細なprovider status報告と、[#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42) のChatGPT・Gemini・Grok adapter修正に貢献しました。
+コントリビューターへの感謝：
 
-再現可能な報告とsanitized debug logを共有したWindows／macOSユーザーにも感謝します。これらの報告が初回起動package、provider自動化、session継続、release検証を直接改善しました。
+- [Rumi-3653](https://github.com/Rumi-3653) は [#78](https://github.com/teddashh/multi-ai-chat-desktop/pull/78) でChatGPT v7 logged-out detector修正を提供しました。
+- [George Ku（`@ufgeorge`）](https://github.com/ufgeorge) は [#80](https://github.com/teddashh/multi-ai-chat-desktop/issues/80) でprovider上限によるBrainstorm中断を報告し、v1.8.6の復旧flowにつながりました。
+- [Dave Tseng（`@DaveTseng2019`）](https://github.com/DaveTseng2019) は `v1.3.1` のoverlay信頼性修正、[#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10)・[#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11)・[#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12)での詳細な再現と初期案、[#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14)のserializer regression test、[#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39)・[#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40)のGrok challenge／focus stage改善、[#51](https://github.com/teddashh/multi-ai-chat-desktop/pull/51)の全幅transcript／scroll連動provider focusに貢献しました。
+- [CE Lin（`@ChingEnLin`）](https://github.com/ChingEnLin) は [#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) のprovider status報告と、[#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42) のChatGPT・Gemini・Grok adapter修正に貢献しました。
+- 再現可能な報告とsanitized debug logを共有したWindows／macOSユーザーの協力により、初回起動package、provider自動操作、session continuity、release verificationが改善されました。
 
-Sponsored by [AI-Sister.com](https://ai-sister.com)。作者 Ted Huang（[TED@TED-H.com](mailto:TED@TED-H.com)、[ted-h.com](https://ted-h.com)）。MIT License。
+凍結済みmaintenance scope内のIssueとPRを歓迎します。再現可能な非security bugとmaintenanceに関する質問は [GitHub Issues](https://github.com/teddashh/multi-ai-chat-desktop/issues)をご利用ください。

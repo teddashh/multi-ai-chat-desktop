@@ -2,186 +2,157 @@
 
 **English** · [繁體中文](./README.zh-TW.md) · [日本語](./README.ja.md) · [Deutsch](./README.de.md)
 
-Ask one question, then let your logged-in **ChatGPT, Claude, Gemini, and Grok** web sessions answer, review, challenge, and refine one another. Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
+Ask once. Let your signed-in **ChatGPT, Claude, Gemini, and Grok** web sessions answer, review, challenge, and refine one another. Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
 
-**Current release: [download the latest stable version](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)** · MIT · no API keys · no analytics
+[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.8.6](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
 
-> This project automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider’s terms. Use accounts and content you are authorized to use.
+> This app automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider's terms. Use only accounts and content you are authorized to use. The app never bypasses login, subscription, age, rate-limit, or security checks.
 
-> **Project status:** Feature development is complete. The final optional AI-Sister four-character commemorative theme and its 12-round Brainstorm preset are included; future changes are limited to provider compatibility, security, and build breakage. Brainstorm keeps four rotating seats and 48 contributions with full same-session history. Every built-in four-role or four-seat setup assigns ChatGPT, Claude, Gemini, and Grok once each. The shipped snapshot/replay tools remain available as-is with no further roadmap.
+> **Project status:** the web-session desktop edition is feature-frozen. Its four providers, six presets, five underlying workflow modes, snapshot/replay tools, and optional AI-Sister Commemorative Edition are complete. Future changes are limited to provider compatibility, security, data-loss/crash prevention, accessibility, packaging, and build breakage.
 
-## v1.8.4 highlights
+## Install first
 
-- **Complete provider answers.** Finish-time DOM text is authoritative, code blocks containing replacement patterns remain intact, and an unfinished ChatGPT turn cannot silently become a successful partial response.
-- **Bounded Grok login recovery.** Closing an allowed Grok authentication popup can trigger one native reload only while the same document remains blocked; lifecycle ownership and a start lease prevent duplicate or permanently wedged reloads.
-- **Provider-specific challenge guidance.** Grok directs users to complete the solvable check in its pane, while Gemini keeps the required system-browser guidance for Google `/sorry` blocks.
-- **Correct portable update instructions.** The portable README links directly to GitHub Releases because portable mode hides the in-app update controls.
+Get the current stable release from the [**v1.8.6 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6).
 
-See the bilingual [`v1.8.4 release notes`](./docs/RELEASE_NOTES_v1.8.4.md) for validation evidence, contributor credit, and the remaining manual release gates.
-
-## Choose the right edition
-
-| Edition | Best for | How it runs |
+| Platform | Download | First-launch note |
 |---|---|---|
-| **Desktop (this repo)** | Full workflows, focused live provider view, replay, snapshots, local files | Tauri app with isolated local provider profiles |
-| [Browser extension](https://github.com/teddashh/multi-ai-chat) | Lightweight workflows inside Chrome | Chrome Side Panel controlling your existing provider tabs |
+| **Windows 10/11 x64** | `x64-setup.exe` or portable `.zip` | Artifacts are unsigned, so SmartScreen may warn. WebView2 is normally present; the installer can fetch it when missing. |
+| **macOS Apple Silicon** | `aarch64.dmg` | Ad-hoc signed, not Apple-notarized. No Intel build is published. Follow the steps below on first launch. |
+| **Linux x86_64** | `.AppImage` | Run `chmod +x Multi-AI*.AppImage`. Ubuntu 22.04 / Debian 12 or newer is recommended. |
 
-## What the desktop edition includes
-
-- **Reliable offscreen automation.** Providers keep working without manually opening each “live page”; rejected sends retry and fail clearly instead of waiting forever.
-- **Conversation-first layout.** Workflow controls sit above the less-important provider WebView on the left; the larger transcript pane can expand across the whole window, and provider chips identify the answer at the reading line.
-- **Six guided presets, five stable modes.** Free distribution, debate, consultation, coding, five-round truth-seeking roundtable, and a 12-round × 4-seat Brainstorm workflow with 48 contributions.
-- **Configurable collaboration roles.** Built-in four-role setups use all four providers once each. In Settings, you can assign roles differently; serial roles may reuse one provider, while roles that run in parallel must remain distinct.
-- **Local sessions.** Create a new conversation or reopen up to 30 recent transcripts stored on this computer; restored follow-ups receive bounded context from the same session.
-- **Readable results.** Safe semantic Markdown rendering for headings, nested lists, links, quotes, fenced code, and scrollable tables.
-- **Image completion.** Image-only ChatGPT responses complete the workflow instead of hanging.
-- **Reproducible work.** Optional snapshots, privacy tiers, replay, provider diagnostics, and a 2,000-event deduplicated log.
-- **Four UI languages.** English, Traditional Chinese, Japanese, and German.
-- **Question-aware response language.** Auto follows an explicit request, then the question and conversation language; the UI language is used only as a fallback. A fixed response language can be selected separately.
-- **AI-Sister Commemorative Edition.** One optional four-character theme adds the supplied portraits to provider cards, active speakers, process rows, and the app shell without reskinning third-party pages.
-- **Repository Skills.** Codex and Claude Code can validate prerequisites and launch the source app without an installer.
-- **Safer macOS packaging.** Apple Silicon DMGs are ad-hoc signed, and release CI verifies the embedded app signature before upload.
-
-## Workflow presets
-
-| Preset | Flow | Typical use |
-|---|---|---|
-| **Free** | Selected providers answer in parallel | Quick comparison and image prompts |
-| **Debate** | Pro → Con → Judge → Synthesis | Stress-test a decision or argument |
-| **Consult** | Two independent answers → Review → Final answer | Research and second opinions |
-| **Coding** | Specification → Reviews → v1 → Tests → v2 → Acceptance → Final | Structured software planning and review |
-| **Roundtable** | 5 rounds × 4 seats = 20 turns; all 4 providers by default | Slow, adversarial convergence on difficult questions |
-| **Brainstorm** | 12 rounds × 4 rotating seats = 48 contributions; framing → divergence → cross-pollination → harvesting → concept tests | Full-context idea development, a balanced portfolio, and concrete first experiments |
-
-Structured workflows retry a provider once when its page rejects a just-finished back-to-back send. By default, any remaining engine error stops the workflow instead of being passed to later roles as if it were an answer. Brainstorm instead pauses with Retry, Skip, and Cancel choices; Skip records a safe placeholder and continues to the next seat without relaying the error text.
-
-Brainstorm is intentionally the heaviest preset: keep all four default provider sessions authenticated and allow roughly 45–90 minutes. If a provider is unavailable, preflight identifies it and you can customize the role assignments. Claude's current consumer site requires an account login; this app detects and guides that flow but never bypasses provider login or security checks.
-
-After a workflow finishes, use the bottom composer to continue the same conversation. Use **New conversation** when you want a clean session.
-
-## Install a release
-
-Download from [Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest):
-
-- **Windows x64:** portable `.zip` or `x64-setup.exe`. Windows 10/11 normally already includes WebView2; the installer can fetch it when missing.
-- **macOS Apple Silicon:** `aarch64.dmg`. Builds from `v1.0.1` onward are ad-hoc signed but not Apple-notarized. Intel builds are not currently published.
-- **Linux x64:** `.AppImage`, then run `chmod +x Multi-AI*.AppImage` and open it. Ubuntu 22.04 / Debian 12 or newer is recommended.
-
-On first launch, open each provider once and sign in. Credentials stay in that provider’s local WebView profile; the app never asks for the password.
+Open each provider pane once and sign in on the provider's real page. Credentials and cookies stay in that provider's isolated local WebView profile; Multi-AI Chat Desktop never asks for your password.
 
 ### macOS first launch
 
-1. Delete any `v1.0.0` copy, download `v1.0.1` or newer, open the DMG, and drag the app to **Applications**.
+1. Remove any old `v1.0.0` copy. Open the current DMG and drag the app to **Applications**.
 2. Try to open the app once.
-3. Within about one hour, open **System Settings → Privacy & Security**, scroll to **Security**, then choose **Open Anyway** and confirm.
+3. Within about one hour, open **System Settings → Privacy & Security**, scroll to **Security**, choose **Open Anyway**, and confirm.
 
-The ad-hoc signature prevents the false “app is damaged” bundle-integrity failure, but only Apple Developer ID signing plus notarization can remove the first-launch security exception entirely. Managed Macs may prohibit user exceptions.
+The ad-hoc signature protects bundle integrity and avoids the false “app is damaged” result seen in `v1.0.0`; only Developer ID signing plus notarization could remove this exception. Managed Macs may prohibit it.
 
-## Launch the source with Codex or Claude Code
+Portable Windows builds do not show in-app update controls. Update them manually from [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installed builds can check for a newer release and open its download page, but the app does not download or install updates itself.
 
-The repo contains two explicit local Skills:
+## What's new in v1.8.6
 
-- Codex: [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md)
-- Claude Code: [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md)
+- **Recoverable Brainstorm limits and errors.** A usage limit, bridge degradation/timeout, or structured provider error pauses the run with **Retry**, **Skip**, and **Cancel**. Skip records a safe placeholder and continues without relaying raw error text into later prompts.
+- **Brainstorm graph v4.** Older v3 snapshots cannot silently inherit the new recovery semantics; reserved-turn cleanup is also hardened after retry and cancellation.
+- **ChatGPT adapter v7.** The bundled adapter recognizes the redesigned `/auth/login` form without expanding URL or permission scope.
+- **Development dependency security.** The patched `fast-uri` release cleared all four open High Dependabot alerts; production and full dependency audits reported no known vulnerabilities at release time.
 
-These follow the official [Codex Agent Skills](https://developers.openai.com/codex/skills) and [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills) layouts.
+Read the [complete bilingual release notes and validation evidence](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6). Thanks to [@Rumi-3653](https://github.com/Rumi-3653) for the ChatGPT adapter fix in [#78](https://github.com/teddashh/multi-ai-chat-desktop/pull/78), and [@ufgeorge](https://github.com/ufgeorge) for the Brainstorm interruption report in [#80](https://github.com/teddashh/multi-ai-chat-desktop/issues/80).
 
-The machine-readable source of truth is [`agent-release.json`](./agent-release.json), validated by [`agent-release.schema.json`](./agent-release.schema.json). The full trust, permission, side-effect, readiness, and audit model is documented in the bilingual [`Agent-Ready Source Release contract`](./docs/AGENT-READY-SOURCE-RELEASE.md).
+## Desktop or browser extension?
 
-Opening a repository never executes it automatically. Source launch executes this checkout, JavaScript dependency lifecycle code, and Rust build scripts/procedural macros, so review and trust the repo first. The explicit Skill can install locked dependencies into this project, build generated code, and start `tauri dev`; it never installs or removes host toolchains/global packages, changes `PATH` or security settings, builds an installer, or reads provider credentials. Any host installation is a separate operation requiring separate explicit approval.
+| | **Desktop (this repository)** | [**Browser extension**](https://teddashh.github.io/multi-ai-chat/) |
+|---|---|---|
+| Best for | Complete guided workflows, focused live-provider view, local sessions, snapshots/replay, and local text files | Lightweight use inside Chrome with existing provider tabs |
+| Runtime | Tauri app with one isolated local profile per provider | Chrome Side Panel plus normal browser tabs |
+| Install | Windows, Apple Silicon macOS, or Linux release | Load/install the Chrome extension |
+| Shared core | Zero API keys, real signed-in provider pages, and multi-provider collaboration | Zero API keys, real signed-in provider pages, and multi-provider collaboration |
 
-### Codex app, CLI, or IDE
+Choose Desktop when you want a dedicated workspace and the full local workflow toolset. Choose the extension when you prefer to remain entirely inside Chrome.
 
-1. Download/clone this repository and open the folder as a **local** Codex project/task.
-2. Type `$launch-multi-ai-chat` (or choose **Launch Multi-AI Chat** from `/skills`).
-3. Approve local command execution if your Codex security settings request it.
-4. Wait for the first Rust build; the Tauri window opens when compilation finishes.
+## What the desktop edition includes
 
-Repo Skills work in Codex app, CLI, and IDE surfaces. A remote/cloud task can edit this repo but cannot display a GUI on your computer.
+- **One question, coordinated answers.** Send to selected providers in parallel or let a structured workflow pass results between assigned roles.
+- **Reliable background automation.** Provider panes keep working when not focused; rejected back-to-back sends retry once and permanent failures surface clearly.
+- **Conversation-first workspace.** The transcript can expand across the window, while provider chips keep the live page and current reading position easy to identify.
+- **Six presets, five stable modes.** Free, Debate, Consult, Coding, Roundtable, and the additional Brainstorm preset built on the frozen workflow runtime.
+- **Configurable roles.** Four-role defaults assign ChatGPT, Claude, Gemini, and Grok once each. Sequential roles may reuse a provider; roles that run in parallel must remain distinct.
+- **Local continuity.** Start a clean conversation or reopen up to 30 locally stored transcripts. Restored follow-ups receive bounded context from that same session only.
+- **Readable, faithful output.** Safe semantic Markdown supports headings, nested lists, links, quotes, fenced code, and scrollable tables while preserving math source. Image-only ChatGPT responses can also complete.
+- **Reproducible work.** Opt-in snapshots with frozen privacy tiers, replay, checkpoints, Markdown export, provider diagnostics, and a 2,000-event deduplicated in-memory log remain available.
+- **Independent interface and response languages.** The UI supports English, Traditional Chinese, Japanese, and German. Auto response language follows an explicit request, then the current question and conversation, using UI language only as fallback.
+- **AI-Sister Commemorative Edition.** The optional four-character theme decorates only app-owned surfaces and never reskins provider pages.
+- **Agent-ready source launch.** Explicit Codex and Claude Code repository Skills can audit prerequisites and launch the local source app without building an installer.
 
-### Claude Code desktop, CLI, or IDE
+## Workflows
 
-1. Open this repository in a Claude Code surface that has a **local shell on your graphical computer**.
-2. Run `/launch-multi-ai-chat`.
-3. Keep the repository folder available while the dev app runs.
+| Preset | Flow | Good for |
+|---|---|---|
+| **Free** | Selected providers answer in parallel | Fast comparison and image prompts |
+| **Debate** | Pro → Con → Judge → Synthesis | Stress-testing a decision or argument |
+| **Consult** | Two independent answers → Review → Final answer | Research and second opinions |
+| **Coding** | Specification → Reviews → v1 → Tests → v2 → Acceptance → Final | Structured software planning and review |
+| **Roundtable** | 5 rounds × 4 seats = 20 contributions | Slow, adversarial convergence on difficult questions |
+| **Brainstorm** | 12 rounds × 4 rotating seats = 48 contributions across five phases | Full-context ideation, a balanced portfolio, and concrete experiments |
 
-If your Claude desktop/browser session is remote, use a local Claude Code session or run `claude` from a terminal in this folder, then invoke `/launch-multi-ai-chat`.
+Structured workflows preflight every required role. If a provider is unavailable, the app identifies it and lets you open/login, reassign the role, or choose another mode; it never silently substitutes a provider. Standard structured workflows stop on a persistent provider error. Brainstorm instead pauses for an explicit Retry, Skip, or Cancel choice.
 
-### Platform prerequisites for source launch
+Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its full live 48-contribution recovery path has automated coverage but was not manually completed for v1.8.6.
 
-Common: **Node.js ^22.13.0 || >=24.0.0**, pnpm (or Corepack), and the stable Rust toolchain. The commands below are manual prerequisite examples; the Skill only reports missing items and stops.
+After a workflow finishes, continue from the bottom composer to keep the same app conversation. Choose **New conversation** for clean session context.
 
-**Windows 10/11**
+## Privacy and security
 
-1. Install Node.js LTS.
-2. Install Rust with `winget install --id Rustlang.Rustup` and select the MSVC toolchain.
-3. Install **Visual Studio Build Tools → Desktop development with C++**.
-4. Install Microsoft Edge WebView2 Evergreen Runtime only if it is missing.
+- No API keys, Multi-AI Chat account, telemetry, analytics, or conversation backend.
+- Prompts go directly to the provider pages you select. Provider services still receive and process them under their own policies.
+- Each provider's cookies and browser profile remain under local app data and are never copied into snapshots or diagnostics.
+- Remote provider webviews are untrusted and receive **zero Tauri permissions**. Only the bundled local control pane can call app commands.
+- Optional adapter updates are data-only JSON, schema-validated, and cannot expand the provider/login/SSO URL scopes bundled with the app.
+- Snapshots are opt-in and local, with the shipped `metadata-only`, `hashes`, `prompt-text`, and `full-local` privacy tiers. There is no automatic full-conversation upload or sharing channel.
+- Debug bundles, Markdown exports, and share/publish actions run only after an explicit user action. Adapter diagnostics exclude page text, input values, cookies, storage, URL queries, and fragments.
 
-**macOS 10.15+**
+Report vulnerabilities privately through [SECURITY.md](./SECURITY.md); never put cookies, tokens, account data, conversations, provider HTML, or local profile files in a public issue. Provider automation regressions can use the **Adapter broken** issue form after you review the in-app diagnostic preview.
 
-1. Run `xcode-select --install` (full Xcode is not required for desktop-only development).
-2. Install Node.js LTS and Rust stable.
-3. Start the Skill from a local graphical login session, not SSH.
+## Known limits and verification status
 
-**Ubuntu / Debian**
+- Provider sites can change without notice. A DOM or login-flow change may temporarily break automatic input, send, or completion detection until an adapter update ships.
+- Provider accounts, subscriptions, quotas, regional availability, terms, and security challenges still apply. The app neither automates nor bypasses them. Claude requires an authenticated account; Gemini may require system-browser guidance for a Google `/sorry` block; Grok challenges must be solved manually in its pane.
+- **Windows x64** has verified packaged launch evidence, but artifacts are unsigned and can trigger SmartScreen.
+- **macOS Apple Silicon** is partially verified. The DMG is ad-hoc signed and not notarized; an earlier real-device report opened the app and logged into ChatGPT, Claude, and Gemini, while Grok remained on Cloudflare. Current Grok recovery still needs a live Apple Silicon retest. There is no Intel artifact.
+- **Linux x86_64** packaging is CI-verified only; there is no current maintainer real-device launch report.
+- For v1.8.6, live provider login—including Grok's challenge path—and a complete 48-contribution Brainstorm recovery run were not manually reverified. ChatGPT adapter v7 has focused live-DOM selector evidence, not a full in-app logged-out workflow.
+- Snapshots/replay/checkpoints are compatibility-maintained in their shipped form. There is no marketplace, graph editor, fifth provider, new persistence schema, embedded terminal agent, telemetry roadmap, Developer ID/notarization program, or self-updater planned for this feature-frozen edition.
 
-```sh
-sudo apt update
-sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
-  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-```
+See the evidence-based [compatibility matrix](./docs/COMPATIBILITY.md). CI and automated tests are never presented as proof that a live provider account or real desktop device was exercised.
 
-Then install Node.js ^22.13.0 || >=24.0.0, Rust stable, and run the Skill from a graphical X11/Wayland session. Other distributions should follow the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/).
+## Launch from source with Codex or Claude Code
 
-### Skill lifecycle commands
+Opening or cloning this repository never executes it. Source launch does execute the trusted checkout, JavaScript dependency lifecycle scripts, and Rust build scripts/procedural macros, so review the repository first.
 
-```sh
-node scripts/agent/audit.mjs --phase before --write --json
-node scripts/agent/doctor.mjs --json
-node scripts/agent/launch.mjs --dry-run --json
-node scripts/agent/launch.mjs --wait --timeout-ms 600000 --json
-node scripts/agent/status.mjs --json --lines 80
-node scripts/agent/audit.mjs --phase after --write --json
-node scripts/agent/stop.mjs --json
-pnpm agent:verify
-```
+The repo includes two explicit local Skills:
 
-The first Rust build can take several minutes. `accepted` and `building` are not readiness claims: only the current run's `[MAC_AGENT] READY control-pane` marker produces `state: "ready"`. Logs, identity state, and before/after receipts stay under ignored `.agent-runtime/`; nothing is uploaded automatically. This GUI/WebView lane intentionally has no Docker variant.
+- Codex: [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md) — invoke `$launch-multi-ai-chat` in a local Codex app, CLI, or IDE task.
+- Claude Code: [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md) — invoke `/launch-multi-ai-chat` in a local graphical Claude Code session.
+
+The Skills may install only locked project dependencies, build generated code, and start `tauri dev`. They never install/remove host toolchains or global packages, change `PATH` or security settings, build a release installer, read provider credentials, upload receipts, or roll back host changes. Remote/cloud agents cannot display the GUI on your computer. There is intentionally no Docker lane.
+
+Common prerequisites are **Node.js ^22.13.0 || >=24.0.0**, pnpm/Corepack, stable Rust, and the [Tauri 2 platform prerequisites](https://v2.tauri.app/start/prerequisites/). The first Rust build can take several minutes. The versioned contract is in [`agent-release.json`](./agent-release.json) and [`docs/AGENT-READY-SOURCE-RELEASE.md`](./docs/AGENT-READY-SOURCE-RELEASE.md).
 
 ## Development
 
 ```sh
-corepack enable        # only if pnpm is not already available
+corepack enable # only if pnpm is unavailable
 pnpm install --frozen-lockfile
-pnpm build:injected
 pnpm verify
 pnpm tauri dev
 ```
 
-`pnpm tauri build` creates platform packages. See [`docs/SPEC.md`](./docs/SPEC.md), [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md), [`docs/RELEASE.md`](./docs/RELEASE.md), and the honest [`compatibility matrix`](./docs/COMPATIBILITY.md).
+Useful lifecycle checks:
 
-## Privacy and network behavior
+```sh
+node scripts/agent/doctor.mjs --json
+node scripts/agent/launch.mjs --dry-run --json
+node scripts/agent/launch.mjs --wait --timeout-ms 600000 --json
+node scripts/agent/status.mjs --json --lines 80
+node scripts/agent/stop.mjs --json
+```
 
-- No API keys, project account, telemetry, or conversation backend.
-- Prompts go directly to the provider pages selected by the user.
-- Provider cookies and profiles stay in local app data.
-- Adapter updates are optional, data-only, schema-validated, and unable to expand the URL scopes bundled with the app.
-- Debug bundles are created locally only when requested.
-- Export/share actions run only after an explicit user action.
+Only the current run's identity-verified `[MAC_AGENT] READY control-pane` marker means the source app is ready. Runtime state and before/after audit receipts stay in ignored `.agent-runtime/` and are not uploaded automatically. `pnpm tauri build` creates packages for the current platform.
 
-## Project
+Read the [specification](./docs/SPEC.md), [architecture](./docs/ARCHITECTURE.md), [release guide](./docs/RELEASE.md), [source-launch contract](./docs/AGENT-READY-SOURCE-RELEASE.md), and [contributing guide](./CONTRIBUTING.md) before changing behavior. Adapter changes must preserve schema and URL boundaries.
 
-Report vulnerabilities privately through [`SECURITY.md`](./SECURITY.md). Report provider automation regressions with the GitHub **Adapter broken** issue form after reviewing the in-app diagnostic preview.
+## Project and credits
 
-### Contributors and acknowledgements
+Multi-AI Chat Desktop is MIT-licensed software created by **Ted Huang / TED-H** ([TED@TED-H.com](mailto:TED@TED-H.com), [ted-h.com](https://ted-h.com)) and sponsored by [AI-Sister.com](https://ai-sister.com). The commemorative artwork is included with project-specific permission and is not independently offered under the MIT software license; see its [artwork notice](./src/assets/themes/ai-sister/NOTICE.md).
 
-Special thanks to [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) for the `v1.3.1` overlay reliability fix, the careful reproductions and original proposals in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11), and [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12), the serializer regression tests merged in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14), the Grok challenge and expanded-focus work in [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39) and [#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40), and the full-width transcript plus scroll-linked provider focus contributed through [#51](https://github.com/teddashh/multi-ai-chat-desktop/pull/51).
+Contributor thanks:
 
-Thank you to [CE Lin (`@ChingEnLin`)](https://github.com/ChingEnLin) for the detailed provider-status report in [#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) and the ChatGPT, Gemini, and Grok adapter repair contributed through [#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42).
+- [Rumi-3653](https://github.com/Rumi-3653) contributed the ChatGPT v7 logged-out detector repair in [#78](https://github.com/teddashh/multi-ai-chat-desktop/pull/78).
+- [George Ku (`@ufgeorge`)](https://github.com/ufgeorge) reported the provider-limit Brainstorm interruption in [#80](https://github.com/teddashh/multi-ai-chat-desktop/issues/80), leading to the v1.8.6 recovery flow.
+- [Dave Tseng (`@DaveTseng2019`)](https://github.com/DaveTseng2019) contributed the `v1.3.1` overlay reliability fix; detailed reproductions and proposals in [#10](https://github.com/teddashh/multi-ai-chat-desktop/pull/10), [#11](https://github.com/teddashh/multi-ai-chat-desktop/pull/11), and [#12](https://github.com/teddashh/multi-ai-chat-desktop/pull/12); serializer regression tests in [#14](https://github.com/teddashh/multi-ai-chat-desktop/pull/14); Grok challenge and expanded-focus work in [#39](https://github.com/teddashh/multi-ai-chat-desktop/pull/39) and [#40](https://github.com/teddashh/multi-ai-chat-desktop/pull/40); and the full-width transcript with scroll-linked provider focus in [#51](https://github.com/teddashh/multi-ai-chat-desktop/pull/51).
+- [CE Lin (`@ChingEnLin`)](https://github.com/ChingEnLin) provided the provider-status report in [#41](https://github.com/teddashh/multi-ai-chat-desktop/issues/41) and contributed ChatGPT, Gemini, and Grok adapter repairs in [#42](https://github.com/teddashh/multi-ai-chat-desktop/pull/42).
+- Windows and macOS users shared reproducible reports and sanitized debug logs that improved first-launch packaging, provider automation, session continuity, and release verification.
 
-Thank you to the Windows and macOS users who shared reproducible reports and sanitized debug logs. Those reports directly improved first-launch packaging, provider automation, session continuity, and release verification.
-
-Sponsored by [AI-Sister.com](https://ai-sister.com). Created by Ted Huang ([TED@TED-H.com](mailto:TED@TED-H.com), [ted-h.com](https://ted-h.com)).
-
-MIT License.
+Issues and pull requests are welcome within the frozen maintenance scope. Please use [GitHub Issues](https://github.com/teddashh/multi-ai-chat-desktop/issues) for reproducible non-security bugs and maintenance questions.
