@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#171429">
+    <meta
+      name="description"
+      content="Ask once and coordinate answers from your signed-in ChatGPT, Claude, Gemini, and Grok web sessions—without API keys."
+    >
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Multi-AI Chat Desktop">
+    <meta property="og:title" content="Multi-AI Chat Desktop — four AI perspectives, one workflow">
+    <meta
+      property="og:description"
+      content="A local-first desktop workflow hub for your signed-in ChatGPT, Claude, Gemini, and Grok web sessions."
+    >
+    <meta property="og:url" content="https://teddashh.github.io/multi-ai-chat-desktop/">
+    <meta property="og:image" content="https://teddashh.github.io/multi-ai-chat-desktop/assets/ensemble.jpg">
+    <meta name="twitter:card" content="summary">
+    <link rel="canonical" href="https://teddashh.github.io/multi-ai-chat-desktop/">
+    <link rel="alternate" hreflang="en" href="https://teddashh.github.io/multi-ai-chat-desktop/?lang=en">
+    <link rel="alternate" hreflang="zh-TW" href="https://teddashh.github.io/multi-ai-chat-desktop/?lang=zh-TW">
+    <link rel="alternate" hreflang="ja" href="https://teddashh.github.io/multi-ai-chat-desktop/?lang=ja">
+    <link rel="alternate" hreflang="de" href="https://teddashh.github.io/multi-ai-chat-desktop/?lang=de">
+    <link rel="alternate" hreflang="x-default" href="https://teddashh.github.io/multi-ai-chat-desktop/">
+    <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
+    <link rel="preload" href="assets/ensemble.jpg" as="image" type="image/jpeg">
+    <link rel="stylesheet" href="assets/styles.css">
+    <title>Multi-AI Chat Desktop — four AI perspectives, one workflow</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main" data-i18n="skip">Skip to content</a>
+
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="./" aria-label="Multi-AI Chat Desktop home" data-i18n-aria="brand.aria">
+          <img src="assets/app-icon.svg" width="34" height="34" alt="" aria-hidden="true">
+          <span>Multi-AI Chat</span>
+          <span class="brand-edition">Desktop</span>
+        </a>
+
+        <nav class="site-nav" aria-label="Primary navigation" data-i18n-aria="nav.aria">
+          <a href="#install" data-i18n="nav.install">Install</a>
+          <a href="#workflows" data-i18n="nav.workflows">Workflows</a>
+          <a href="#compare" data-i18n="nav.compare">Compare</a>
+          <a href="#privacy" data-i18n="nav.privacy">Privacy</a>
+          <a href="#project" data-i18n="nav.project">Project</a>
+        </nav>
+
+        <div class="header-actions">
+          <label class="sr-only" for="language" data-i18n="language.label">Language</label>
+          <select id="language" class="language-select" aria-describedby="language-status">
+            <option value="en">English</option>
+            <option value="zh-TW">繁體中文</option>
+            <option value="ja">日本語</option>
+            <option value="de">Deutsch</option>
+          </select>
+          <span class="sr-only" id="language-status" aria-live="polite"></span>
+          <a class="button button-small button-ghost" href="https://github.com/teddashh/multi-ai-chat-desktop" data-i18n="header.github">GitHub</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero shell" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Stable release · v1.8.6</span></p>
+          <h1 id="hero-title" data-i18n="hero.title">Four perspectives. One deliberate answer.</h1>
+          <p class="hero-lede" data-i18n="hero.copy">Ask once, then let your signed-in ChatGPT, Claude, Gemini, and Grok web sessions answer, review, challenge, and refine one another in a dedicated desktop workspace.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6">
+              <span data-i18n="hero.download">Download v1.8.6</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+            <a class="button button-secondary" href="https://github.com/teddashh/multi-ai-chat-desktop">
+              <span data-i18n="hero.source">View source</span>
+              <span aria-hidden="true">→</span>
+            </a>
+          </div>
+          <p class="hero-trust" data-i18n="hero.trust">No API keys · no analytics · local provider profiles · MIT licensed</p>
+        </div>
+
+        <div class="hero-art" aria-label="The four AI-Sister provider characters" data-i18n-aria="hero.art_aria">
+          <div class="art-glow" aria-hidden="true"></div>
+          <div class="ensemble-card">
+            <img
+              class="ensemble-image"
+              src="assets/ensemble.jpg"
+              width="200"
+              height="200"
+              alt="The four AI-Sister characters together"
+              data-i18n-alt="hero.image_alt"
+              decoding="async"
+            >
+            <div class="ensemble-copy">
+              <span class="ensemble-kicker" data-i18n="hero.card_kicker">A workflow, not a tab wall</span>
+              <strong data-i18n="hero.card_title">One workspace. Four live sessions.</strong>
+            </div>
+          </div>
+          <div class="provider-row" aria-hidden="true">
+            <div class="provider-avatar provider-chatgpt"><img src="assets/chatgpt.webp" width="72" height="72" alt="" loading="lazy" decoding="async"><span>ChatGPT</span></div>
+            <div class="provider-avatar provider-claude"><img src="assets/claude.webp" width="72" height="72" alt="" loading="lazy" decoding="async"><span>Claude</span></div>
+            <div class="provider-avatar provider-gemini"><img src="assets/gemini.webp" width="72" height="72" alt="" loading="lazy" decoding="async"><span>Gemini</span></div>
+            <div class="provider-avatar provider-grok"><img src="assets/grok.webp" width="72" height="72" alt="" loading="lazy" decoding="async"><span>Grok</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="status-strip" aria-label="Project status" data-i18n-aria="status.aria">
+        <div class="shell status-inner">
+          <span class="status-label" data-i18n="status.kicker">Feature-frozen</span>
+          <p data-i18n="status.text">The complete four-provider web-session edition is in maintenance mode. Compatibility, security, accessibility, and release-critical fixes continue.</p>
+          <a href="https://github.com/teddashh/multi-ai-chat-desktop/releases/latest" data-i18n="status.link">Latest release →</a>
+        </div>
+      </section>
+
+      <section class="section shell" id="install" aria-labelledby="install-title">
+        <div class="section-heading section-heading-split">
+          <div>
+            <p class="eyebrow" data-i18n="install.eyebrow">Start here</p>
+            <h2 id="install-title" data-i18n="install.title">Install the stable desktop release.</h2>
+          </div>
+          <p data-i18n="install.copy">Choose the artifact for your computer, then sign in on each provider's real page. The control pane never asks for or stores your password.</p>
+        </div>
+
+        <div class="platform-grid">
+          <article class="platform-card">
+            <div class="platform-top"><span class="platform-mark">⊞</span><span class="availability availability-verified" data-i18n="install.verified">Verified</span></div>
+            <h3>Windows</h3>
+            <p class="artifact">x64 · <code>.exe</code> / <code>.zip</code></p>
+            <p data-i18n="install.windows">Windows 10/11. Choose the installer or portable build. Unsigned artifacts may trigger SmartScreen; WebView2 is required.</p>
+            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="install.download">Open downloads →</a>
+          </article>
+
+          <article class="platform-card">
+            <div class="platform-top"><span class="platform-mark">●</span><span class="availability availability-partial" data-i18n="install.partial">Partially verified</span></div>
+            <h3>macOS</h3>
+            <p class="artifact">Apple Silicon · <code>.dmg</code></p>
+            <p data-i18n="install.macos">Ad-hoc signed, not notarized. Use Privacy &amp; Security → Open Anyway after the first launch attempt. No Intel artifact.</p>
+            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="install.download">Open downloads →</a>
+          </article>
+
+          <article class="platform-card">
+            <div class="platform-top"><span class="platform-mark">⌁</span><span class="availability availability-ci" data-i18n="install.ci_only">CI-only</span></div>
+            <h3>Linux</h3>
+            <p class="artifact">x86_64 · <code>.AppImage</code></p>
+            <p data-i18n="install.linux">Make the AppImage executable before opening it. Packaging passes CI; a current maintainer real-device report is still needed.</p>
+            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="install.download">Open downloads →</a>
+          </article>
+        </div>
+
+        <div class="install-note">
+          <div class="note-icon" aria-hidden="true">1</div>
+          <div>
+            <h3 data-i18n="install.first_title">First run: connect your own sessions</h3>
+            <p data-i18n="install.first_text">Open ChatGPT, Claude, Gemini, and Grok once, then complete each official sign-in flow. Accounts, subscriptions, regional rules, quotas, and security challenges still apply.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-tint" id="release" aria-labelledby="release-title">
+        <div class="shell">
+          <div class="section-heading">
+            <p class="eyebrow" data-i18n="release.eyebrow">Released September 7, 2026</p>
+            <h2 id="release-title" data-i18n="release.title">v1.8.6 makes long Brainstorm runs recoverable.</h2>
+            <p data-i18n="release.copy">This maintenance release handles provider limits deliberately, restores ChatGPT login-page detection, and clears high-risk development dependency alerts.</p>
+          </div>
+
+          <div class="release-grid">
+            <article><span class="release-number">01</span><h3 data-i18n="release.one_title">Retry, Skip, or Cancel</h3><p data-i18n="release.one_text">Brainstorm pauses on limits, bridge timeouts, and structured provider errors. Skip uses a safe placeholder and never relays raw error text.</p></article>
+            <article><span class="release-number">02</span><h3 data-i18n="release.two_title">Graph v4 boundary</h3><p data-i18n="release.two_text">Older snapshots cannot silently adopt the new recovery semantics, and reserved turns clean up safely after retry or cancellation.</p></article>
+            <article><span class="release-number">03</span><h3 data-i18n="release.three_title">ChatGPT adapter v7</h3><p data-i18n="release.three_text">The redesigned login form is recognized without widening the provider's URL or permission boundary.</p></article>
+            <article><span class="release-number">04</span><h3 data-i18n="release.four_title">Dependency hardening</h3><p data-i18n="release.four_text">Four High Dependabot alerts were resolved; full and production audits reported no known vulnerabilities at release time.</p></article>
+          </div>
+
+          <div class="release-footer">
+            <p data-i18n="release.credits">With thanks to Rumi-3653 for the adapter contribution and ufgeorge for the Brainstorm report.</p>
+            <a class="button button-secondary" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="release.notes">Read release notes →</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section shell" id="workflows" aria-labelledby="workflow-title">
+        <div class="section-heading section-heading-split">
+          <div>
+            <p class="eyebrow" data-i18n="workflow.eyebrow">Choose the conversation shape</p>
+            <h2 id="workflow-title" data-i18n="workflow.title">Six presets. More than six answers.</h2>
+          </div>
+          <p data-i18n="workflow.copy">Compare quickly, challenge an argument, build software plans, or spend a full session turning many perspectives into a decision.</p>
+        </div>
+
+        <div class="workflow-grid">
+          <article class="workflow-card workflow-free"><span class="workflow-index">01</span><h3 data-i18n="workflow.free_title">Free</h3><p data-i18n="workflow.free_text">Selected providers answer in parallel for fast comparison and image prompts.</p><span class="workflow-meta" data-i18n="workflow.free_meta">Parallel · selected providers</span></article>
+          <article class="workflow-card workflow-debate"><span class="workflow-index">02</span><h3 data-i18n="workflow.debate_title">Debate</h3><p data-i18n="workflow.debate_text">Pro, con, judge, and synthesis roles stress-test a decision or argument.</p><span class="workflow-meta" data-i18n="workflow.debate_meta">4 roles · sequential</span></article>
+          <article class="workflow-card workflow-consult"><span class="workflow-index">03</span><h3 data-i18n="workflow.consult_title">Consult</h3><p data-i18n="workflow.consult_text">Two independent answers feed a review and a final recommendation.</p><span class="workflow-meta" data-i18n="workflow.consult_meta">Parallel + review</span></article>
+          <article class="workflow-card workflow-coding"><span class="workflow-index">04</span><h3 data-i18n="workflow.coding_title">Coding</h3><p data-i18n="workflow.coding_text">Specification, reviews, implementation passes, tests, acceptance, and final output.</p><span class="workflow-meta" data-i18n="workflow.coding_meta">8 structured steps</span></article>
+          <article class="workflow-card workflow-roundtable"><span class="workflow-index">05</span><h3 data-i18n="workflow.roundtable_title">Roundtable</h3><p data-i18n="workflow.roundtable_text">Four seats carry same-session history through five adversarial rounds.</p><span class="workflow-meta" data-i18n="workflow.roundtable_meta">5 rounds · 20 contributions</span></article>
+          <article class="workflow-card workflow-brainstorm"><span class="workflow-index">06</span><h3 data-i18n="workflow.brainstorm_title">Brainstorm</h3><p data-i18n="workflow.brainstorm_text">Rotating lenses move from framing and divergence to a decision-ready portfolio.</p><span class="workflow-meta" data-i18n="workflow.brainstorm_meta">12 rounds · 48 contributions</span></article>
+        </div>
+
+        <div class="workflow-note">
+          <span aria-hidden="true">⌛</span>
+          <p data-i18n="workflow.note">Brainstorm is intentionally substantial: keep all four sessions signed in and allow about 45–90 minutes. Preflight identifies an unavailable role instead of silently replacing it.</p>
+        </div>
+      </section>
+
+      <section class="section process-section" aria-labelledby="process-title">
+        <div class="shell process-layout">
+          <div class="section-heading">
+            <p class="eyebrow" data-i18n="process.eyebrow">Local-first by design</p>
+            <h2 id="process-title" data-i18n="process.title">Your sessions stay yours.</h2>
+            <p data-i18n="process.copy">The app coordinates real provider pages while keeping its own state on your computer. It adds workflow, not another conversation cloud.</p>
+          </div>
+          <ol class="process-steps">
+            <li><span>1</span><div><h3 data-i18n="process.one_title">Sign in directly</h3><p data-i18n="process.one_text">Each provider runs in a separate local WebView profile. The app never asks for your password.</p></div></li>
+            <li><span>2</span><div><h3 data-i18n="process.two_title">Choose a workflow</h3><p data-i18n="process.two_text">Select parallel targets or assign structured roles; unavailable providers are surfaced before a serial run.</p></div></li>
+            <li><span>3</span><div><h3 data-i18n="process.three_title">Review one transcript</h3><p data-i18n="process.three_text">Read chronological results, inspect the live provider when needed, then continue or start a clean conversation.</p></div></li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section shell" id="compare" aria-labelledby="compare-title">
+        <div class="section-heading">
+          <p class="eyebrow" data-i18n="compare.eyebrow">Two editions, one idea</p>
+          <h2 id="compare-title" data-i18n="compare.title">Pick the workspace that fits.</h2>
+          <p data-i18n="compare.copy">Both editions use your signed-in web sessions without API keys. The difference is how much workflow and local tooling you want around them.</p>
+        </div>
+
+        <div class="compare-wrap">
+          <table class="compare-table">
+            <caption class="sr-only" data-i18n="compare.caption">Desktop and browser extension comparison</caption>
+            <thead><tr><th scope="col"><span class="sr-only" data-i18n="compare.feature">Feature</span></th><th scope="col"><span class="edition-pill edition-desktop" data-i18n="compare.desktop">Desktop</span></th><th scope="col"><span class="edition-pill edition-browser" data-i18n="compare.browser">Browser extension</span></th></tr></thead>
+            <tbody>
+              <tr><th scope="row" data-i18n="compare.best_label">Best for</th><td data-i18n="compare.best_desktop">Dedicated workflows and local continuity</td><td data-i18n="compare.best_browser">Lightweight work inside Chrome</td></tr>
+              <tr><th scope="row" data-i18n="compare.runtime_label">Workspace</th><td data-i18n="compare.runtime_desktop">Tauri app with isolated provider profiles</td><td data-i18n="compare.runtime_browser">Side Panel plus your existing tabs</td></tr>
+              <tr><th scope="row" data-i18n="compare.tools_label">Local tools</th><td data-i18n="compare.tools_desktop">Sessions, snapshots/replay, diagnostics, text files</td><td data-i18n="compare.tools_browser">Browser-native, compact controls</td></tr>
+              <tr><th scope="row" data-i18n="compare.shared_label">Shared foundation</th><td data-i18n="compare.shared_desktop">Four real web sessions · zero API keys</td><td data-i18n="compare.shared_browser">Real provider tabs · zero API keys</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="compare-actions">
+          <a class="button button-primary" href="#install" data-i18n="compare.get_desktop">Get Desktop</a>
+          <a class="button button-secondary" href="https://teddashh.github.io/multi-ai-chat/" data-i18n="compare.visit_browser">Visit browser edition →</a>
+        </div>
+      </section>
+
+      <section class="section privacy-section" id="privacy" aria-labelledby="privacy-title">
+        <div class="shell privacy-layout">
+          <div class="privacy-intro">
+            <p class="eyebrow eyebrow-light" data-i18n="privacy.eyebrow">A narrow trust boundary</p>
+            <h2 id="privacy-title" data-i18n="privacy.title">No API keys. No telemetry. No hidden relay.</h2>
+            <p data-i18n="privacy.copy">Your prompts go to the providers you select. The app does not add an account server or analytics layer between you and them.</p>
+            <div class="privacy-badge"><span aria-hidden="true">✓</span><span data-i18n="privacy.badge">Provider webviews receive zero Tauri permissions</span></div>
+          </div>
+          <ul class="privacy-list">
+            <li><span aria-hidden="true">01</span><p data-i18n="privacy.one">Cookies and provider profiles remain in local app data, isolated per provider.</p></li>
+            <li><span aria-hidden="true">02</span><p data-i18n="privacy.two">Only the bundled local control pane can call app commands.</p></li>
+            <li><span aria-hidden="true">03</span><p data-i18n="privacy.three">Adapter updates are schema-validated JSON and cannot expand bundled URL scopes.</p></li>
+            <li><span aria-hidden="true">04</span><p data-i18n="privacy.four">Snapshots are opt-in, local, and use one of four frozen privacy tiers.</p></li>
+            <li><span aria-hidden="true">05</span><p data-i18n="privacy.five">Diagnostics exclude page text, input values, cookies, storage, queries, and fragments.</p></li>
+            <li><span aria-hidden="true">06</span><p data-i18n="privacy.six">Exports, debug bundles, and share actions require an explicit user action.</p></li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section shell limits-section" aria-labelledby="limits-title">
+        <div class="section-heading section-heading-split">
+          <div>
+            <p class="eyebrow" data-i18n="limits.eyebrow">Honest boundaries</p>
+            <h2 id="limits-title" data-i18n="limits.title">Automation follows changing websites.</h2>
+          </div>
+          <p data-i18n="limits.copy">Evidence is reported as evidence—not as a promise that every provider, account, or platform path works today.</p>
+        </div>
+        <div class="limits-grid">
+          <article><h3 data-i18n="limits.providers_title">Provider changes</h3><p data-i18n="limits.providers_text">A DOM or login-flow change can temporarily break automatic input, send, or completion detection until an adapter update ships.</p></article>
+          <article><h3 data-i18n="limits.accounts_title">Account rules remain</h3><p data-i18n="limits.accounts_text">Subscriptions, quotas, regional rules, and challenges still apply. Claude requires login; Gemini and Grok blocks need user action.</p></article>
+          <article><h3 data-i18n="limits.platforms_title">Platform evidence differs</h3><p data-i18n="limits.platforms_text">Windows launch is verified, macOS Apple Silicon is partially verified, and Linux packaging is currently CI-only.</p></article>
+          <article><h3 data-i18n="limits.live_title">v1.8.6 live gates</h3><p data-i18n="limits.live_text">A full live 48-contribution recovery run and all live login/challenge paths were not manually reverified for this release.</p></article>
+          <article><h3 data-i18n="limits.scope_title">Frozen product scope</h3><p data-i18n="limits.scope_text">No fifth provider, marketplace, graph editor, embedded terminal agent, telemetry, self-updater, or new snapshot schema is planned.</p></article>
+          <article class="limits-link-card"><h3 data-i18n="limits.matrix_title">Read the evidence</h3><p data-i18n="limits.matrix_text">The compatibility matrix separates real-device, focused, automated, and CI-only checks.</p><a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/blob/main/docs/COMPATIBILITY.md" data-i18n="limits.matrix_link">Open compatibility matrix →</a></article>
+        </div>
+      </section>
+
+      <section class="section project-section" id="project" aria-labelledby="project-title">
+        <div class="shell project-layout">
+          <div>
+            <p class="eyebrow" data-i18n="project.eyebrow">Open source, maintenance-minded</p>
+            <h2 id="project-title" data-i18n="project.title">Built for people who want more than the first answer.</h2>
+            <p class="project-copy" data-i18n="project.copy">Multi-AI Chat Desktop is MIT-licensed software by Ted Huang / TED-H, sponsored by AI-Sister.com. Issues and pull requests are welcome within the frozen maintenance scope.</p>
+            <div class="project-actions">
+              <a class="button button-primary" href="https://github.com/teddashh/multi-ai-chat-desktop" data-i18n="project.repository">View repository →</a>
+              <a class="button button-secondary" href="https://github.com/teddashh/multi-ai-chat-desktop/blob/main/README.md" data-i18n="project.readme">Read documentation</a>
+            </div>
+          </div>
+          <aside class="credits-card" aria-labelledby="credits-title">
+            <p class="credits-mark" aria-hidden="true">✦</p>
+            <h3 id="credits-title" data-i18n="project.credits_title">Community credits</h3>
+            <p data-i18n="project.rumi">Rumi-3653 contributed the ChatGPT v7 login detector repair.</p>
+            <p data-i18n="project.george">ufgeorge reported the Brainstorm interruption that shaped v1.8.6 recovery.</p>
+            <p data-i18n="project.earlier">Dave Tseng, CE Lin, and community testers contributed reliability fixes, adapter work, careful reproductions, and sanitized evidence across earlier releases.</p>
+            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop#project-and-credits" data-i18n="project.all_credits">See full credits →</a>
+          </aside>
+        </div>
+      </section>
+
+      <section class="closing-cta">
+        <div class="shell closing-inner">
+          <div><p class="eyebrow eyebrow-light" data-i18n="closing.eyebrow">Ready when your sessions are</p><h2 data-i18n="closing.title">Ask once. Make the answers work together.</h2></div>
+          <a class="button button-light" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="closing.download">Download v1.8.6 →</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-grid">
+        <div>
+          <a class="brand footer-brand" href="./"><img src="assets/app-icon.svg" width="30" height="30" alt=""><span>Multi-AI Chat Desktop</span></a>
+          <p data-i18n="footer.note">Local-first multi-provider workflows. No tracking on this website.</p>
+          <p><span data-i18n="footer.artwork">AI-Sister artwork is owner-supplied and used with project-specific permission.</span> <a href="assets/ARTWORK-NOTICE.txt" data-i18n="footer.artwork_link">Artwork notice</a></p>
+        </div>
+        <div class="footer-links" aria-label="Project links" data-i18n-aria="footer.links_aria">
+          <a href="https://github.com/teddashh/multi-ai-chat-desktop/releases/latest" data-i18n="footer.releases">Releases</a>
+          <a href="https://github.com/teddashh/multi-ai-chat-desktop/issues" data-i18n="footer.issues">Issues</a>
+          <a href="https://github.com/teddashh/multi-ai-chat-desktop/security" data-i18n="footer.security">Security</a>
+          <a href="https://github.com/teddashh/multi-ai-chat-desktop/blob/main/LICENSE" data-i18n="footer.license">MIT License</a>
+        </div>
+      </div>
+      <div class="shell footer-bottom">
+        <p>© <span id="year">2026</span> TED-H · <a href="https://ted-h.com">ted-h.com</a> · <a href="https://ai-sister.com">AI-Sister.com</a></p>
+        <p data-i18n="footer.trademarks">Provider names and marks belong to their respective owners. No affiliation implied.</p>
+      </div>
+    </footer>
+
+    <script src="assets/site.js" defer></script>
+  </body>
+</html>
