@@ -51,8 +51,7 @@ export async function runStep(
     } catch (error) {
       checkAborted();
       if (error instanceof ProviderResponseError && options.recoverProviderErrors !== true) throw error;
-      emitCountdown(provider, 0, true);
-      const action = await awaitStepTimeoutAction();
+      const action = await awaitStepTimeoutAction(provider);
       if (action === 'retry') {
         await stopProvider(provider);
         resetProviderPullState(provider);

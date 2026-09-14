@@ -25,7 +25,13 @@ import {
 } from '../ui/targets';
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from '../ui/processing';
 import { chooseTimeoutDialogAction } from '../ui/timeoutActions';
-import { awaitStepTimeoutAction, resetStepTimeoutForTests } from '../workflow/stepTimeout';
+import {
+  awaitStepTimeoutAction,
+  chooseStepTimeoutAction,
+  onStepTimeoutEvent,
+  resetStepTimeoutForTests,
+  type StepTimeoutEvent,
+} from '../workflow/stepTimeout';
 
 const providers: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'grok'];
 
@@ -228,12 +234,62 @@ describe('M4a UI helpers', () => {
     }
   });
 
+  it('owns concurrent timeout actions by request id and presents them in FIFO order', async () => {
+    const events: StepTimeoutEvent[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => events.push(event));
+    const first = awaitStepTimeoutAction('chatgpt');
+    const second = awaitStepTimeoutAction('grok');
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ provider: 'chatgpt', timedOut: true });
+    const firstRequestId = events[0].requestId;
+    expect(firstRequestId).toEqual(expect.any(Number));
+
+    const firstClose = vi.fn();
+    expect(chooseTimeoutDialogAction('retry', firstClose, firstRequestId)).toBe(true);
+    expect(firstClose).toHaveBeenCalledTimes(1);
+    await expect(first).resolves.toBe('retry');
+    await Promise.resolve();
+
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({ provider: 'grok', timedOut: true });
+    const secondRequestId = events[1].requestId;
+    expect(secondRequestId).toEqual(expect.any(Number));
+    expect(secondRequestId).not.toBe(firstRequestId);
+
+    const staleClose = vi.fn();
+    expect(chooseTimeoutDialogAction('cancel', staleClose, firstRequestId)).toBe(false);
+    expect(staleClose).not.toHaveBeenCalled();
+
+    expect(chooseStepTimeoutAction('skip', secondRequestId)).toBe(true);
+    await expect(second).resolves.toBe('skip');
+    unsubscribe();
+  });
+
+  it('settles the active and queued timeout actions together on cancel', async () => {
+    const events: StepTimeoutEvent[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => events.push(event));
+    const first = awaitStepTimeoutAction('chatgpt');
+    const second = awaitStepTimeoutAction('grok');
+    const requestId = events[0].requestId;
+
+    expect(chooseStepTimeoutAction('cancel', requestId)).toBe(true);
+    await expect(first).resolves.toBe('cancel');
+    await expect(second).resolves.toBe('cancel');
+    await Promise.resolve();
+
+    expect(events).toHaveLength(1);
+    expect(chooseStepTimeoutAction('retry', requestId)).toBe(false);
+    unsubscribe();
+  });
+
   it('reduces step-timeout events into countdown, modal, and settled states', () => {
     const countdown = nextStepTimeoutState(undefined, { provider: 'chatgpt', remainingMs: 600_000, timedOut: false });
     expect(countdown).toEqual({ provider: 'chatgpt', remainingMs: 600_000, timedOut: false });
 
     const modal = nextStepTimeoutState(countdown, { provider: 'chatgpt', remainingMs: 0, timedOut: true });
     expect(modal).toEqual({ provider: 'chatgpt', remainingMs: 0, timedOut: true });
+    expect(nextStepTimeoutState(modal, { provider: 'grok', remainingMs: 600_000, timedOut: false })).toEqual(modal);
     expect(nextStepTimeoutState(modal, { type: 'settle' })).toEqual(modal);
     expect(nextStepTimeoutState(countdown, { type: 'settle' })).toBeUndefined();
   });

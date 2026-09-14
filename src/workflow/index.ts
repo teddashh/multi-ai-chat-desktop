@@ -3,7 +3,7 @@ import { CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constant
 import { getRuntimeAppVersion } from '../appVersion';
 import { host } from '../host';
 import type { Locale } from '../i18n/resolve';
-import { getInFlightProviders } from './cancel';
+import { abortWorkflow, getInFlightProviders } from './cancel';
 import { emitSystemError, sendWorkflowStatus } from './events';
 import { executeGraph, preflightGraph, workflowGraphs } from './graph';
 import type { PreflightResult } from './preflight';
@@ -13,6 +13,7 @@ import { isSendable } from './sendability';
 import { persistSnapshotIfEnabled } from './snapshot/persistence';
 import type { SnapshotRedactionTier } from './snapshot/types';
 import { tearDownWaiters } from './teardown';
+import { cancelPendingStepTimeoutAction } from './stepTimeout';
 
 export interface RunWorkflowParams {
   text: string;
@@ -30,7 +31,24 @@ export interface RunWorkflowParams {
 
 export type RunWorkflowResult = { ok: true } | { ok: false; preflight: PreflightResult };
 
-export async function runWorkflow({
+interface ActiveWorkflowRun {
+  settled: Promise<void>;
+  finish: () => void;
+}
+
+let activeWorkflowRun: ActiveWorkflowRun | undefined;
+let workflowStartGate = Promise.resolve();
+
+export async function runWorkflow(params: RunWorkflowParams): Promise<RunWorkflowResult> {
+  const run = await beginWorkflowRun();
+  try {
+    return await runPreparedWorkflow(params);
+  } finally {
+    run.finish();
+  }
+}
+
+async function runPreparedWorkflow({
   text,
   context,
   mode,
@@ -43,7 +61,6 @@ export async function runWorkflow({
   snapshotRedactionTier,
   responseLanguagePolicy,
 }: RunWorkflowParams): Promise<RunWorkflowResult> {
-  prepareWorkflowRun();
   const snapshotOptions = {
     enabled: snapshotPersistence,
     tier: snapshotRedactionTier,
@@ -93,6 +110,46 @@ export async function runWorkflow({
     sendWorkflowStatus('');
     return { ok: true };
   }
+}
+
+async function beginWorkflowRun(): Promise<ActiveWorkflowRun> {
+  const releaseStartGate = await acquireWorkflowStartGate();
+  try {
+    const previous = activeWorkflowRun;
+    if (previous) {
+      const previousProviders = getInFlightProviders();
+      abortWorkflow();
+      cancelPendingStepTimeoutAction();
+      const cleanup = tearDownWaiters(previousProviders, { stopClick: true });
+      await Promise.allSettled([previous.settled, cleanup]);
+    }
+
+    prepareWorkflowRun();
+    let resolveSettled = () => {};
+    const run: ActiveWorkflowRun = {
+      settled: new Promise<void>((resolve) => {
+        resolveSettled = resolve;
+      }),
+      finish: () => {
+        if (activeWorkflowRun === run) activeWorkflowRun = undefined;
+        resolveSettled();
+      },
+    };
+    activeWorkflowRun = run;
+    return run;
+  } finally {
+    releaseStartGate();
+  }
+}
+
+async function acquireWorkflowStartGate(): Promise<() => void> {
+  const previous = workflowStartGate;
+  let release = () => {};
+  workflowStartGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  return release;
 }
 
 export { isSendable } from './sendability';

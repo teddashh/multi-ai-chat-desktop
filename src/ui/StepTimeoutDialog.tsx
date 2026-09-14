@@ -9,6 +9,7 @@ export interface StepTimeoutDialogState {
   provider: string;
   remainingMs: number;
   timedOut: boolean;
+  requestId?: number;
 }
 
 export function StepTimeoutDialog({
@@ -41,7 +42,7 @@ export function StepTimeoutDialog({
   }
 
   const choose = (action: StepTimeoutAction) => {
-    chooseTimeoutDialogAction(action, onClose);
+    chooseTimeoutDialogAction(action, onClose, event.requestId);
   };
 
   return (

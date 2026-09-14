@@ -238,10 +238,10 @@ describe('workflow graph foundation', () => {
       brainstorm: brainstormGraph.version,
       free: freeGraph.version,
     }).toEqual({
-      debate: 3,
-      consult: 4,
-      coding: 3,
-      roundtable: 3,
+      debate: 4,
+      consult: 5,
+      coding: 4,
+      roundtable: 4,
       brainstorm: 4,
       free: 2,
     });

@@ -4,7 +4,7 @@ import type { WorkflowGraph } from './types';
 export const debateGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'debate',
-  version: 3,
+  version: 4,
   mode: 'debate',
   start: 'pro',
   roles: {

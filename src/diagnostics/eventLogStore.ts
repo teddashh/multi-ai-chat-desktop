@@ -21,11 +21,25 @@ export function recordEventLog(event: EventLogInput | undefined): void {
 
 function isDuplicateProviderHeartbeat(current: readonly EventLogEvent[], event: EventLogInput): boolean {
   if (event.kind !== 'provider-state' || !event.provider) return false;
-  const previous = [...current]
-    .reverse()
-    .find((candidate) => candidate.kind === 'provider-state' && candidate.provider === event.provider);
+  const stream = providerStateStream(event);
+  let previous: EventLogEvent | undefined;
+  for (let index = current.length - 1; index >= 0; index -= 1) {
+    const candidate = current[index];
+    if (
+      candidate.kind === 'provider-state' &&
+      candidate.provider === event.provider &&
+      providerStateStream(candidate) === stream
+    ) {
+      previous = candidate;
+      break;
+    }
+  }
   if (!previous) return false;
   return previous.summary === event.summary && diagnosticFingerprint(previous.detail) === diagnosticFingerprint(event.detail);
+}
+
+function providerStateStream(event: EventLogInput | EventLogEvent): 'bridge-status' | 'connection-state' {
+  return event.detail?.action === 'STATUS_REPORT' ? 'bridge-status' : 'connection-state';
 }
 
 function diagnosticFingerprint(detail: EventLogInput['detail']): string {

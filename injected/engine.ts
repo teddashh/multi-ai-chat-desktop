@@ -60,8 +60,11 @@ const SEND_BUTTON_SELECTOR_TIMEOUT_MS = 800;
 const PRE_SEND_DELAY_MS = 800;
 const SEND_RETRY_DELAY_MS = 1500;
 const SEND_FINAL_VERIFY_DELAY_MS = 1500;
-const CHATGPT_SEND_CONFIRMATION_DELAY_MS = 4000;
+const CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS = 10_000;
+const CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS = 4_000;
 const CHATGPT_USER_MESSAGE_SELECTOR = '[data-message-author-role="user"]';
+const DOCUMENT_POSITION_DISCONNECTED = 0x01;
+const DOCUMENT_POSITION_FOLLOWING = 0x04;
 const USER_MESSAGE_ANCESTOR_SELECTOR = [
   '[data-message-author-role="user"]',
   '[data-testid="user-message"]',
@@ -117,7 +120,6 @@ function promptEchoComparisonKey(value: string): string {
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/```[^\r\n]*[\r\n]?/g, '')
-    .replace(/<\/?[A-Za-z][^>]*>/g, '')
     .toLowerCase()
     .replace(/[\p{P}\p{S}\s]+/gu, '');
 }
@@ -193,6 +195,7 @@ class InactiveSendOperationError extends Error {
   let lastCompletionActivityAt = 0;
   let pendingPromptText = '';
   let matchingChatGptUserTurnBaseline = 0;
+  let activeChatGptUserTurnAnchor: Element | null = null;
   let lastChunkTime = 0;
 
   window.__MAC_ENGINE__ = {
@@ -440,6 +443,7 @@ class InactiveSendOperationError extends Error {
     lastCompletionActivityAt = Date.now();
     pendingPromptText = text;
     matchingChatGptUserTurnBaseline = countMatchingChatGptUserTurns(activeAdapter, text);
+    activeChatGptUserTurnAnchor = null;
     startResponsePolling();
 
     const injectionStartedAt = Date.now();
@@ -499,7 +503,7 @@ class InactiveSendOperationError extends Error {
         if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return;
         window.setTimeout(() => {
           void retrySendIfStillPending(input, firstAttempt, activeAdapter, sendOperation);
-        }, sendConfirmationDelay(activeAdapter, SEND_RETRY_DELAY_MS));
+        }, initialSendConfirmationDelay(activeAdapter));
       })();
     }, preSendDelayMs);
   }
@@ -580,7 +584,7 @@ class InactiveSendOperationError extends Error {
 
     window.setTimeout(() => {
       void verifySendAfterRetry(retryAttempt, originalAdapter, sendOperation);
-    }, sendConfirmationDelay(originalAdapter, SEND_FINAL_VERIFY_DELAY_MS));
+    }, fallbackSendConfirmationDelay(originalAdapter));
   }
 
   async function verifySendAfterRetry(
@@ -684,7 +688,7 @@ class InactiveSendOperationError extends Error {
         adapter.provider,
         sendOperation,
       );
-    }, sendConfirmationDelay(originalAdapter, SEND_FINAL_VERIFY_DELAY_MS));
+    }, fallbackSendConfirmationDelay(originalAdapter));
   }
 
   async function activateSend(
@@ -942,14 +946,17 @@ class InactiveSendOperationError extends Error {
 
   function getLatestResponseText(): string | null {
     if (!adapter) return null;
+    const chatGptAnchor = adapter.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : null;
+    if (adapter.provider === 'chatgpt' && !chatGptAnchor) return null;
     const responseEls = Array.from(document.querySelectorAll(adapter.responseSelectors.join(', ')));
     if (responseEls.length === 0) return null;
     for (let index = responseEls.length - 1; index >= 0; index -= 1) {
       const response = responseEls[index];
-      if (waitingForResponse && responseBaselineEls.has(response)) continue;
+      if (chatGptAnchor && !elementFollows(chatGptAnchor, response)) continue;
+      if (!chatGptAnchor && waitingForResponse && responseBaselineEls.has(response)) continue;
       if (isUserMessageElement(response)) continue;
       const text = extractResponseText(response);
-      if (waitingForResponse && text && !responseTextIsBeyondBaseline(text, responseEls)) continue;
+      if (!chatGptAnchor && waitingForResponse && text && !responseTextIsBeyondBaseline(text, responseEls)) continue;
       if (text && !isLikelyPromptEcho(text, pendingPromptText)) return text;
     }
     return null;
@@ -993,8 +1000,10 @@ class InactiveSendOperationError extends Error {
     if (!waitingForResponse || !adapter || !lastResponseText) return false;
     const signal = TURN_COMPLETION_SIGNALS[adapter.provider];
     if (!signal) return false;
-    const turns = document.querySelectorAll(signal.turn);
-    const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
+    const turns = Array.from(document.querySelectorAll(signal.turn));
+    const anchor = adapter.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : null;
+    const eligibleTurns = anchor ? turns.filter((turn) => elementFollows(anchor, turn)) : turns;
+    const lastTurn = eligibleTurns.length > 0 ? eligibleTurns[eligibleTurns.length - 1] : null;
     if (!lastTurn || typeof lastTurn.querySelector !== 'function') return false;
     return !lastTurn.querySelector(signal.complete);
   }
@@ -1070,6 +1079,7 @@ class InactiveSendOperationError extends Error {
     responseBaselineTextCounts.clear();
     pendingPromptText = '';
     matchingChatGptUserTurnBaseline = 0;
+    activeChatGptUserTurnAnchor = null;
   }
 
   function doneWithError(reason: string, providerHint?: AIProvider, sendOperation?: number) {
@@ -1188,7 +1198,11 @@ class InactiveSendOperationError extends Error {
   }
 
   function countMatchingChatGptUserTurns(activeAdapter: AdapterConfig, prompt: string): number {
-    if (activeAdapter.provider !== 'chatgpt' || !prompt.trim()) return 0;
+    return matchingChatGptUserTurns(activeAdapter, prompt).length;
+  }
+
+  function matchingChatGptUserTurns(activeAdapter: AdapterConfig, prompt: string): Element[] {
+    if (activeAdapter.provider !== 'chatgpt' || !prompt.trim()) return [];
     const expected = compactVisibleText(prompt);
     const visibleExpected = promptEchoComparisonKey(prompt);
     return Array.from(document.querySelectorAll(CHATGPT_USER_MESSAGE_SELECTOR)).filter(
@@ -1199,7 +1213,28 @@ class InactiveSendOperationError extends Error {
           (visibleExpected && promptEchoComparisonKey(content) === visibleExpected)
         );
       },
-    ).length;
+    );
+  }
+
+  function refreshChatGptUserTurnAnchor(activeAdapter: AdapterConfig): Element | null {
+    if (activeAdapter.provider !== 'chatgpt') return null;
+    const matchingTurns = matchingChatGptUserTurns(activeAdapter, pendingPromptText);
+    if (matchingTurns.length <= matchingChatGptUserTurnBaseline) return activeChatGptUserTurnAnchor;
+    activeChatGptUserTurnAnchor = matchingTurns[matchingTurns.length - 1] ?? null;
+    return activeChatGptUserTurnAnchor;
+  }
+
+  function elementFollows(anchor: Element, candidate: Element): boolean {
+    if (anchor === candidate || typeof anchor.compareDocumentPosition !== 'function') return false;
+    try {
+      const position = anchor.compareDocumentPosition(candidate);
+      return (
+        (position & DOCUMENT_POSITION_DISCONNECTED) === 0 &&
+        (position & DOCUMENT_POSITION_FOLLOWING) !== 0
+      );
+    } catch {
+      return false;
+    }
   }
 
   function countResponseTextKeys(responses: Element[]): Map<string, number> {
@@ -1229,36 +1264,24 @@ class InactiveSendOperationError extends Error {
     return false;
   }
 
-  function responseStartedAfterBaseline(activeAdapter: AdapterConfig): boolean {
-    const responses = Array.from(document.querySelectorAll(activeAdapter.responseSelectors.join(', ')));
-    for (let index = responses.length - 1; index >= 0; index -= 1) {
-      const response = responses[index];
-      if (responseBaselineEls.has(response) || isUserMessageElement(response)) continue;
-      const text = extractResponseText(response);
-      if (
-        text &&
-        !isLikelyPromptEcho(text, pendingPromptText) &&
-        responseTextIsBeyondBaseline(text, responses)
-      ) {
-        return true;
-      }
-    }
-    return false;
+  function initialSendConfirmationDelay(activeAdapter: AdapterConfig): number {
+    return activeAdapter.provider === 'chatgpt'
+      ? CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS
+      : SEND_RETRY_DELAY_MS;
   }
 
-  function sendConfirmationDelay(activeAdapter: AdapterConfig, fallback: number): number {
-    return activeAdapter.provider === 'chatgpt' ? CHATGPT_SEND_CONFIRMATION_DELAY_MS : fallback;
+  function fallbackSendConfirmationDelay(activeAdapter: AdapterConfig): number {
+    return activeAdapter.provider === 'chatgpt'
+      ? CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS
+      : SEND_FINAL_VERIFY_DELAY_MS;
   }
 
   function sendStarted(activeAdapter: AdapterConfig): boolean {
     if (!waitingForResponse) return true;
-    if (isThinking()) return true;
     if (activeAdapter.provider === 'chatgpt') {
-      return (
-        countMatchingChatGptUserTurns(activeAdapter, pendingPromptText) > matchingChatGptUserTurnBaseline ||
-        responseStartedAfterBaseline(activeAdapter)
-      );
+      return refreshChatGptUserTurnAnchor(activeAdapter) !== null;
     }
+    if (isThinking()) return true;
     const responses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
     const latest = responses.length > 0 ? responses[responses.length - 1] : null;
     if (latest && latest !== lastSeenResponseEl) return true;

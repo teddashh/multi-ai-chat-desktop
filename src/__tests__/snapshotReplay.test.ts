@@ -186,18 +186,32 @@ describe('snapshot replay', () => {
     expect(currentPlan.graph).toBe(workflowGraphs.brainstorm);
   });
 
-  it('blocks graph version mismatches unless the caller opts into the current graph', async () => {
-    const snapshot = buildSnapshot({ graphVersion: 2 });
+  it.each([
+    ['debate', 3, 4],
+    ['coding', 3, 4],
+    ['roundtable', 3, 4],
+    ['consult', 4, 5],
+  ] as const)('blocks pre-recovery %s snapshots after recovery semantics change', (graphId, snapshotVersion, currentVersion) => {
+    const snapshot = buildSnapshot({ graphId, graphVersion: snapshotVersion });
 
     expect(planReplay(snapshot)).toMatchObject({
       blocked: 'graph-version-mismatch',
-      detail: { snapshotVersion: 2, currentVersion: 3 },
+      detail: { snapshotVersion, currentVersion },
+    });
+  });
+
+  it('blocks graph version mismatches unless the caller opts into the current graph', async () => {
+    const snapshot = buildSnapshot({ graphVersion: 3 });
+
+    expect(planReplay(snapshot)).toMatchObject({
+      blocked: 'graph-version-mismatch',
+      detail: { snapshotVersion: 3, currentVersion: 4 },
     });
 
     await expect(replaySnapshot({ snapshot }, {})).resolves.toEqual({
       ok: false,
       blocked: 'graph-version-mismatch',
-      detail: { snapshotVersion: 2, currentVersion: 3 },
+      detail: { snapshotVersion: 3, currentVersion: 4 },
     });
     expect(executeGraph).not.toHaveBeenCalled();
 
@@ -237,7 +251,7 @@ describe('snapshot replay', () => {
   it('uses the raw prompt-text userQuestion instead of rendered step inputs', () => {
     const snapshot = buildSnapshot({
       graphId: 'consult',
-      graphVersion: 4,
+      graphVersion: 5,
       redactionTier: 'prompt-text',
       roleMap: { first: 'chatgpt', second: 'grok', reviewer: 'claude', summary: 'gemini' },
       userQuestion: inlineRef('prompt text question', 'prompt-text'),
@@ -527,7 +541,7 @@ function buildSnapshot(overrides: Partial<ExecutionSnapshot> = {}): ExecutionSna
   return {
     snapshotId: 'snapshot-source',
     graphId: 'debate',
-    graphVersion: 3,
+    graphVersion: 4,
     appVersion: '0.0.0-test',
     createdAt: '2026-07-06T00:00:00.000Z',
     completedAt: '2026-07-06T00:01:00.000Z',
