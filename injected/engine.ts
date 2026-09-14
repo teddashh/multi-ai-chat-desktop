@@ -60,6 +60,11 @@ const SEND_BUTTON_SELECTOR_TIMEOUT_MS = 800;
 const PRE_SEND_DELAY_MS = 800;
 const SEND_RETRY_DELAY_MS = 1500;
 const SEND_FINAL_VERIFY_DELAY_MS = 1500;
+const CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS = 10_000;
+const CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS = 4_000;
+const CHATGPT_USER_MESSAGE_SELECTOR = '[data-message-author-role="user"]';
+const DOCUMENT_POSITION_DISCONNECTED = 0x01;
+const DOCUMENT_POSITION_FOLLOWING = 0x04;
 const USER_MESSAGE_ANCESTOR_SELECTOR = [
   '[data-message-author-role="user"]',
   '[data-testid="user-message"]',
@@ -112,6 +117,9 @@ export function isLikelyPromptEcho(responseText: string, promptText: string): bo
 function promptEchoComparisonKey(value: string): string {
   return value
     .normalize('NFKC')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/```[^\r\n]*[\r\n]?/g, '')
     .toLowerCase()
     .replace(/[\p{P}\p{S}\s]+/gu, '');
 }
@@ -176,6 +184,7 @@ class InactiveSendOperationError extends Error {
   let pollInterval: number | undefined;
   let lastSeenResponseEl: Element | null = null;
   let responseBaselineEls = new Set<Element>();
+  let responseBaselineTextCounts = new Map<string, number>();
   let waitingForResponse = false;
   let responseGeneration = 0;
   let activeResponseGeneration = 0;
@@ -185,6 +194,8 @@ class InactiveSendOperationError extends Error {
   let lastResponseText = '';
   let lastCompletionActivityAt = 0;
   let pendingPromptText = '';
+  let matchingChatGptUserTurnBaseline = 0;
+  let activeChatGptUserTurnAnchor: Element | null = null;
   let lastChunkTime = 0;
 
   window.__MAC_ENGINE__ = {
@@ -263,13 +274,19 @@ class InactiveSendOperationError extends Error {
   }
 
   function stop() {
-    if (!adapter) return;
-    if (abortAutomationForChallenge(adapter.provider, false, 'stop')) return;
     try {
-      const button = queryFirst(adapter.stopButtonSelectors ?? []);
-      (button as HTMLElement | null)?.click?.();
+      if (adapter && !abortAutomationForChallenge(adapter.provider, false, 'stop')) {
+        const button = queryFirst(adapter.stopButtonSelectors ?? []);
+        (button as HTMLElement | null)?.click?.();
+      }
     } catch {
       // best effort
+    } finally {
+      // The host already completed its waiter when it calls stop after a timeout. Release the
+      // page-side generation too, or beginSendOperation() rejects every later Retry until reload.
+      cancelResponseWait();
+      activeSendOperation = undefined;
+      draftStaging = false;
     }
   }
 
@@ -418,12 +435,15 @@ class InactiveSendOperationError extends Error {
     const existingResponses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
     lastSeenResponseEl = existingResponses.length > 0 ? existingResponses[existingResponses.length - 1] : null;
     responseBaselineEls = new Set(existingResponses);
+    responseBaselineTextCounts = countResponseTextKeys(Array.from(existingResponses));
     responseGeneration += 1;
     activeResponseGeneration = responseGeneration;
     waitingForResponse = true;
     lastResponseText = '';
     lastCompletionActivityAt = Date.now();
     pendingPromptText = text;
+    matchingChatGptUserTurnBaseline = countMatchingChatGptUserTurns(activeAdapter, text);
+    activeChatGptUserTurnAnchor = null;
     startResponsePolling();
 
     const injectionStartedAt = Date.now();
@@ -478,12 +498,12 @@ class InactiveSendOperationError extends Error {
       void (async () => {
         if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return;
         if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) return;
-        const firstAttempt = await activateSend(input, sendOperation);
+        const firstAttempt = await activateSend(input, sendOperation, true);
 
         if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return;
         window.setTimeout(() => {
           void retrySendIfStillPending(input, firstAttempt, activeAdapter, sendOperation);
-        }, SEND_RETRY_DELAY_MS);
+        }, initialSendConfirmationDelay(activeAdapter));
       })();
     }, preSendDelayMs);
   }
@@ -506,6 +526,14 @@ class InactiveSendOperationError extends Error {
 
     const currentInput = queryFirst(adapter.inputSelectors);
     if (!currentInput) {
+      if (adapter.provider === 'chatgpt') {
+        doneWithError(
+          'chatgpt send could not be confirmed; composer disappeared before a matching user turn appeared',
+          originalAdapter.provider,
+          sendOperation,
+        );
+        return;
+      }
       if (!firstAttempt.ok) {
         doneWithError(
           `${originalAdapter.provider} input disappeared before send was confirmed`,
@@ -516,15 +544,33 @@ class InactiveSendOperationError extends Error {
       return;
     }
     const inputText = getInputText(currentInput).trim();
-    if (!inputText) return;
+    if (!inputText) {
+      if (adapter.provider === 'chatgpt') {
+        doneWithError(
+          'chatgpt send could not be confirmed; composer cleared before a matching user turn appeared',
+          originalAdapter.provider,
+          sendOperation,
+        );
+      }
+      return;
+    }
 
-    if (firstAttempt.ok && firstAttempt.path === 'button-click') {
+    if (adapter.provider === 'chatgpt' && !composerTextMatches(currentInput, pendingPromptText)) {
+      doneWithError(
+        'chatgpt send could not be confirmed; composer changed before a matching user turn appeared',
+        originalAdapter.provider,
+        sendOperation,
+      );
+      return;
+    }
+
+    if (adapter.provider !== 'chatgpt' && firstAttempt.ok && firstAttempt.path === 'button-click') {
       const firstButton = querySendButton(adapter, currentInput);
       if (!firstButton || isDisabled(firstButton)) return;
     }
 
     const retryInput = currentInput ?? originalInput;
-    const retryAttempt = await activateSend(retryInput, sendOperation);
+    const retryAttempt = await activateSend(retryInput, sendOperation, false);
     if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return;
 
     if (!retryAttempt.ok) {
@@ -538,7 +584,7 @@ class InactiveSendOperationError extends Error {
 
     window.setTimeout(() => {
       void verifySendAfterRetry(retryAttempt, originalAdapter, sendOperation);
-    }, SEND_FINAL_VERIFY_DELAY_MS);
+    }, fallbackSendConfirmationDelay(originalAdapter));
   }
 
   async function verifySendAfterRetry(
@@ -559,10 +605,34 @@ class InactiveSendOperationError extends Error {
     if (sendStarted(activeAdapter)) return;
 
     const currentInput = queryFirst(activeAdapter.inputSelectors);
-    if (!currentInput) return;
+    if (!currentInput) {
+      if (activeAdapter.provider === 'chatgpt') {
+        doneWithError(
+          'chatgpt send could not be confirmed; composer disappeared before a matching user turn appeared',
+          activeAdapter.provider,
+          sendOperation,
+        );
+      }
+      return;
+    }
+
+    if (activeAdapter.provider === 'chatgpt' && !composerTextMatches(currentInput, pendingPromptText)) {
+      doneWithError(
+        `chatgpt send could not be confirmed; composer ${getInputText(currentInput).trim() ? 'changed' : 'cleared'} before a matching user turn appeared`,
+        activeAdapter.provider,
+        sendOperation,
+      );
+      return;
+    }
 
     const sendButton = querySendButton(activeAdapter, currentInput);
-    if (retryAttempt.path === 'button-click' && (!sendButton || isDisabled(sendButton))) return;
+    if (
+      activeAdapter.provider !== 'chatgpt' &&
+      retryAttempt.path === 'button-click' &&
+      (!sendButton || isDisabled(sendButton))
+    ) {
+      return;
+    }
     const hadSendButton = Boolean(sendButton);
 
     if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) return;
@@ -589,6 +659,27 @@ class InactiveSendOperationError extends Error {
       if (abortAutomationForChallenge(adapter.provider, true, 'send', sendOperation)) return;
       if (sendStarted(adapter)) return;
       const finalInput = queryFirst(adapter.inputSelectors);
+      if (adapter.provider === 'chatgpt') {
+        if (finalInput && composerTextMatches(finalInput, pendingPromptText)) {
+          doneWithError(
+            'chatgpt send was not accepted; draft is still in composer',
+            adapter.provider,
+            sendOperation,
+          );
+        } else {
+          const composerState = finalInput
+            ? getInputText(finalInput).trim()
+              ? 'changed'
+              : 'cleared'
+            : 'disappeared';
+          doneWithError(
+            `chatgpt send could not be confirmed; composer ${composerState} before a matching user turn appeared`,
+            adapter.provider,
+            sendOperation,
+          );
+        }
+        return;
+      }
       const finalButton = finalInput ? querySendButton(adapter, finalInput) : null;
       if (!finalInput || !getInputText(finalInput).trim()) return;
       if (hadSendButton && (!finalButton || isDisabled(finalButton))) return;
@@ -597,10 +688,14 @@ class InactiveSendOperationError extends Error {
         adapter.provider,
         sendOperation,
       );
-    }, SEND_FINAL_VERIFY_DELAY_MS);
+    }, fallbackSendConfirmationDelay(originalAdapter));
   }
 
-  async function activateSend(input: Element, sendOperation: number): Promise<SendActivationResult> {
+  async function activateSend(
+    input: Element,
+    sendOperation: number,
+    allowComposerRestore: boolean,
+  ): Promise<SendActivationResult> {
     if (!isActiveSendOperation(sendOperation)) {
       return { ok: false, path: 'enter-key', detail: 'send operation is no longer active' };
     }
@@ -609,8 +704,15 @@ class InactiveSendOperationError extends Error {
     if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) {
       return { ok: false, path: 'enter-key', detail: 'security challenge is active' };
     }
+    const liveInput = await prepareLiveInputForSend(input, activeAdapter, sendOperation, allowComposerRestore);
+    if (!allowComposerRestore && sendStarted(activeAdapter)) {
+      return { ok: true, path: 'button-click', detail: 'send confirmed while preparing retry' };
+    }
+    if (!liveInput) {
+      return { ok: false, path: 'enter-key', detail: 'live composer is unavailable' };
+    }
     if (activeAdapter.sendStrategy !== 'enter') {
-      const sendBtn = await retryLookup(() => querySendButton(activeAdapter, input), {
+      const sendBtn = await retryLookup(() => querySendButton(activeAdapter, liveInput), {
         intervalMs: SELECTOR_RETRY_INTERVAL_MS,
         timeoutMs: SEND_BUTTON_SELECTOR_TIMEOUT_MS,
       });
@@ -619,6 +721,9 @@ class InactiveSendOperationError extends Error {
       }
       if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) {
         return { ok: false, path: 'enter-key', detail: 'security challenge is active' };
+      }
+      if (!allowComposerRestore && sendStarted(activeAdapter)) {
+        return { ok: true, path: 'button-click', detail: 'send confirmed during retry lookup' };
       }
       if (sendBtn) {
         if (isDisabled(sendBtn)) {
@@ -639,9 +744,62 @@ class InactiveSendOperationError extends Error {
     if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) {
       return { ok: false, path: 'enter-key', detail: 'security challenge is active' };
     }
-    const ok = dispatchEnter(input);
+    if (!allowComposerRestore && sendStarted(activeAdapter)) {
+      return { ok: true, path: 'enter-key', detail: 'send confirmed before retry fallback' };
+    }
+    const ok = dispatchEnter(liveInput);
     logEngine(`${activeAdapter.provider} send path: enter-key${ok ? '' : ' failed'}`);
     return { ok, path: 'enter-key', detail: ok ? undefined : 'enter key dispatch failed' };
+  }
+
+  async function prepareLiveInputForSend(
+    stagedInput: Element,
+    activeAdapter: AdapterConfig,
+    sendOperation: number,
+    allowComposerRestore: boolean,
+  ): Promise<Element | null> {
+    if (activeAdapter.provider !== 'chatgpt') return stagedInput;
+    const liveInput = await retryLookup(() => queryFirst(activeAdapter.inputSelectors), {
+      intervalMs: SELECTOR_RETRY_INTERVAL_MS,
+      timeoutMs: INPUT_SELECTOR_TIMEOUT_MS,
+    });
+    if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return null;
+    if (!liveInput) {
+      if (allowComposerRestore) {
+        doneWithError('chatgpt input disappeared before send', activeAdapter.provider, sendOperation);
+      }
+      return null;
+    }
+    if (!allowComposerRestore && sendStarted(activeAdapter)) return liveInput;
+    if (composerTextMatches(liveInput, pendingPromptText)) return liveInput;
+    if (getInputText(liveInput).trim()) {
+      doneWithError('chatgpt composer changed before send', activeAdapter.provider, sendOperation);
+      return null;
+    }
+    if (!allowComposerRestore) return null;
+
+    const assertCanMutate = () => {
+      if (!isActiveSendOperation(sendOperation)) throw new InactiveSendOperationError();
+      if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) {
+        throw new ChallengeActiveError();
+      }
+    };
+    try {
+      assertCanMutate();
+      await inputStrategies[activeAdapter.inputStrategy](liveInput, pendingPromptText, assertCanMutate);
+      assertCanMutate();
+      assertInputLanded(liveInput, pendingPromptText, activeAdapter.inputStrategy);
+      logEngine('chatgpt send path: restored prompt into remounted composer');
+      return liveInput;
+    } catch (error) {
+      if (error instanceof ChallengeActiveError || error instanceof InactiveSendOperationError) return null;
+      doneWithError(
+        `chatgpt live composer injection failed: ${errorMessage(error)}`,
+        activeAdapter.provider,
+        sendOperation,
+      );
+      return null;
+    }
   }
 
   function defaultInjectInput(input: Element, text: string, assertCanMutate: ChallengeMutationGuard) {
@@ -788,13 +946,17 @@ class InactiveSendOperationError extends Error {
 
   function getLatestResponseText(): string | null {
     if (!adapter) return null;
+    const chatGptAnchor = adapter.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : null;
+    if (adapter.provider === 'chatgpt' && !chatGptAnchor) return null;
     const responseEls = Array.from(document.querySelectorAll(adapter.responseSelectors.join(', ')));
     if (responseEls.length === 0) return null;
     for (let index = responseEls.length - 1; index >= 0; index -= 1) {
       const response = responseEls[index];
-      if (waitingForResponse && responseBaselineEls.has(response)) continue;
+      if (chatGptAnchor && !elementFollows(chatGptAnchor, response)) continue;
+      if (!chatGptAnchor && waitingForResponse && responseBaselineEls.has(response)) continue;
       if (isUserMessageElement(response)) continue;
       const text = extractResponseText(response);
+      if (!chatGptAnchor && waitingForResponse && text && !responseTextIsBeyondBaseline(text, responseEls)) continue;
       if (text && !isLikelyPromptEcho(text, pendingPromptText)) return text;
     }
     return null;
@@ -838,8 +1000,10 @@ class InactiveSendOperationError extends Error {
     if (!waitingForResponse || !adapter || !lastResponseText) return false;
     const signal = TURN_COMPLETION_SIGNALS[adapter.provider];
     if (!signal) return false;
-    const turns = document.querySelectorAll(signal.turn);
-    const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
+    const turns = Array.from(document.querySelectorAll(signal.turn));
+    const anchor = adapter.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : null;
+    const eligibleTurns = anchor ? turns.filter((turn) => elementFollows(anchor, turn)) : turns;
+    const lastTurn = eligibleTurns.length > 0 ? eligibleTurns[eligibleTurns.length - 1] : null;
     if (!lastTurn || typeof lastTurn.querySelector !== 'function') return false;
     return !lastTurn.querySelector(signal.complete);
   }
@@ -912,7 +1076,10 @@ class InactiveSendOperationError extends Error {
     waitingForResponse = false;
     clearTimersForResponse();
     responseBaselineEls.clear();
+    responseBaselineTextCounts.clear();
     pendingPromptText = '';
+    matchingChatGptUserTurnBaseline = 0;
+    activeChatGptUserTurnAnchor = null;
   }
 
   function doneWithError(reason: string, providerHint?: AIProvider, sendOperation?: number) {
@@ -1023,12 +1190,97 @@ class InactiveSendOperationError extends Error {
   }
 
   function composerTextMatches(input: Element, expected: string): boolean {
-    const compact = (value: string) => value.replace(/\s+/g, '');
-    return compact(getInputText(input)) === compact(expected);
+    return compactVisibleText(getInputText(input)) === compactVisibleText(expected);
+  }
+
+  function compactVisibleText(value: string): string {
+    return value.normalize('NFKC').replace(/\s+/g, '');
+  }
+
+  function countMatchingChatGptUserTurns(activeAdapter: AdapterConfig, prompt: string): number {
+    return matchingChatGptUserTurns(activeAdapter, prompt).length;
+  }
+
+  function matchingChatGptUserTurns(activeAdapter: AdapterConfig, prompt: string): Element[] {
+    if (activeAdapter.provider !== 'chatgpt' || !prompt.trim()) return [];
+    const expected = compactVisibleText(prompt);
+    const visibleExpected = promptEchoComparisonKey(prompt);
+    return Array.from(document.querySelectorAll(CHATGPT_USER_MESSAGE_SELECTOR)).filter(
+      (turn) => {
+        const content = turn.textContent ?? '';
+        return (
+          compactVisibleText(content) === expected ||
+          (visibleExpected && promptEchoComparisonKey(content) === visibleExpected)
+        );
+      },
+    );
+  }
+
+  function refreshChatGptUserTurnAnchor(activeAdapter: AdapterConfig): Element | null {
+    if (activeAdapter.provider !== 'chatgpt') return null;
+    const matchingTurns = matchingChatGptUserTurns(activeAdapter, pendingPromptText);
+    if (matchingTurns.length <= matchingChatGptUserTurnBaseline) return activeChatGptUserTurnAnchor;
+    activeChatGptUserTurnAnchor = matchingTurns[matchingTurns.length - 1] ?? null;
+    return activeChatGptUserTurnAnchor;
+  }
+
+  function elementFollows(anchor: Element, candidate: Element): boolean {
+    if (anchor === candidate || typeof anchor.compareDocumentPosition !== 'function') return false;
+    try {
+      const position = anchor.compareDocumentPosition(candidate);
+      return (
+        (position & DOCUMENT_POSITION_DISCONNECTED) === 0 &&
+        (position & DOCUMENT_POSITION_FOLLOWING) !== 0
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function countResponseTextKeys(responses: Element[]): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const response of responses) {
+      if (isUserMessageElement(response)) continue;
+      const text = extractResponseText(response);
+      if (!text) continue;
+      const key = compactVisibleText(text);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  function responseTextIsBeyondBaseline(text: string, responses: Element[]): boolean {
+    const key = compactVisibleText(text);
+    const baselineCount = responseBaselineTextCounts.get(key) ?? 0;
+    if (baselineCount === 0) return true;
+    let currentCount = 0;
+    for (const response of responses) {
+      if (isUserMessageElement(response)) continue;
+      const currentText = extractResponseText(response);
+      if (!currentText || compactVisibleText(currentText) !== key) continue;
+      currentCount += 1;
+      if (currentCount > baselineCount) return true;
+    }
+    return false;
+  }
+
+  function initialSendConfirmationDelay(activeAdapter: AdapterConfig): number {
+    return activeAdapter.provider === 'chatgpt'
+      ? CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS
+      : SEND_RETRY_DELAY_MS;
+  }
+
+  function fallbackSendConfirmationDelay(activeAdapter: AdapterConfig): number {
+    return activeAdapter.provider === 'chatgpt'
+      ? CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS
+      : SEND_FINAL_VERIFY_DELAY_MS;
   }
 
   function sendStarted(activeAdapter: AdapterConfig): boolean {
     if (!waitingForResponse) return true;
+    if (activeAdapter.provider === 'chatgpt') {
+      return refreshChatGptUserTurnAnchor(activeAdapter) !== null;
+    }
     if (isThinking()) return true;
     const responses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
     const latest = responses.length > 0 ? responses[responses.length - 1] : null;

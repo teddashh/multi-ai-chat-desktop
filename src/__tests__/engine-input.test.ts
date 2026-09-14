@@ -5,6 +5,8 @@ const PRE_SEND_DELAY_MS = 800;
 const SEND_BUTTON_SELECTOR_TIMEOUT_MS = 800;
 const SEND_RETRY_DELAY_MS = 1500;
 const SEND_FINAL_VERIFY_DELAY_MS = 1500;
+const CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS = 10_000;
+const CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS = 4_000;
 
 type InputStrategyName = 'default' | 'prosemirror-paste' | 'quill-angular';
 type SendStrategy = 'click' | 'enter';
@@ -36,6 +38,7 @@ interface FakeDomEnv {
   input: FakeElement;
   sendButton: FakeElement | null;
   responses: FakeElement[];
+  userMessages: FakeElement[];
   detectorElements: Map<string, FakeElement[]>;
   thinking: boolean;
   cloudflareChallenge: boolean;
@@ -489,27 +492,274 @@ describe('injected engine input hardening', () => {
   it('keeps waiting when ChatGPT consumes the final Enter fallback and starts sending', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'long ChatGPT prompt';
     let sendStarted = false;
     env.input.dispatchReturn = false;
     env.input.onDispatch = (event) => {
       if (event.type !== 'keydown' || sendStarted) return;
       sendStarted = true;
       env.input.setVisibleText('');
+      env.userMessages = [new FakeElement(env.document, 'div', prompt)];
       env.responses = [new FakeElement(env.document, 'div', 'answer started')];
     };
     const handler = await installEngine(env);
     dispatchAdapter(handler, { provider: 'chatgpt' });
 
-    send(handler, 'long ChatGPT prompt', 'chatgpt');
-    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_RETRY_DELAY_MS + SEND_FINAL_VERIFY_DELAY_MS);
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(
+      PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS + CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS,
+    );
 
     expect(env.sendButton?.clickCount).toBe(2);
     expect(keyEventCount(env.input)).toBe(3);
     expect(env.input.textContent).toBe('');
     expect(errorDone(env)).toBeUndefined();
 
-    await vi.advanceTimersByTimeAsync(SEND_FINAL_VERIFY_DELAY_MS);
+    await vi.advanceTimersByTimeAsync(CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS);
     expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('restores a staged ChatGPT prompt into a composer that remounts before activation', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const originalInput = env.input;
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, 'prompt survives remount', 'chatgpt');
+    await flushMicrotasks();
+    const remountedInput = new FakeTextAreaElement(env.document, 'textarea');
+    env.input = remountedInput;
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(originalInput.textContent).toBe('prompt survives remount');
+    expect(remountedInput.textContent).toBe('prompt survives remount');
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('fails closed when ChatGPT clears the composer without a matching user turn', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    if (env.sendButton) env.sendButton.onClick = () => env.input.setVisibleText('');
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, 'unconfirmed prompt', 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + 4_000);
+
+    expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS - 4_000);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)?.payload).toBe(
+      '[Error: chatgpt send could not be confirmed; composer cleared before a matching user turn appeared]',
+    );
+  });
+
+  it('accepts a cleared ChatGPT composer only after the matching user turn appears', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'confirmed prompt';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.setVisibleText('');
+        env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('accepts a ChatGPT user turn rendered from the Markdown prompt', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = '# Review\nUse **the source** at [Docs](https://example.com/docs).';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.setVisibleText('');
+        env.userMessages = [new FakeElement(env.document, 'div', 'Review\nUse the source at Docs.')];
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('injects and confirms the exact 15,917-character ChatGPT handoff after a composer remount', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const markdownPrefix =
+      '# 長篇交接測試\n請核對 **Unicode 中文**、`inline-code`、引號「完整」與 [官方文件](https://example.com/docs?q=1)。\n```ts\nconst quote = "保留";\n```\n';
+    const renderedPrefix =
+      '長篇交接測試\n請核對 Unicode 中文、inline-code、引號「完整」與 官方文件。\nconst quote = "保留";\n';
+    const targetLength = 15_917;
+    const filler = '多語內容ABC123\n'.repeat(Math.ceil((targetLength - markdownPrefix.length) / 11));
+    const suffix = filler.slice(0, targetLength - markdownPrefix.length);
+    const prompt = markdownPrefix + suffix;
+    const renderedPrompt = renderedPrefix + suffix;
+    expect(prompt).toHaveLength(targetLength);
+
+    let submitted = '';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        submitted = env.input.textContent;
+        env.input.setVisibleText('');
+        env.userMessages = [new FakeElement(env.document, 'div', renderedPrompt)];
+      };
+    }
+    const originalInput = env.input;
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    env.input = new FakeTextAreaElement(env.document, 'textarea');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(originalInput.textContent).toBe(prompt);
+    expect(submitted).toBe(prompt);
+    expect(submitted).toHaveLength(targetLength);
+    expect(env.sendButton?.clickCount).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('anchors a ChatGPT retry response after its new matching user turn', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'retry after stopped response';
+    env.responses = [new FakeElement(env.document, 'div', 'stopped previous answer')];
+    let stoppedResponseRemount: FakeElement | undefined;
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        if (env.sendButton?.clickCount === 1) {
+          stoppedResponseRemount = new FakeElement(env.document, 'div', 'stopped previous answer keeps mutating');
+          env.responses = [stoppedResponseRemount];
+          return;
+        }
+        env.input.setVisibleText('');
+        env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(2);
+    expect(env.emitted.some((message) => message.payload === stoppedResponseRemount?.textContent)).toBe(false);
+
+    env.responses = [
+      stoppedResponseRemount as FakeElement,
+      new FakeElement(env.document, 'div', 'answer for the retried prompt'),
+    ];
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'answer for the retried prompt',
+    });
+    expect(env.emitted.some((message) => message.payload === 'stopped previous answer keeps mutating')).toBe(false);
+  });
+
+  it('does not activate a retry when the first ChatGPT send is confirmed during lookup', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'confirmation races retry lookup';
+    const firstButton = env.sendButton;
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(firstButton?.clickCount).toBe(1);
+
+    // Make the retry's send-button lookup wait. While it is awaiting, the first click finally
+    // commits and ChatGPT mounts the matching user turn.
+    env.sendButton = null;
+    await vi.advanceTimersByTimeAsync(CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+    env.input.setVisibleText('');
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    await vi.advanceTimersByTimeAsync(SEND_BUTTON_SELECTOR_TIMEOUT_MS);
+
+    expect(firstButton?.clickCount).toBe(1);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(env.input.textContent).toBe('');
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('does not treat a remounted old matching ChatGPT user turn as a new send', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'same prompt';
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.setVisibleText('');
+        env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+
+    expect(errorDone(env)?.payload).toBe(
+      '[Error: chatgpt send could not be confirmed; composer cleared before a matching user turn appeared]',
+    );
+  });
+
+  it('bounds ChatGPT stuck-draft recovery to an 18.8-second normal path', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, 'draft that never leaves', 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(2);
+    expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS);
+    expect(keyEventCount(env.input)).toBe(3);
+    expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS - 1);
+    expect(errorDone(env)).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(errorDone(env)?.payload).toBe('[Error: chatgpt send was not accepted; draft is still in composer]');
   });
 
   it('skips retry when the composer has cleared', async () => {
@@ -642,6 +892,26 @@ describe('injected engine input hardening', () => {
 
     expect(env.input.textContent).toBe('second draft');
     expect(env.sendButton?.clickCount).toBe(1);
+  });
+
+  it('releases the page-side response lock when the host stops a timed-out provider', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler);
+
+    send(handler, 'first draft');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    const engine = (window as unknown as { __MAC_ENGINE__?: { stop?: () => void } }).__MAC_ENGINE__;
+    engine?.stop?.();
+    await flushMicrotasks();
+
+    send(handler, 'retry draft');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.input.textContent).toBe('retry draft');
+    expect(env.sendButton?.clickCount).toBe(2);
+    expect(errorDone(env)).toBeUndefined();
   });
 
   it('does not let a stale delayed finish terminate a later response wait', async () => {
@@ -834,6 +1104,43 @@ describe('injected engine input hardening', () => {
     expect(env.emitted.some((message) => String(message.payload).includes('候選回答 A'))).toBe(false);
   });
 
+  it('does not emit a previous answer when its DOM element remounts for a new turn', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    env.responses = [new FakeElement(env.document, 'div', 'previous Grok answer')];
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, 'next question');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'previous Grok answer')];
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(env.emitted.some((message) => message.action === 'RESPONSE_CHUNK')).toBe(false);
+    expect(env.emitted.some((message) => message.action === 'RESPONSE_DONE')).toBe(false);
+
+    env.responses = [
+      new FakeElement(env.document, 'div', 'previous Grok answer'),
+      new FakeElement(env.document, 'div', 'current Grok answer'),
+    ];
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: 'current Grok answer',
+    });
+    expect(env.emitted.some((message) => message.payload === 'previous Grok answer')).toBe(false);
+  });
+
   it('finishes an image-only response when the provider emits no markdown text', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -1015,8 +1322,6 @@ describe('injected engine input hardening', () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
     const handler = await installEngine(env);
-    const turn = new FakeElement(env.document, 'article');
-    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
     dispatchAdapter(handler, {
       provider: 'chatgpt',
       thinkingDetectors: ['.thinking'],
@@ -1026,6 +1331,9 @@ describe('injected engine input hardening', () => {
     env.thinking = true;
     send(handler, 'ask something', 'chatgpt');
     await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', 'ask something')];
+    const turn = new FakeElement(env.document, 'article');
+    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
     env.responses = [new FakeElement(env.document, 'div', 'the full answer')];
     await vi.advanceTimersByTimeAsync(1_000);
 
@@ -1055,8 +1363,6 @@ describe('injected engine input hardening', () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
     const handler = await installEngine(env);
-    const turn = new FakeElement(env.document, 'article');
-    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
     dispatchAdapter(handler, {
       provider: 'chatgpt',
       thinkingDetectors: ['.thinking'],
@@ -1066,6 +1372,9 @@ describe('injected engine input hardening', () => {
     env.thinking = true;
     send(handler, 'take your time', 'chatgpt');
     await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', 'take your time')];
+    const turn = new FakeElement(env.document, 'article');
+    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
     env.responses = [new FakeElement(env.document, 'div', 'working draft')];
     await vi.advanceTimersByTimeAsync(601_000);
 
@@ -1092,8 +1401,6 @@ describe('injected engine input hardening', () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
     const handler = await installEngine(env);
-    // A turn that never grows a copy button stands in for the testid being renamed upstream.
-    env.detectorElements.set('[data-testid^="conversation-turn-"]', [new FakeElement(env.document, 'article')]);
     dispatchAdapter(handler, {
       provider: 'chatgpt',
       thinkingDetectors: ['.thinking'],
@@ -1103,6 +1410,9 @@ describe('injected engine input hardening', () => {
     env.thinking = true;
     send(handler, 'ask something', 'chatgpt');
     await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', 'ask something')];
+    // A turn that never grows a copy button stands in for the testid being renamed upstream.
+    env.detectorElements.set('[data-testid^="conversation-turn-"]', [new FakeElement(env.document, 'article')]);
     env.responses = [new FakeElement(env.document, 'div', 'the full answer')];
     await vi.advanceTimersByTimeAsync(1_000);
     env.thinking = false;
@@ -1136,6 +1446,7 @@ function createEnv(options: { inputKind: 'textarea' | 'contenteditable'; sendBut
     input,
     sendButton: options.sendButton === undefined ? new FakeElement(document, 'button') : options.sendButton,
     responses: [],
+    userMessages: [],
     detectorElements: new Map(),
     thinking: false,
     cloudflareChallenge: false,
@@ -1210,6 +1521,7 @@ class FakeElement {
   readonly children: FakeElement[] = [];
   private parent: FakeElement | null = null;
   private readonly attrs = new Map<string, string>();
+  private readonly documentOrder: number;
 
   constructor(
     private readonly fakeDocument: FakeDocument,
@@ -1217,6 +1529,14 @@ class FakeElement {
     text = '',
   ) {
     this.textContent = text;
+    this.documentOrder = fakeDocument.allocateDocumentOrder();
+  }
+
+  compareDocumentPosition(other: FakeElement): number {
+    if (other.fakeDocument !== this.fakeDocument) return 0x01;
+    if (this.documentOrder < other.documentOrder) return 0x04;
+    if (this.documentOrder > other.documentOrder) return 0x02;
+    return 0;
   }
 
   focus() {
@@ -1337,9 +1657,15 @@ class FakeFragment {
 class FakeDocument {
   env?: FakeDomEnv;
   activeElement: Element | null = null;
+  private nextDocumentOrder = 0;
   readonly body = new FakeElement(this, 'body');
   execCommandResult = false;
   execCommandMutates = false;
+
+  allocateDocumentOrder(): number {
+    this.nextDocumentOrder += 1;
+    return this.nextDocumentOrder;
+  }
 
   querySelector(selector: string): Element | null {
     if (selector.includes('#challenge-running') && this.requireEnv().cloudflareChallenge) {
@@ -1356,6 +1682,9 @@ class FakeDocument {
   querySelectorAll(selector: string): Element[] {
     const selectors = selector.split(',').map((part) => part.trim());
     if (selectors.includes('.response')) return this.requireEnv().responses as unknown as Element[];
+    if (selector === '[data-message-author-role="user"]') {
+      return this.requireEnv().userMessages as unknown as Element[];
+    }
     if (selectors.includes('#editor')) return [this.requireEnv().input as unknown as Element];
     if (selectors.includes('button.send') && this.requireEnv().sendButton) {
       return [this.requireEnv().sendButton as unknown as Element];

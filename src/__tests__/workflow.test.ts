@@ -29,7 +29,12 @@ import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '
 import { getLastSnapshot, resetSnapshotRecorderForTests } from '../workflow/snapshot/recorder';
 import { runStep, SEND_REJECTION_RETRY_DELAY_MS } from '../workflow/stepRunner';
 import { getActiveTurn, reserveTurn, resetWorkflowStateForTests, SKIP_RESPONSE } from '../workflow/state';
-import { chooseStepTimeoutAction, onStepTimeoutEvent, resetStepTimeoutForTests } from '../workflow/stepTimeout';
+import {
+  chooseStepTimeoutAction,
+  onStepTimeoutEvent,
+  resetStepTimeoutForTests,
+  type StepTimeoutEvent,
+} from '../workflow/stepTimeout';
 import { tearDownWaiters } from '../workflow/teardown';
 import {
   STEP_ABSOLUTE_TIMEOUT_MS,
@@ -48,6 +53,7 @@ vi.mock('../host', () => ({
       fill: vi.fn(),
       eval: vi.fn(),
       evalWithCallback: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
     },
     connections: {
       get: vi.fn(),
@@ -512,6 +518,28 @@ describe('workflow engine', () => {
     unsubscribe();
   });
 
+  it('supersedes an old recovery waiter without letting it abort the next workflow', async () => {
+    const timeoutEvents: StepTimeoutEvent[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
+    const sentPrompts: string[] = [];
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sentPrompts.push(prompt);
+      publishBridgeMessage(done(provider, prompt === 'old recovery' ? '[Error: adapter not installed]' : `${provider}-answer`));
+    });
+
+    const oldOutcome = runStep('chatgpt', 'old recovery', undefined, { recoverProviderErrors: true }).catch(
+      (error: unknown) => error,
+    );
+    await vi.waitFor(() => expect(timeoutEvents.some((event) => event.timedOut)).toBe(true));
+
+    const nextRun = runWorkflow({ text: 'new workflow', mode: 'debate' });
+    await expect(oldOutcome).resolves.toMatchObject({ message: 'Step timeout action superseded by a new workflow' });
+    await expect(nextRun).resolves.toEqual({ ok: true });
+    unsubscribe();
+
+    expect(sentPrompts.filter((prompt) => prompt !== 'old recovery')).toHaveLength(4);
+  });
+
   it('enforces one live waiter per provider so newer sends supersede older turns', async () => {
     const oldWaiter = waitForResponse('chatgpt', 1).catch((error: Error) => error.message);
     const newWaiter = waitForResponse('chatgpt', 2);
@@ -528,13 +556,10 @@ describe('workflow engine', () => {
     chooseStepTimeoutAction('retry');
     const step = runStep('chatgpt', 'retry prompt');
     await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(2));
-    expect(host.provider.eval).toHaveBeenCalledWith(
-      'chatgpt',
-      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-    );
+    expect(host.provider.stop).toHaveBeenCalledWith('chatgpt');
     expect(host.provider.send).toHaveBeenNthCalledWith(1, 'chatgpt', 'retry prompt');
     expect(host.provider.send).toHaveBeenNthCalledWith(2, 'chatgpt', 'retry prompt');
-    expect(vi.mocked(host.provider.eval).mock.invocationCallOrder[0]).toBeLessThan(
+    expect(vi.mocked(host.provider.stop).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(host.provider.send).mock.invocationCallOrder[1],
     );
     expect(hasWaiter('chatgpt', 1)).toBe(false);
@@ -663,10 +688,7 @@ describe('workflow engine', () => {
     chooseStepTimeoutAction('cancel');
     await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS);
     await expect(stepError).resolves.toMatchObject({ message: 'Gemini response timed out after 630s' });
-    expect(host.provider.eval).toHaveBeenCalledWith(
-      'gemini',
-      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-    );
+    expect(host.provider.stop).toHaveBeenCalledWith('gemini');
     expect(hasWaiter('gemini', 1)).toBe(false);
     publishBridgeMessage(done('gemini', 'late'));
     expect(hasWaiter('gemini', 1)).toBe(false);
@@ -680,10 +702,7 @@ describe('workflow engine', () => {
     expect(hasWaiter(DEFAULT_DEBATE_ROLES.pro, 1)).toBe(true);
     publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
     await expect(run).resolves.toEqual({ ok: true });
-    expect(host.provider.eval).toHaveBeenCalledWith(
-      DEFAULT_DEBATE_ROLES.pro,
-      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-    );
+    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_DEBATE_ROLES.pro);
     expect(hasWaiter(DEFAULT_DEBATE_ROLES.pro, 1)).toBe(false);
     const sendCount = vi.mocked(host.provider.send).mock.calls.length;
     publishBridgeMessage(done(DEFAULT_DEBATE_ROLES.pro, 'late cancelled'));
@@ -728,53 +747,179 @@ describe('workflow engine', () => {
     ]);
   });
 
-  it('stops a structured workflow immediately when a provider returns an engine error', async () => {
-    const sent: AIProvider[] = [];
-    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
-      sent.push(provider);
-      publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
-    });
-
-    await expect(runWorkflow({ text: 'q', mode: 'debate' })).resolves.toEqual({ ok: true });
-
-    expect(sent).toEqual([DEFAULT_DEBATE_ROLES.pro]);
-    expect(getLastSnapshot()?.steps).toHaveLength(1);
-    expect(getLastSnapshot()?.steps[0]).toMatchObject({
-      nodeId: 'pro',
-      status: 'error',
-      outputRef: { text: '[Error: adapter not installed]' },
-    });
-  });
-
-  it('stops consult before review when either parallel answer is an engine error', async () => {
-    const sent: AIProvider[] = [];
-    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
-      sent.push(provider);
-      const response = provider === DEFAULT_CONSULT_ROLES.second
-        ? '[Error: bridge degraded]'
-        : `${provider}-usable`;
+  it.each([
+    ['Debate', { mode: 'debate' }],
+    ['Consult', { mode: 'consult' }],
+    ['Coding', { mode: 'coding' }],
+    ['Roundtable', { mode: 'roundtable' }],
+    ['Brainstorm', { mode: 'free', presetId: 'brainstorm' }],
+  ] as const)('%s retries a provider error and completes the same workflow', async (_label, workflow) => {
+    const sent: { provider: AIProvider; prompt: string }[] = [];
+    const timeoutEvents: { provider: string; remainingMs: number; timedOut: boolean }[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
+    let firstSend = true;
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sent.push({ provider, prompt });
+      const response = firstSend ? '[Error: adapter not installed]' : `${provider}-answer-${sent.length}`;
+      firstSend = false;
       publishBridgeMessage(done(provider, response));
     });
 
-    await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
+    const run = runWorkflow({ text: 'recover this workflow', ...workflow });
+    await vi.waitFor(() => expect(timeoutEvents.some((event) => event.timedOut)).toBe(true));
+    const failedSend = sent[0];
 
-    expect(sent).toEqual([DEFAULT_CONSULT_ROLES.first, DEFAULT_CONSULT_ROLES.second]);
+    chooseStepTimeoutAction('retry');
+    await expect(run).resolves.toEqual({ ok: true });
+    unsubscribe();
+
+    expect(sent.filter((item) => item.provider === failedSend.provider && item.prompt === failedSend.prompt)).toHaveLength(2);
+    expect(host.provider.stop).toHaveBeenCalledWith(failedSend.provider);
+    expect(getLastSnapshot()?.steps.some((step) => step.status === 'error')).toBe(false);
   });
 
-  it('stops an unfinished parallel sibling after another structured step fails', async () => {
+  it('keeps free fan-out provider errors isolated without opening serial recovery UI', async () => {
+    const timeoutEvents: { provider: string; remainingMs: number; timedOut: boolean }[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, provider === 'chatgpt' ? '[Error: adapter not installed]' : `${provider}-usable`));
+    });
+
+    await expect(
+      runWorkflow({ text: 'independent fan-out', mode: 'free', targets: ['chatgpt', 'claude'] }),
+    ).resolves.toEqual({ ok: true });
+    unsubscribe();
+
+    expect(host.provider.send).toHaveBeenCalledTimes(2);
+    expect(timeoutEvents.some((event) => event.timedOut)).toBe(false);
+    expect(getLastSnapshot()?.steps.map((step) => step.status).sort()).toEqual(['done', 'error']);
+  });
+
+  it('cancel recovery stops an unfinished parallel sibling after another structured step fails', async () => {
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       if (provider === DEFAULT_CONSULT_ROLES.first) {
         publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
       }
     });
 
-    await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
+    const run = runWorkflow({ text: 'q', mode: 'consult' });
+    await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(2));
+    chooseStepTimeoutAction('cancel');
+    await expect(run).resolves.toEqual({ ok: true });
 
-    expect(host.provider.eval).toHaveBeenCalledWith(
-      DEFAULT_CONSULT_ROLES.second,
-      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-    );
+    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.first);
+    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.second);
     expect(getInFlightProviders()).toEqual([]);
+  });
+
+  it('queues simultaneous Consult provider errors and applies retry then skip to the displayed providers', async () => {
+    const timeoutEvents: StepTimeoutEvent[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
+    const attempts = new Map<AIProvider, number>();
+    const sent: { provider: AIProvider; prompt: string }[] = [];
+    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
+      sent.push({ provider, prompt });
+      const attempt = (attempts.get(provider) ?? 0) + 1;
+      attempts.set(provider, attempt);
+      const isInitialConsultProvider =
+        provider === DEFAULT_CONSULT_ROLES.first || provider === DEFAULT_CONSULT_ROLES.second;
+      const response = isInitialConsultProvider && attempt === 1
+        ? '[Error: adapter not installed]'
+        : `${provider}-answer-${attempt}`;
+      publishBridgeMessage(done(provider, response));
+    });
+
+    const run = runWorkflow({ text: 'recover both consult answers', mode: 'consult' });
+    await vi.waitFor(() => expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(1));
+    const firstTimeout = timeoutEvents.find((event) => event.timedOut);
+    expect(firstTimeout?.provider).toBe(DEFAULT_CONSULT_ROLES.first);
+
+    expect(chooseStepTimeoutAction('retry', firstTimeout?.requestId)).toBe(true);
+    await vi.waitFor(() => expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(2));
+    const secondTimeout = timeoutEvents.filter((event) => event.timedOut)[1];
+    expect(secondTimeout.provider).toBe(DEFAULT_CONSULT_ROLES.second);
+    expect(secondTimeout.requestId).not.toBe(firstTimeout?.requestId);
+
+    expect(chooseStepTimeoutAction('skip', secondTimeout.requestId)).toBe(true);
+    await expect(run).resolves.toEqual({ ok: true });
+    unsubscribe();
+
+    expect(attempts.get(DEFAULT_CONSULT_ROLES.first)).toBe(2);
+    expect(attempts.get(DEFAULT_CONSULT_ROLES.second)).toBe(1);
+    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.first);
+    const reviewerPrompt = sent.find((item) => item.provider === DEFAULT_CONSULT_ROLES.reviewer)?.prompt;
+    expect(reviewerPrompt).toContain(SKIP_RESPONSE);
+    expect(chooseStepTimeoutAction('cancel', secondTimeout.requestId)).toBe(false);
+  });
+
+  it('cancels every queued Consult recovery when both parallel providers fail', async () => {
+    const timeoutEvents: StepTimeoutEvent[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      if (provider === DEFAULT_CONSULT_ROLES.first || provider === DEFAULT_CONSULT_ROLES.second) {
+        publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
+      }
+    });
+
+    const run = runWorkflow({ text: 'cancel both consult failures', mode: 'consult' });
+    await vi.waitFor(() => expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(1));
+    const activeTimeout = timeoutEvents.find((event) => event.timedOut);
+
+    publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
+    await expect(run).resolves.toEqual({ ok: true });
+    unsubscribe();
+
+    expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(1);
+    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.first);
+    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.second);
+    expect(getInFlightProviders()).toEqual([]);
+    expect(chooseStepTimeoutAction('retry', activeTimeout?.requestId)).toBe(false);
+  });
+
+  it('waits for every parallel Consult cancel cleanup before settling the workflow', async () => {
+    const timeoutEvents: StepTimeoutEvent[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
+    let releaseSlowStop: (() => void) | undefined;
+    const slowStop = new Promise<void>((resolve) => {
+      releaseSlowStop = resolve;
+    });
+    vi.mocked(host.provider.stop).mockImplementation((provider) =>
+      provider === DEFAULT_CONSULT_ROLES.first ? slowStop : Promise.resolve(),
+    );
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      if (provider === DEFAULT_CONSULT_ROLES.first || provider === DEFAULT_CONSULT_ROLES.second) {
+        publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
+      }
+    });
+
+    const run = runWorkflow({ text: 'wait for both cancel cleanups', mode: 'consult' });
+    let settled = false;
+    void run.then(() => {
+      settled = true;
+    });
+    await vi.waitFor(() => expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(1));
+    publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
+    await vi.waitFor(() => {
+      expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.first);
+      expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.second);
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    vi.mocked(host.provider.send).mockClear();
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-new-answer`));
+    });
+    const nextRun = runWorkflow({ text: 'new workflow after cancellation', mode: 'debate' });
+    await Promise.resolve();
+    expect(host.provider.send).not.toHaveBeenCalled();
+
+    releaseSlowStop?.();
+    await expect(run).resolves.toEqual({ ok: true });
+    await expect(nextRun).resolves.toEqual({ ok: true });
+    unsubscribe();
+
+    expect(host.provider.send).toHaveBeenCalledTimes(4);
   });
 
   it.each([

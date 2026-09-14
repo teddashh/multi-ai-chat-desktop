@@ -16,6 +16,8 @@ const activeBoot = new Map<AIProvider, string>();
 const doneTimers = new Map<AIProvider, ReturnType<typeof globalThis.setTimeout>>();
 const awaitingSince = new Map<AIProvider, number>();
 const awaitingStartedAt = new Map<AIProvider, number>();
+const awaitingEpoch = new Map<AIProvider, number>();
+const synthesizeInflight = new Map<AIProvider, { token: symbol; promise: Promise<void> }>();
 let subscriptionPromise: Promise<() => void> | undefined;
 let cleanupSubscription: (() => void) | undefined;
 let refCount = 0;
@@ -101,6 +103,7 @@ export function resetProviderBootState(provider: AIProvider): void {
 }
 
 export function setProviderAwaiting(provider: AIProvider, awaiting: boolean): void {
+  awaitingEpoch.set(provider, (awaitingEpoch.get(provider) ?? 0) + 1);
   if (awaiting) {
     const now = Date.now();
     pending.add(provider);
@@ -128,7 +131,7 @@ function ensurePoll(provider: AIProvider): void {
       (lastActivity !== undefined && now - lastActivity > AWAITING_MAX_MS) ||
       (started !== undefined && now - started > AWAITING_ABSOLUTE_MAX_MS)
     ) {
-      synthesizeDone(provider, '[Error: bridge degraded]');
+      void synthesizeDone(provider, '[Error: bridge degraded]');
       return;
     }
     if (pending.has(provider)) void pullProvider(provider);
@@ -143,7 +146,7 @@ function armDoneWatchdog(provider: AIProvider): void {
     doneTimers.delete(provider);
     void (async () => {
       await pullProvider(provider, { force: true });
-      if (pending.has(provider)) synthesizeDone(provider, '[Error: bridge degraded]');
+      if (pending.has(provider)) await synthesizeDone(provider, '[Error: bridge degraded]');
     })();
   }, DONE_WATCHDOG_MS);
   doneTimers.set(provider, timer);
@@ -216,15 +219,30 @@ function markDegraded(provider: AIProvider, reason: string): void {
   });
 }
 
-function synthesizeDone(provider: AIProvider, payload: string): void {
-  publish({
-    v: 1,
-    action: 'RESPONSE_DONE',
-    provider,
-    payload,
-    transport: 'local',
-  });
-  setProviderAwaiting(provider, false);
+function synthesizeDone(provider: AIProvider, payload: string): Promise<void> {
+  const existing = synthesizeInflight.get(provider);
+  if (existing) return existing.promise;
+  const epoch = awaitingEpoch.get(provider);
+  const token = Symbol(provider);
+  const operation = Promise.resolve()
+    .then(() => host.provider.stop(provider))
+    .catch(() => undefined)
+    .then(() => {
+      if (synthesizeInflight.get(provider)?.token !== token || awaitingEpoch.get(provider) !== epoch) return;
+      setProviderAwaiting(provider, false);
+      publish({
+        v: 1,
+        action: 'RESPONSE_DONE',
+        provider,
+        payload,
+        transport: 'local',
+      });
+    })
+    .finally(() => {
+      if (synthesizeInflight.get(provider)?.token === token) synthesizeInflight.delete(provider);
+    });
+  synthesizeInflight.set(provider, { token, promise: operation });
+  return operation;
 }
 
 function publish(message: BridgeMessage): void {
@@ -268,7 +286,9 @@ export function resetBridgePullForTests(): void {
   activeBoot.clear();
   awaitingSince.clear();
   awaitingStartedAt.clear();
+  awaitingEpoch.clear();
   pullInflight.clear();
+  synthesizeInflight.clear();
   for (const timer of pollTimers.values()) globalThis.clearInterval(timer);
   pollTimers.clear();
   for (const timer of doneTimers.values()) globalThis.clearTimeout(timer);

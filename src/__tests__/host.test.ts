@@ -90,6 +90,17 @@ describe('host snapshot bindings', () => {
     expect(invokeMock).toHaveBeenLastCalledWith('provider_new_session', { provider: 'chatgpt' });
   });
 
+  it('stops provider automation through the semantic engine command', async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+
+    await host.provider.stop('chatgpt');
+
+    expect(invokeMock).toHaveBeenLastCalledWith('provider_eval', {
+      provider: 'chatgpt',
+      js: "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
+    });
+  });
+
   it('shows providers without stealing popup focus unless explicitly requested', async () => {
     invokeMock.mockResolvedValue(undefined);
 

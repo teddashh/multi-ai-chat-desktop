@@ -116,7 +116,12 @@ export async function executeGraph(graph: WorkflowGraph, params: ExecuteGraphPar
       if (status !== undefined) sendWorkflowStatus(status);
 
       const prepared = batch.map((nodeId) => prepareNode(nodeId, context));
-      const results = await Promise.all(prepared.map((item) => item.run()));
+      const settled = await Promise.allSettled(prepared.map((item) => item.run()));
+      const results: NodeRunResult[] = [];
+      for (const result of settled) {
+        if (result.status === 'rejected') throw result.reason;
+        results.push(result.value);
+      }
       results.forEach((result) => applyNodeResult(context, result));
       updateSessionCheckpoint({ stepIndex: context.completed.size });
 
@@ -297,7 +302,7 @@ function prepareStepNode(
         const result =
           checkpointAction === 'native-edit'
             ? await fillAndAwaitNativeSend(provider, input, turn)
-            : await runStep(provider, input, turn, { recoverProviderErrors: context.graph.id === 'brainstorm' });
+            : await runStep(provider, input, turn, { recoverProviderErrors: true });
         const responseError = providerResponseError(provider, result.response);
         if (responseError) throw responseError;
         recordStep({

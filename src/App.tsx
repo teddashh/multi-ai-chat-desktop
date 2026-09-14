@@ -365,6 +365,8 @@ export default function App() {
   );
   const pendingProviderResetRef = useRef<Set<AIProvider>>(new Set());
   const providerSessionResetAttemptRef = useRef(0);
+  const workflowExecutionGenerationRef = useRef(0);
+  const workflowExecutionTailRef = useRef<Promise<void>>(Promise.resolve());
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
   const targets = targetSelection.targets;
@@ -1415,49 +1417,62 @@ export default function App() {
       ? preparedWorkflowTargets ?? freeModeTargets(targets, statesRef.current)
       : undefined;
     if (workflowTargets?.length === 0) return;
-    if (mode === 'free') {
-      const brainstormRoles = brainstorm ? defaultRolesForPreset(mode, presetId, settingsRef.current.modeRoles) : undefined;
-      autoFocusRunCandidate(brainstormRoles ? Object.values(brainstormRoles)[0] : workflowTargets?.[0]);
-    }
-    const replayContext =
-      replayContextSessionRef.current === activeSessionId ? buildConversationReplayContext(messages) : undefined;
-    setMessages((current) => [
-      ...current,
-      { id: createConversationMessageId('user'), role: 'user', content: trimmed, final: true },
-    ]);
-    setIsProcessing(processingAfterSend());
-    setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current, presetId));
-    const workflowStartedAt = Date.now();
-    const snapshotSettings = settingsRef.current;
-    const workflowRoles = defaultRolesForPreset(mode, presetId, snapshotSettings.modeRoles);
-    recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
-    const result = await runWorkflow({
-      text: trimmed,
-      context: replayContext,
-      mode,
-      presetId,
-      roles: workflowRoles,
-      targets: workflowTargets,
-      locale: localeRef.current,
-      snapshotPersistence: snapshotSettings.snapshotPersistence,
-      snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
-      responseLanguagePolicy: createResponseLanguagePolicy(snapshotSettings.responseLanguage, localeRef.current),
+    const previousWorkflowExecution = workflowExecutionTailRef.current;
+    let releaseWorkflowExecution = () => {};
+    workflowExecutionTailRef.current = new Promise<void>((resolve) => {
+      releaseWorkflowExecution = resolve;
     });
-    const blockedPreflight = preflightFromResult(mode, result, presetId);
-    if (result.ok) replayContextSessionRef.current = undefined;
-    if (blockedPreflight) {
-      recordEventLog(
-        eventFromWorkflowPreflightBlocked(mode, blockedPreflight.result.unavailable.length + blockedPreflight.result.aliased.length),
-      );
-      setPreflight(blockedPreflight);
-      setProcessTrace((current) => (current?.steps.length === 0 ? undefined : current));
+    await previousWorkflowExecution;
+    try {
+      const workflowExecutionGeneration = workflowExecutionGenerationRef.current + 1;
+      workflowExecutionGenerationRef.current = workflowExecutionGeneration;
+      if (mode === 'free') {
+        const brainstormRoles = brainstorm ? defaultRolesForPreset(mode, presetId, settingsRef.current.modeRoles) : undefined;
+        autoFocusRunCandidate(brainstormRoles ? Object.values(brainstormRoles)[0] : workflowTargets?.[0]);
+      }
+      const replayContext =
+        replayContextSessionRef.current === activeSessionId ? buildConversationReplayContext(messages) : undefined;
+      setMessages((current) => [
+        ...current,
+        { id: createConversationMessageId('user'), role: 'user', content: trimmed, final: true },
+      ]);
+      setIsProcessing(processingAfterSend());
+      setProcessTrace(createProcessTrace(mode, workflowTargets ?? [], localeRef.current, presetId));
+      const workflowStartedAt = Date.now();
+      const snapshotSettings = settingsRef.current;
+      const workflowRoles = defaultRolesForPreset(mode, presetId, snapshotSettings.modeRoles);
+      recordEventLog(eventFromWorkflowStart(mode, trimmed.length, workflowTargets?.length));
+      const result = await runWorkflow({
+        text: trimmed,
+        context: replayContext,
+        mode,
+        presetId,
+        roles: workflowRoles,
+        targets: workflowTargets,
+        locale: localeRef.current,
+        snapshotPersistence: snapshotSettings.snapshotPersistence,
+        snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
+        responseLanguagePolicy: createResponseLanguagePolicy(snapshotSettings.responseLanguage, localeRef.current),
+      });
+      if (workflowExecutionGeneration !== workflowExecutionGenerationRef.current) return;
+      const blockedPreflight = preflightFromResult(mode, result, presetId);
+      if (result.ok) replayContextSessionRef.current = undefined;
+      if (blockedPreflight) {
+        recordEventLog(
+          eventFromWorkflowPreflightBlocked(mode, blockedPreflight.result.unavailable.length + blockedPreflight.result.aliased.length),
+        );
+        setPreflight(blockedPreflight);
+        setProcessTrace((current) => (current?.steps.length === 0 ? undefined : current));
+      }
+      recordEventLog(eventFromWorkflowSettled(mode, Date.now() - workflowStartedAt));
+      setStepTimeout(undefined);
+      setCheckpoint(undefined);
+      setCheckpointDraft('');
+      activeResponses.current.clear();
+      setIsProcessing(processingAfterSettle());
+    } finally {
+      releaseWorkflowExecution();
     }
-    recordEventLog(eventFromWorkflowSettled(mode, Date.now() - workflowStartedAt));
-    setStepTimeout(undefined);
-    setCheckpoint(undefined);
-    setCheckpointDraft('');
-    activeResponses.current.clear();
-    setIsProcessing(processingAfterSettle());
   };
 
   const send = async (trimmed: string): Promise<boolean> => {

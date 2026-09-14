@@ -23,6 +23,7 @@ vi.mock('../host', () => ({
     },
     provider: {
       send: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
       eval: vi.fn(),
       evalWithCallback: vi.fn(),
     },
@@ -122,7 +123,7 @@ describe('workflow execution snapshots', () => {
     expect(getCurrentSnapshot()).toBeUndefined();
     expect(snapshot).toMatchObject({
       graphId: 'debate',
-      graphVersion: 3,
+      graphVersion: 4,
       appVersion: '1.0.2-test',
       roleMap: DEFAULT_DEBATE_ROLES,
       redactionTier: 'full-local',
