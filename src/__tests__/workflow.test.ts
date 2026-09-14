@@ -48,6 +48,7 @@ vi.mock('../host', () => ({
       fill: vi.fn(),
       eval: vi.fn(),
       evalWithCallback: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
     },
     connections: {
       get: vi.fn(),
@@ -528,13 +529,10 @@ describe('workflow engine', () => {
     chooseStepTimeoutAction('retry');
     const step = runStep('chatgpt', 'retry prompt');
     await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(2));
-    expect(host.provider.eval).toHaveBeenCalledWith(
-      'chatgpt',
-      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-    );
+    expect(host.provider.stop).toHaveBeenCalledWith('chatgpt');
     expect(host.provider.send).toHaveBeenNthCalledWith(1, 'chatgpt', 'retry prompt');
     expect(host.provider.send).toHaveBeenNthCalledWith(2, 'chatgpt', 'retry prompt');
-    expect(vi.mocked(host.provider.eval).mock.invocationCallOrder[0]).toBeLessThan(
+    expect(vi.mocked(host.provider.stop).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(host.provider.send).mock.invocationCallOrder[1],
     );
     expect(hasWaiter('chatgpt', 1)).toBe(false);
@@ -663,10 +661,7 @@ describe('workflow engine', () => {
     chooseStepTimeoutAction('cancel');
     await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS);
     await expect(stepError).resolves.toMatchObject({ message: 'Gemini response timed out after 630s' });
-    expect(host.provider.eval).toHaveBeenCalledWith(
-      'gemini',
-      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-    );
+    expect(host.provider.stop).toHaveBeenCalledWith('gemini');
     expect(hasWaiter('gemini', 1)).toBe(false);
     publishBridgeMessage(done('gemini', 'late'));
     expect(hasWaiter('gemini', 1)).toBe(false);
@@ -680,10 +675,7 @@ describe('workflow engine', () => {
     expect(hasWaiter(DEFAULT_DEBATE_ROLES.pro, 1)).toBe(true);
     publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
     await expect(run).resolves.toEqual({ ok: true });
-    expect(host.provider.eval).toHaveBeenCalledWith(
-      DEFAULT_DEBATE_ROLES.pro,
-      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-    );
+    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_DEBATE_ROLES.pro);
     expect(hasWaiter(DEFAULT_DEBATE_ROLES.pro, 1)).toBe(false);
     const sendCount = vi.mocked(host.provider.send).mock.calls.length;
     publishBridgeMessage(done(DEFAULT_DEBATE_ROLES.pro, 'late cancelled'));
@@ -770,10 +762,7 @@ describe('workflow engine', () => {
 
     await expect(runWorkflow({ text: 'q', mode: 'consult' })).resolves.toEqual({ ok: true });
 
-    expect(host.provider.eval).toHaveBeenCalledWith(
-      DEFAULT_CONSULT_ROLES.second,
-      "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-    );
+    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.second);
     expect(getInFlightProviders()).toEqual([]);
   });
 

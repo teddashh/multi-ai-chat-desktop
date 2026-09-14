@@ -23,6 +23,7 @@ vi.mock('../host', () => ({
     },
     provider: {
       send: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
       eval: vi.fn(),
       evalWithCallback: vi.fn(),
     },

@@ -80,6 +80,11 @@ export const host = {
           payload: { text },
         })});`,
       }),
+    stop: (provider: AIProvider): Promise<void> =>
+      invoke('provider_eval', {
+        provider,
+        js: "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
+      }),
     openLogin: (provider: AIProvider): Promise<void> => invoke('provider_open_login', { provider }),
     openLoginExternal: (provider: AIProvider): Promise<void> => invoke('provider_open_login_external', { provider }),
     reload: (provider: AIProvider): Promise<void> => invoke('provider_reload', { provider }),

@@ -34,6 +34,7 @@ vi.mock('../host', () => ({
     provider: {
       evalWithCallback: vi.fn(),
       eval: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
     },
     bridge: {
       subscribeTitle: vi.fn(),
@@ -196,7 +197,87 @@ describe('pull transport', () => {
     await vi.advanceTimersByTimeAsync(5_000);
     cleanup();
     expect(vi.mocked(host.provider.evalWithCallback).mock.calls.length).toBeGreaterThan(callsBeforeWatchdog);
+    expect(host.provider.stop).toHaveBeenCalledWith('grok');
     expect(messages.some((msg) => msg.transport === 'local' && msg.action === 'RESPONSE_DONE' && msg.payload === '[Error: bridge degraded]')).toBe(true);
+  });
+
+  it('still publishes a synthetic DONE when best-effort provider stop fails', async () => {
+    vi.useFakeTimers();
+    const { messages, cleanup } = collectMessages();
+    setProviderAwaiting(provider, true);
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
+    vi.mocked(host.provider.stop).mockRejectedValueOnce(new Error('provider eval failed'));
+
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + POLL_PULL_MS + 1);
+    await Promise.resolve();
+    cleanup();
+
+    expect(host.provider.stop).toHaveBeenCalledWith(provider);
+    expect(messages).toContainEqual(expect.objectContaining({
+      action: 'RESPONSE_DONE',
+      provider,
+      payload: '[Error: bridge degraded]',
+      transport: 'local',
+    }));
+  });
+
+  it('does not release the waiter until the timed-out page generation has stopped', async () => {
+    vi.useFakeTimers();
+    const { messages, cleanup } = collectMessages();
+    let releaseStop: (() => void) | undefined;
+    vi.mocked(host.provider.stop).mockImplementationOnce(() => new Promise<void>((resolve) => {
+      releaseStop = resolve;
+    }));
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
+    setProviderAwaiting(provider, true);
+
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + POLL_PULL_MS + 1);
+    await Promise.resolve();
+
+    expect(host.provider.stop).toHaveBeenCalledWith(provider);
+    expect(messages.some((message) => message.action === 'RESPONSE_DONE')).toBe(false);
+
+    releaseStop?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    cleanup();
+    expect(messages).toContainEqual(expect.objectContaining({
+      action: 'RESPONSE_DONE',
+      provider,
+      payload: '[Error: bridge degraded]',
+      transport: 'local',
+    }));
+  });
+
+  it('does not deliver an old synthetic DONE into a newer awaiting generation', async () => {
+    vi.useFakeTimers();
+    const { messages, cleanup } = collectMessages();
+    let releaseStop: (() => void) | undefined;
+    vi.mocked(host.provider.stop).mockImplementationOnce(() => new Promise<void>((resolve) => {
+      releaseStop = resolve;
+    }));
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
+    setProviderAwaiting(provider, true);
+
+    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + POLL_PULL_MS + 1);
+    await Promise.resolve();
+    expect(host.provider.stop).toHaveBeenCalledWith(provider);
+
+    // The old turn completes through another path while stop is in flight, then the workflow
+    // begins a new turn for the same provider.
+    setProviderAwaiting(provider, false);
+    setProviderAwaiting(provider, true);
+    releaseStop?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    cleanup();
+    expect(messages.some(
+      (message) => message.transport === 'local' && message.action === 'RESPONSE_DONE',
+    )).toBe(false);
   });
 
   it('uses provider thinking as activity but still degrades after the absolute cap', async () => {

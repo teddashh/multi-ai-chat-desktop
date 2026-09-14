@@ -36,6 +36,7 @@ vi.mock('../host', () => ({
       send: vi.fn(),
       eval: vi.fn(),
       evalWithCallback: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
     },
     connections: {
       get: vi.fn(),
@@ -513,12 +514,7 @@ describe('snapshot replay', () => {
     publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
 
     await expect(run).rejects.toThrow('Workflow cancelled by user');
-    await vi.waitFor(() =>
-      expect(host.provider.eval).toHaveBeenCalledWith(
-        DEFAULT_DEBATE_ROLES.pro,
-        "window.__MAC_ENGINE__ && typeof window.__MAC_ENGINE__.stop === 'function' && window.__MAC_ENGINE__.stop();",
-      ),
-    );
+    await vi.waitFor(() => expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_DEBATE_ROLES.pro));
     const sendCount = vi.mocked(host.provider.send).mock.calls.length;
     publishBridgeMessage(done(DEFAULT_DEBATE_ROLES.pro, 'late cancelled'));
     expect(vi.mocked(host.provider.send).mock.calls.length).toBe(sendCount);
