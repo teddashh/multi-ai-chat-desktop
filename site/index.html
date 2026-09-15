@@ -65,12 +65,12 @@
     <main id="main">
       <section class="hero shell" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Stable release · v1.8.6</span></p>
+          <p class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Stable release · v1.8.7</span></p>
           <h1 id="hero-title" data-i18n="hero.title">Four perspectives. One deliberate answer.</h1>
           <p class="hero-lede" data-i18n="hero.copy">Ask once, then let your signed-in ChatGPT, Claude, Gemini, and Grok web sessions answer, review, challenge, and refine one another in a dedicated desktop workspace.</p>
           <div class="hero-actions">
-            <a class="button button-primary" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6">
-              <span data-i18n="hero.download">Download v1.8.6</span>
+            <a class="button button-primary" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7">
+              <span data-i18n="hero.download">Download v1.8.7</span>
               <span aria-hidden="true">↗</span>
             </a>
             <a class="button button-secondary" href="https://github.com/teddashh/multi-ai-chat-desktop">
@@ -130,7 +130,7 @@
             <h3>Windows</h3>
             <p class="artifact">x64 · <code>.exe</code> / <code>.zip</code></p>
             <p data-i18n="install.windows">Windows 10/11. Choose the installer or portable build. Unsigned artifacts may trigger SmartScreen; WebView2 is required.</p>
-            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="install.download">Open downloads →</a>
+            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7" data-i18n="install.download">Open downloads →</a>
           </article>
 
           <article class="platform-card">
@@ -138,7 +138,7 @@
             <h3>macOS</h3>
             <p class="artifact">Apple Silicon · <code>.dmg</code></p>
             <p data-i18n="install.macos">Ad-hoc signed, not notarized. Use Privacy &amp; Security → Open Anyway after the first launch attempt. No Intel artifact.</p>
-            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="install.download">Open downloads →</a>
+            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7" data-i18n="install.download">Open downloads →</a>
           </article>
 
           <article class="platform-card">
@@ -146,7 +146,7 @@
             <h3>Linux</h3>
             <p class="artifact">x86_64 · <code>.AppImage</code></p>
             <p data-i18n="install.linux">Make the AppImage executable before opening it. Packaging passes CI; a current maintainer real-device report is still needed.</p>
-            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="install.download">Open downloads →</a>
+            <a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7" data-i18n="install.download">Open downloads →</a>
           </article>
         </div>
 
@@ -162,21 +162,21 @@
       <section class="section section-tint" id="release" aria-labelledby="release-title">
         <div class="shell">
           <div class="section-heading">
-            <p class="eyebrow" data-i18n="release.eyebrow">Released September 7, 2026</p>
-            <h2 id="release-title" data-i18n="release.title">v1.8.6 makes long Brainstorm runs recoverable.</h2>
-            <p data-i18n="release.copy">This maintenance release handles provider limits deliberately, restores ChatGPT login-page detection, and clears high-risk development dependency alerts.</p>
+            <p class="eyebrow" data-i18n="release.eyebrow">Released September 15, 2026</p>
+            <h2 id="release-title" data-i18n="release.title">v1.8.7 makes provider handoffs reliable.</h2>
+            <p data-i18n="release.copy">This maintenance release verifies the current ChatGPT turn, rejects remounted history, and restores safe failure behavior across structured workflows.</p>
           </div>
 
           <div class="release-grid">
-            <article><span class="release-number">01</span><h3 data-i18n="release.one_title">Retry, Skip, or Cancel</h3><p data-i18n="release.one_text">Brainstorm pauses on limits, bridge timeouts, and structured provider errors. Skip uses a safe placeholder and never relays raw error text.</p></article>
-            <article><span class="release-number">02</span><h3 data-i18n="release.two_title">Graph v4 boundary</h3><p data-i18n="release.two_text">Older snapshots cannot silently adopt the new recovery semantics, and reserved turns clean up safely after retry or cancellation.</p></article>
-            <article><span class="release-number">03</span><h3 data-i18n="release.three_title">ChatGPT adapter v7</h3><p data-i18n="release.three_text">The redesigned login form is recognized without widening the provider's URL or permission boundary.</p></article>
-            <article><span class="release-number">04</span><h3 data-i18n="release.four_title">Dependency hardening</h3><p data-i18n="release.four_text">Four High Dependabot alerts were resolved; full and production audits reported no known vulnerabilities at release time.</p></article>
+            <article><span class="release-number">01</span><h3 data-i18n="release.one_title">Exact send confirmation</h3><p data-i18n="release.one_text">ChatGPT handoffs require the matching new user turn. Silent failures surface in about 10–19 seconds instead of waiting 600 seconds.</p></article>
+            <article><span class="release-number">02</span><h3 data-i18n="release.two_title">Current-turn capture</h3><p data-i18n="release.two_text">Remounted historical answers cannot complete a retry or new workflow, and cancellation settles before another run starts.</p></article>
+            <article><span class="release-number">03</span><h3 data-i18n="release.three_title">Safe workflow failures</h3><p data-i18n="release.three_text">Standard structured workflows stop on unattended provider errors; Brainstorm keeps explicit Retry, Skip, and Cancel recovery.</p></article>
+            <article><span class="release-number">04</span><h3 data-i18n="release.four_title">Clear errors, patched tests</h3><p data-i18n="release.four_text">Provider errors are no longer labeled as timeouts, and Vitest 4.1.11 resolves its published security advisory.</p></article>
           </div>
 
           <div class="release-footer">
-            <p data-i18n="release.credits">With thanks to Rumi-3653 for the adapter contribution and ufgeorge for the Brainstorm report.</p>
-            <a class="button button-secondary" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="release.notes">Read release notes →</a>
+            <p data-i18n="release.credits">Validated by 522 frontend tests, 81 local Windows Rust tests, cross-platform CI, and CodeQL.</p>
+            <a class="button button-secondary" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7" data-i18n="release.notes">Read release notes →</a>
           </div>
         </div>
       </section>
@@ -276,7 +276,7 @@
           <article><h3 data-i18n="limits.providers_title">Provider changes</h3><p data-i18n="limits.providers_text">A DOM or login-flow change can temporarily break automatic input, send, or completion detection until an adapter update ships.</p></article>
           <article><h3 data-i18n="limits.accounts_title">Account rules remain</h3><p data-i18n="limits.accounts_text">Subscriptions, quotas, regional rules, and challenges still apply. Claude requires login; Gemini and Grok blocks need user action.</p></article>
           <article><h3 data-i18n="limits.platforms_title">Platform evidence differs</h3><p data-i18n="limits.platforms_text">Windows launch is verified, macOS Apple Silicon is partially verified, and Linux packaging is currently CI-only.</p></article>
-          <article><h3 data-i18n="limits.live_title">v1.8.6 live gates</h3><p data-i18n="limits.live_text">A full live 48-contribution recovery run and all live login/challenge paths were not manually reverified for this release.</p></article>
+          <article><h3 data-i18n="limits.live_title">v1.8.7 live gates</h3><p data-i18n="limits.live_text">A real-account ChatGPT↔Grok slow handoff, Grok's Cloudflare challenge, and a new Apple Silicon smoke remain pending.</p></article>
           <article><h3 data-i18n="limits.scope_title">Frozen product scope</h3><p data-i18n="limits.scope_text">No fifth provider, marketplace, graph editor, embedded terminal agent, telemetry, self-updater, or new snapshot schema is planned.</p></article>
           <article class="limits-link-card"><h3 data-i18n="limits.matrix_title">Read the evidence</h3><p data-i18n="limits.matrix_text">The compatibility matrix separates real-device, focused, automated, and CI-only checks.</p><a class="text-link" href="https://github.com/teddashh/multi-ai-chat-desktop/blob/main/docs/COMPATIBILITY.md" data-i18n="limits.matrix_link">Open compatibility matrix →</a></article>
         </div>
@@ -307,7 +307,7 @@
       <section class="closing-cta">
         <div class="shell closing-inner">
           <div><p class="eyebrow eyebrow-light" data-i18n="closing.eyebrow">Ready when your sessions are</p><h2 data-i18n="closing.title">Ask once. Make the answers work together.</h2></div>
-          <a class="button button-light" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6" data-i18n="closing.download">Download v1.8.6 →</a>
+          <a class="button button-light" href="https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7" data-i18n="closing.download">Download v1.8.7 →</a>
         </div>
       </section>
     </main>

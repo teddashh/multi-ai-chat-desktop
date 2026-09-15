@@ -4,7 +4,7 @@
 
 Eine Frage genügt: Deine angemeldeten Web-Sitzungen von **ChatGPT, Claude, Gemini und Grok** antworten, prüfen, widersprechen und verfeinern das Ergebnis gemeinsam. Multi-AI Chat Desktop ist ein Workflow-Hub auf Basis von Tauri 2 – nicht bloß vier nebeneinander angeordnete Chats.
 
-[**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.8.6 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
+[**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.8.7 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
 
 > Diese App automatisiert die Anbieter-Webseiten, die du bereits verwendest. Änderungen an deren Oberfläche können einen Adapter vorübergehend beeinträchtigen; außerdem können die Bedingungen des jeweiligen Dienstes gelten. Verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist. Anmeldung, Abonnement, Alter, Nutzungslimits und Sicherheitsprüfungen werden weder umgangen noch automatisiert gelöst.
 
@@ -12,7 +12,7 @@ Eine Frage genügt: Deine angemeldeten Web-Sitzungen von **ChatGPT, Claude, Gemi
 
 ## Zuerst installieren
 
-Die aktuelle stabile Version steht auf der [**Downloadseite für v1.8.6**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6) bereit.
+Die aktuelle stabile Version steht auf der [**Downloadseite für v1.8.7**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) bereit.
 
 | Plattform | Download | Hinweis zum ersten Start |
 |---|---|---|
@@ -32,14 +32,14 @@ Die Ad-hoc-Signatur schützt die Bundle-Integrität und verhindert die falsche M
 
 Portable Windows-Builds zeigen keine Update-Steuerung in der App. Aktualisiere sie manuell über [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installierte Builds können nach einer neuen Version suchen und deren Downloadseite öffnen; die App lädt oder installiert Updates jedoch nicht selbst.
 
-## Neu in v1.8.6
+## Neu in v1.8.7
 
-- **Brainstorming kann Limits und Fehler überstehen.** Bei Nutzungslimits, beeinträchtigter Bridge/Timeout oder einem strukturierten Anbieterfehler pausiert der Lauf mit **Erneut versuchen**, **Überspringen** und **Abbrechen**. Überspringen protokolliert einen sicheren Platzhalter und fährt fort, ohne den rohen Fehlertext in spätere Prompts zu übernehmen.
-- **Brainstorm-Graph v4.** Ältere v3-Snapshots übernehmen das neue Wiederherstellungsverhalten nicht stillschweigend; auch die Bereinigung reservierter Turns nach Wiederholung und Abbruch ist robuster.
-- **ChatGPT-Adapter v7.** Der mitgelieferte Adapter erkennt das überarbeitete `/auth/login`-Formular, ohne URL- oder Berechtigungsgrenzen auszuweiten.
-- **Sicherheit der Entwicklungsabhängigkeiten.** Die korrigierte `fast-uri`-Version schloss alle vier offenen High-Dependabot-Warnungen; Produktions- und Gesamtaudit meldeten zum Releasezeitpunkt keine bekannten Schwachstellen.
+- **Zuverlässige langsame Übergaben an ChatGPT.** Die Sendebestätigung verlangt nun den passenden neu dargestellten Nutzerbeitrag. Ein stiller Sendefehler wird nach etwa 10–19 Sekunden gemeldet, statt den 600-Sekunden-Antworttimeout auszuschöpfen.
+- **Antworten des aktuellen Turns.** Neu eingebundene historische Antworten können keinen Wiederholungsversuch oder neuen Workflow mehr fälschlich abschließen; ein Abbruch wird vor dem nächsten Lauf vollständig bereinigt.
+- **Sicheres Verhalten bei Anbieterfehlern.** Debatte, Beratung, Coding und Rundtisch stoppen bei unbeaufsichtigten Anbieterfehlern; Brainstorming behält **Erneut versuchen**, **Überspringen** und **Abbrechen**. Dialoge und Diagnose unterscheiden Anbieterfehler jetzt korrekt von Timeouts.
+- **Geprüft und abhängigkeitsgehärtet.** 522 Frontend-Tests, 81 lokale Windows-Rust-Tests, plattformübergreifende CI und CodeQL bestanden. Vitest 4.1.11 behebt `GHSA-82fw-gwwq-j7x9`; das pnpm-Audit meldete zum Releasezeitpunkt keine bekannten Probleme.
 
-Die [zweisprachigen vollständigen Release Notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6) beschreiben Änderungen und Prüfgrenzen. Danke an [@Rumi-3653](https://github.com/Rumi-3653) für den ChatGPT-Adapter-Fix in [#78](https://github.com/teddashh/multi-ai-chat-desktop/pull/78) und an [@ufgeorge](https://github.com/ufgeorge) für den Bericht zum Brainstorming-Abbruch in [#80](https://github.com/teddashh/multi-ai-chat-desktop/issues/80).
+Die [zweisprachigen vollständigen Release Notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) beschreiben Änderungen und Prüfgrenzen.
 
 ## Desktop oder Browser-Erweiterung?
 
@@ -79,7 +79,7 @@ Wähle Desktop für einen eigenen Arbeitsbereich und den vollständigen lokalen 
 
 Strukturierte Workflows prüfen vorab jede notwendige Rolle. Ist ein Anbieter nicht verfügbar, benennt die App ihn und bietet Öffnen/Anmelden, Neuzuordnung oder einen anderen Modus an; sie ersetzt Anbieter nie stillschweigend. Normale strukturierte Workflows enden bei einem dauerhaften Anbieterfehler. Brainstorming pausiert dagegen bis zur ausdrücklichen Wahl von Wiederholen, Überspringen oder Abbrechen.
 
-Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der vollständige Live-Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet, wurde für v1.8.6 aber nicht manuell komplett ausgeführt.
+Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; für v1.8.7 fehlt noch eine langsame ChatGPT↔Grok-Übergabe mit echten Konten.
 
 Nach Abschluss kannst du über den Composer unten dasselbe App-Gespräch fortsetzen. **Neues Gespräch** beginnt mit sauberem Sitzungskontext.
 
@@ -102,7 +102,7 @@ Melde Schwachstellen gemäß [SECURITY.md](./SECURITY.md) privat. Veröffentlich
 - Für **Windows x64** gibt es verifizierte Paket-Starts; unsignierte Artefakte können dennoch SmartScreen auslösen.
 - **macOS Apple Silicon** ist teilweise geprüft. Das DMG ist ad-hoc signiert, nicht notarisiert. Ein früherer Gerätebericht konnte die App öffnen und ChatGPT, Claude und Gemini anmelden, während Grok bei Cloudflare hängen blieb. Die aktuelle Grok-Wiederherstellung benötigt weiterhin einen Live-Retest auf Apple Silicon. Es gibt kein Intel-Artefakt.
 - **Linux x86_64** ist nur durch CI-Paketierung bestätigt; ein neuer realer Startbericht eines Maintainers fehlt.
-- Für v1.8.6 wurden Live-Anmeldung – einschließlich Grok-Challenge – und ein vollständiger Brainstorm-Recovery-Lauf mit 48 Beiträgen nicht manuell wiederholt. ChatGPT-Adapter v7 hat gezielte Live-DOM-Selektornachweise, jedoch keinen vollständigen abgemeldeten In-App-Workflow.
+- Für v1.8.7 wurden eine langsame ChatGPT↔Grok-Übergabe mit echten Konten, der Grok-Cloudflare-Challenge-Pfad sowie ein neuer Start- und Anbieter-Login-Smoke auf Apple Silicon nicht manuell wiederholt.
 - Snapshot/Replay/Checkpoint werden nur in ihrer ausgelieferten Form kompatibel gehalten. Für diese funktionsgefrorene Ausgabe sind Marketplace, Graph-Editor, fünfter Anbieter, neues Persistenzschema, eingebetteter Terminal-Agent, Telemetrie, Developer-ID-/Notarisierungsprogramm und Self-Updater nicht geplant.
 
 Die evidenzbasierte [Kompatibilitätsmatrix](./docs/COMPATIBILITY.md) enthält Details. CI und automatisierte Tests werden nie als Beleg dafür dargestellt, dass ein echtes Anbieterkonto oder Desktopgerät benutzt wurde.

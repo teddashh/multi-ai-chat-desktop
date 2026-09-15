@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-09-14 for the v1.8.7 release candidate. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-09-15 for the v1.8.7 release. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -17,7 +17,7 @@
 | macOS Apple Silicon | DMG builds in CI; embedded app is verified as ad-hoc signed | A `v1.0.1` user opened the app and logged into ChatGPT, Claude, and Gemini; Grok looped on Cloudflare verification | **Partially verified** |
 | Linux x86_64 | AppImage builds in CI with WebKitGTK dependencies | No maintainer desktop report yet | **CI-only** |
 
-macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. Current source leaves provider permission APIs untouched, permits Cloudflare's required `about:blank` / `about:srcdoc` documents, defers the automation bridge on any detected Cloudflare or hCaptcha security-check page, and never monkey-patches Grok's History API. A native Tauri title observer marks known Grok challenge titles as blocked, and a bounded read-only host probe covers embedded Turnstile widgets whose top-level title remains unchanged. Neither path starts the injected bridge or changes the challenge page. Automated tests cover this policy, but no new Apple Silicon end-user launch or provider-login smoke has been recorded for the v1.8.7 release candidate. The macOS retest, especially confirmation that Grok leaves Cloudflare verification, remains **Pending**.
+macOS remains ad-hoc signed, not Developer ID signed or notarized. The Apple Silicon report confirms that the documented first-launch exception works, but does not make the build warning-free. Current source leaves provider permission APIs untouched, permits Cloudflare's required `about:blank` / `about:srcdoc` documents, defers the automation bridge on any detected Cloudflare or hCaptcha security-check page, and never monkey-patches Grok's History API. A native Tauri title observer marks known Grok challenge titles as blocked, and a bounded read-only host probe covers embedded Turnstile widgets whose top-level title remains unchanged. Neither path starts the injected bridge or changes the challenge page. Automated tests cover this policy, but no new Apple Silicon end-user launch or provider-login smoke has been recorded for the v1.8.7 release. The macOS retest, especially confirmation that Grok leaves Cloudflare verification, remains **Pending**.
 
 ## Agent-ready source lane
 

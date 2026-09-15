@@ -4,7 +4,7 @@
 
 Ask once. Let your signed-in **ChatGPT, Claude, Gemini, and Grok** web sessions answer, review, challenge, and refine one another. Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
 
-[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.8.6](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
+[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.8.7](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
 
 > This app automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider's terms. Use only accounts and content you are authorized to use. The app never bypasses login, subscription, age, rate-limit, or security checks.
 
@@ -12,7 +12,7 @@ Ask once. Let your signed-in **ChatGPT, Claude, Gemini, and Grok** web sessions 
 
 ## Install first
 
-Get the current stable release from the [**v1.8.6 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6).
+Get the current stable release from the [**v1.8.7 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7).
 
 | Platform | Download | First-launch note |
 |---|---|---|
@@ -32,14 +32,14 @@ The ad-hoc signature protects bundle integrity and avoids the false “app is da
 
 Portable Windows builds do not show in-app update controls. Update them manually from [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installed builds can check for a newer release and open its download page, but the app does not download or install updates itself.
 
-## What's new in v1.8.6
+## What's new in v1.8.7
 
-- **Recoverable Brainstorm limits and errors.** A usage limit, bridge degradation/timeout, or structured provider error pauses the run with **Retry**, **Skip**, and **Cancel**. Skip records a safe placeholder and continues without relaying raw error text into later prompts.
-- **Brainstorm graph v4.** Older v3 snapshots cannot silently inherit the new recovery semantics; reserved-turn cleanup is also hardened after retry and cancellation.
-- **ChatGPT adapter v7.** The bundled adapter recognizes the redesigned `/auth/login` form without expanding URL or permission scope.
-- **Development dependency security.** The patched `fast-uri` release cleared all four open High Dependabot alerts; production and full dependency audits reported no known vulnerabilities at release time.
+- **Reliable slow handoffs to ChatGPT.** Delivery confirmation now requires the matching newly rendered user turn. A silent send failure reaches an error in about 10–19 seconds instead of consuming the 600-second response timeout.
+- **Current-turn response capture.** Remounted historical answers can no longer complete a retry or new workflow, and cancellation settles before a replacement run starts.
+- **Safe provider-error behavior.** Debate, Consult, Coding, and Roundtable stop on unattended provider errors; Brainstorm keeps explicit **Retry**, **Skip**, and **Cancel** recovery. Dialogs and diagnostics now distinguish provider errors from timeouts.
+- **Validated and dependency-hardened.** The release passed 522 frontend tests, 81 local Windows Rust tests, cross-platform CI and CodeQL. Vitest 4.1.11 resolves `GHSA-82fw-gwwq-j7x9`, with zero known pnpm audit findings at release time.
 
-Read the [complete bilingual release notes and validation evidence](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6). Thanks to [@Rumi-3653](https://github.com/Rumi-3653) for the ChatGPT adapter fix in [#78](https://github.com/teddashh/multi-ai-chat-desktop/pull/78), and [@ufgeorge](https://github.com/ufgeorge) for the Brainstorm interruption report in [#80](https://github.com/teddashh/multi-ai-chat-desktop/issues/80).
+Read the [complete bilingual release notes and validation evidence](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7).
 
 ## Desktop or browser extension?
 
@@ -79,7 +79,7 @@ Choose Desktop when you want a dedicated workspace and the full local workflow t
 
 Structured workflows preflight every required role. If a provider is unavailable, the app identifies it and lets you open/login, reassign the role, or choose another mode; it never silently substitutes a provider. Standard structured workflows stop on a persistent provider error. Brainstorm instead pauses for an explicit Retry, Skip, or Cancel choice.
 
-Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its full live 48-contribution recovery path has automated coverage but was not manually completed for v1.8.6.
+Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its 48-contribution recovery path has automated coverage; v1.8.7 still needs a real-account ChatGPT↔Grok slow-handoff check.
 
 After a workflow finishes, continue from the bottom composer to keep the same app conversation. Choose **New conversation** for clean session context.
 
@@ -102,7 +102,7 @@ Report vulnerabilities privately through [SECURITY.md](./SECURITY.md); never put
 - **Windows x64** has verified packaged launch evidence, but artifacts are unsigned and can trigger SmartScreen.
 - **macOS Apple Silicon** is partially verified. The DMG is ad-hoc signed and not notarized; an earlier real-device report opened the app and logged into ChatGPT, Claude, and Gemini, while Grok remained on Cloudflare. Current Grok recovery still needs a live Apple Silicon retest. There is no Intel artifact.
 - **Linux x86_64** packaging is CI-verified only; there is no current maintainer real-device launch report.
-- For v1.8.6, live provider login—including Grok's challenge path—and a complete 48-contribution Brainstorm recovery run were not manually reverified. ChatGPT adapter v7 has focused live-DOM selector evidence, not a full in-app logged-out workflow.
+- For v1.8.7, a real-account ChatGPT↔Grok slow handoff, the Grok Cloudflare challenge path, and a new Apple Silicon launch/provider-login smoke were not manually reverified.
 - Snapshots/replay/checkpoints are compatibility-maintained in their shipped form. There is no marketplace, graph editor, fifth provider, new persistence schema, embedded terminal agent, telemetry roadmap, Developer ID/notarization program, or self-updater planned for this feature-frozen edition.
 
 See the evidence-based [compatibility matrix](./docs/COMPATIBILITY.md). CI and automated tests are never presented as proof that a live provider account or real desktop device was exercised.
