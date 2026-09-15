@@ -4,7 +4,7 @@
 
 一度質問するだけで、ログイン済みの **ChatGPT、Claude、Gemini、Grok** のWebセッションが回答し、レビューし、反論しながら結果を磨きます。Multi-AI Chat Desktopは、4つのチャットを横に並べただけではない、Tauri 2製のマルチAIワークフローハブです。
 
-[**公式サイトを見る →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=ja) · [v1.8.6をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6) · [すべてのリリース](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · APIキー不要 · アナリティクスなし
+[**公式サイトを見る →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=ja) · [v1.8.7をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) · [すべてのリリース](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · APIキー不要 · アナリティクスなし
 
 > このアプリは、普段利用しているプロバイダーのWebページを自動操作します。プロバイダー側のUI変更でアダプターが一時的に動かなくなる場合があり、自動操作には各サービスの利用規約が適用されることがあります。利用権限のあるアカウントとコンテンツだけを使用してください。ログイン、契約、年齢、利用上限、セキュリティ確認を回避する機能はありません。
 
@@ -12,7 +12,7 @@
 
 ## まずインストール
 
-現在の安定版は[**v1.8.6ダウンロードページ**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6)から入手できます。
+現在の安定版は[**v1.8.7ダウンロードページ**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7)から入手できます。
 
 | プラットフォーム | ダウンロード | 初回起動時の注意 |
 |---|---|---|
@@ -32,14 +32,14 @@ Ad-hoc署名はbundleの完全性を守り、`v1.0.0` で発生した誤った�
 
 Windows portable版にはアプリ内更新UIがありません。[GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)から手動で更新してください。インストール版は新しいリリースを確認してダウンロードページを開けますが、アプリ自身が更新をダウンロード／インストールすることはありません。
 
-## v1.8.6の主な変更
+## v1.8.7の主な変更
 
-- **Brainstormの上限・エラーから復旧可能に。** 利用上限、bridgeのdegraded／timeout、構造化されたプロバイダーエラーで一時停止し、**再試行・スキップ・キャンセル**を選べます。スキップ時は安全なplaceholderを記録し、生のエラー文を後続promptへ渡さず次の席へ進みます。
-- **Brainstorm graph v4。** 古いv3 snapshotが新しい復旧動作を暗黙に採用することはありません。再試行後のキャンセルでも予約turnを安全に片付けます。
-- **ChatGPT adapter v7。** URLや権限範囲を広げず、刷新された `/auth/login` formを認識します。
-- **開発依存関係のセキュリティ更新。** 修正版 `fast-uri` により4件のHigh Dependabot alertをすべて解消し、公開時点のproduction／全依存auditはいずれも既知の脆弱性0件でした。
+- **ChatGPTへの遅いハンドオフを安定化。** 送信確認には、新しく描画された一致するユーザー発言が必要になりました。送信が無反応のまま失敗した場合も、600秒の応答timeoutを使い切らず約10〜19秒でエラーになります。
+- **現在のturnだけを取得。** 再マウントされた過去の回答が再試行や新しいworkflowを誤って完了させることはなく、キャンセル処理も次のrun開始前に完了します。
+- **Provider errorを安全に処理。** Debate、Consult、Coding、Roundtableは無人のprovider errorで停止し、Brainstormは明示的な**再試行・スキップ・キャンセル**を維持します。Dialogと診断もprovider errorをtimeoutと誤表示しません。
+- **検証と依存関係の強化。** 522件のfrontend test、81件のローカルWindows Rust test、クロスプラットフォームCI、CodeQLに合格しました。Vitest 4.1.11で `GHSA-82fw-gwwq-j7x9` を解消し、公開時点のpnpm auditは既知の問題0件です。
 
-詳細と検証範囲は[日英併記のリリースノート](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.6)をご覧ください。[#78](https://github.com/teddashh/multi-ai-chat-desktop/pull/78)でChatGPT adapter修正を提供した[@Rumi-3653](https://github.com/Rumi-3653)と、[#80](https://github.com/teddashh/multi-ai-chat-desktop/issues/80)でBrainstorm中断を報告した[@ufgeorge](https://github.com/ufgeorge)に感謝します。
+詳細と検証範囲は[日英併記のリリースノート](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7)をご覧ください。
 
 ## Desktopとブラウザー拡張のどちらを選ぶ？
 
@@ -79,7 +79,7 @@ Windows portable版にはアプリ内更新UIがありません。[GitHub Releas
 
 構造化workflowは開始前に必要な全roleを確認します。利用できないプロバイダーがあれば、その名前を示し、open／login、role再割り当て、別modeへの切り替えを案内します。暗黙のプロバイダー置換はしません。通常の構造化workflowは継続するprovider errorで停止し、Brainstormだけは再試行・スキップ・キャンセルの明示選択まで一時停止します。
 
-Brainstormは意図的に最も重いpresetです。標準の4 provider sessionをすべてログイン済みにし、約 **45〜90分** を見込んでください。48件すべてを含むlive復旧経路には自動テストがありますが、v1.8.6では完全な手動実行を行っていません。
+Brainstormは意図的に最も重いpresetです。標準の4 provider sessionをすべてログイン済みにし、約 **45〜90分** を見込んでください。48件の復旧経路には自動テストがありますが、v1.8.7では実アカウントによるChatGPT↔Grokの遅いハンドオフ確認が残っています。
 
 Workflow完了後は画面下のcomposerから同じapp conversationを続けられます。文脈を一新する場合は「**新しい会話**」を選んでください。
 
@@ -102,7 +102,7 @@ Workflow完了後は画面下のcomposerから同じapp conversationを続けら
 - **Windows x64** はpackaged launchの検証実績がありますが、未署名artifactがSmartScreenを表示する場合があります。
 - **macOS Apple Silicon** は部分検証です。DMGはad-hoc署名済み・notarize未実施です。以前の実機報告ではアプリを開きChatGPT、Claude、Geminiへloginできましたが、GrokはCloudflareで停止しました。現在のGrok復旧もApple Siliconでlive retestが必要です。Intel artifactはありません。
 - **Linux x86_64** はCI packagingのみ検証済みで、maintainerによる新しい実機起動報告はありません。
-- v1.8.6では、Grok challengeを含むlive provider loginと完全な48件Brainstorm復旧runを手動で再検証していません。ChatGPT adapter v7は焦点を絞ったlive-DOM selector evidenceのみで、アプリ内logged-out workflow全体の検証ではありません。
+- v1.8.7では、実アカウントでのChatGPT↔Grokの遅いハンドオフ、Grok Cloudflare challenge、新しいApple Siliconでの起動とprovider login smokeを手動で再検証していません。
 - Snapshot／replay／checkpointは既存互換性だけを保守します。この機能凍結版にmarketplace、graph editor、第5のprovider、新persistence schema、組み込みterminal agent、telemetry、Developer ID／notarization program、self-updaterを追加する予定はありません。
 
 根拠は[互換性マトリクス](./docs/COMPATIBILITY.md)をご覧ください。CIや自動テストを、実際のprovider accountやdesktop deviceを操作した証拠として扱うことはありません。
