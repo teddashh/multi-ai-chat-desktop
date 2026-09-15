@@ -199,6 +199,8 @@ export const ja: Record<I18nKey, string> = {
   'stepTimeout.waiting': '{provider}を待っています：{seconds}秒',
   'stepTimeout.title': 'ステップがタイムアウトしました',
   'stepTimeout.description': '{provider}はこのワークフローステップを完了しませんでした。',
+  'stepTimeout.providerErrorTitle': 'プロバイダーのステップでエラーが発生しました',
+  'stepTimeout.providerErrorDescription': '{provider}はこのワークフローステップの実行中にエラーを報告しました。',
   'stepTimeout.retry': '再試行',
   'stepTimeout.skip': 'スキップ',
   'stepTimeout.cancel': 'キャンセル',

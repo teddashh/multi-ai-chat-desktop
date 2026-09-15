@@ -489,7 +489,7 @@ describe('workflow engine', () => {
   });
 
   it('waits for a timeout action supplied after the timeout event and then skips', async () => {
-    const events: { provider: string; remainingMs: number; timedOut: boolean }[] = [];
+    const events: StepTimeoutEvent[] = [];
     const unsubscribe = onStepTimeoutEvent((event) => events.push(event));
     const step = runStep('chatgpt', 'late skip');
     let settled = false;
@@ -509,7 +509,7 @@ describe('workflow engine', () => {
     await degrade;
     await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS);
 
-    expect(events.some((event) => event.timedOut)).toBe(true);
+    expect(events.find((event) => event.timedOut)).toMatchObject({ failureKind: 'timeout' });
     await Promise.resolve();
     expect(settled).toBe(false);
 
@@ -747,15 +747,9 @@ describe('workflow engine', () => {
     ]);
   });
 
-  it.each([
-    ['Debate', { mode: 'debate' }],
-    ['Consult', { mode: 'consult' }],
-    ['Coding', { mode: 'coding' }],
-    ['Roundtable', { mode: 'roundtable' }],
-    ['Brainstorm', { mode: 'free', presetId: 'brainstorm' }],
-  ] as const)('%s retries a provider error and completes the same workflow', async (_label, workflow) => {
+  it('lets Brainstorm retry a provider error and complete the same workflow', async () => {
     const sent: { provider: AIProvider; prompt: string }[] = [];
-    const timeoutEvents: { provider: string; remainingMs: number; timedOut: boolean }[] = [];
+    const timeoutEvents: StepTimeoutEvent[] = [];
     const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
     let firstSend = true;
     vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
@@ -765,8 +759,9 @@ describe('workflow engine', () => {
       publishBridgeMessage(done(provider, response));
     });
 
-    const run = runWorkflow({ text: 'recover this workflow', ...workflow });
+    const run = runWorkflow({ text: 'recover this workflow', mode: 'free', presetId: 'brainstorm' });
     await vi.waitFor(() => expect(timeoutEvents.some((event) => event.timedOut)).toBe(true));
+    expect(timeoutEvents.find((event) => event.timedOut)).toMatchObject({ failureKind: 'provider-error' });
     const failedSend = sent[0];
 
     chooseStepTimeoutAction('retry');
@@ -777,6 +772,30 @@ describe('workflow engine', () => {
     expect(host.provider.stop).toHaveBeenCalledWith(failedSend.provider);
     expect(getLastSnapshot()?.steps.some((step) => step.status === 'error')).toBe(false);
   });
+
+  it.each([
+    ['Debate', { mode: 'debate' }, 1],
+    ['Consult', { mode: 'consult' }, 2],
+    ['Coding', { mode: 'coding' }, 1],
+    ['Roundtable', { mode: 'roundtable' }, 1],
+  ] as const)(
+    '%s treats an unattended provider error as terminal without opening recovery',
+    async (_label, workflow, expectedSendCount) => {
+      const timeoutEvents: StepTimeoutEvent[] = [];
+      const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
+      vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+        publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
+      });
+
+      await expect(runWorkflow({ text: 'stop on provider error', ...workflow })).resolves.toEqual({ ok: true });
+      unsubscribe();
+
+      expect(host.provider.send).toHaveBeenCalledTimes(expectedSendCount);
+      expect(timeoutEvents.some((event) => event.timedOut)).toBe(false);
+      expect(getLastSnapshot()?.steps).toHaveLength(expectedSendCount);
+      expect(getLastSnapshot()?.steps.every((step) => step.status === 'error')).toBe(true);
+    },
+  );
 
   it('keeps free fan-out provider errors isolated without opening serial recovery UI', async () => {
     const timeoutEvents: { provider: string; remainingMs: number; timedOut: boolean }[] = [];
@@ -795,7 +814,9 @@ describe('workflow engine', () => {
     expect(getLastSnapshot()?.steps.map((step) => step.status).sort()).toEqual(['done', 'error']);
   });
 
-  it('cancel recovery stops an unfinished parallel sibling after another structured step fails', async () => {
+  it('stops an unfinished Consult sibling immediately after another structured step fails', async () => {
+    const timeoutEvents: StepTimeoutEvent[] = [];
+    const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
       if (provider === DEFAULT_CONSULT_ROLES.first) {
         publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
@@ -804,105 +825,50 @@ describe('workflow engine', () => {
 
     const run = runWorkflow({ text: 'q', mode: 'consult' });
     await vi.waitFor(() => expect(host.provider.send).toHaveBeenCalledTimes(2));
-    chooseStepTimeoutAction('cancel');
     await expect(run).resolves.toEqual({ ok: true });
+    unsubscribe();
 
-    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.first);
+    expect(timeoutEvents.some((event) => event.timedOut)).toBe(false);
     expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.second);
     expect(getInFlightProviders()).toEqual([]);
   });
 
-  it('queues simultaneous Consult provider errors and applies retry then skip to the displayed providers', async () => {
-    const timeoutEvents: StepTimeoutEvent[] = [];
-    const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
-    const attempts = new Map<AIProvider, number>();
-    const sent: { provider: AIProvider; prompt: string }[] = [];
-    vi.mocked(host.provider.send).mockImplementation(async (provider, prompt) => {
-      sent.push({ provider, prompt });
-      const attempt = (attempts.get(provider) ?? 0) + 1;
-      attempts.set(provider, attempt);
-      const isInitialConsultProvider =
-        provider === DEFAULT_CONSULT_ROLES.first || provider === DEFAULT_CONSULT_ROLES.second;
-      const response = isInitialConsultProvider && attempt === 1
-        ? '[Error: adapter not installed]'
-        : `${provider}-answer-${attempt}`;
-      publishBridgeMessage(done(provider, response));
-    });
-
-    const run = runWorkflow({ text: 'recover both consult answers', mode: 'consult' });
-    await vi.waitFor(() => expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(1));
-    const firstTimeout = timeoutEvents.find((event) => event.timedOut);
-    expect(firstTimeout?.provider).toBe(DEFAULT_CONSULT_ROLES.first);
-
-    expect(chooseStepTimeoutAction('retry', firstTimeout?.requestId)).toBe(true);
-    await vi.waitFor(() => expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(2));
-    const secondTimeout = timeoutEvents.filter((event) => event.timedOut)[1];
-    expect(secondTimeout.provider).toBe(DEFAULT_CONSULT_ROLES.second);
-    expect(secondTimeout.requestId).not.toBe(firstTimeout?.requestId);
-
-    expect(chooseStepTimeoutAction('skip', secondTimeout.requestId)).toBe(true);
-    await expect(run).resolves.toEqual({ ok: true });
-    unsubscribe();
-
-    expect(attempts.get(DEFAULT_CONSULT_ROLES.first)).toBe(2);
-    expect(attempts.get(DEFAULT_CONSULT_ROLES.second)).toBe(1);
-    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.first);
-    const reviewerPrompt = sent.find((item) => item.provider === DEFAULT_CONSULT_ROLES.reviewer)?.prompt;
-    expect(reviewerPrompt).toContain(SKIP_RESPONSE);
-    expect(chooseStepTimeoutAction('cancel', secondTimeout.requestId)).toBe(false);
-  });
-
-  it('cancels every queued Consult recovery when both parallel providers fail', async () => {
+  it('does not queue recovery actions when both parallel Consult providers fail', async () => {
     const timeoutEvents: StepTimeoutEvent[] = [];
     const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
-      if (provider === DEFAULT_CONSULT_ROLES.first || provider === DEFAULT_CONSULT_ROLES.second) {
-        publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
-      }
+      publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
     });
 
-    const run = runWorkflow({ text: 'cancel both consult failures', mode: 'consult' });
-    await vi.waitFor(() => expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(1));
-    const activeTimeout = timeoutEvents.find((event) => event.timedOut);
-
-    publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
-    await expect(run).resolves.toEqual({ ok: true });
+    await expect(runWorkflow({ text: 'stop both consult failures', mode: 'consult' })).resolves.toEqual({ ok: true });
     unsubscribe();
 
-    expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(1);
-    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.first);
-    expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.second);
+    expect(timeoutEvents.some((event) => event.timedOut)).toBe(false);
+    expect(host.provider.send).toHaveBeenCalledTimes(2);
     expect(getInFlightProviders()).toEqual([]);
-    expect(chooseStepTimeoutAction('retry', activeTimeout?.requestId)).toBe(false);
   });
 
-  it('waits for every parallel Consult cancel cleanup before settling the workflow', async () => {
+  it('waits for Brainstorm recovery cancellation cleanup before starting the next workflow', async () => {
     const timeoutEvents: StepTimeoutEvent[] = [];
     const unsubscribe = onStepTimeoutEvent((event) => timeoutEvents.push(event));
     let releaseSlowStop: (() => void) | undefined;
     const slowStop = new Promise<void>((resolve) => {
       releaseSlowStop = resolve;
     });
-    vi.mocked(host.provider.stop).mockImplementation((provider) =>
-      provider === DEFAULT_CONSULT_ROLES.first ? slowStop : Promise.resolve(),
-    );
+    const failedProvider = DEFAULT_ROUNDTABLE_ROLES.first;
+    vi.mocked(host.provider.stop).mockImplementation((provider) => (provider === failedProvider ? slowStop : Promise.resolve()));
     vi.mocked(host.provider.send).mockImplementation(async (provider) => {
-      if (provider === DEFAULT_CONSULT_ROLES.first || provider === DEFAULT_CONSULT_ROLES.second) {
-        publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
-      }
+      publishBridgeMessage(done(provider, '[Error: adapter not installed]'));
     });
 
-    const run = runWorkflow({ text: 'wait for both cancel cleanups', mode: 'consult' });
+    const run = runWorkflow({ text: 'wait for Brainstorm cancel cleanup', mode: 'free', presetId: 'brainstorm' });
     let settled = false;
     void run.then(() => {
       settled = true;
     });
     await vi.waitFor(() => expect(timeoutEvents.filter((event) => event.timedOut)).toHaveLength(1));
     publishBridgeMessage({ v: 1, action: 'CANCEL_WORKFLOW', transport: 'local' });
-    await vi.waitFor(() => {
-      expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.first);
-      expect(host.provider.stop).toHaveBeenCalledWith(DEFAULT_CONSULT_ROLES.second);
-    });
+    await vi.waitFor(() => expect(host.provider.stop).toHaveBeenCalledWith(failedProvider));
     await Promise.resolve();
     expect(settled).toBe(false);
 

@@ -180,6 +180,8 @@ export const I18N_KEYS = [
   'stepTimeout.waiting',
   'stepTimeout.title',
   'stepTimeout.description',
+  'stepTimeout.providerErrorTitle',
+  'stepTimeout.providerErrorDescription',
   'stepTimeout.retry',
   'stepTimeout.skip',
   'stepTimeout.cancel',

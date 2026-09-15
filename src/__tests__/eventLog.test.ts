@@ -6,6 +6,7 @@ import {
   eventFromNavBlocked,
   eventFromProviderSend,
   eventFromProviderState,
+  eventFromStepTimeout,
   filterEventLogByProvider,
   formatEventLogText,
 } from '../diagnostics/eventLog';
@@ -140,6 +141,23 @@ describe('event log reducer', () => {
     expect(events[0].detail).not.toHaveProperty('url');
     expect(events[0].detail).not.toHaveProperty('path');
     expect(events[0].detail).not.toHaveProperty('query');
+  });
+
+  it('logs provider errors as provider errors while legacy recovery events remain timeouts', () => {
+    const providerError = eventFromStepTimeout({
+      provider: 'chatgpt',
+      remainingMs: 0,
+      timedOut: true,
+      failureKind: 'provider-error',
+    });
+    const legacyTimeout = eventFromStepTimeout({ provider: 'chatgpt', remainingMs: 0, timedOut: true });
+
+    expect(providerError.summary).toBe('ChatGPT workflow step failed with a provider error');
+    expect(providerError.summary).not.toContain('timed out');
+    expect(providerError.detail).toMatchObject({ failureKind: 'provider-error' });
+    expect(providerError.detail).not.toHaveProperty('timedOut');
+    expect(legacyTimeout.summary).toBe('ChatGPT workflow step timed out');
+    expect(legacyTimeout.detail).toMatchObject({ failureKind: 'timeout', timedOut: true });
   });
 
   it('formats only provider-filtered events when copying a filtered log', () => {

@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import {
@@ -13,6 +15,7 @@ import { defaultRolesForMode } from '../ui/modeRoles';
 import { OverlayGuardCounter } from '../ui/overlayGuard';
 import { buildPreflightDialogModel } from '../ui/preflightModel';
 import { preflightFromResult } from '../ui/preflightFromResult';
+import { StepTimeoutDialog } from '../ui/StepTimeoutDialog';
 import { nextStepTimeoutState } from '../ui/stepTimeoutState';
 import {
   applyFreeTargetDefaults,
@@ -234,14 +237,14 @@ describe('M4a UI helpers', () => {
     }
   });
 
-  it('owns concurrent timeout actions by request id and presents them in FIFO order', async () => {
+  it('owns concurrent recovery actions by request id and preserves each failure kind in FIFO order', async () => {
     const events: StepTimeoutEvent[] = [];
     const unsubscribe = onStepTimeoutEvent((event) => events.push(event));
-    const first = awaitStepTimeoutAction('chatgpt');
+    const first = awaitStepTimeoutAction('chatgpt', 'provider-error');
     const second = awaitStepTimeoutAction('grok');
 
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ provider: 'chatgpt', timedOut: true });
+    expect(events[0]).toMatchObject({ provider: 'chatgpt', timedOut: true, failureKind: 'provider-error' });
     const firstRequestId = events[0].requestId;
     expect(firstRequestId).toEqual(expect.any(Number));
 
@@ -252,7 +255,7 @@ describe('M4a UI helpers', () => {
     await Promise.resolve();
 
     expect(events).toHaveLength(2);
-    expect(events[1]).toMatchObject({ provider: 'grok', timedOut: true });
+    expect(events[1]).toMatchObject({ provider: 'grok', timedOut: true, failureKind: 'timeout' });
     const secondRequestId = events[1].requestId;
     expect(secondRequestId).toEqual(expect.any(Number));
     expect(secondRequestId).not.toBe(firstRequestId);
@@ -289,10 +292,46 @@ describe('M4a UI helpers', () => {
 
     const modal = nextStepTimeoutState(countdown, { provider: 'chatgpt', remainingMs: 0, timedOut: true });
     expect(modal).toEqual({ provider: 'chatgpt', remainingMs: 0, timedOut: true });
+    expect(
+      nextStepTimeoutState(undefined, {
+        provider: 'claude',
+        remainingMs: 0,
+        timedOut: true,
+        failureKind: 'provider-error',
+      }),
+    ).toEqual({ provider: 'claude', remainingMs: 0, timedOut: true, failureKind: 'provider-error' });
     expect(nextStepTimeoutState(modal, { provider: 'grok', remainingMs: 600_000, timedOut: false })).toEqual(modal);
     expect(nextStepTimeoutState(modal, { type: 'settle' })).toEqual(modal);
     expect(nextStepTimeoutState(countdown, { type: 'settle' })).toBeUndefined();
   });
+
+  it.each(['en', 'zh-TW', 'ja', 'de'] as const)(
+    'renders distinct timeout and provider-error recovery copy in %s',
+    (locale) => {
+      const timeoutHtml = renderToStaticMarkup(
+        createElement(StepTimeoutDialog, {
+          event: { provider: 'Claude', remainingMs: 0, timedOut: true },
+          onClose: vi.fn(),
+          locale,
+        }),
+      );
+      const providerErrorHtml = renderToStaticMarkup(
+        createElement(StepTimeoutDialog, {
+          event: { provider: 'Claude', remainingMs: 0, timedOut: true, failureKind: 'provider-error' },
+          onClose: vi.fn(),
+          locale,
+        }),
+      );
+
+      expect(timeoutHtml).toContain(t('stepTimeout.title', locale));
+      expect(timeoutHtml).toContain(formatI18n(t('stepTimeout.description', locale), { provider: 'Claude' }));
+      expect(providerErrorHtml).toContain(t('stepTimeout.providerErrorTitle', locale));
+      expect(providerErrorHtml).toContain(
+        formatI18n(t('stepTimeout.providerErrorDescription', locale), { provider: 'Claude' }),
+      );
+      expect(providerErrorHtml).not.toContain(t('stepTimeout.title', locale));
+    },
+  );
 
   it('reconciles loaded providers that appear while an overlay is open', () => {
     const guard = new OverlayGuardCounter();

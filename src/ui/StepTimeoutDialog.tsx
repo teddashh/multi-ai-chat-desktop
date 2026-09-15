@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Locale } from '../i18n/resolve';
 import { formatI18n, t } from '../i18n/t';
-import type { StepTimeoutAction } from '../workflow/stepTimeout';
+import type { StepRecoveryFailureKind, StepTimeoutAction } from '../workflow/stepTimeout';
 import { chooseTimeoutDialogAction } from './timeoutActions';
 import { ModalDialog } from './ModalDialog';
 
@@ -10,6 +10,7 @@ export interface StepTimeoutDialogState {
   remainingMs: number;
   timedOut: boolean;
   requestId?: number;
+  failureKind?: StepRecoveryFailureKind;
 }
 
 export function StepTimeoutDialog({
@@ -44,6 +45,9 @@ export function StepTimeoutDialog({
   const choose = (action: StepTimeoutAction) => {
     chooseTimeoutDialogAction(action, onClose, event.requestId);
   };
+  const isProviderError = event.failureKind === 'provider-error';
+  const titleKey = isProviderError ? 'stepTimeout.providerErrorTitle' : 'stepTimeout.title';
+  const descriptionKey = isProviderError ? 'stepTimeout.providerErrorDescription' : 'stepTimeout.description';
 
   return (
     <ModalDialog
@@ -52,9 +56,9 @@ export function StepTimeoutDialog({
       onEscape={() => choose('cancel')}
       panelClassName="w-full max-w-sm rounded-lg border border-amber-300 bg-white p-4 shadow-xl dark:border-amber-700 dark:bg-zinc-950"
     >
-        <h2 id="step-timeout-title" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('stepTimeout.title', locale)}</h2>
+        <h2 id="step-timeout-title" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t(titleKey, locale)}</h2>
         <p id="step-timeout-description" className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-          {formatI18n(t('stepTimeout.description', locale), { provider: event.provider })}
+          {formatI18n(t(descriptionKey, locale), { provider: event.provider })}
         </p>
         <div className="mt-4 flex gap-2">
           <button type="button" className="border border-emerald-300 dark:border-emerald-700 px-3 py-2 text-xs hover:bg-emerald-100 dark:hover:bg-emerald-950" onClick={() => choose('retry')}>

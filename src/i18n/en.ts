@@ -197,6 +197,8 @@ export const en: Record<I18nKey, string> = {
   'stepTimeout.waiting': 'Waiting on {provider}: {seconds}s',
   'stepTimeout.title': 'Step timed out',
   'stepTimeout.description': '{provider} did not finish this workflow step.',
+  'stepTimeout.providerErrorTitle': 'Provider step failed',
+  'stepTimeout.providerErrorDescription': '{provider} reported an error while completing this workflow step.',
   'stepTimeout.retry': 'Retry',
   'stepTimeout.skip': 'Skip',
   'stepTimeout.cancel': 'Cancel',

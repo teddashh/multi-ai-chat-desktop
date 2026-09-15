@@ -2,6 +2,7 @@ import { STEP_TIMEOUT_MS } from './waitForResponse';
 
 export const STEP_COUNTDOWN_MS = 600_000;
 export type StepTimeoutAction = 'retry' | 'skip' | 'cancel';
+export type StepRecoveryFailureKind = 'timeout' | 'provider-error';
 
 export class StepTimeoutActionSupersededError extends Error {
   constructor() {
@@ -15,11 +16,13 @@ export interface StepTimeoutEvent {
   remainingMs: number;
   timedOut: boolean;
   requestId?: number;
+  failureKind?: StepRecoveryFailureKind;
 }
 
 interface PendingAction {
   requestId: number;
   provider: string;
+  failureKind: StepRecoveryFailureKind;
   resolve: (action: StepTimeoutAction) => void;
   reject: (error: Error) => void;
 }
@@ -62,11 +65,14 @@ export function consumeStepTimeoutAction(): StepTimeoutAction | undefined {
   return action;
 }
 
-export function awaitStepTimeoutAction(provider = 'unknown'): Promise<StepTimeoutAction> {
+export function awaitStepTimeoutAction(
+  provider = 'unknown',
+  failureKind: StepRecoveryFailureKind = 'timeout',
+): Promise<StepTimeoutAction> {
   const action = consumeStepTimeoutAction();
   if (action) return Promise.resolve(action);
   return new Promise((resolve, reject) => {
-    pendingActions.push({ requestId: nextRequestId, provider, resolve, reject });
+    pendingActions.push({ requestId: nextRequestId, provider, failureKind, resolve, reject });
     nextRequestId += 1;
     activateNextAction();
   });
@@ -100,6 +106,7 @@ function activateNextAction(): void {
     remainingMs: 0,
     timedOut: true,
     requestId: activeAction.requestId,
+    failureKind: activeAction.failureKind,
   });
 }
 

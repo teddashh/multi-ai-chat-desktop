@@ -1,5 +1,6 @@
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, BridgeMessage, ChatMode, ProviderState } from '../../shared/types';
+import type { StepTimeoutEvent } from '../workflow/stepTimeout';
 import {
   normalizeAdapterStatus,
   normalizeBridgeStatus,
@@ -192,18 +193,22 @@ export function eventFromSnapshotPersistenceFailure(snapshotId: string, reason: 
   };
 }
 
-export function eventFromStepTimeout(event: { provider: string; remainingMs: number; timedOut: boolean }): EventLogInput {
+export function eventFromStepTimeout(event: StepTimeoutEvent): EventLogInput {
   const provider = isAIProvider(event.provider) ? event.provider : undefined;
   const name = provider ? providerName(provider) : event.provider;
+  const failureKind = event.failureKind ?? 'timeout';
   return {
     provider,
     kind: event.timedOut ? 'workflow-error' : 'workflow-step',
     summary: event.timedOut
-      ? `${name} workflow step timed out`
+      ? failureKind === 'provider-error'
+        ? `${name} workflow step failed with a provider error`
+        : `${name} workflow step timed out`
       : `Waiting on ${name} (${Math.ceil(event.remainingMs / 1000)}s remaining)`,
     detail: {
       remainingMs: event.remainingMs,
-      timedOut: event.timedOut,
+      failureKind,
+      ...(failureKind === 'timeout' ? { timedOut: event.timedOut } : {}),
     },
   };
 }
