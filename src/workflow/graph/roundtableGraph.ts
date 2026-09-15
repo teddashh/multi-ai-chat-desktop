@@ -70,7 +70,7 @@ const roundtableOrder = orderedRoundtableNodeIds();
 export const roundtableGraph: WorkflowGraph = {
   schemaVersion: 1,
   id: 'roundtable',
-  version: 4,
+  version: 5,
   mode: 'roundtable',
   start: roundtableOrder[0],
   roles: {

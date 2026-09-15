@@ -14,5 +14,6 @@ export function nextStepTimeoutState(
     remainingMs: event.remainingMs,
     timedOut: event.timedOut,
     ...(event.requestId === undefined ? {} : { requestId: event.requestId }),
+    ...(event.failureKind === undefined ? {} : { failureKind: event.failureKind }),
   };
 }

@@ -123,7 +123,7 @@ describe('workflow execution snapshots', () => {
     expect(getCurrentSnapshot()).toBeUndefined();
     expect(snapshot).toMatchObject({
       graphId: 'debate',
-      graphVersion: 4,
+      graphVersion: 5,
       appVersion: '1.0.2-test',
       roleMap: DEFAULT_DEBATE_ROLES,
       redactionTier: 'full-local',
