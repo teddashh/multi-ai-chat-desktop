@@ -47,7 +47,7 @@ Read the [complete bilingual release notes and validation evidence](https://gith
 |---|---|---|
 | Best for | Complete guided workflows, focused live-provider view, local sessions, snapshots/replay, and local text files | Lightweight use inside Chrome with existing provider tabs |
 | Runtime | Tauri app with one isolated local profile per provider | Chrome Side Panel plus normal browser tabs |
-| Install | Windows, Apple Silicon macOS, or Linux release | Load/install the Chrome extension |
+| Install | Windows, Apple Silicon macOS, or Linux release | [Chrome Web Store](https://chromewebstore.google.com/detail/multi-ai-chat/nomhpmmhkmolkmpkjfeainjoifkipdah), with automatic approved updates |
 | Shared core | Zero API keys, real signed-in provider pages, and multi-provider collaboration | Zero API keys, real signed-in provider pages, and multi-provider collaboration |
 
 Choose Desktop when you want a dedicated workspace and the full local workflow toolset. Choose the extension when you prefer to remain entirely inside Chrome.

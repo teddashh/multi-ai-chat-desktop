@@ -47,7 +47,7 @@ Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Release
 |---|---|---|
 | 最適合 | 完整引導 workflow、聚焦真實 provider、local session、snapshot／replay 與本機文字檔 | 在 Chrome 與既有 provider 分頁中輕量使用 |
 | 執行方式 | Tauri app，每家 provider 各有一份獨立本機 profile | Chrome Side Panel 加一般瀏覽器分頁 |
-| 安裝 | Windows、Apple Silicon macOS 或 Linux release | 安裝／載入 Chrome extension |
+| 安裝 | Windows、Apple Silicon macOS 或 Linux release | [Chrome 線上應用程式商店](https://chromewebstore.google.com/detail/multi-ai-chat/nomhpmmhkmolkmpkjfeainjoifkipdah)，審核通過的更新會自動安裝 |
 | 共同核心 | 不需 API Key、使用真實登入頁面、多 provider 協作 | 不需 API Key、使用真實登入頁面、多 provider 協作 |
 
 想要獨立工作區與完整本機 workflow 工具時選桌面版；希望所有操作都留在 Chrome 裡時選外掛版。

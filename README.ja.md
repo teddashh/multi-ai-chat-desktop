@@ -47,7 +47,7 @@ Windows portable版にはアプリ内更新UIがありません。[GitHub Releas
 |---|---|---|
 | 最適な用途 | 完全なガイド付きworkflow、実プロバイダーのfocus表示、local session、snapshot／replay、ローカルテキストファイル | Chromeと既存のプロバイダータブ内で軽量に利用 |
 | 実行方式 | プロバイダーごとに独立したローカルprofileを持つTauriアプリ | Chrome Side Panelと通常のブラウザータブ |
-| インストール | Windows、Apple Silicon macOS、Linux向けrelease | Chrome extensionをインストール／読み込み |
+| インストール | Windows、Apple Silicon macOS、Linux向けrelease | [Chrome ウェブストア](https://chromewebstore.google.com/detail/multi-ai-chat/nomhpmmhkmolkmpkjfeainjoifkipdah)、承認済みアップデートは自動適用 |
 | 共通する核 | APIキー不要、実際のログイン済みWebページ、複数プロバイダー連携 | APIキー不要、実際のログイン済みWebページ、複数プロバイダー連携 |
 
 専用ワークスペースと完全なローカルworkflow機能が必要ならDesktop、すべてをChrome内で完結したいなら拡張版が適しています。

@@ -47,7 +47,7 @@ Die [zweisprachigen vollständigen Release Notes](https://github.com/teddashh/mu
 |---|---|---|
 | Am besten für | Vollständige geführte Workflows, fokussierte Live-Anbieteransicht, lokale Sitzungen, Snapshot/Replay und lokale Textdateien | Leichte Nutzung in Chrome mit vorhandenen Anbieter-Tabs |
 | Laufzeit | Tauri-App mit einem getrennten lokalen Profil pro Anbieter | Chrome Side Panel plus normale Browser-Tabs |
-| Installation | Release für Windows, Apple-Silicon-macOS oder Linux | Chrome-Erweiterung installieren/laden |
+| Installation | Release für Windows, Apple-Silicon-macOS oder Linux | [Chrome Web Store](https://chromewebstore.google.com/detail/multi-ai-chat/nomhpmmhkmolkmpkjfeainjoifkipdah), freigegebene Updates automatisch |
 | Gemeinsamer Kern | Keine API-Schlüssel, echte angemeldete Anbieterseiten, Zusammenarbeit mehrerer Anbieter | Keine API-Schlüssel, echte angemeldete Anbieterseiten, Zusammenarbeit mehrerer Anbieter |
 
 Wähle Desktop für einen eigenen Arbeitsbereich und den vollständigen lokalen Workflow-Werkzeugkasten. Die Erweiterung passt besser, wenn alles in Chrome bleiben soll.
