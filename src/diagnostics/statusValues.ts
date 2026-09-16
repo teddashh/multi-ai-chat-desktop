@@ -7,7 +7,14 @@ const DOM_STATUSES = ['unknown', 'ready'] as const satisfies readonly ProviderSt
 const LOGIN_STATUSES = ['unknown', 'logged_in', 'logged_out', 'blocked'] as const satisfies readonly ProviderState['login'][];
 const BRIDGE_STATUSES = ['unknown', 'ok', 'degraded'] as const satisfies readonly DebugBridgeStatus[];
 const ADAPTER_STATUSES = ['unknown', 'ok', 'broken'] as const satisfies readonly DebugAdapterStatus[];
-const STATUS_REASONS = ['pull_failed', 'done_truncated', 'chunk_truncated', 'outbox_full_no_chunk', 'outbox_degraded'] as const;
+const STATUS_REASONS = [
+  'pull_failed',
+  'done_truncated',
+  'chunk_truncated',
+  'outbox_full_no_chunk',
+  'outbox_degraded',
+  'grok_app_title_unconfirmed',
+] as const;
 
 export function normalizeDomStatus(value: unknown): ProviderState['dom'] {
   return oneOf(value, DOM_STATUSES, 'unknown');

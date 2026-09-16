@@ -90,6 +90,17 @@ describe('host snapshot bindings', () => {
     expect(invokeMock).toHaveBeenLastCalledWith('provider_new_session', { provider: 'chatgpt' });
   });
 
+  it('requests the guarded reconnect mode without exposing a new provider command', async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+
+    await host.provider.reconnect('grok');
+
+    expect(invokeMock).toHaveBeenLastCalledWith('provider_reload', {
+      provider: 'grok',
+      reconnect: true,
+    });
+  });
+
   it('stops provider automation through the semantic engine command', async () => {
     invokeMock.mockResolvedValueOnce(undefined);
 

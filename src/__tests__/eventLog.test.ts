@@ -228,6 +228,22 @@ describe('event log reducer', () => {
     ]);
   });
 
+  it('keeps the host-owned Grok stale reason in sanitized diagnostics', () => {
+    const event = eventFromProviderState({
+      provider: 'grok',
+      webview: 'loaded',
+      dom: 'unknown',
+      login: 'unknown',
+      thinking: false,
+      bridge: 'ok',
+      bridgeReason: 'grok_app_title_unconfirmed',
+      adapter: 'ok',
+      lastStatusAt: 1,
+    });
+
+    expect(event.detail).toMatchObject({ bridgeReason: 'grok_app_title_unconfirmed' });
+  });
+
   it('coalesces interleaved bridge and connection heartbeats independently', () => {
     const providerState = {
       provider: 'chatgpt' as const,

@@ -2,11 +2,26 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AIProvider, BridgeMessage } from '../../shared/types';
 
 const PRE_SEND_DELAY_MS = 800;
+const INPUT_SELECTOR_TIMEOUT_MS = 2500;
+const SELECTOR_RETRY_INTERVAL_MS = 250;
 const SEND_BUTTON_SELECTOR_TIMEOUT_MS = 800;
 const SEND_RETRY_DELAY_MS = 1500;
 const SEND_FINAL_VERIFY_DELAY_MS = 1500;
 const CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS = 10_000;
 const CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS = 4_000;
+const GROK_CHAT_STOP_BUTTON_SELECTOR = 'button[data-testid="chat-stop-button"]';
+const CHATGPT_STOP_BUTTON_SELECTOR = '[data-testid="stop-button"]';
+const CHATGPT_TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
+const CHATGPT_REASONING_SIDECAR_SELECTOR = '[data-testid*="reasoning"]';
+const CHATGPT_COPY_BUTTON_TEST_ID = 'copy-turn-action-button';
+const CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS = 400;
+const CHATGPT_TERMINAL_STABLE_MS = 1_200;
+const LEGACY_GROK_EDITOR_SELECTOR = '.ProseMirror[contenteditable="true"]';
+const GROK_TEXTAREA_SELECTORS = [
+  '[data-testid="chat-input"] textarea[aria-label="Ask Grok anything"]',
+  'textarea[aria-label="Ask Grok anything"]',
+  '[data-testid="chat-input"] textarea',
+] as const;
 
 type InputStrategyName = 'default' | 'prosemirror-paste' | 'quill-angular';
 type SendStrategy = 'click' | 'enter';
@@ -21,6 +36,7 @@ interface TestAdapter {
   loginDetectors: string[];
   loggedOutDetectors?: TestDetector[];
   thinkingDetectors?: TestDetector[];
+  stopButtonSelectors?: string[];
   inputStrategy: InputStrategyName;
   sendStrategy?: SendStrategy;
   timing: {
@@ -42,6 +58,15 @@ interface FakeDomEnv {
   detectorElements: Map<string, FakeElement[]>;
   thinking: boolean;
   cloudflareChallenge: boolean;
+}
+
+function grokAdapterWithoutTextarea(overrides: Partial<TestAdapter> = {}): Partial<TestAdapter> {
+  return {
+    inputSelectors: [LEGACY_GROK_EDITOR_SELECTOR],
+    loginDetectors: [LEGACY_GROK_EDITOR_SELECTOR],
+    inputStrategy: 'prosemirror-paste',
+    ...overrides,
+  };
 }
 
 describe('injected engine input hardening', () => {
@@ -279,6 +304,285 @@ describe('injected engine input hardening', () => {
       provider: 'grok',
       payload: { dom: 'ready', login: 'logged_out', thinking: false, bootId: 'boot1' },
     });
+  });
+
+  it.each(GROK_TEXTAREA_SELECTORS)(
+    'recognizes a visible current Grok textarea as logged in without adapter selector %s',
+    async (selector) => {
+      const env = createEnv({ inputKind: 'textarea' });
+      env.input.setAttribute('aria-label', 'Ask Grok anything');
+      env.detectorElements.set(selector, [env.input]);
+      const handler = await installEngine(env);
+
+      dispatchAdapter(handler, grokAdapterWithoutTextarea());
+
+      expect(env.emitted.at(-1)).toEqual({
+        v: 1,
+        action: 'STATUS_REPORT',
+        provider: 'grok',
+        payload: { dom: 'ready', login: 'logged_in', thinking: false, bootId: 'boot1' },
+      });
+    },
+  );
+
+  it('ignores a hidden current Grok textarea for login and input injection', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const textarea = env.input as FakeTextAreaElement;
+    textarea.hidden = true;
+    textarea.setAttribute('aria-label', 'Ask Grok anything');
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [textarea]);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, grokAdapterWithoutTextarea());
+    expect(env.emitted.at(-1)).toEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'grok',
+      payload: { dom: 'ready', login: 'logged_out', thinking: false, bootId: 'boot1' },
+    });
+
+    send(handler, 'must not enter a hidden textarea');
+    await vi.advanceTimersByTimeAsync(INPUT_SELECTOR_TIMEOUT_MS);
+    await flushMicrotasks();
+
+    expect(textarea.value).toBe('');
+    expect(textarea.events).not.toContain('input');
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(errorDone(env)?.payload).toBe('[Error: grok input element not found]');
+  });
+
+  it('ignores a hidden legacy Grok composer as a login detector', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    const hiddenLegacyComposer = new FakeElement(env.document, 'div');
+    hiddenLegacyComposer.hidden = true;
+    env.detectorElements.set(LEGACY_GROK_EDITOR_SELECTOR, [hiddenLegacyComposer]);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, grokAdapterWithoutTextarea());
+
+    expect(env.emitted.at(-1)).toEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'grok',
+      payload: { dom: 'ready', login: 'logged_out', thinking: false, bootId: 'boot1' },
+    });
+  });
+
+  it('ignores and never clicks a hidden legacy Grok stop detector', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    env.input.setAttribute('aria-label', 'Ask Grok anything');
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [env.input]);
+    const legacyStopSelector = 'button[data-testid="chat-stop"]';
+    const hiddenLegacyStop = new FakeElement(env.document, 'button');
+    hiddenLegacyStop.hidden = true;
+    env.detectorElements.set(legacyStopSelector, [hiddenLegacyStop]);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(
+      handler,
+      grokAdapterWithoutTextarea({
+        thinkingDetectors: [legacyStopSelector],
+        stopButtonSelectors: [legacyStopSelector],
+      }),
+    );
+
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'grok',
+      payload: { login: 'logged_in', thinking: false },
+    });
+
+    const engine = (window as unknown as { __MAC_ENGINE__?: { stop?: () => void } }).__MAC_ENGINE__;
+    engine?.stop?.();
+
+    expect(hiddenLegacyStop.clickCount).toBe(0);
+  });
+
+  it('keeps Grok logged in while its current textarea transitions to the exact live stop button', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    env.input.setAttribute('aria-label', 'Ask Grok anything');
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [env.input]);
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, grokAdapterWithoutTextarea());
+
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'grok',
+      payload: { login: 'logged_in', thinking: false },
+    });
+
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], []);
+    env.detectorElements.set(GROK_CHAT_STOP_BUTTON_SELECTOR, [new FakeElement(env.document, 'button')]);
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'grok' } as BridgeMessage);
+
+    expect(env.emitted.at(-1)).toEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'grok',
+      payload: { dom: 'ready', login: 'logged_in', thinking: true, bootId: 'boot1' },
+    });
+  });
+
+  it('injects an exact Unicode Markdown prompt into the current Grok textarea and clicks SEND once', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const textarea = env.input as FakeTextAreaElement;
+    textarea.setAttribute('aria-label', 'Ask Grok anything');
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [textarea]);
+    const prompt = '# 深度比較 🚀\n\n請保留 **粗體**、`inline-code` 與「完整標點」。';
+    const inputEventValues: string[] = [];
+    textarea.onDispatch = (event) => {
+      if (event.type === 'input') inputEventValues.push(textarea.value);
+    };
+    let submitted = '';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        submitted = textarea.value;
+        textarea.setVisibleText('');
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, grokAdapterWithoutTextarea());
+
+    send(handler, prompt);
+    await flushMicrotasks();
+
+    expect(textarea.value).toBe(prompt);
+    expect(inputEventValues).toEqual([prompt]);
+
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_RETRY_DELAY_MS + 1);
+
+    expect(submitted).toBe(prompt);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('fills the current Grok textarea without clicking SEND', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const textarea = env.input as FakeTextAreaElement;
+    textarea.setAttribute('aria-label', 'Ask Grok anything');
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[1], [textarea]);
+    const prompt = '草稿：**不要送出** 🧪';
+    const inputEventValues: string[] = [];
+    textarea.onDispatch = (event) => {
+      if (event.type === 'input') inputEventValues.push(textarea.value);
+    };
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, grokAdapterWithoutTextarea());
+
+    fill(handler, prompt);
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_RETRY_DELAY_MS + SEND_BUTTON_SELECTOR_TIMEOUT_MS + 1);
+
+    expect(textarea.value).toBe(prompt);
+    expect(inputEventValues).toEqual([prompt]);
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('restores the exact prompt into a remounted current Grok textarea before activation', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const original = env.input as FakeTextAreaElement;
+    original.setAttribute('aria-label', 'Ask Grok anything');
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [original]);
+    const prompt = '重新掛載後仍保留 **Markdown** 與 emoji 🌌';
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, grokAdapterWithoutTextarea());
+
+    send(handler, prompt);
+    await flushMicrotasks();
+    expect(original.value).toBe(prompt);
+
+    const remounted = new FakeTextAreaElement(env.document, 'textarea');
+    remounted.setAttribute('aria-label', 'Ask Grok anything');
+    const remountedInputValues: string[] = [];
+    remounted.onDispatch = (event) => {
+      if (event.type === 'input') remountedInputValues.push(remounted.value);
+    };
+    env.input = remounted;
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [remounted]);
+    let submitted = '';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        submitted = remounted.value;
+        remounted.setVisibleText('');
+      };
+    }
+
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_RETRY_DELAY_MS + 1);
+
+    expect(submitted).toBe(prompt);
+    expect(remountedInputValues).toEqual([prompt]);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('restores the exact Grok prompt when the textarea remounts during send-button lookup', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea', sendButton: null });
+    const original = env.input as FakeTextAreaElement;
+    original.setAttribute('aria-label', 'Ask Grok anything');
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [original]);
+    const prompt = '按鈕等待期間重掛載：**完整保留** 🌠';
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, grokAdapterWithoutTextarea());
+
+    send(handler, prompt);
+    await flushMicrotasks();
+    expect(original.value).toBe(prompt);
+
+    // Activation has validated the original textarea and is now waiting for a send button.
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    const remounted = new FakeTextAreaElement(env.document, 'textarea');
+    remounted.setAttribute('aria-label', 'Ask Grok anything');
+    const remountedInputValues: string[] = [];
+    remounted.onDispatch = (event) => {
+      if (event.type === 'input') remountedInputValues.push(remounted.value);
+    };
+    env.input = remounted;
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [remounted]);
+
+    let submitted = '';
+    const lateButton = new FakeElement(env.document, 'button');
+    lateButton.onClick = () => {
+      submitted = remounted.value;
+      remounted.setVisibleText('');
+    };
+    env.sendButton = lateButton;
+
+    await vi.advanceTimersByTimeAsync(SELECTOR_RETRY_INTERVAL_MS);
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(SEND_RETRY_DELAY_MS + 1);
+
+    expect(submitted).toBe(prompt);
+    expect(remountedInputValues).toEqual([prompt]);
+    expect(lateButton.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('uses the newest of two overlapping visible Grok textareas', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    const older = env.input as FakeTextAreaElement;
+    older.setAttribute('aria-label', 'Ask Grok anything');
+    const newest = new FakeTextAreaElement(env.document, 'textarea');
+    newest.setAttribute('aria-label', 'Ask Grok anything');
+    env.input = newest;
+    env.detectorElements.set(GROK_TEXTAREA_SELECTORS[0], [older, newest]);
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, grokAdapterWithoutTextarea());
+
+    fill(handler, '只應寫入最新的 composer');
+    await flushMicrotasks();
+
+    expect(older.value).toBe('');
+    expect(older.events).not.toContain('input');
+    expect(newest.value).toBe('只應寫入最新的 composer');
+    expect(newest.events).toContain('input');
+    expect(env.sendButton?.clickCount).toBe(0);
   });
 
   it('reports the Gemini Google sorry page as blocked', async () => {
@@ -676,11 +980,18 @@ describe('injected engine input hardening', () => {
     expect(env.sendButton?.clickCount).toBe(2);
     expect(env.emitted.some((message) => message.payload === stoppedResponseRemount?.textContent)).toBe(false);
 
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    turn.appendChild(copyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    const retriedResponse = new FakeElement(env.document, 'div', 'answer for the retried prompt');
+    turn.appendChild(retriedResponse);
     env.responses = [
       stoppedResponseRemount as FakeElement,
-      new FakeElement(env.document, 'div', 'answer for the retried prompt'),
+      retriedResponse,
     ];
-    await vi.advanceTimersByTimeAsync(20);
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 100);
 
     expect(env.emitted).toContainEqual({
       v: 1,
@@ -914,6 +1225,24 @@ describe('injected engine input hardening', () => {
     expect(errorDone(env)).toBeUndefined();
   });
 
+  it('clicks Grok\'s live chat-stop-button when the host stops the provider', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const stopButton = new FakeElement(env.document, 'button');
+    env.detectorElements.set(GROK_CHAT_STOP_BUTTON_SELECTOR, [stopButton]);
+    const handler = await installEngine(env);
+    // The live selector is intentionally absent from the adapter payload. This proves the engine's
+    // provider-specific supplement protects already installed v1.8.7 adapters too.
+    dispatchAdapter(handler);
+
+    send(handler, 'long-running request');
+    await flushMicrotasks();
+    const engine = (window as unknown as { __MAC_ENGINE__?: { stop?: () => void } }).__MAC_ENGINE__;
+    engine?.stop?.();
+
+    expect(stopButton.clickCount).toBe(1);
+  });
+
   it('does not let a stale delayed finish terminate a later response wait', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -985,6 +1314,47 @@ describe('injected engine input hardening', () => {
       action: 'RESPONSE_DONE',
       provider: 'grok',
       payload: 'complete answer',
+    });
+  });
+
+  it('keeps Grok Heavy in flight while the live chat-stop-button remains visible', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const stopButton = new FakeElement(env.document, 'button');
+    env.detectorElements.set(GROK_CHAT_STOP_BUTTON_SELECTOR, [stopButton]);
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, 'use Heavy reasoning');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'intermediate Heavy answer')];
+    await vi.advanceTimersByTimeAsync(20);
+    await vi.advanceTimersByTimeAsync(8_000);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'grok',
+      payload: 'intermediate Heavy answer',
+    });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    env.detectorElements.set(GROK_CHAT_STOP_BUTTON_SELECTOR, []);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'grok',
+      payload: 'intermediate Heavy answer',
     });
   });
 
@@ -1318,6 +1688,709 @@ describe('injected engine input hardening', () => {
     });
   });
 
+  it('does not finish ChatGPT Astra when current-turn completion structure is missing', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    send(handler, 'solve this carefully', 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', 'solve this carefully')];
+    env.responses = [new FakeElement(env.document, 'div', 'an Astra intermediate answer')];
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: 'an Astra intermediate answer',
+    });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+  });
+
+  it('does not finish ChatGPT Astra from a transient current-turn copy marker', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    send(handler, 'keep reasoning', 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', 'keep reasoning')];
+    const turn = new FakeElement(env.document, 'article');
+    const transientCopyButton = new FakeElement(env.document, 'button');
+    transientCopyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    turn.appendChild(transientCopyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    const response = new FakeElement(env.document, 'div', 'temporary Astra answer');
+    turn.appendChild(response);
+    env.responses = [response];
+
+    // Two 400 ms samples and less than 1200 ms are deliberately insufficient evidence.
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS * 2);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    transientCopyButton.remove();
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS);
+
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+  });
+
+  it('finishes ChatGPT Astra only after the same current turn, full text, and marker stay stable', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    send(handler, 'finish only when stable', 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', 'finish only when stable')];
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    turn.appendChild(copyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    const response = new FakeElement(env.document, 'div', 'the complete Astra answer');
+    turn.appendChild(response);
+    env.responses = [response];
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    // Allow the >=1200 ms duration, at least three 400 ms samples, and the normal done delay.
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'the complete Astra answer',
+    });
+  });
+
+  it('restarts ChatGPT Astra terminal confirmation when the full response text is rewritten', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    send(handler, 'revise before finishing', 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', 'revise before finishing')];
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    turn.appendChild(copyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    const response = new FakeElement(env.document, 'div', 'draft Astra answer');
+    turn.appendChild(response);
+    env.responses = [response];
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS * 2);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    response.textContent = 'rewritten complete Astra answer';
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'rewritten complete Astra answer',
+    });
+  });
+
+  it('does not combine response text from one ChatGPT turn with a copy marker from another', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    send(handler, 'keep turn evidence together', 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', 'keep turn evidence together')];
+
+    const textTurn = new FakeElement(env.document, 'article');
+    const response = new FakeElement(env.document, 'div', 'answer whose own turn is unfinished');
+    textTurn.appendChild(response);
+    const markerTurn = new FakeElement(env.document, 'article');
+    const unrelatedCopyButton = new FakeElement(env.document, 'button');
+    unrelatedCopyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    markerTurn.appendChild(unrelatedCopyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [textTurn, markerTurn]);
+    env.responses = [response];
+
+    await vi.advanceTimersByTimeAsync(
+      1_000 + CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS,
+    );
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: 'answer whose own turn is unfinished',
+    });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+  });
+
+  it('restarts ChatGPT Astra terminal confirmation when the same text remounts in a new turn', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    const prompt = 'replace the whole turn before finishing';
+    const answer = 'same visible Astra answer';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+
+    const firstTurn = new FakeElement(env.document, 'article');
+    const firstCopyButton = new FakeElement(env.document, 'button');
+    firstCopyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const firstResponse = new FakeElement(env.document, 'div', answer);
+    firstTurn.appendChild(firstCopyButton);
+    firstTurn.appendChild(firstResponse);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [firstTurn]);
+    env.responses = [firstResponse];
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS * 2);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    const replacementTurn = new FakeElement(env.document, 'article');
+    const replacementCopyButton = new FakeElement(env.document, 'button');
+    replacementCopyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const replacementResponse = new FakeElement(env.document, 'div', answer);
+    replacementTurn.appendChild(replacementCopyButton);
+    replacementTurn.appendChild(replacementResponse);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [replacementTurn]);
+    env.responses = [replacementResponse];
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: answer,
+    });
+  });
+
+  it('blocks ChatGPT completion for active external status but ignores history labels and completed progress', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    const prompt = 'wait for the external reasoning sidecar';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    await vi.advanceTimersByTimeAsync(10);
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const completedProgress = new FakeElement(env.document, 'div');
+    completedProgress.setAttribute('role', 'progressbar');
+    completedProgress.setAttribute('value', '100');
+    completedProgress.setAttribute('max', '100');
+    const response = new FakeElement(env.document, 'div', 'complete answer behind sidecar');
+    turn.appendChild(copyButton);
+    turn.appendChild(completedProgress);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    const externalStatus = new FakeElement(env.document, 'div', 'Pro thinking');
+    externalStatus.setAttribute('role', 'status');
+    env.detectorElements.set('[role="status"]', [externalStatus]);
+    await vi.advanceTimersByTimeAsync(20);
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: true },
+    });
+
+    await vi.advanceTimersByTimeAsync(
+      1_000 + CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS,
+    );
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    externalStatus.textContent = 'Thought for 12s';
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: false },
+    });
+
+    await vi.advanceTimersByTimeAsync(
+      1_000 + CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 100,
+    );
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'complete answer behind sidecar',
+    });
+  });
+
+  it('uses an anchored empty status aria-label to block, then fully re-confirms after its completed label', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    const prompt = 'wait for the aria-labelled reasoning status';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+
+    // Create the matching user turn before the external status so document order verifies that the
+    // otherwise page-global status belongs to this response rather than stale page chrome.
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    await vi.advanceTimersByTimeAsync(10);
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const response = new FakeElement(env.document, 'div', 'answer gated by an aria label');
+    turn.appendChild(copyButton);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    const externalStatus = new FakeElement(env.document, 'div');
+    externalStatus.setAttribute('role', 'status');
+    externalStatus.setAttribute('aria-label', 'Pro thinking');
+    env.detectorElements.set('[role="status"]', [externalStatus]);
+    await vi.advanceTimersByTimeAsync(20);
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+
+    expect(externalStatus.textContent).toBe('');
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: true },
+    });
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    externalStatus.setAttribute('aria-label', 'Reasoning Thought for 12s');
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: false },
+    });
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    // The first post-label sample can be one full interval away; it must then remain stable for
+    // the complete 1200 ms gate before DONE is eligible.
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS * 2 + 100);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'answer gated by an aria label',
+    });
+  });
+
+  it('treats a page-global "Reasoning Thought for 12s" status as completed for status, send, and terminal gating', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const completedStatus = new FakeElement(env.document, 'div', 'Reasoning Thought for 12s');
+    completedStatus.setAttribute('role', 'status');
+    env.detectorElements.set('[role="status"]', [completedStatus]);
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: false },
+    });
+
+    const prompt = 'a completed reasoning label must not reject this send';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    expect(env.input.textContent).toBe(prompt);
+    expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(keyEventCount(env.input)).toBe(0);
+
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const response = new FakeElement(env.document, 'div', 'answer after completed reasoning');
+    turn.appendChild(copyButton);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'answer after completed reasoning',
+    });
+  });
+
+  it('ignores an unrelated page-global class containing reasoning', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const unrelatedControl = new FakeElement(env.document, 'div', 'Reasoning');
+    unrelatedControl.setAttribute('class', 'sidebar-reasoning-preference');
+    env.detectorElements.set('[class*="reasoning"]', [unrelatedControl]);
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: false },
+    });
+
+    send(handler, 'the unrelated sidebar must not block sending', 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.input.textContent).toBe('the unrelated sidebar must not block sending');
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('treats aria-valuenow 100 with omitted aria-valuemax as a completed ChatGPT progressbar', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    const prompt = 'use the ARIA default progress maximum';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const completedProgress = new FakeElement(env.document, 'div');
+    completedProgress.setAttribute('role', 'progressbar');
+    completedProgress.setAttribute('aria-valuenow', '100');
+    const response = new FakeElement(env.document, 'div', 'answer after default-max progress');
+    turn.appendChild(copyButton);
+    turn.appendChild(completedProgress);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: false },
+    });
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 100);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'answer after default-max progress',
+    });
+  });
+
+  it('keeps ChatGPT in flight for an active verified sidecar progressbar, then fully re-confirms completion', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    const prompt = 'wait for the external reasoning progress';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+
+    // The matching user turn is allocated before the external sidecar so document order binds the
+    // otherwise page-global reasoning UI to this response instead of stale history or page chrome.
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    await vi.advanceTimersByTimeAsync(10);
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const response = new FakeElement(env.document, 'div', 'answer behind external progress');
+    turn.appendChild(copyButton);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    const sidecar = new FakeElement(env.document, 'aside');
+    sidecar.setAttribute('data-testid', 'reasoning-sidecar');
+    const progress = new FakeElement(env.document, 'div');
+    progress.setAttribute('role', 'progressbar');
+    sidecar.appendChild(progress);
+    env.detectorElements.set(CHATGPT_REASONING_SIDECAR_SELECTOR, [sidecar]);
+
+    await vi.advanceTimersByTimeAsync(20);
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: true },
+    });
+
+    await vi.advanceTimersByTimeAsync(
+      1_000 + CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS,
+    );
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    // ARIA progressbars default aria-valuemax to 100. Reaching 100 removes the activity veto but
+    // must start a fresh terminal-stability window rather than inheriting samples from before it.
+    progress.setAttribute('aria-valuenow', '100');
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: false },
+    });
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(1_000 + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS * 2 + 100);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'answer behind external progress',
+    });
+  });
+
+  it('rejects ChatGPT activation when native stop activity appears during the pre-send delay', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, 'must not interrupt activity that starts before activation', 'chatgpt');
+    await flushMicrotasks();
+    expect(env.input.textContent).toBe('must not interrupt activity that starts before activation');
+
+    env.detectorElements.set(CHATGPT_STOP_BUTTON_SELECTOR, [new FakeElement(env.document, 'button')]);
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)?.payload).toBe('[Error: chatgpt send rejected: provider is still generating]');
+  });
+
+  it('rejects ChatGPT activation when native stop activity appears during async send-button lookup', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea', sendButton: null });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, 'must not interrupt activity that starts during lookup', 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    const lateButton = new FakeElement(env.document, 'button');
+    env.sendButton = lateButton;
+    env.detectorElements.set(CHATGPT_STOP_BUTTON_SELECTOR, [new FakeElement(env.document, 'button')]);
+    await vi.advanceTimersByTimeAsync(SELECTOR_RETRY_INTERVAL_MS);
+    await flushMicrotasks();
+
+    expect(lateButton.clickCount).toBe(0);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)?.payload).toBe('[Error: chatgpt send rejected: provider is still generating]');
+  });
+
+  it('restarts ChatGPT terminal confirmation when the response element remounts with identical text in the same turn', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    const prompt = 'wait through an identical response remount';
+    const answer = 'identical visible Astra answer';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const firstResponse = new FakeElement(env.document, 'div', answer);
+    turn.appendChild(copyButton);
+    turn.appendChild(firstResponse);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [firstResponse];
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS * 2);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    firstResponse.remove();
+    const replacementResponse = new FakeElement(env.document, 'div', answer);
+    turn.appendChild(replacementResponse);
+    env.responses = [replacementResponse];
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: answer,
+    });
+  });
+
+  it('finishes a loaded image-only ChatGPT turn without a copy action only after the full stable gate', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    const prompt = 'draw a finished aurora';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    const turn = new FakeElement(env.document, 'article');
+    const response = new FakeElement(env.document, 'div');
+    response.appendChild(
+      new FakeImageElement(env.document, 'finished aurora', { complete: true, naturalWidth: 1024 }),
+    );
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: '[Image generated: finished aurora]',
+    });
+  });
+
+  it('does not finish an unloaded image-only ChatGPT turn without a copy action', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 10 },
+    });
+
+    const prompt = 'wait for every image byte';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    const turn = new FakeElement(env.document, 'article');
+    const response = new FakeElement(env.document, 'div');
+    response.appendChild(
+      new FakeImageElement(env.document, 'still loading', { complete: false, naturalWidth: 0 }),
+    );
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    await vi.advanceTimersByTimeAsync(
+      CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS * 2 + 100,
+    );
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: '[Image generated: still loading]',
+    });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+  });
+
+  it('rejects a new ChatGPT send without mutating the composer while native generation is visible', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    env.detectorElements.set(CHATGPT_STOP_BUTTON_SELECTOR, [new FakeElement(env.document, 'button')]);
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      thinkingDetectors: [CHATGPT_STOP_BUTTON_SELECTOR],
+    });
+
+    send(handler, 'do not interrupt the active Astra turn', 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + 1);
+
+    // Explicit retryable contract recommended for a workflow handoff that arrives too early.
+    expect(errorDone(env)?.payload).toBe('[Error: chatgpt send rejected: provider is still generating]');
+    expect(env.input.textContent).toBe('');
+    expect(env.sendButton?.clickCount).toBe(0);
+  });
+
   it('keeps waiting while a ChatGPT turn has not grown its copy button, then finishes once it does', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -1328,13 +2401,15 @@ describe('injected engine input hardening', () => {
       timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
     });
 
-    env.thinking = true;
     send(handler, 'ask something', 'chatgpt');
     await flushMicrotasks();
+    env.thinking = true;
     env.userMessages = [new FakeElement(env.document, 'div', 'ask something')];
     const turn = new FakeElement(env.document, 'article');
-    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
-    env.responses = [new FakeElement(env.document, 'div', 'the full answer')];
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    const response = new FakeElement(env.document, 'div', 'the full answer');
+    turn.appendChild(response);
+    env.responses = [response];
     await vi.advanceTimersByTimeAsync(1_000);
 
     // The stop button goes away while the turn is still rendering. Finishing here is what used to
@@ -1346,10 +2421,11 @@ describe('injected engine input hardening', () => {
     expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
 
     const copyButton = new FakeElement(env.document, 'button');
-    copyButton.setAttribute('data-testid', 'copy-turn-action-button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     turn.appendChild(copyButton);
-    await vi.advanceTimersByTimeAsync(1_000);
-    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(
+      1_000 + CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 100,
+    );
 
     expect(env.emitted).toContainEqual({
       v: 1,
@@ -1369,25 +2445,30 @@ describe('injected engine input hardening', () => {
       timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
     });
 
-    env.thinking = true;
     send(handler, 'take your time', 'chatgpt');
     await flushMicrotasks();
+    env.thinking = true;
     env.userMessages = [new FakeElement(env.document, 'div', 'take your time')];
     const turn = new FakeElement(env.document, 'article');
-    env.detectorElements.set('[data-testid^="conversation-turn-"]', [turn]);
-    env.responses = [new FakeElement(env.document, 'div', 'working draft')];
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    const workingResponse = new FakeElement(env.document, 'div', 'working draft');
+    turn.appendChild(workingResponse);
+    env.responses = [workingResponse];
     await vi.advanceTimersByTimeAsync(601_000);
 
     env.thinking = false;
     await vi.advanceTimersByTimeAsync(1_000);
     expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
 
-    env.responses = [new FakeElement(env.document, 'div', 'finished answer')];
+    const finishedResponse = new FakeElement(env.document, 'div', 'finished answer');
+    turn.appendChild(finishedResponse);
+    env.responses = [finishedResponse];
     const copyButton = new FakeElement(env.document, 'button');
-    copyButton.setAttribute('data-testid', 'copy-turn-action-button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     turn.appendChild(copyButton);
-    await vi.advanceTimersByTimeAsync(1_000);
-    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(
+      1_000 + CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 100,
+    );
 
     expect(env.emitted).toContainEqual({
       v: 1,
@@ -1407,13 +2488,16 @@ describe('injected engine input hardening', () => {
       timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
     });
 
-    env.thinking = true;
     send(handler, 'ask something', 'chatgpt');
     await flushMicrotasks();
+    env.thinking = true;
     env.userMessages = [new FakeElement(env.document, 'div', 'ask something')];
     // A turn that never grows a copy button stands in for the testid being renamed upstream.
-    env.detectorElements.set('[data-testid^="conversation-turn-"]', [new FakeElement(env.document, 'article')]);
-    env.responses = [new FakeElement(env.document, 'div', 'the full answer')];
+    const turn = new FakeElement(env.document, 'article');
+    const response = new FakeElement(env.document, 'div', 'the full answer');
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
     await vi.advanceTimersByTimeAsync(1_000);
     env.thinking = false;
     await vi.advanceTimersByTimeAsync(100);
@@ -1509,6 +2593,7 @@ async function flushMicrotasks() {
 
 class FakeElement {
   textContent: string;
+  hidden = false;
   disabled = false;
   dispatchReturn = true;
   clickThrows = false;
@@ -1537,6 +2622,15 @@ class FakeElement {
     if (this.documentOrder < other.documentOrder) return 0x04;
     if (this.documentOrder > other.documentOrder) return 0x02;
     return 0;
+  }
+
+  contains(candidate: FakeElement | null): boolean {
+    let current = candidate;
+    while (current) {
+      if (current === this) return true;
+      current = current.parent;
+    }
+    return false;
   }
 
   focus() {
@@ -1640,8 +2734,17 @@ class FakeTextAreaElement extends FakeElement {
 }
 
 class FakeImageElement extends FakeElement {
-  constructor(fakeDocument: FakeDocument, readonly alt: string) {
+  readonly complete: boolean;
+  readonly naturalWidth: number;
+
+  constructor(
+    fakeDocument: FakeDocument,
+    readonly alt: string,
+    state: { complete?: boolean; naturalWidth?: number } = {},
+  ) {
     super(fakeDocument, 'img');
+    this.complete = state.complete ?? true;
+    this.naturalWidth = state.naturalWidth ?? 100;
   }
 }
 

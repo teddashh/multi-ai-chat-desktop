@@ -63,6 +63,15 @@ const SEND_FINAL_VERIFY_DELAY_MS = 1500;
 const CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS = 10_000;
 const CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS = 4_000;
 const CHATGPT_USER_MESSAGE_SELECTOR = '[data-message-author-role="user"]';
+const GROK_LIVE_STOP_BUTTON_SELECTOR = 'button[data-testid="chat-stop-button"]';
+const GROK_LIVE_TEXTAREA_SELECTORS = [
+  '[data-testid="chat-input"] textarea[aria-label="Ask Grok anything"]',
+  'textarea[aria-label="Ask Grok anything"]',
+  '[data-testid="chat-input"] textarea',
+];
+const CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS = 400;
+const CHATGPT_TERMINAL_MIN_STABLE_MS = 1200;
+const CHATGPT_TERMINAL_MIN_SAMPLES = 3;
 const DOCUMENT_POSITION_DISCONNECTED = 0x01;
 const DOCUMENT_POSITION_FOLLOWING = 0x04;
 const USER_MESSAGE_ANCESTOR_SELECTOR = [
@@ -87,10 +96,75 @@ const TURN_COMPLETION_SIGNALS: Partial<Record<AIProvider, { turn: string; comple
   },
 };
 
+const CHATGPT_STRONG_ACTIVITY_SELECTORS = [
+  '[aria-busy="true"]',
+  '[data-streaming="true"]',
+  '[data-is-streaming="true"]',
+  'span.loading-shimmer',
+  '.loading-shimmer',
+  '[class*="loading-shimmer"]',
+];
+const CHATGPT_PROGRESS_SELECTORS = ['[role="progressbar"]', 'progress'];
+const CHATGPT_EXTERNAL_STATUS_SELECTORS = ['[role="status"]'];
+const CHATGPT_EXTERNAL_LIVE_REGION_SELECTORS = ['[aria-live]'];
+const CHATGPT_VERIFIED_SIDECAR_SELECTORS = ['[data-testid*="thinking"]', '[data-testid*="reasoning"]'];
+const CHATGPT_TURN_STATUS_SELECTORS = [
+  ...CHATGPT_EXTERNAL_STATUS_SELECTORS,
+  ...CHATGPT_EXTERNAL_LIVE_REGION_SELECTORS,
+  ...CHATGPT_VERIFIED_SIDECAR_SELECTORS,
+  '[class*="thinking"]',
+  '[class*="reasoning"]',
+];
+const CHATGPT_ACTIVE_STATUS_LABELS = [
+  'thinking',
+  'pro thinking',
+  'thinking longer for a better answer',
+  'reasoning',
+  'finalizing answer',
+  'finalizing',
+  'analyzing',
+  'researching',
+  'working on it',
+  'working',
+  'planning',
+  'searching the web',
+  'searching',
+  'reading',
+];
+const CHATGPT_EXTERNAL_ACTIVE_STATUS_LABELS = [
+  'thinking',
+  'pro thinking',
+  'thinking longer for a better answer',
+  'reasoning',
+  'finalizing answer',
+  'finalizing',
+];
+const CHATGPT_STRONG_STOP_SELECTORS = [
+  '[data-testid="stop-button"]',
+  'button[data-testid="composer-stop-button"]',
+  'button[aria-label="Stop generating"]',
+  'button[aria-label="Stop streaming"]',
+  'button[aria-label="Stop"]',
+];
+
 // Fail closed after the shipped 10-minute inactivity window if the positive completion signal
 // never arrives. A selector rename must surface a retryable error instead of silently returning a
 // partial answer, while fresh response text or the ordinary thinking detectors keep the wait alive.
 const TURN_COMPLETION_CONFIRM_TIMEOUT_MS = 600_000;
+
+interface ChatGptTerminalGateState {
+  turn: Element | null;
+  response: Element | null;
+  completion: Element | null;
+  responseText: string;
+  stableSince: number;
+  samples: number;
+}
+
+interface ResponseCandidate {
+  element: Element;
+  text: string;
+}
 
 export function isLikelyPromptEcho(responseText: string, promptText: string): boolean {
   const trimmedResponse = responseText.trim();
@@ -197,6 +271,8 @@ class InactiveSendOperationError extends Error {
   let matchingChatGptUserTurnBaseline = 0;
   let activeChatGptUserTurnAnchor: Element | null = null;
   let lastChunkTime = 0;
+  let lastActivatedInput: Element | null = null;
+  let chatGptTerminalGate: ChatGptTerminalGateState = emptyChatGptTerminalGate();
 
   window.__MAC_ENGINE__ = {
     bootId: bridge.bootId,
@@ -235,6 +311,7 @@ class InactiveSendOperationError extends Error {
       const sendOperation = beginSendOperation(message.provider);
       if (sendOperation === undefined) return;
       if (abortAutomationForChallenge(message.provider, true, 'send', sendOperation)) return;
+      if (rejectSendWhileProviderGenerating(message.provider, sendOperation)) return;
       const payload = message.payload as { text?: string } | undefined;
       void sendMessage(payload?.text ?? '', message.provider, sendOperation);
       return;
@@ -273,10 +350,78 @@ class InactiveSendOperationError extends Error {
     return null;
   }
 
+  function queryFirstVisible(selectors: string[] = []): Element | null {
+    for (const selector of selectors) {
+      const matches = document.querySelectorAll(selector);
+      for (const match of matches) {
+        if (isElementVisible(match)) return match;
+      }
+      // Lightweight test/fallback DOMs may implement querySelector without querySelectorAll.
+      const first = document.querySelector(selector);
+      if (first && isElementVisible(first)) return first;
+    }
+    return null;
+  }
+
+  function queryLastVisible(selectors: string[] = []): Element | null {
+    const visible: Element[] = [];
+    for (const selector of selectors) {
+      const matches = Array.from(document.querySelectorAll(selector));
+      const first = document.querySelector(selector);
+      if (first && !matches.includes(first)) matches.push(first);
+      for (const match of matches) {
+        if (isElementVisible(match) && !visible.includes(match)) visible.push(match);
+      }
+    }
+    let latest: Element | null = null;
+    for (const candidate of visible) {
+      if (!latest || elementFollows(latest, candidate) || !elementFollows(candidate, latest)) {
+        latest = candidate;
+      }
+    }
+    return latest;
+  }
+
+  function isElementVisible(element: Element): boolean {
+    const html = element as HTMLElement;
+    if (html.hidden || html.getAttribute?.('aria-hidden') === 'true') return false;
+    try {
+      const getComputedStyle = (window as Window & typeof globalThis).getComputedStyle;
+      if (typeof getComputedStyle === 'function') {
+        const style = getComputedStyle(element);
+        if (
+          style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          (style.opacity !== '' && Number(style.opacity) === 0)
+        ) {
+          return false;
+        }
+      }
+    } catch {
+      // Treat an element as visible when a provider's custom element rejects style inspection.
+    }
+    try {
+      const getClientRects = (element as HTMLElement).getClientRects;
+      if (typeof getClientRects === 'function' && getClientRects.call(element).length === 0) return false;
+    } catch {
+      // A detached/custom element is handled by the provider's normal selector lifecycle.
+    }
+    return true;
+  }
+
+  function queryInput(activeAdapter: AdapterConfig): Element | null {
+    if (activeAdapter.provider === 'grok') {
+      return queryLastVisible([...GROK_LIVE_TEXTAREA_SELECTORS, ...activeAdapter.inputSelectors]);
+    }
+    return queryFirst(activeAdapter.inputSelectors);
+  }
+
   function stop() {
     try {
       if (adapter && !abortAutomationForChallenge(adapter.provider, false, 'stop')) {
-        const button = queryFirst(adapter.stopButtonSelectors ?? []);
+        const liveGrokButton =
+          adapter.provider === 'grok' ? queryFirstVisible([GROK_LIVE_STOP_BUTTON_SELECTOR]) : null;
+        const button = liveGrokButton ?? queryFirstVisible(adapter.stopButtonSelectors ?? []);
         (button as HTMLElement | null)?.click?.();
       }
     } catch {
@@ -292,13 +437,14 @@ class InactiveSendOperationError extends Error {
 
   function hasDetector(detectors: Detector[] = []): boolean {
     for (const detector of detectors) {
-      if (typeof detector === 'string') {
-        if (document.querySelector(detector)) return true;
-        continue;
-      }
-      const matches = document.querySelectorAll(detector.selector);
-      for (const el of matches) {
-        const text = el.textContent ?? '';
+      const selector = typeof detector === 'string' ? detector : detector.selector;
+      const matches = Array.from(document.querySelectorAll(selector));
+      const first = document.querySelector(selector);
+      if (first && !matches.includes(first)) matches.push(first);
+      for (const element of matches) {
+        if (!isElementVisible(element)) continue;
+        if (typeof detector === 'string') return true;
+        const text = element.textContent ?? '';
         if (detector.textIncludes && !text.includes(detector.textIncludes)) continue;
         if (detector.textExcludes && text.includes(detector.textExcludes)) continue;
         return true;
@@ -317,7 +463,11 @@ class InactiveSendOperationError extends Error {
       login = 'blocked';
     } else if (hasDetector(adapter.loggedOutDetectors)) {
       login = 'logged_out';
-    } else if (hasDetector(adapter.loginDetectors)) {
+    } else if (
+      hasDetector(adapter.loginDetectors) ||
+      (adapter.provider === 'grok' &&
+        (queryInput(adapter) !== null || queryFirstVisible([GROK_LIVE_STOP_BUTTON_SELECTOR]) !== null))
+    ) {
       login = 'logged_in';
     } else if (adapter.provider === 'gemini' && location.hostname === 'gemini.google.com') {
       login = 'blocked';
@@ -412,7 +562,7 @@ class InactiveSendOperationError extends Error {
       doneWithError('adapter not installed', providerHint, sendOperation);
       return undefined;
     }
-    const input = await retryLookup(() => queryFirst(activeAdapter.inputSelectors), {
+    const input = await retryLookup(() => queryInput(activeAdapter), {
       intervalMs: SELECTOR_RETRY_INTERVAL_MS,
       timeoutMs: INPUT_SELECTOR_TIMEOUT_MS,
     });
@@ -431,6 +581,9 @@ class InactiveSendOperationError extends Error {
     ) {
       return undefined;
     }
+    if (sendOperation !== undefined && rejectSendWhileProviderGenerating(activeAdapter.provider, sendOperation)) {
+      return undefined;
+    }
 
     const existingResponses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
     lastSeenResponseEl = existingResponses.length > 0 ? existingResponses[existingResponses.length - 1] : null;
@@ -444,6 +597,8 @@ class InactiveSendOperationError extends Error {
     pendingPromptText = text;
     matchingChatGptUserTurnBaseline = countMatchingChatGptUserTurns(activeAdapter, text);
     activeChatGptUserTurnAnchor = null;
+    lastActivatedInput = null;
+    resetChatGptTerminalGate();
     startResponsePolling();
 
     const injectionStartedAt = Date.now();
@@ -523,8 +678,12 @@ class InactiveSendOperationError extends Error {
     if (!isActiveSendOperation(sendOperation) || !waitingForResponse || !adapter) return;
     if (abortAutomationForChallenge(originalAdapter.provider, true, 'send', sendOperation)) return;
     if (sendStarted(adapter)) return;
+    if (adapter.provider === 'chatgpt' && providerStillGeneratingBeforeSend(adapter.provider)) {
+      logEngine('chatgpt retry suppressed: native generation became visible');
+      return;
+    }
 
-    const currentInput = queryFirst(adapter.inputSelectors);
+    const currentInput = queryInput(adapter);
     if (!currentInput) {
       if (adapter.provider === 'chatgpt') {
         doneWithError(
@@ -603,8 +762,12 @@ class InactiveSendOperationError extends Error {
     }
     if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) return;
     if (sendStarted(activeAdapter)) return;
+    if (activeAdapter.provider === 'chatgpt' && providerStillGeneratingBeforeSend(activeAdapter.provider)) {
+      logEngine('chatgpt final send fallback suppressed: native generation is visible');
+      return;
+    }
 
-    const currentInput = queryFirst(activeAdapter.inputSelectors);
+    const currentInput = queryInput(activeAdapter);
     if (!currentInput) {
       if (activeAdapter.provider === 'chatgpt') {
         doneWithError(
@@ -658,7 +821,7 @@ class InactiveSendOperationError extends Error {
       }
       if (abortAutomationForChallenge(adapter.provider, true, 'send', sendOperation)) return;
       if (sendStarted(adapter)) return;
-      const finalInput = queryFirst(adapter.inputSelectors);
+      const finalInput = queryInput(adapter);
       if (adapter.provider === 'chatgpt') {
         if (finalInput && composerTextMatches(finalInput, pendingPromptText)) {
           doneWithError(
@@ -704,18 +867,24 @@ class InactiveSendOperationError extends Error {
     if (abortAutomationForChallenge(activeAdapter.provider, true, 'send', sendOperation)) {
       return { ok: false, path: 'enter-key', detail: 'security challenge is active' };
     }
-    const liveInput = await prepareLiveInputForSend(input, activeAdapter, sendOperation, allowComposerRestore);
+    let liveInput = await prepareLiveInputForSend(input, activeAdapter, sendOperation, allowComposerRestore);
     if (!allowComposerRestore && sendStarted(activeAdapter)) {
       return { ok: true, path: 'button-click', detail: 'send confirmed while preparing retry' };
     }
     if (!liveInput) {
       return { ok: false, path: 'enter-key', detail: 'live composer is unavailable' };
     }
+    if (allowComposerRestore && rejectSendWhileProviderGenerating(activeAdapter.provider, sendOperation)) {
+      return { ok: false, path: 'enter-key', detail: 'provider resumed generation before activation' };
+    }
     if (activeAdapter.sendStrategy !== 'enter') {
-      const sendBtn = await retryLookup(() => querySendButton(activeAdapter, liveInput), {
+      let sendBtn = await retryLookup(
+        () => (liveInput ? querySendButton(activeAdapter, liveInput) : null),
+        {
         intervalMs: SELECTOR_RETRY_INTERVAL_MS,
         timeoutMs: SEND_BUTTON_SELECTOR_TIMEOUT_MS,
-      });
+        },
+      );
       if (!isActiveSendOperation(sendOperation)) {
         return { ok: false, path: 'enter-key', detail: 'send operation is no longer active' };
       }
@@ -725,10 +894,30 @@ class InactiveSendOperationError extends Error {
       if (!allowComposerRestore && sendStarted(activeAdapter)) {
         return { ok: true, path: 'button-click', detail: 'send confirmed during retry lookup' };
       }
+      if (allowComposerRestore && rejectSendWhileProviderGenerating(activeAdapter.provider, sendOperation)) {
+        return { ok: false, path: 'button-click', detail: 'provider resumed generation before activation' };
+      }
+      const revalidatedInput = await prepareLiveInputForSend(
+        liveInput,
+        activeAdapter,
+        sendOperation,
+        allowComposerRestore,
+      );
+      if (!revalidatedInput) {
+        return { ok: false, path: 'button-click', detail: 'live composer changed before activation' };
+      }
+      if (revalidatedInput !== liveInput) {
+        liveInput = revalidatedInput;
+        sendBtn = querySendButton(activeAdapter, liveInput);
+      }
       if (sendBtn) {
         if (isDisabled(sendBtn)) {
           logEngine(`${activeAdapter.provider} send path: send button disabled; falling back to enter`);
         } else {
+          if (allowComposerRestore && rejectSendWhileProviderGenerating(activeAdapter.provider, sendOperation)) {
+            return { ok: false, path: 'button-click', detail: 'provider resumed generation before activation' };
+          }
+          lastActivatedInput = liveInput;
           const clicked = clickElement(sendBtn, `${activeAdapter.provider} send button`);
           logEngine(`${activeAdapter.provider} send path: button-click${clicked ? '' : ' failed; falling back to enter'}`);
           if (clicked) return { ok: true, path: 'button-click' };
@@ -747,6 +936,20 @@ class InactiveSendOperationError extends Error {
     if (!allowComposerRestore && sendStarted(activeAdapter)) {
       return { ok: true, path: 'enter-key', detail: 'send confirmed before retry fallback' };
     }
+    const revalidatedInput = await prepareLiveInputForSend(
+      liveInput,
+      activeAdapter,
+      sendOperation,
+      allowComposerRestore,
+    );
+    if (!revalidatedInput) {
+      return { ok: false, path: 'enter-key', detail: 'live composer changed before activation' };
+    }
+    liveInput = revalidatedInput;
+    if (allowComposerRestore && rejectSendWhileProviderGenerating(activeAdapter.provider, sendOperation)) {
+      return { ok: false, path: 'enter-key', detail: 'provider resumed generation before activation' };
+    }
+    lastActivatedInput = liveInput;
     const ok = dispatchEnter(liveInput);
     logEngine(`${activeAdapter.provider} send path: enter-key${ok ? '' : ' failed'}`);
     return { ok, path: 'enter-key', detail: ok ? undefined : 'enter key dispatch failed' };
@@ -758,22 +961,26 @@ class InactiveSendOperationError extends Error {
     sendOperation: number,
     allowComposerRestore: boolean,
   ): Promise<Element | null> {
-    if (activeAdapter.provider !== 'chatgpt') return stagedInput;
-    const liveInput = await retryLookup(() => queryFirst(activeAdapter.inputSelectors), {
+    if (activeAdapter.provider !== 'chatgpt' && activeAdapter.provider !== 'grok') return stagedInput;
+    const provider = activeAdapter.provider;
+    const liveInput = await retryLookup(() => queryInput(activeAdapter), {
       intervalMs: SELECTOR_RETRY_INTERVAL_MS,
       timeoutMs: INPUT_SELECTOR_TIMEOUT_MS,
     });
     if (!isActiveSendOperation(sendOperation) || !waitingForResponse) return null;
+    if (allowComposerRestore && rejectSendWhileProviderGenerating(activeAdapter.provider, sendOperation)) {
+      return null;
+    }
     if (!liveInput) {
       if (allowComposerRestore) {
-        doneWithError('chatgpt input disappeared before send', activeAdapter.provider, sendOperation);
+        doneWithError(`${provider} input disappeared before send`, provider, sendOperation);
       }
       return null;
     }
     if (!allowComposerRestore && sendStarted(activeAdapter)) return liveInput;
     if (composerTextMatches(liveInput, pendingPromptText)) return liveInput;
     if (getInputText(liveInput).trim()) {
-      doneWithError('chatgpt composer changed before send', activeAdapter.provider, sendOperation);
+      doneWithError(`${provider} composer changed before send`, provider, sendOperation);
       return null;
     }
     if (!allowComposerRestore) return null;
@@ -789,13 +996,13 @@ class InactiveSendOperationError extends Error {
       await inputStrategies[activeAdapter.inputStrategy](liveInput, pendingPromptText, assertCanMutate);
       assertCanMutate();
       assertInputLanded(liveInput, pendingPromptText, activeAdapter.inputStrategy);
-      logEngine('chatgpt send path: restored prompt into remounted composer');
+      logEngine(`${provider} send path: restored prompt into remounted composer`);
       return liveInput;
     } catch (error) {
       if (error instanceof ChallengeActiveError || error instanceof InactiveSendOperationError) return null;
       doneWithError(
-        `chatgpt live composer injection failed: ${errorMessage(error)}`,
-        activeAdapter.provider,
+        `${provider} live composer injection failed: ${errorMessage(error)}`,
+        provider,
         sendOperation,
       );
       return null;
@@ -841,6 +1048,20 @@ class InactiveSendOperationError extends Error {
     assertCanMutate();
     tryFocus(editor, 'prosemirror editor');
     assertCanMutate();
+
+    // Grok currently serves both ProseMirror and native textarea composer cohorts. The adapter's
+    // frozen seed still names the ProseMirror strategy, so route a live textarea through React's
+    // native value setter instead of trying to paste/replace DOM children inside it.
+    if (el instanceof HTMLTextAreaElement) {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+      assertCanMutate();
+      if (setter) setter.call(el, text);
+      else el.value = text;
+      assertCanMutate();
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+      assertCanMutate();
+      return;
+    }
 
     try {
       tryFocus(editor, 'prosemirror paste');
@@ -945,6 +1166,10 @@ class InactiveSendOperationError extends Error {
   }
 
   function getLatestResponseText(): string | null {
+    return getLatestResponseCandidate()?.text ?? null;
+  }
+
+  function getLatestResponseCandidate(): ResponseCandidate | null {
     if (!adapter) return null;
     const chatGptAnchor = adapter.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : null;
     if (adapter.provider === 'chatgpt' && !chatGptAnchor) return null;
@@ -957,7 +1182,7 @@ class InactiveSendOperationError extends Error {
       if (isUserMessageElement(response)) continue;
       const text = extractResponseText(response);
       if (!chatGptAnchor && waitingForResponse && text && !responseTextIsBeyondBaseline(text, responseEls)) continue;
-      if (text && !isLikelyPromptEcho(text, pendingPromptText)) return text;
+      if (text && !isLikelyPromptEcho(text, pendingPromptText)) return { element: response, text };
     }
     return null;
   }
@@ -984,8 +1209,310 @@ class InactiveSendOperationError extends Error {
     return alt ? `[Image generated: ${alt}]` : '[Image generated]';
   }
 
+  function loadedGeneratedMedia(response: Element): Element | null {
+    const responseTag = typeof response.tagName === 'string' ? response.tagName.toUpperCase() : '';
+    const candidates: Element[] = ['IMG', 'CANVAS', 'VIDEO'].includes(responseTag) ? [response] : [];
+    for (const media of Array.from(response.querySelectorAll?.('img, canvas, video') ?? [])) {
+      if (!candidates.includes(media)) candidates.push(media);
+    }
+    const first = response.querySelector?.('img, canvas, video') ?? null;
+    if (first && !candidates.includes(first)) candidates.push(first);
+    return candidates.find((media) => isElementVisible(media) && generatedMediaIsLoaded(media)) ?? null;
+  }
+
+  function generatedMediaIsLoaded(media: Element): boolean {
+    const tag = typeof media.tagName === 'string' ? media.tagName.toUpperCase() : '';
+    if (tag === 'IMG') {
+      const image = media as HTMLImageElement;
+      return image.complete && image.naturalWidth > 0;
+    }
+    if (tag === 'CANVAS') {
+      const canvas = media as HTMLCanvasElement;
+      return canvas.width > 0 && canvas.height > 0;
+    }
+    if (tag === 'VIDEO') {
+      return (media as HTMLVideoElement).readyState >= 1;
+    }
+    return false;
+  }
+
+  function chatGptCompletionEvidence(turn: Element, response: ResponseCandidate): Element | null {
+    const signal = TURN_COMPLETION_SIGNALS.chatgpt;
+    const copyMarker = signal ? queryFirstVisibleWithin(turn, [signal.complete]) : null;
+    if (copyMarker) return copyMarker;
+    return response.text.startsWith('[Image generated') ? loadedGeneratedMedia(response.element) : null;
+  }
+
+  function queryFirstVisibleWithin(root: Element, selectors: string[]): Element | null {
+    for (const selector of selectors) {
+      const matches = Array.from(root.querySelectorAll(selector));
+      const first = root.querySelector(selector);
+      if (first && !matches.includes(first)) matches.push(first);
+      for (const match of matches) {
+        if (isElementVisible(match)) return match;
+      }
+    }
+    return null;
+  }
+
+  function currentChatGptCompletionTurn(responseElement?: Element): Element | null {
+    if (!adapter || adapter.provider !== 'chatgpt') return null;
+    const signal = TURN_COMPLETION_SIGNALS.chatgpt;
+    if (!signal) return null;
+    const anchor = refreshChatGptUserTurnAnchor(adapter);
+    if (!anchor) return null;
+    const response = responseElement ?? getLatestResponseCandidate()?.element;
+    if (!response) return null;
+    const eligibleTurns = Array.from(document.querySelectorAll(signal.turn)).filter((turn) =>
+      elementFollows(anchor, turn) && elementContains(turn, response),
+    );
+    return eligibleTurns.length > 0 ? eligibleTurns[eligibleTurns.length - 1] : null;
+  }
+
+  function elementContains(container: Element, candidate: Element): boolean {
+    if (container === candidate) return true;
+    const contains = (container as Element & { contains?: (node: Node | null) => boolean }).contains;
+    if (typeof contains === 'function') {
+      try {
+        return contains.call(container, candidate);
+      } catch {
+        return false;
+      }
+    }
+    const closest = (candidate as Element & { closest?: (selector: string) => Element | null }).closest;
+    if (typeof closest !== 'function') return false;
+    try {
+      return closest.call(candidate, TURN_COMPLETION_SIGNALS.chatgpt?.turn ?? '') === container;
+    } catch {
+      return false;
+    }
+  }
+
+  function latestChatGptTurn(): Element | null {
+    const signal = TURN_COMPLETION_SIGNALS.chatgpt;
+    if (!signal) return null;
+    const turns = Array.from(document.querySelectorAll(signal.turn));
+    if (adapter?.provider === 'chatgpt') {
+      const responses = Array.from(document.querySelectorAll(adapter.responseSelectors.join(', ')));
+      const latestResponse = responses.length > 0 ? responses[responses.length - 1] : null;
+      if (latestResponse) {
+        for (let index = turns.length - 1; index >= 0; index -= 1) {
+          const turn = turns[index];
+          if (turn && elementContains(turn, latestResponse)) return turn;
+        }
+      }
+    }
+    return turns.length > 0 ? turns[turns.length - 1] : null;
+  }
+
+  function chatGptHasStrongActivity(turn?: Element | null): boolean {
+    const activeTurn = turn ?? latestChatGptTurn();
+    if (queryFirstVisible(CHATGPT_STRONG_STOP_SELECTORS)) return true;
+    if (activeTurn && queryFirstVisibleWithin(activeTurn, CHATGPT_STRONG_ACTIVITY_SELECTORS)) return true;
+    if (activeTurn && chatGptTurnHasActiveProgress(activeTurn)) return true;
+    if (chatGptHasStrongExternalSidecarActivity(activeTurn)) return true;
+    return chatGptHasActiveStatusLabel(activeTurn);
+  }
+
+  function chatGptHasStrongExternalSidecarActivity(turn?: Element | null): boolean {
+    for (const selector of CHATGPT_VERIFIED_SIDECAR_SELECTORS) {
+      const matches = Array.from(document.querySelectorAll(selector));
+      const first = document.querySelector(selector);
+      if (first && !matches.includes(first)) matches.push(first);
+      for (const sidecar of matches) {
+        if (
+          !isElementVisible(sidecar) ||
+          !chatGptExternalStatusBelongsToConversation(sidecar, turn)
+        ) {
+          continue;
+        }
+        if (elementHasStrongActivitySignal(sidecar)) return true;
+        if (queryFirstVisibleWithin(sidecar, CHATGPT_STRONG_ACTIVITY_SELECTORS)) return true;
+        if (chatGptTurnHasActiveProgress(sidecar)) return true;
+      }
+    }
+    return false;
+  }
+
+  function elementHasStrongActivitySignal(element: Element): boolean {
+    if (
+      element.getAttribute('aria-busy') === 'true' ||
+      element.getAttribute('data-streaming') === 'true' ||
+      element.getAttribute('data-is-streaming') === 'true'
+    ) {
+      return true;
+    }
+    return (element.getAttribute('class') ?? '').split(/\s+/).some((name) => name.includes('loading-shimmer'));
+  }
+
+  function chatGptTurnHasActiveProgress(turn: Element): boolean {
+    for (const selector of CHATGPT_PROGRESS_SELECTORS) {
+      const matches = Array.from(turn.querySelectorAll(selector));
+      const first = turn.querySelector(selector);
+      if (first && !matches.includes(first)) matches.push(first);
+      for (const element of matches) {
+        if (isElementVisible(element) && progressIsActive(element)) return true;
+      }
+    }
+    return false;
+  }
+
+  function progressIsActive(element: Element): boolean {
+    const progress = element as Element & { value?: number; max?: number };
+    const value = numericAttributeOrProperty(element, 'aria-valuenow', 'value', progress.value);
+    const explicitMax = numericAttributeOrProperty(element, 'aria-valuemax', 'max', progress.max);
+    const max = explicitMax ?? (element.getAttribute('role') === 'progressbar' ? 100 : null);
+    return value === null || max === null || max <= 0 || value < max;
+  }
+
+  function numericAttributeOrProperty(
+    element: Element,
+    ariaName: string,
+    attributeName: string,
+    propertyValue: number | undefined,
+  ): number | null {
+    for (const raw of [element.getAttribute(ariaName), element.getAttribute(attributeName), propertyValue]) {
+      if (raw === null || raw === undefined || raw === '') continue;
+      const value = Number(raw);
+      if (Number.isFinite(value)) return value;
+    }
+    return null;
+  }
+
+  function chatGptHasActiveStatusLabel(turn?: Element | null): boolean {
+    if (turn && rootHasActiveStatusLabel(turn, CHATGPT_TURN_STATUS_SELECTORS, CHATGPT_ACTIVE_STATUS_LABELS)) {
+      return true;
+    }
+    const belongsToConversation = (element: Element) => chatGptExternalStatusBelongsToConversation(element, turn);
+    return (
+      rootHasActiveStatusLabel(
+        document,
+        [...CHATGPT_EXTERNAL_STATUS_SELECTORS, ...CHATGPT_VERIFIED_SIDECAR_SELECTORS],
+        CHATGPT_ACTIVE_STATUS_LABELS,
+        belongsToConversation,
+      ) ||
+      rootHasActiveStatusLabel(
+        document,
+        CHATGPT_EXTERNAL_LIVE_REGION_SELECTORS,
+        CHATGPT_EXTERNAL_ACTIVE_STATUS_LABELS,
+        belongsToConversation,
+      )
+    );
+  }
+
+  function rootHasActiveStatusLabel(
+    root: Document | Element,
+    selectors: string[],
+    activeLabels: string[],
+    acceptElement: (element: Element) => boolean = () => true,
+  ): boolean {
+    for (const selector of selectors) {
+      const matches = Array.from(root.querySelectorAll(selector));
+      const first = root.querySelector(selector);
+      if (first && !matches.includes(first)) matches.push(first);
+      for (const element of matches) {
+        if (!isElementVisible(element) || !acceptElement(element)) continue;
+        const labels = [element.textContent ?? '', element.getAttribute('aria-label') ?? '']
+          .map(normalizeActivityLabel)
+          .filter((label) => label.length > 0 && label.length <= 80);
+        if (labels.some(chatGptStatusLabelIsCompleted)) continue;
+        if (
+          labels.some((label) =>
+            activeLabels.some((active) => label === active || label.startsWith(`${active} `)),
+          )
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function chatGptExternalStatusBelongsToConversation(element: Element, turn?: Element | null): boolean {
+    if (turn && elementContains(turn, element)) return true;
+    const userTurns = Array.from(document.querySelectorAll(CHATGPT_USER_MESSAGE_SELECTOR));
+    const anchor = activeChatGptUserTurnAnchor ?? userTurns[userTurns.length - 1] ?? null;
+    return Boolean(anchor && elementFollows(anchor, element));
+  }
+
+  function chatGptStatusLabelIsCompleted(label: string): boolean {
+    return /^(?:(?:reasoning|(?:pro )?thinking)\s*(?:[·•:—–-]\s*)?)?thought\s+for\s+\d+(?:\.\d+)?\s*(?:ms|s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?)(?:\s+\d+(?:\.\d+)?\s*(?:ms|s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?))*\s*(?:[·•:—–-]\s*)?(?:edit)?$/.test(
+      label,
+    );
+  }
+
+  function normalizeActivityLabel(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[.…]+$/g, '')
+      .trim();
+  }
+
+  function providerStillGeneratingBeforeSend(providerHint?: AIProvider): boolean {
+    if (!adapter || adapter.provider !== 'chatgpt') return false;
+    if (providerHint && providerHint !== adapter.provider) return false;
+    return chatGptHasStrongActivity();
+  }
+
+  function rejectSendWhileProviderGenerating(providerHint: AIProvider | undefined, sendOperation: number): boolean {
+    if (!providerStillGeneratingBeforeSend(providerHint)) return false;
+    const provider = providerHint ?? adapter?.provider;
+    if (!provider) return false;
+    doneWithError(`${provider} send rejected: provider is still generating`, provider, sendOperation);
+    return true;
+  }
+
+  function emptyChatGptTerminalGate(): ChatGptTerminalGateState {
+    return { turn: null, response: null, completion: null, responseText: '', stableSince: 0, samples: 0 };
+  }
+
+  function resetChatGptTerminalGate() {
+    chatGptTerminalGate = emptyChatGptTerminalGate();
+  }
+
+  function sampleChatGptTerminalGate(): boolean {
+    const response = getLatestResponseCandidate();
+    const turn = currentChatGptCompletionTurn(response?.element);
+    const responseText = response?.text ?? null;
+    const strongActivity = chatGptHasStrongActivity(turn);
+    const completion = turn && response ? chatGptCompletionEvidence(turn, response) : null;
+    if (!turn || !responseText || isThinking() || strongActivity || !completion) {
+      if (strongActivity) lastCompletionActivityAt = Date.now();
+      resetChatGptTerminalGate();
+      return false;
+    }
+
+    const now = Date.now();
+    if (
+      chatGptTerminalGate.turn !== turn ||
+      chatGptTerminalGate.response !== response?.element ||
+      chatGptTerminalGate.completion !== completion ||
+      chatGptTerminalGate.responseText !== responseText
+    ) {
+      chatGptTerminalGate = {
+        turn,
+        response: response?.element ?? null,
+        completion,
+        responseText,
+        stableSince: now,
+        samples: 1,
+      };
+      return false;
+    }
+
+    chatGptTerminalGate.samples += 1;
+    return (
+      chatGptTerminalGate.samples >= CHATGPT_TERMINAL_MIN_SAMPLES &&
+      now - chatGptTerminalGate.stableSince >= CHATGPT_TERMINAL_MIN_STABLE_MS
+    );
+  }
+
   function isThinking(): boolean {
-    return hasDetector(adapter?.thinkingDetectors);
+    if (hasDetector(adapter?.thinkingDetectors)) return true;
+    return adapter?.provider === 'grok' && queryFirstVisible([GROK_LIVE_STOP_BUTTON_SELECTOR]) !== null;
   }
 
   // Response completion asks this instead of isThinking(). The split is deliberate: sendStarted()
@@ -993,31 +1520,38 @@ class InactiveSendOperationError extends Error {
   // user message, which carries no copy button. Letting the turn signal reach sendStarted() would
   // make a failed send look accepted and leave the step waiting on a response that never comes.
   function isGenerating(): boolean {
-    return isThinking() || lastTurnIncomplete();
+    return (
+      isThinking() ||
+      (adapter?.provider === 'chatgpt' && chatGptHasStrongActivity(currentChatGptCompletionTurn())) ||
+      lastTurnIncomplete()
+    );
   }
 
   function lastTurnIncomplete(): boolean {
     if (!waitingForResponse || !adapter || !lastResponseText) return false;
     const signal = TURN_COMPLETION_SIGNALS[adapter.provider];
     if (!signal) return false;
-    const turns = Array.from(document.querySelectorAll(signal.turn));
-    const anchor = adapter.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : null;
-    const eligibleTurns = anchor ? turns.filter((turn) => elementFollows(anchor, turn)) : turns;
-    const lastTurn = eligibleTurns.length > 0 ? eligibleTurns[eligibleTurns.length - 1] : null;
-    if (!lastTurn || typeof lastTurn.querySelector !== 'function') return false;
-    return !lastTurn.querySelector(signal.complete);
+    const response = getLatestResponseCandidate();
+    const turn = currentChatGptCompletionTurn(response?.element);
+    if (!turn) return true;
+    return !response || chatGptCompletionEvidence(turn, response) === null;
   }
 
   function failIfTurnCompletionTimedOut(expectedGeneration: number): boolean {
     const thinking = isThinking();
-    if (thinking) {
+    const completionTurn = currentChatGptCompletionTurn();
+    const strongTurnActivity = chatGptHasStrongActivity(completionTurn);
+    if (thinking || strongTurnActivity) {
       lastCompletionActivityAt = Date.now();
     }
     if (
       !waitingForResponse ||
       expectedGeneration !== activeResponseGeneration ||
+      !adapter ||
+      !TURN_COMPLETION_SIGNALS[adapter.provider] ||
+      !lastResponseText ||
       thinking ||
-      !lastTurnIncomplete() ||
+      strongTurnActivity ||
       Date.now() - lastCompletionActivityAt < TURN_COMPLETION_CONFIRM_TIMEOUT_MS
     ) {
       return false;
@@ -1033,6 +1567,7 @@ class InactiveSendOperationError extends Error {
     if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) return;
     if (failIfTurnCompletionTimedOut(expectedGeneration)) return;
     if (isGenerating()) {
+      resetChatGptTerminalGate();
       if (checkDoneInterval === undefined) {
         checkDoneInterval = window.setInterval(() => {
           if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) {
@@ -1042,6 +1577,10 @@ class InactiveSendOperationError extends Error {
           if (failIfTurnCompletionTimedOut(expectedGeneration)) return;
           if (!isGenerating()) {
             clearCheckDone();
+            if (adapter?.provider === 'chatgpt') {
+              checkIfDone(expectedGeneration);
+              return;
+            }
             finishResponseTimeout = window.setTimeout(() => {
               finishResponseTimeout = undefined;
               if (!waitingForResponse || expectedGeneration !== activeResponseGeneration) return;
@@ -1055,6 +1594,19 @@ class InactiveSendOperationError extends Error {
           }
         }, 1000);
       }
+      return;
+    }
+    if (adapter?.provider === 'chatgpt') {
+      clearCheckDone();
+      if (sampleChatGptTerminalGate()) {
+        finishResponse(expectedGeneration);
+        return;
+      }
+      clearFinishResponseTimeout();
+      finishResponseTimeout = window.setTimeout(() => {
+        finishResponseTimeout = undefined;
+        checkIfDone(expectedGeneration);
+      }, CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS);
       return;
     }
     finishResponse(expectedGeneration);
@@ -1080,6 +1632,8 @@ class InactiveSendOperationError extends Error {
     pendingPromptText = '';
     matchingChatGptUserTurnBaseline = 0;
     activeChatGptUserTurnAnchor = null;
+    lastActivatedInput = null;
+    resetChatGptTerminalGate();
   }
 
   function doneWithError(reason: string, providerHint?: AIProvider, sendOperation?: number) {
@@ -1113,6 +1667,7 @@ class InactiveSendOperationError extends Error {
       clearFinishResponseTimeout();
       lastResponseText = currentText;
       lastCompletionActivityAt = Date.now();
+      resetChatGptTerminalGate();
 
       const now = Date.now();
       if (now - lastChunkTime >= timing('chunkDebounceMs', 500)) {
@@ -1143,6 +1698,7 @@ class InactiveSendOperationError extends Error {
       clearFinishResponseTimeout();
       lastResponseText = currentText;
       lastCompletionActivityAt = Date.now();
+      resetChatGptTerminalGate();
       if (adapter) bridge.emit({ v: 1, action: 'RESPONSE_CHUNK', provider: adapter.provider, payload: currentText });
       if (responseTimeout !== undefined) window.clearTimeout(responseTimeout);
       const expectedGeneration = activeResponseGeneration;
@@ -1285,7 +1841,14 @@ class InactiveSendOperationError extends Error {
     const responses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
     const latest = responses.length > 0 ? responses[responses.length - 1] : null;
     if (latest && latest !== lastSeenResponseEl) return true;
-    const currentInput = queryFirst(activeAdapter.inputSelectors);
+    const currentInput = queryInput(activeAdapter);
+    if (activeAdapter.provider === 'grok') {
+      return Boolean(
+        currentInput &&
+          currentInput === lastActivatedInput &&
+          !getInputText(currentInput).trim(),
+      );
+    }
     return Boolean(currentInput && !getInputText(currentInput).trim());
   }
 
