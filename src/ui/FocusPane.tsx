@@ -526,7 +526,11 @@ function StatusStripItem({
     onChipClick?.(provider);
     if (stuck) {
       resetProviderBootState(provider);
-      void host.provider.reload(provider);
+      void host.provider.reconnect(provider).then(
+        () => activateProvider(provider),
+        () => activateProvider(provider),
+      );
+      return;
     }
     if (centered && state.webview === 'loaded') return;
     void activateProvider(provider);

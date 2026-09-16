@@ -8,20 +8,23 @@ type Translate = (key: I18nKey) => string;
 const STUCK_PROVIDER_AGE_MS = 40_000;
 
 /**
- * Loaded, not answering, explicitly signed in, beyond the watchdog window - and still unusable.
- * Clicking such a provider reloads it.
+ * Loaded, not answering, beyond the watchdog window - and still unusable. Clicking this explicit
+ * Grok recovery affordance recreates its child webview with the same persistent profile and bounds.
  *
  * Grok reaches this state and stays: its readiness rides entirely on one document-title event, and
- * a navigation whose title never changes produces no event, so nothing downstream ever fires. A
- * reload is what makes a fresh title. Unknown, logged-out, and blocked sessions are excluded on
- * purpose: they need status, login, or manual challenge handling, and reloading could interrupt
- * those flows.
+ * a navigation whose title never changes produces no event, so nothing downstream ever fires.
+ * Unknown login state is included because it is the state left by that exact wedge. Logged-out,
+ * blocked, answering, healthy, broken-adapter, and degraded-bridge sessions stay untouched.
  */
 export function isStuckProvider(state: ProviderState, nowMs = Date.now()): boolean {
   return (
+    state.provider === 'grok' &&
     state.webview === 'loaded' &&
+    state.dom === 'unknown' &&
     !state.thinking &&
-    state.login === 'logged_in' &&
+    (state.login === 'unknown' || state.login === 'logged_in') &&
+    state.bridge === 'ok' &&
+    state.adapter === 'ok' &&
     !isSendable(state) &&
     nowMs - state.lastStatusAt > STUCK_PROVIDER_AGE_MS
   );

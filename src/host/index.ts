@@ -88,6 +88,7 @@ export const host = {
     openLogin: (provider: AIProvider): Promise<void> => invoke('provider_open_login', { provider }),
     openLoginExternal: (provider: AIProvider): Promise<void> => invoke('provider_open_login_external', { provider }),
     reload: (provider: AIProvider): Promise<void> => invoke('provider_reload', { provider }),
+    reconnect: (provider: AIProvider): Promise<void> => invoke('provider_reload', { provider, reconnect: true }),
     newSession: (provider: AIProvider): Promise<void> => invoke('provider_new_session', { provider }),
   },
   adapter: {

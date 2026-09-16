@@ -34,6 +34,9 @@ const NEW_SESSION_READY_TIMEOUT_SECS: u64 = 30;
 const NEW_SESSION_READY_POLL_MS: u64 = 150;
 const GROK_POPUP_RECOVERY_DELAY_MS: u64 = 500;
 const GROK_NAVIGATION_START_LEASE_MS: u64 = 15_000;
+const STATUS_STALE_CHECK_MS: u64 = 30_000;
+const STATUS_EXPIRED_MS: u64 = 40_000;
+const GROK_APP_TITLE_UNCONFIRMED_REASON: &str = "grok_app_title_unconfirmed";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -149,6 +152,7 @@ fn set_provider_challenge_blocked(app: &AppHandle, provider: &str) {
         && state.dom == "unknown"
         && state.login == "blocked"
         && !state.thinking
+        && state.bridge_reason.is_none()
     {
         return;
     }
@@ -157,6 +161,7 @@ fn set_provider_challenge_blocked(app: &AppHandle, provider: &str) {
     state.login = "blocked".into();
     state.thinking = false;
     state.last_status_at = now_ms();
+    state.bridge_reason = None;
     set_state(app, state);
 }
 
@@ -169,6 +174,7 @@ fn clear_provider_challenge_blocked(app: &AppHandle, provider: &str) {
     state.login = "unknown".into();
     state.thinking = false;
     state.last_status_at = now_ms();
+    state.bridge_reason = None;
     set_state(app, state);
 }
 
@@ -706,6 +712,28 @@ fn generic_staleness_dispatch_allowed(
     state.provider != "grok" || app_title_signal_is_current
 }
 
+fn grok_reconnect_allowed(state: &ProviderState, now_ms: u64) -> bool {
+    state.provider == "grok"
+        && state.webview == "loaded"
+        && state.dom == "unknown"
+        && matches!(state.login.as_str(), "unknown" | "logged_in")
+        && !state.thinking
+        && state.bridge == "ok"
+        && state.adapter == "ok"
+        && now_ms.saturating_sub(state.last_status_at) > STATUS_EXPIRED_MS
+}
+
+fn grok_stale_reason(
+    state: &ProviderState,
+    now_ms: u64,
+    app_title_signal_is_current: bool,
+) -> Option<&'static str> {
+    (!app_title_signal_is_current
+        && state.bridge_reason.is_none()
+        && grok_reconnect_allowed(state, now_ms))
+    .then_some(GROK_APP_TITLE_UNCONFIRMED_REASON)
+}
+
 fn provider_document_allows_generic_eval(
     provider: &str,
     url_matches_app: bool,
@@ -789,6 +817,7 @@ fn record_grok_bridge_challenge(provider: &str, observed_epoch: u64) -> Option<P
     next_state.login = "blocked".into();
     next_state.thinking = false;
     next_state.last_status_at = now_ms();
+    next_state.bridge_reason = None;
     guard
         .states
         .insert(provider.to_string(), next_state.clone());
@@ -1263,6 +1292,7 @@ pub async fn provider_close(
         guard.grok_pending_navigation.remove(&provider);
         guard.pending_session_boot.remove(&provider);
         guard.last_push_ms.remove(&provider);
+        guard.stale_check_sent.remove(&provider);
     }
     set_state(
         &app,
@@ -1460,8 +1490,39 @@ pub async fn provider_reload(
     app: AppHandle,
     webview: tauri::Webview,
     provider: String,
+    reconnect: Option<bool>,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    if reconnect.unwrap_or(false) {
+        let state = current_state(&provider);
+        if !grok_reconnect_allowed(&state, now_ms()) {
+            return Ok(());
+        }
+
+        // Recreate only after the host-side stale-state guard passes. This deliberately does not
+        // evaluate the current document: it may be a Grok/Cloudflare challenge whose title event
+        // was never observed. The new child uses provider_open's same persistent profile.
+        let provider_webview = get_provider_webview(&app, &provider)?;
+        let position = provider_webview
+            .position()
+            .map_err(|error| error.to_string())?;
+        let size = provider_webview.size().map_err(|error| error.to_string())?;
+        let bounds = Bounds {
+            x: f64::from(position.x),
+            y: f64::from(position.y),
+            width: f64::from(size.width),
+            height: f64::from(size.height),
+        };
+
+        // Re-check immediately before closing so a late healthy/thinking/blocked status report
+        // wins over the click that was rendered from an older snapshot.
+        if !grok_reconnect_allowed(&current_state(&provider), now_ms()) {
+            return Ok(());
+        }
+        provider_close(app.clone(), webview.clone(), provider.clone()).await?;
+        provider_open(app, webview, provider, bounds).await?;
+        return Ok(());
+    }
     let prepared_epoch = prepare_grok_navigation(&provider)?;
     reload_provider_document_after_prepare(&app, &provider, prepared_epoch)
 }
@@ -2112,6 +2173,7 @@ fn run_staleness_check(app: &AppHandle) {
     let mut to_check = Vec::new();
     let mut to_mark_unknown = Vec::new();
     let mut grok_to_drive = Vec::new();
+    let mut state_updates = Vec::new();
     if let Ok(mut guard) = runtime().lock() {
         let providers = guard.states.values().cloned().collect::<Vec<_>>();
         for state in providers {
@@ -2124,6 +2186,14 @@ fn run_staleness_check(app: &AppHandle) {
                 guard.grok_app_title_epoch.get(&state.provider).copied() == Some(document_epoch);
             if should_drive_grok_bridge_from_background(&state, app_title_signal_is_current) {
                 grok_to_drive.push((state.provider.clone(), document_epoch));
+            }
+            if let Some(reason) = grok_stale_reason(&state, now, app_title_signal_is_current) {
+                let mut next_state = state.clone();
+                next_state.bridge_reason = Some(reason.into());
+                guard
+                    .states
+                    .insert(state.provider.clone(), next_state.clone());
+                state_updates.push(next_state);
             }
             if !generic_staleness_dispatch_allowed(&state, app_title_signal_is_current) {
                 guard.stale_check_sent.remove(&state.provider);
@@ -2144,6 +2214,9 @@ fn run_staleness_check(app: &AppHandle) {
                 }
             }
         }
+    }
+    for state in state_updates {
+        let _ = app.emit_to("main", "connections://update", &state);
     }
     if let Ok(script) = cached_grok_bridge_script() {
         for (provider, document_epoch) in grok_to_drive {
@@ -2179,9 +2252,9 @@ fn staleness_action(last_status_ms: u64, now_ms: u64, webview_loaded: bool) -> S
         return StalenessAction::None;
     }
     let age = now_ms.saturating_sub(last_status_ms);
-    if age > 40_000 {
+    if age > STATUS_EXPIRED_MS {
         StalenessAction::MarkUnknown
-    } else if age >= 30_000 {
+    } else if age >= STATUS_STALE_CHECK_MS {
         StalenessAction::DispatchCheck
     } else {
         StalenessAction::None
@@ -2211,8 +2284,9 @@ mod tests {
         grok_auth_popup_may_complete_login, grok_bridge_drive_allowed, grok_bridge_host_action,
         grok_bridge_install_ready, grok_bridge_result_is_current, grok_challenge_title_active,
         grok_document_title_signal, grok_popup_recovery_claim_is_current,
-        grok_popup_recovery_needed, parse_grok_bridge_drive_outcome, physical_bounds,
-        popup_initial_title, prepare_grok_navigation, prepare_grok_popup_recovery,
+        grok_popup_recovery_needed, grok_reconnect_allowed, grok_stale_reason,
+        parse_grok_bridge_drive_outcome, physical_bounds, popup_initial_title,
+        prepare_grok_navigation, prepare_grok_popup_recovery,
         provider_document_allows_generic_eval, provider_show_should_focus,
         provider_state_allows_control_eval, provider_uses_document_start_bridge,
         provider_uses_permission_shim, record_grok_bridge_challenge, reset_state_for_page_load,
@@ -2220,7 +2294,8 @@ mod tests {
         should_drive_grok_bridge_from_background, should_reset_bridge_on_boot_rotation,
         staleness_action, state_with, Bounds, GrokBridgeDriveOutcome, GrokBridgeDriveResult,
         GrokBridgeHostAction, GrokDocumentTitleSignal, GrokNavigationOwner, NewWindowAction,
-        StalenessAction, CHALLENGE_SIGNALS_JSON, PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
+        StalenessAction, CHALLENGE_SIGNALS_JSON, GROK_APP_TITLE_UNCONFIRMED_REASON,
+        PERMISSION_SHIM_JS, PROVIDER_BROWSER_ARGS,
     };
 
     static GROK_RUNTIME_TEST_LOCK: Mutex<()> = Mutex::new(());
@@ -2553,6 +2628,66 @@ mod tests {
             staleness_action(1_000, 60_000, false),
             StalenessAction::None
         );
+    }
+
+    #[test]
+    fn grok_reconnect_requires_an_old_unresolved_safe_state() {
+        let mut stale = state_with("grok", "loaded", "unknown", "unknown", false);
+        stale.last_status_at = 1_000;
+        stale.bridge = "ok".into();
+        stale.adapter = "ok".into();
+
+        assert!(!grok_reconnect_allowed(&stale, 41_000));
+        assert!(grok_reconnect_allowed(&stale, 41_001));
+
+        let mut signed_in = stale.clone();
+        signed_in.login = "logged_in".into();
+        assert!(grok_reconnect_allowed(&signed_in, 41_001));
+
+        let mut blocked = stale.clone();
+        blocked.login = "blocked".into();
+        assert!(!grok_reconnect_allowed(&blocked, 41_001));
+
+        let mut logged_out = stale.clone();
+        logged_out.login = "logged_out".into();
+        assert!(!grok_reconnect_allowed(&logged_out, 41_001));
+
+        let mut thinking = stale.clone();
+        thinking.thinking = true;
+        assert!(!grok_reconnect_allowed(&thinking, 41_001));
+
+        let mut healthy = stale.clone();
+        healthy.dom = "ready".into();
+        assert!(!grok_reconnect_allowed(&healthy, 41_001));
+
+        let mut degraded = stale.clone();
+        degraded.bridge = "degraded".into();
+        assert!(!grok_reconnect_allowed(&degraded, 41_001));
+
+        let mut broken = stale.clone();
+        broken.adapter = "broken".into();
+        assert!(!grok_reconnect_allowed(&broken, 41_001));
+
+        let mut other_provider = stale;
+        other_provider.provider = "chatgpt".into();
+        assert!(!grok_reconnect_allowed(&other_provider, 41_001));
+    }
+
+    #[test]
+    fn grok_stale_reason_requires_missing_current_app_title_and_is_emitted_once() {
+        let mut stale = state_with("grok", "loaded", "unknown", "unknown", false);
+        stale.last_status_at = 1_000;
+        stale.bridge = "ok".into();
+        stale.adapter = "ok".into();
+
+        assert_eq!(
+            grok_stale_reason(&stale, 41_001, false),
+            Some(GROK_APP_TITLE_UNCONFIRMED_REASON)
+        );
+        assert_eq!(grok_stale_reason(&stale, 41_001, true), None);
+
+        stale.bridge_reason = Some(GROK_APP_TITLE_UNCONFIRMED_REASON.into());
+        assert_eq!(grok_stale_reason(&stale, 41_001, false), None);
     }
 
     #[test]

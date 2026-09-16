@@ -17,6 +17,8 @@ function providerState(provider: AIProvider, overrides: Partial<ProviderState> =
     login: webview === 'loaded' ? 'logged_in' : 'unknown',
     thinking: false,
     lastStatusAt: 1,
+    bridge: 'ok',
+    adapter: 'ok',
     ...overrides,
   };
 }
@@ -113,6 +115,16 @@ describe('FocusPane provider header', () => {
     expect(html).toContain('aria-label="Claude: Ready · Currently reading"');
     expect(html).toContain('title="Claude: Ready · Currently reading"');
     expect(html).not.toContain('aria-label="ChatGPT: Ready · Currently reading"');
+  });
+
+  it('exposes the explicit recovery action for an expired Grok bridge', () => {
+    const html = renderFocusPane({
+      stateOverrides: {
+        grok: { dom: 'unknown', login: 'unknown', lastStatusAt: 1 },
+      },
+    });
+
+    expect(html).toContain('aria-label="Grok: Checking… · Click to reload and recover the connection"');
   });
 
   it('points the user at the in-pane challenge when Grok is blocked, keeping the browser as a fallback only', () => {
