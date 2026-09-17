@@ -17,7 +17,6 @@ import {
 import { onBridgeMessage } from '../bridge/bus';
 import {
   AWAITING_ABSOLUTE_MAX_MS,
-  AWAITING_MAX_MS,
   handleTitleMessage,
   parsePullResult,
   pullProvider,
@@ -137,6 +136,27 @@ describe('pull transport', () => {
     expect(messages.some((msg) => msg.transport === 'local' && msg.payload && (msg.payload as { bridge?: string }).bridge === 'ok')).toBe(true);
   });
 
+  it('marks degraded after two unparseable pulls without stopping the provider or forging DONE', async () => {
+    vi.useFakeTimers();
+    const { messages, cleanup } = collectMessages();
+    vi.mocked(host.provider.evalWithCallback).mockResolvedValue('not-json');
+
+    const pull = pullProvider('claude');
+    await vi.advanceTimersByTimeAsync(1_000);
+    await pull;
+    cleanup();
+
+    expect(host.provider.evalWithCallback).toHaveBeenCalledTimes(2);
+    expect(host.provider.stop).not.toHaveBeenCalled();
+    expect(messages).toContainEqual(expect.objectContaining({
+      action: 'STATUS_REPORT',
+      provider: 'claude',
+      payload: { bridge: 'degraded', reason: 'pull_failed' },
+      transport: 'local',
+    }));
+    expect(messages.some((msg) => msg.action === 'RESPONSE_DONE')).toBe(false);
+  });
+
   it('bulkReady title hints trigger a pull', async () => {
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
     handleTitleMessage({
@@ -201,14 +221,24 @@ describe('pull transport', () => {
     expect(messages.some((msg) => msg.transport === 'local' && msg.action === 'RESPONSE_DONE' && msg.payload === '[Error: bridge degraded]')).toBe(true);
   });
 
-  it('still publishes a synthetic DONE when best-effort provider stop fails', async () => {
+  it('still publishes a doneReady-watchdog DONE when best-effort provider stop fails', async () => {
     vi.useFakeTimers();
     const { messages, cleanup } = collectMessages();
     setProviderAwaiting(provider, true);
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
     vi.mocked(host.provider.stop).mockRejectedValueOnce(new Error('provider eval failed'));
+    handleTitleMessage({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider,
+      bootId: 'done-stop-failure',
+      seq: 1,
+      payload: { bulkReady: 1, doneReady: true },
+      transport: 'title',
+    });
+    await Promise.resolve();
 
-    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + POLL_PULL_MS + 1);
+    await vi.advanceTimersByTimeAsync(5_000);
     await Promise.resolve();
     cleanup();
 
@@ -221,7 +251,7 @@ describe('pull transport', () => {
     }));
   });
 
-  it('does not release the waiter until the timed-out page generation has stopped', async () => {
+  it('does not release the waiter until a doneReady-watchdog page generation has stopped', async () => {
     vi.useFakeTimers();
     const { messages, cleanup } = collectMessages();
     let releaseStop: (() => void) | undefined;
@@ -230,8 +260,18 @@ describe('pull transport', () => {
     }));
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
     setProviderAwaiting(provider, true);
+    handleTitleMessage({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider,
+      bootId: 'done-stop-pending',
+      seq: 1,
+      payload: { bulkReady: 1, doneReady: true },
+      transport: 'title',
+    });
+    await Promise.resolve();
 
-    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + POLL_PULL_MS + 1);
+    await vi.advanceTimersByTimeAsync(5_000);
     await Promise.resolve();
 
     expect(host.provider.stop).toHaveBeenCalledWith(provider);
@@ -251,7 +291,7 @@ describe('pull transport', () => {
     }));
   });
 
-  it('does not deliver an old synthetic DONE into a newer awaiting generation', async () => {
+  it('does not deliver an old doneReady-watchdog DONE into a newer awaiting generation', async () => {
     vi.useFakeTimers();
     const { messages, cleanup } = collectMessages();
     let releaseStop: (() => void) | undefined;
@@ -260,8 +300,18 @@ describe('pull transport', () => {
     }));
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
     setProviderAwaiting(provider, true);
+    handleTitleMessage({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider,
+      bootId: 'old-done-watchdog',
+      seq: 1,
+      payload: { bulkReady: 1, doneReady: true },
+      transport: 'title',
+    });
+    await Promise.resolve();
 
-    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + POLL_PULL_MS + 1);
+    await vi.advanceTimersByTimeAsync(5_000);
     await Promise.resolve();
     expect(host.provider.stop).toHaveBeenCalledWith(provider);
 
@@ -280,31 +330,18 @@ describe('pull transport', () => {
     )).toBe(false);
   });
 
-  it('uses provider thinking as activity but still degrades after the absolute cap', async () => {
+  it('leaves successful empty pulls pending past the former inactivity and absolute caps', async () => {
     vi.useFakeTimers();
     const { messages, cleanup } = collectMessages();
     setProviderAwaiting(provider, true);
     vi.mocked(host.provider.evalWithCallback).mockResolvedValue(JSON.stringify([]));
 
-    const startedAt = Date.now();
-    for (let heartbeat = 1; heartbeat <= 6; heartbeat += 1) {
-      await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS - 1_000);
-      handleTitleMessage({
-        v: 1,
-        action: 'STATUS_REPORT',
-        provider,
-        bootId: 'long-task',
-        seq: heartbeat,
-        payload: { dom: 'ready', thinking: true },
-        transport: 'title',
-      });
-    }
-
-    expect(messages.some((msg) => msg.transport === 'local' && msg.payload === '[Error: bridge degraded]')).toBe(false);
-    const remaining = AWAITING_ABSOLUTE_MAX_MS - (Date.now() - startedAt);
-    await vi.advanceTimersByTimeAsync(remaining + POLL_PULL_MS + 1);
+    await vi.advanceTimersByTimeAsync(AWAITING_ABSOLUTE_MAX_MS + POLL_PULL_MS + 1);
     cleanup();
-    expect(messages.some((msg) => msg.transport === 'local' && msg.payload === '[Error: bridge degraded]')).toBe(true);
+
+    expect(host.provider.evalWithCallback).toHaveBeenCalled();
+    expect(host.provider.stop).not.toHaveBeenCalled();
+    expect(messages.some((msg) => msg.transport === 'local' && msg.action === 'RESPONSE_DONE')).toBe(false);
   });
 
   it('runs a distinct forced pull after an in-flight non-forced pull while still pending', async () => {

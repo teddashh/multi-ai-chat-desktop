@@ -4,8 +4,8 @@ import { onBridgeMessage } from '../bridge/bus';
 import { AWAITING_ABSOLUTE_MAX_MS, AWAITING_MAX_MS, setProviderAwaiting } from '../bridge/pull';
 import { clearActiveTurn } from './state';
 
-export const STEP_TIMEOUT_MS = AWAITING_MAX_MS + 30_000;
-export const STEP_ABSOLUTE_TIMEOUT_MS = AWAITING_ABSOLUTE_MAX_MS + 30_000;
+export const STEP_TIMEOUT_MS = AWAITING_MAX_MS;
+export const STEP_ABSOLUTE_TIMEOUT_MS = AWAITING_ABSOLUTE_MAX_MS;
 
 interface Waiter {
   provider: AIProvider;

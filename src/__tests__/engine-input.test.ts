@@ -9,6 +9,8 @@ const SEND_RETRY_DELAY_MS = 1500;
 const SEND_FINAL_VERIFY_DELAY_MS = 1500;
 const CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS = 10_000;
 const CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS = 4_000;
+const CHATGPT_COMPOSER_SUBMIT_SELECTOR = 'button[data-testid="composer-submit-button"]';
+const CHATGPT_USER_MESSAGE_TESTID_SELECTOR = '[data-testid="user-message"]';
 const GROK_CHAT_STOP_BUTTON_SELECTOR = 'button[data-testid="chat-stop-button"]';
 const CHATGPT_STOP_BUTTON_SELECTOR = '[data-testid="stop-button"]';
 const CHATGPT_TURN_SELECTOR = '[data-testid^="conversation-turn-"]';
@@ -777,6 +779,21 @@ describe('injected engine input hardening', () => {
     expect(keyEventCount(env.input)).toBe(0);
   });
 
+  it('uses the current ChatGPT composer submit control when the frozen adapter selector misses', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea', sendButton: null });
+    const liveSubmit = new FakeElement(env.document, 'button');
+    env.detectorElements.set(CHATGPT_COMPOSER_SUBMIT_SELECTOR, [liveSubmit]);
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, 'submit through the current composer control', 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(liveSubmit.clickCount).toBe(1);
+    expect(keyEventCount(env.input)).toBe(0);
+  });
+
   it('tries the input Enter target only if the active target dispatch fails', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea', sendButton: null });
@@ -883,6 +900,69 @@ describe('injected engine input hardening', () => {
     expect(errorDone(env)).toBeUndefined();
   });
 
+  it('retries an optimistic ChatGPT user turn while an idle exact draft remains in the composer', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'optimistic bubble must not confirm an unconsumed draft';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        if (env.sendButton?.clickCount === 1) {
+          env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+          return;
+        }
+        env.input.setVisibleText('');
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.input.textContent).toBe(prompt);
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(2);
+    expect(env.input.textContent).toBe('');
+    expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(2);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('never retries an optimistic ChatGPT draft while native generation is visible', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'do not interrupt an accepted Astra turn';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+        const turn = new FakeElement(env.document, 'article');
+        const response = new FakeElement(env.document, 'p', 'Pro thinking');
+        turn.appendChild(response);
+        env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+        env.responses = [response];
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.input.textContent).toBe(prompt);
+    expect(errorDone(env)).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS * 3);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
   it('accepts a ChatGPT user turn rendered from the Markdown prompt', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -898,6 +978,77 @@ describe('injected engine input hardening', () => {
 
     send(handler, prompt, 'chatgpt');
     await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('anchors a long ChatGPT handoff whose live user turn is collapsed behind Show more', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = `<response-language-policy version="1">${'Keep the exact long handoff context. '.repeat(80)}</response-language-policy>`;
+    const collapsedPrompt = `${prompt.slice(0, 240)}Show more`;
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.setVisibleText('');
+        env.userMessages = [new FakeElement(env.document, 'div', collapsedPrompt)];
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      timing: {
+        doneDelayMs: 10,
+        chunkDebounceMs: 0,
+        statusIntervalMs: 1_000_000,
+        backupPollMs: 10,
+      },
+    });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const response = new FakeElement(env.document, 'div', 'answer after the collapsed long handoff');
+    turn.appendChild(copyButton);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    await vi.advanceTimersByTimeAsync(
+      CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 100,
+    );
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'answer after the collapsed long handoff',
+    });
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('anchors the current ChatGPT user-message testid when the legacy role selector is absent', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'anchor the current ChatGPT user turn';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.setVisibleText('');
+        env.detectorElements.set(CHATGPT_USER_MESSAGE_TESTID_SELECTOR, [
+          new FakeElement(env.document, 'div', prompt),
+        ]);
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(
+      PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS,
+    );
 
     expect(env.sendButton?.clickCount).toBe(1);
     expect(errorDone(env)).toBeUndefined();
@@ -2391,6 +2542,57 @@ describe('injected engine input hardening', () => {
     expect(env.sendButton?.clickCount).toBe(0);
   });
 
+  it('does not reject a new ChatGPT send for plain activity words in a completed historical turn', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const completedTurn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const answerHeading = new FakeElement(env.document, 'p', 'Planning');
+    const quotedStatus = new FakeElement(env.document, 'p', 'Pro thinking');
+    completedTurn.appendChild(copyButton);
+    completedTurn.appendChild(answerHeading);
+    completedTurn.appendChild(quotedStatus);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [completedTurn]);
+    env.responses = [answerHeading];
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    send(handler, 'start the next serial handoff', 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(errorDone(env)).toBeUndefined();
+    expect(env.sendButton?.clickCount).toBe(1);
+  });
+
+  it('keeps a plain current-turn Pro thinking label active despite transient completion UI', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt' });
+
+    const prompt = 'keep the Astra turn alive';
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    env.userMessages = [new FakeElement(env.document, 'div', prompt)];
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const response = new FakeElement(env.document, 'p', 'Pro thinking');
+    turn.appendChild(copyButton);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: true },
+    });
+  });
+
   it('keeps waiting while a ChatGPT turn has not grown its copy button, then finishes once it does', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -2400,6 +2602,7 @@ describe('injected engine input hardening', () => {
       thinkingDetectors: ['.thinking'],
       timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
     });
+    if (env.sendButton) env.sendButton.onClick = () => env.input.setVisibleText('');
 
     send(handler, 'ask something', 'chatgpt');
     await flushMicrotasks();
@@ -2444,6 +2647,7 @@ describe('injected engine input hardening', () => {
       thinkingDetectors: ['.thinking'],
       timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
     });
+    if (env.sendButton) env.sendButton.onClick = () => env.input.setVisibleText('');
 
     send(handler, 'take your time', 'chatgpt');
     await flushMicrotasks();
@@ -2487,6 +2691,7 @@ describe('injected engine input hardening', () => {
       thinkingDetectors: ['.thinking'],
       timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000 },
     });
+    if (env.sendButton) env.sendButton.onClick = () => env.input.setVisibleText('');
 
     send(handler, 'ask something', 'chatgpt');
     await flushMicrotasks();
@@ -2785,7 +2990,16 @@ class FakeDocument {
   querySelectorAll(selector: string): Element[] {
     const selectors = selector.split(',').map((part) => part.trim());
     if (selectors.includes('.response')) return this.requireEnv().responses as unknown as Element[];
-    if (selector === '[data-message-author-role="user"]') {
+    const currentUserMessages = selectors.flatMap(
+      (part) => this.requireEnv().detectorElements.get(part) ?? [],
+    );
+    if (
+      selectors.includes(CHATGPT_USER_MESSAGE_TESTID_SELECTOR) &&
+      currentUserMessages.length > 0
+    ) {
+      return [...new Set(currentUserMessages)] as unknown as Element[];
+    }
+    if (selectors.includes('[data-message-author-role="user"]')) {
       return this.requireEnv().userMessages as unknown as Element[];
     }
     if (selectors.includes('#editor')) return [this.requireEnv().input as unknown as Element];

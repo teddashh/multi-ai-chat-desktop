@@ -62,7 +62,20 @@ const SEND_RETRY_DELAY_MS = 1500;
 const SEND_FINAL_VERIFY_DELAY_MS = 1500;
 const CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS = 10_000;
 const CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS = 4_000;
-const CHATGPT_USER_MESSAGE_SELECTOR = '[data-message-author-role="user"]';
+const CHATGPT_USER_MESSAGE_SELECTORS = [
+  '[data-message-author-role="user"]',
+  '[data-testid="user-message"]',
+  'div[id^="response-"].items-end',
+  '.message-bubble.user',
+];
+const CHATGPT_USER_MESSAGE_SELECTOR = CHATGPT_USER_MESSAGE_SELECTORS.join(', ');
+const CHATGPT_LIVE_SEND_BUTTON_SELECTORS = [
+  'button[data-testid="composer-submit-button"]',
+  'button[aria-label="Send message"]',
+];
+const CHATGPT_COLLAPSED_PROMPT_MIN_SOURCE_CHARS = 512;
+const CHATGPT_COLLAPSED_PROMPT_MIN_VISIBLE_CHARS = 80;
+const CHATGPT_COLLAPSED_PROMPT_PREFIX_CHARS = 160;
 const GROK_LIVE_STOP_BUTTON_SELECTOR = 'button[data-testid="chat-stop-button"]';
 const GROK_LIVE_TEXTAREA_SELECTORS = [
   '[data-testid="chat-input"] textarea[aria-label="Ask Grok anything"]',
@@ -115,6 +128,11 @@ const CHATGPT_TURN_STATUS_SELECTORS = [
   '[class*="thinking"]',
   '[class*="reasoning"]',
 ];
+const CHATGPT_PLAIN_ACTIVITY_ELEMENT_SELECTORS = ['div', 'span', 'p'];
+// The current ChatGPT Pro surface renders this observed live phase as plain text without a
+// durable role/class. Keep this fallback intentionally literal: answer prose can legitimately
+// contain generic words such as "Planning" or "Working" and must not become a busy signal.
+const CHATGPT_PLAIN_ACTIVITY_LABELS = ['pro thinking'];
 const CHATGPT_ACTIVE_STATUS_LABELS = [
   'thinking',
   'pro thinking',
@@ -1310,8 +1328,39 @@ class InactiveSendOperationError extends Error {
     if (queryFirstVisible(CHATGPT_STRONG_STOP_SELECTORS)) return true;
     if (activeTurn && queryFirstVisibleWithin(activeTurn, CHATGPT_STRONG_ACTIVITY_SELECTORS)) return true;
     if (activeTurn && chatGptTurnHasActiveProgress(activeTurn)) return true;
+    if (chatGptHasPlainActivityLabel(activeTurn)) return true;
     if (chatGptHasStrongExternalSidecarActivity(activeTurn)) return true;
     return chatGptHasActiveStatusLabel(activeTurn);
+  }
+
+  function chatGptHasPlainActivityLabel(turn?: Element | null): boolean {
+    const activeTurn = turn ?? latestChatGptTurn();
+    if (!activeTurn) return false;
+    // Before a new SEND, a visible copy control makes the latest turn conclusively historical.
+    // During an active wait ChatGPT can expose that control between Astra phases while the plain
+    // "Pro thinking" label is still live, so do not let the marker end that in-flight phase.
+    const completionSelector = TURN_COMPLETION_SIGNALS.chatgpt?.complete;
+    const promptAnchor =
+      adapter?.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : activeChatGptUserTurnAnchor;
+    const belongsToPendingPrompt = Boolean(
+      promptAnchor && elementFollows(promptAnchor, activeTurn),
+    );
+    if (
+      completionSelector &&
+      (!waitingForResponse || !belongsToPendingPrompt) &&
+      queryFirstVisibleWithin(activeTurn, [completionSelector])
+    ) {
+      return false;
+    }
+    for (const selector of CHATGPT_PLAIN_ACTIVITY_ELEMENT_SELECTORS) {
+      for (const element of Array.from(activeTurn.querySelectorAll(selector))) {
+        if (!isElementVisible(element)) continue;
+        const label = normalizeActivityLabel(element.textContent ?? '');
+        if (!label || label.length > 80 || chatGptStatusLabelIsCompleted(label)) continue;
+        if (CHATGPT_PLAIN_ACTIVITY_LABELS.includes(label)) return true;
+      }
+    }
+    return false;
   }
 
   function chatGptHasStrongExternalSidecarActivity(turn?: Element | null): boolean {
@@ -1759,17 +1808,34 @@ class InactiveSendOperationError extends Error {
 
   function matchingChatGptUserTurns(activeAdapter: AdapterConfig, prompt: string): Element[] {
     if (activeAdapter.provider !== 'chatgpt' || !prompt.trim()) return [];
-    const expected = compactVisibleText(prompt);
-    const visibleExpected = promptEchoComparisonKey(prompt);
     return Array.from(document.querySelectorAll(CHATGPT_USER_MESSAGE_SELECTOR)).filter(
-      (turn) => {
-        const content = turn.textContent ?? '';
-        return (
-          compactVisibleText(content) === expected ||
-          (visibleExpected && promptEchoComparisonKey(content) === visibleExpected)
-        );
-      },
+      (turn) => chatGptUserTurnMatchesPrompt(turn.textContent ?? '', prompt),
     );
+  }
+
+  function chatGptUserTurnMatchesPrompt(content: string, prompt: string): boolean {
+    if (compactVisibleText(content) === compactVisibleText(prompt)) return true;
+    const contentKey = promptEchoComparisonKey(content);
+    const promptKey = promptEchoComparisonKey(prompt);
+    if (!contentKey || !promptKey) return false;
+    if (contentKey === promptKey) return true;
+
+    // ChatGPT now collapses long submitted turns behind "Show more" and may keep only a prefix in
+    // the live DOM. Require both a genuinely long source prompt and a substantial matching prefix;
+    // the pre-send matching-count baseline still prevents an older identical turn from confirming
+    // a new send.
+    if (
+      promptKey.length < CHATGPT_COLLAPSED_PROMPT_MIN_SOURCE_CHARS ||
+      contentKey.length < CHATGPT_COLLAPSED_PROMPT_MIN_VISIBLE_CHARS
+    ) {
+      return false;
+    }
+    const prefixLength = Math.min(
+      CHATGPT_COLLAPSED_PROMPT_PREFIX_CHARS,
+      contentKey.length,
+      promptKey.length,
+    );
+    return contentKey.slice(0, prefixLength) === promptKey.slice(0, prefixLength);
   }
 
   function refreshChatGptUserTurnAnchor(activeAdapter: AdapterConfig): Element | null {
@@ -1835,7 +1901,16 @@ class InactiveSendOperationError extends Error {
   function sendStarted(activeAdapter: AdapterConfig): boolean {
     if (!waitingForResponse) return true;
     if (activeAdapter.provider === 'chatgpt') {
-      return refreshChatGptUserTurnAnchor(activeAdapter) !== null;
+      const anchor = refreshChatGptUserTurnAnchor(activeAdapter);
+      if (!anchor) return false;
+      // ChatGPT can paint an optimistic copy of a long user turn before it has consumed the
+      // composer. That state looked like a successful send in v1.8.8, cancelled the bounded
+      // retry, and left the workflow waiting on a response that could only start after a manual
+      // click. Any post-anchor assistant candidate proves that the first send started, including
+      // Astra's plain "Pro thinking" phase; it is send evidence here, not completion evidence.
+      const response = getLatestResponseCandidate();
+      if (response) return true;
+      return !chatGptPendingDraftStillInComposer(activeAdapter);
     }
     if (isThinking()) return true;
     const responses = document.querySelectorAll(activeAdapter.responseSelectors.join(', '));
@@ -1852,18 +1927,28 @@ class InactiveSendOperationError extends Error {
     return Boolean(currentInput && !getInputText(currentInput).trim());
   }
 
+  function chatGptPendingDraftStillInComposer(activeAdapter: AdapterConfig): boolean {
+    if (activeAdapter.provider !== 'chatgpt' || !pendingPromptText) return false;
+    const currentInput = queryInput(activeAdapter);
+    return Boolean(currentInput && composerTextMatches(currentInput, pendingPromptText));
+  }
+
   function querySendButton(activeAdapter: AdapterConfig, input: Element): Element | null {
+    const selectors =
+      activeAdapter.provider === 'chatgpt'
+        ? [...activeAdapter.sendButtonSelectors, ...CHATGPT_LIVE_SEND_BUTTON_SELECTORS]
+        : activeAdapter.sendButtonSelectors;
     const closest = (input as Element & { closest?: (selectors: string) => Element | null }).closest;
     if (typeof closest === 'function') {
       const container = closest.call(input, 'form, fieldset, [data-testid*="composer"]');
       if (container) {
-        for (const selector of activeAdapter.sendButtonSelectors) {
+        for (const selector of selectors) {
           const candidate = container.querySelector(selector);
           if (candidate) return candidate;
         }
       }
     }
-    return queryFirst(activeAdapter.sendButtonSelectors);
+    return queryFirst(selectors);
   }
 
   function execInsertText(text: string): boolean {
