@@ -162,23 +162,26 @@ describe('workflow engine', () => {
     await expect(sendAndWait('claude', 'fast prompt')).resolves.toEqual({ response: 'fast', turn: 1 });
   });
 
-  it('keeps the engine timeout strictly after the pull awaiting cap', () => {
-    expect(STEP_TIMEOUT_MS).toBe(AWAITING_MAX_MS + 30_000);
+  it('keeps the workflow inactivity timeout at the exact 600-second contract boundary', () => {
+    expect(STEP_TIMEOUT_MS).toBe(AWAITING_MAX_MS);
   });
 
-  it('waitForResponse outer timeout rejects at 630s when no pull cap is armed', async () => {
+  it('waitForResponse rejects at the 600-second workflow boundary', async () => {
     const promise = waitForResponse('grok', 99);
     await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS - 1);
     await expect(Promise.race([promise.then(() => 'settled'), Promise.resolve('pending')])).resolves.toBe('pending');
     await vi.advanceTimersByTimeAsync(1);
-    await expect(promise).rejects.toThrow('Grok response timed out after 630s');
+    await expect(promise).rejects.toThrow('Grok response timed out after 600s');
   });
 
-  it('real pull silent-provider path settles via the 600s cap before engine timeout', async () => {
+  it('successful empty pull polling yields to the workflow timeout without forging bridge degraded', async () => {
     const promise = sendAndWait('gemini', 'silent');
-    await vi.advanceTimersByTimeAsync(AWAITING_MAX_MS + 500);
-    await expect(promise).resolves.toEqual({ response: '[Error: bridge degraded]', turn: 1 });
-    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS + 1);
+    const rejection = promise.catch((error: unknown) => error);
+
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS);
+
+    await expect(rejection).resolves.toEqual(new Error('Gemini response timed out after 600s'));
+    expect(host.provider.stop).not.toHaveBeenCalled();
   });
 
   it('keeps a long task alive while thinking status reports continue', async () => {
@@ -687,7 +690,7 @@ describe('workflow engine', () => {
     await degrade;
     chooseStepTimeoutAction('cancel');
     await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS);
-    await expect(stepError).resolves.toMatchObject({ message: 'Gemini response timed out after 630s' });
+    await expect(stepError).resolves.toMatchObject({ message: 'Gemini response timed out after 600s' });
     expect(host.provider.stop).toHaveBeenCalledWith('gemini');
     expect(hasWaiter('gemini', 1)).toBe(false);
     publishBridgeMessage(done('gemini', 'late'));

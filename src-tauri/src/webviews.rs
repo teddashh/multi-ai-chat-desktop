@@ -33,6 +33,7 @@ const PROVIDER_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSm
 const NEW_SESSION_READY_TIMEOUT_SECS: u64 = 30;
 const NEW_SESSION_READY_POLL_MS: u64 = 150;
 const GROK_POPUP_RECOVERY_DELAY_MS: u64 = 500;
+const GROK_EXTERNAL_AUTH_RETURN_DELAY_MS: u64 = 1_000;
 const GROK_NAVIGATION_START_LEASE_MS: u64 = 15_000;
 const STATUS_STALE_CHECK_MS: u64 = 30_000;
 const STATUS_EXPIRED_MS: u64 = 40_000;
@@ -187,6 +188,37 @@ fn gemini_sorry_navigation_active(provider: &str, url: &tauri::Url) -> bool {
 
 fn challenge_auxiliary_navigation_allowed(provider: &str, url: &tauri::Url) -> bool {
     provider == "grok" && url.scheme() == "about" && matches!(url.path(), "blank" | "srcdoc")
+}
+
+fn grok_external_auth_handoff_needs_app_return(provider: &str, url: &tauri::Url) -> bool {
+    provider == "grok"
+        && url.scheme() == "https"
+        && url.host_str() == Some("auth.x.ai")
+        && url.port().is_none()
+        && url.username().is_empty()
+        && url.password().is_none()
+}
+
+fn schedule_grok_external_auth_return(app: &AppHandle, provider: &str, url: &tauri::Url) {
+    if !grok_external_auth_handoff_needs_app_return(provider, url) {
+        return;
+    }
+    let observed_epoch = current_grok_document_epoch(provider);
+    if observed_epoch == 0 {
+        return;
+    }
+    let Ok(recovery_webview) = get_provider_webview(app, provider) else {
+        return;
+    };
+    let recovery_provider = provider.to_string();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(GROK_EXTERNAL_AUTH_RETURN_DELAY_MS)).await;
+        recover_grok_after_external_auth_handoff(
+            &recovery_webview,
+            &recovery_provider,
+            observed_epoch,
+        );
+    });
 }
 
 fn provider_show_should_focus(focus: Option<bool>) -> bool {
@@ -386,6 +418,46 @@ fn prepare_grok_popup_recovery(provider: &str, observed_epoch: u64) -> Option<u6
         provider,
         GrokNavigationOwner::PopupReserved,
     ))
+}
+
+fn prepare_grok_external_auth_return(provider: &str, observed_epoch: u64) -> Option<u64> {
+    if provider != "grok" || observed_epoch == 0 {
+        return None;
+    }
+    let Ok(mut guard) = runtime().lock() else {
+        return None;
+    };
+    if guard.grok_document_epoch.get(provider).copied() != Some(observed_epoch)
+        || guard.grok_pending_navigation.contains_key(provider)
+    {
+        return None;
+    }
+    Some(insert_grok_navigation_locked(
+        &mut guard,
+        provider,
+        GrokNavigationOwner::Lifecycle,
+    ))
+}
+
+fn grok_external_auth_return_is_current(
+    provider: &str,
+    observed_epoch: u64,
+    prepared_epoch: u64,
+) -> bool {
+    provider == "grok"
+        && observed_epoch != 0
+        && prepared_epoch != 0
+        && runtime().lock().ok().is_some_and(|guard| {
+            guard.grok_document_epoch.get(provider).copied() == Some(observed_epoch)
+                && guard
+                    .grok_pending_navigation
+                    .get(provider)
+                    .is_some_and(|pending| {
+                        pending.owner == GrokNavigationOwner::Lifecycle
+                            && pending.previous_epoch == observed_epoch
+                            && pending.epoch == prepared_epoch
+                    })
+        })
 }
 
 fn claim_grok_popup_recovery(provider: &str, observed_epoch: u64, prepared_epoch: u64) -> bool {
@@ -1171,6 +1243,7 @@ pub async fn provider_open(
                     );
                 }
                 let _ = nav_app.opener().open_url(url.as_str(), None::<&str>);
+                schedule_grok_external_auth_return(&nav_app, &nav_provider, url);
             }
             false
         })
@@ -1242,6 +1315,7 @@ pub async fn provider_open(
                         );
                     }
                     let _ = popup_app.opener().open_url(url.as_str(), None::<&str>);
+                    schedule_grok_external_auth_return(&popup_app, &popup_provider, &url);
                     NewWindowResponse::Deny
                 }
             }
@@ -1483,6 +1557,31 @@ fn recover_grok_after_auth_popup(app: &AppHandle, provider: &str, observed_epoch
         prepared_epoch,
         GrokNavigationOwner::PopupClaimed,
     );
+}
+
+fn recover_grok_after_external_auth_handoff(
+    webview: &tauri::Webview,
+    provider: &str,
+    observed_epoch: u64,
+) {
+    let Some(prepared_epoch) = prepare_grok_external_auth_return(provider, observed_epoch) else {
+        return;
+    };
+    let app_url = adapters::get_adapter(provider).and_then(|adapter| {
+        tauri::Url::parse(&adapter.urls.app)
+            .map_err(|error| format!("invalid provider URL: {error}"))
+    });
+    if !grok_external_auth_return_is_current(provider, observed_epoch, prepared_epoch) {
+        cancel_grok_navigation(provider, prepared_epoch);
+        return;
+    }
+    let navigate_result =
+        app_url.and_then(|url| webview.navigate(url).map_err(|error| error.to_string()));
+    if navigate_result.is_err() {
+        cancel_grok_navigation(provider, prepared_epoch);
+        return;
+    }
+    schedule_grok_navigation_start_lease(provider, prepared_epoch, GrokNavigationOwner::Lifecycle);
 }
 
 #[tauri::command]
@@ -2283,10 +2382,11 @@ mod tests {
         generic_staleness_dispatch_allowed, grok_app_title_ready,
         grok_auth_popup_may_complete_login, grok_bridge_drive_allowed, grok_bridge_host_action,
         grok_bridge_install_ready, grok_bridge_result_is_current, grok_challenge_title_active,
-        grok_document_title_signal, grok_popup_recovery_claim_is_current,
+        grok_document_title_signal, grok_external_auth_handoff_needs_app_return,
+        grok_external_auth_return_is_current, grok_popup_recovery_claim_is_current,
         grok_popup_recovery_needed, grok_reconnect_allowed, grok_stale_reason,
         parse_grok_bridge_drive_outcome, physical_bounds, popup_initial_title,
-        prepare_grok_navigation, prepare_grok_popup_recovery,
+        prepare_grok_external_auth_return, prepare_grok_navigation, prepare_grok_popup_recovery,
         provider_document_allows_generic_eval, provider_show_should_focus,
         provider_state_allows_control_eval, provider_uses_document_start_bridge,
         provider_uses_permission_shim, record_grok_bridge_challenge, reset_state_for_page_load,
@@ -2394,6 +2494,31 @@ mod tests {
             "grok",
             &url("about:config")
         ));
+    }
+
+    #[test]
+    fn grok_returns_to_its_app_only_after_the_exact_denied_xai_auth_handoff() {
+        let denied_popup = url("https://auth.x.ai/oauth/authorize?state=test");
+        assert!(grok_external_auth_handoff_needs_app_return(
+            "grok",
+            &denied_popup
+        ));
+        assert_eq!(
+            decide_new_window_action(&denied_popup, false),
+            NewWindowAction::DenyExternal
+        );
+        for (provider, value) in [
+            ("chatgpt", "https://auth.x.ai/oauth/authorize"),
+            ("grok", "http://auth.x.ai/oauth/authorize"),
+            ("grok", "https://auth.x.ai:8443/oauth/authorize"),
+            ("grok", "https://user:pass@auth.x.ai/oauth/authorize"),
+            ("grok", "https://auth.x.ai.evil.net/oauth/authorize"),
+        ] {
+            assert!(
+                !grok_external_auth_handoff_needs_app_return(provider, &url(value)),
+                "{provider} {value}"
+            );
+        }
     }
 
     #[test]
@@ -3160,6 +3285,43 @@ mod tests {
         guard.grok_document_epoch.remove(provider);
         guard.grok_pending_navigation.remove(provider);
         guard.pending_session_boot.remove(provider);
+    }
+
+    #[test]
+    fn delayed_external_auth_return_cannot_take_over_a_newer_grok_document() {
+        let _test_guard = GROK_RUNTIME_TEST_LOCK.lock().expect("Grok test lock");
+        let provider = "grok";
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.grok_document_epoch.insert(provider.into(), 70);
+            guard.grok_pending_navigation.remove(provider);
+        }
+
+        assert!(prepare_grok_external_auth_return(provider, 69).is_none());
+        let prepared = prepare_grok_external_auth_return(provider, 70)
+            .expect("the current auth document may reserve one return");
+        assert_eq!(prepared, 71);
+        assert!(grok_external_auth_return_is_current(provider, 70, prepared));
+        assert!(prepare_grok_external_auth_return(provider, 70).is_none());
+        cancel_grok_navigation(provider, prepared);
+        assert!(!grok_external_auth_return_is_current(
+            provider, 70, prepared
+        ));
+
+        {
+            let mut guard = runtime().lock().expect("provider runtime lock");
+            guard.grok_document_epoch.insert(provider.into(), 72);
+        }
+        assert!(prepare_grok_external_auth_return(provider, 70).is_none());
+        assert!(!grok_external_auth_return_is_current(
+            provider, 70, prepared
+        ));
+        assert!(prepare_grok_external_auth_return("chatgpt", 72).is_none());
+        assert!(prepare_grok_external_auth_return(provider, 0).is_none());
+
+        let mut guard = runtime().lock().expect("provider runtime lock");
+        guard.grok_document_epoch.remove(provider);
+        guard.grok_pending_navigation.remove(provider);
     }
 
     #[test]
