@@ -460,6 +460,60 @@ describe('injected engine input hardening', () => {
     expect(errorDone(env)).toBeUndefined();
   });
 
+  it('reports Meta AI logged out while its pre-login composer remains inert', async () => {
+    const env = createEnv({ inputKind: 'input' });
+    const inertComposerSelector = '[inert] input[aria-label="Ask Meta AI"]';
+    env.detectorElements.set(inertComposerSelector, [env.input]);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, {
+      provider: 'meta',
+      inputSelectors: ['input[aria-label="Ask Meta AI"]'],
+      loginDetectors: ['input[aria-label="Ask Meta AI"]'],
+      loggedOutDetectors: [inertComposerSelector, '[data-testid="login-button"]'],
+    });
+
+    expect(env.emitted.at(-1)).toEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'meta',
+      payload: { dom: 'ready', login: 'logged_out', thinking: false, bootId: 'boot1' },
+    });
+  });
+
+  it('injects and verifies Meta AI native input composers before clicking SEND', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'input' });
+    const input = env.input as FakeInputElement;
+    input.setAttribute('aria-label', 'Ask Meta AI');
+    const prompt = '請用 Meta AI 比較 **A** 與 `B`。';
+    const inputEventValues: string[] = [];
+    input.onDispatch = (event) => {
+      if (event.type === 'input') inputEventValues.push(input.value);
+    };
+    let submitted = '';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        submitted = input.value;
+        input.setVisibleText('');
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'meta' });
+
+    send(handler, prompt, 'meta');
+    await flushMicrotasks();
+
+    expect(input.value).toBe(prompt);
+    expect(inputEventValues).toEqual([prompt]);
+
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + SEND_RETRY_DELAY_MS + 1);
+
+    expect(submitted).toBe(prompt);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
   it('fills the current Grok textarea without clicking SEND', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -2722,11 +2776,13 @@ describe('injected engine input hardening', () => {
   });
 });
 
-function createEnv(options: { inputKind: 'textarea' | 'contenteditable'; sendButton?: FakeElement | null }): FakeDomEnv {
+function createEnv(options: { inputKind: 'textarea' | 'input' | 'contenteditable'; sendButton?: FakeElement | null }): FakeDomEnv {
   const document = new FakeDocument();
   const input =
     options.inputKind === 'textarea'
       ? new FakeTextAreaElement(document, 'textarea')
+      : options.inputKind === 'input'
+        ? new FakeInputElement(document, 'input')
       : new FakeElement(document, 'div');
   const env: FakeDomEnv = {
     document,
@@ -2938,6 +2994,23 @@ class FakeTextAreaElement extends FakeElement {
   }
 }
 
+class FakeInputElement extends FakeElement {
+  private currentValue = '';
+
+  get value(): string {
+    return this.currentValue;
+  }
+
+  set value(next: string) {
+    this.currentValue = next;
+    this.textContent = next;
+  }
+
+  override setVisibleText(text: string) {
+    this.value = text;
+  }
+}
+
 class FakeImageElement extends FakeElement {
   readonly complete: boolean;
   readonly naturalWidth: number;
@@ -3071,6 +3144,7 @@ function installEngineGlobals(env: FakeDomEnv) {
     clearTimeout: typeof clearTimeout;
     getSelection: () => { removeAllRanges: () => void; addRange: (_range: unknown) => void };
     HTMLTextAreaElement: typeof FakeTextAreaElement;
+    HTMLInputElement: typeof FakeInputElement;
   } = {
     __MAC_BRIDGE__: {
       bootId: 'boot1',
@@ -3090,6 +3164,7 @@ function installEngineGlobals(env: FakeDomEnv) {
       },
     }),
     HTMLTextAreaElement: FakeTextAreaElement,
+    HTMLInputElement: FakeInputElement,
   };
   fakeWindow.self = fakeWindow;
   fakeWindow.top = fakeWindow;
@@ -3098,6 +3173,7 @@ function installEngineGlobals(env: FakeDomEnv) {
   vi.stubGlobal('document', env.document);
   vi.stubGlobal('location', { href: 'https://grok.com', hostname: 'grok.com', pathname: '/' });
   vi.stubGlobal('HTMLTextAreaElement', FakeTextAreaElement);
+  vi.stubGlobal('HTMLInputElement', FakeInputElement);
   vi.stubGlobal('HTMLImageElement', FakeImageElement);
   vi.stubGlobal('Event', FakeEvent);
   vi.stubGlobal('KeyboardEvent', FakeKeyboardEvent);

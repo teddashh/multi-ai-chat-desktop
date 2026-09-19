@@ -55,6 +55,7 @@ interface ReplayOptions {
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
   locale?: Locale;
   responseLanguagePolicy?: ResponseLanguagePolicy;
+  activeProviders?: readonly AIProvider[];
 }
 
 type ReplayInput = { snapshotId: string; question?: string } | { snapshot: ExecutionSnapshot; question?: string };
@@ -147,7 +148,7 @@ export async function replaySnapshot(input: ReplayInput, options: ReplayOptions 
   const preflight = await preflightGraph(plan.graph!, plan.roles);
   if (!preflight.ok) return { ok: false, blocked: 'preflight', preflight };
 
-  const targets = await replayTargets(plan);
+  const targets = await replayTargets(plan, options.activeProviders);
   const appVersion = await getRuntimeAppVersion();
   const responseLanguagePolicy = plan.responseLanguagePolicy ?? options.responseLanguagePolicy;
 
@@ -222,13 +223,14 @@ function freeTargets(snapshot: ExecutionSnapshot): AIProvider[] | undefined {
   return targets.length > 0 ? targets : undefined;
 }
 
-async function replayTargets(plan: ReplayPlan): Promise<AIProvider[] | undefined> {
+async function replayTargets(plan: ReplayPlan, activeProviders?: readonly AIProvider[]): Promise<AIProvider[] | undefined> {
   if (plan.graph?.preflight.kind !== 'free') return plan.targets;
   const snapshot = await host.connections.get();
   const sendable = snapshot.filter(isSendable).map((state) => state.provider);
+  const active = activeProviders ?? DEFAULT_FREE_TARGET_PROVIDERS;
   return plan.targets === undefined
-    ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
-    : plan.targets.filter((provider) => sendable.includes(provider));
+    ? sendable.filter((provider) => active.includes(provider))
+    : plan.targets.filter((provider) => sendable.includes(provider) && active.includes(provider));
 }
 
 function inlineText(ref: RedactedValueRef | undefined): string | undefined {

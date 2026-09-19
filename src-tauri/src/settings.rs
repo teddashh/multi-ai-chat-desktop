@@ -1,11 +1,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 
 static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
+static PROVIDER_LIFECYCLE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 const DEFAULT_LANGUAGE: &str = "system";
 const LANGUAGES: &[&str] = &["system", "en", "zh-TW", "ja", "de"];
 const DEFAULT_RESPONSE_LANGUAGE: &str = "auto";
@@ -18,8 +20,16 @@ const RESIZER_WIDTH: f64 = 6.0;
 const SETTINGS_NORMALIZATION_CONTAINER_WIDTH: f64 = 1400.0;
 const DEFAULT_SNAPSHOT_REDACTION_TIER: &str = "metadata-only";
 const SNAPSHOT_REDACTION_TIERS: &[&str] = &["metadata-only", "hashes", "prompt-text", "full-local"];
-const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok"];
+const PROVIDERS: &[&str] = &["chatgpt", "claude", "gemini", "grok", "meta"];
+const DEFAULT_STANDBY_PROVIDER: &str = "meta";
 const PRESENTATION_STATES: &[&str] = &["chip", "side", "center"];
+
+pub(crate) fn lock_provider_lifecycle() -> Result<MutexGuard<'static, ()>, String> {
+    PROVIDER_LIFECYCLE_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .map_err(|_| "provider lifecycle lock is poisoned".to_string())
+}
 
 pub(crate) fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
@@ -45,14 +55,19 @@ pub fn read_settings(path: &Path) -> Result<Value, String> {
     }
 }
 
-pub fn write_settings(path: &Path, settings: &Value) -> Result<(), String> {
+#[cfg(test)]
+fn write_settings(path: &Path, settings: &Value) -> Result<(), String> {
+    let bytes = serialized_settings(settings)?;
+    write_atomic(path, &bytes)
+}
+
+fn serialized_settings(settings: &Value) -> Result<Vec<u8>, String> {
     let mut persisted = settings.clone();
     if let Value::Object(map) = &mut persisted {
         map.remove("portable");
     }
 
-    let bytes = serde_json::to_vec_pretty(&persisted).map_err(|error| error.to_string())?;
-    write_atomic(path, &bytes)
+    serde_json::to_vec_pretty(&persisted).map_err(|error| error.to_string())
 }
 
 pub fn normalize_settings_value(settings: Value) -> Value {
@@ -119,7 +134,13 @@ pub fn normalize_settings_value(settings: Value) -> Value {
             Value::String(tier.to_string()),
         );
 
-        let presentation = normalize_presentation_value(map.get("presentation"));
+        let standby_provider = normalize_standby_provider(map.get("standbyProvider"));
+        map.insert(
+            "standbyProvider".to_string(),
+            Value::String(standby_provider.clone()),
+        );
+
+        let presentation = normalize_presentation_value(map.get("presentation"), &standby_provider);
         map.insert("presentation".to_string(), presentation);
     }
     settings
@@ -135,17 +156,69 @@ fn number_value(value: f64) -> Value {
     Value::Number(serde_json::Number::from(value as i64))
 }
 
-fn normalize_presentation_value(value: Option<&Value>) -> Value {
+fn normalize_standby_provider(value: Option<&Value>) -> String {
+    value
+        .and_then(Value::as_str)
+        .filter(|provider| PROVIDERS.contains(provider))
+        .unwrap_or(DEFAULT_STANDBY_PROVIDER)
+        .to_string()
+}
+
+fn active_providers_for_settings(settings: &Value) -> Vec<&'static str> {
+    let standby_provider = normalize_standby_provider(settings.get("standbyProvider"));
+    PROVIDERS
+        .iter()
+        .copied()
+        .filter(|provider| *provider != standby_provider)
+        .collect()
+}
+
+fn ensure_provider_active_value(settings: &Value, provider: &str) -> Result<(), String> {
+    if !PROVIDERS.contains(&provider) {
+        return Err(format!("unknown provider: {provider}"));
+    }
+    if active_providers_for_settings(settings).contains(&provider) {
+        return Ok(());
+    }
+    Err(format!(
+        "{provider} is configured as the standby provider; select it in Settings before opening it"
+    ))
+}
+
+pub(crate) fn ensure_provider_active(app: &AppHandle, provider: &str) -> Result<(), String> {
+    let _lifecycle_guard = lock_provider_lifecycle()?;
+    ensure_provider_active_locked(app, provider)
+}
+
+pub(crate) fn ensure_provider_active_locked(app: &AppHandle, provider: &str) -> Result<(), String> {
+    // A damaged settings file must not brick every provider command. Startup already falls back
+    // to the default lineup, so the native guard uses the same safe Meta-standby default.
+    let settings =
+        read_settings(&settings_path(app)?).unwrap_or_else(|_| Value::Object(Map::new()));
+    let standby_provider = normalize_standby_provider(settings.get("standbyProvider"));
+    crate::webviews::close_standby_provider(app, &standby_provider)?;
+    ensure_provider_active_value(&settings, provider)
+}
+
+fn read_settings_for_provider_guard(path: &Path) -> Value {
+    read_settings(path).unwrap_or_else(|_| Value::Object(Map::new()))
+}
+
+fn normalize_presentation_value(value: Option<&Value>, standby_provider: &str) -> Value {
     let input = value.and_then(|value| value.as_object());
     let mut map = Map::new();
     let mut center_seen = false;
 
     for provider in PROVIDERS {
-        let candidate = input
-            .and_then(|object| object.get(*provider))
-            .and_then(|value| value.as_str())
-            .filter(|value| PRESENTATION_STATES.contains(value))
-            .unwrap_or_else(|| default_presentation(provider));
+        let candidate = if *provider == standby_provider {
+            "chip"
+        } else {
+            input
+                .and_then(|object| object.get(*provider))
+                .and_then(|value| value.as_str())
+                .filter(|value| PRESENTATION_STATES.contains(value))
+                .unwrap_or("side")
+        };
         let normalized = if candidate == "center" {
             if center_seen {
                 "side"
@@ -165,11 +238,15 @@ fn normalize_presentation_value(value: Option<&Value>) -> Value {
     Value::Object(map)
 }
 
-fn default_presentation(_provider: &str) -> &'static str {
-    "side"
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    write_atomic_before_replace(path, bytes, || Ok(()))
 }
 
-pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
+fn write_atomic_before_replace(
+    path: &Path,
+    bytes: &[u8],
+    before_replace: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
@@ -185,6 +262,10 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if let Err(error) = std::fs::write(&tmp_path, bytes) {
         let _ = std::fs::remove_file(&tmp_path);
         return Err(error.to_string());
+    }
+    if let Err(error) = before_replace() {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(error);
     }
     if let Err(error) = replace_file(&tmp_path, path) {
         let _ = std::fs::remove_file(&tmp_path);
@@ -228,8 +309,14 @@ fn replace_file(tmp_path: &Path, path: &Path) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn settings_get(app: AppHandle) -> Result<serde_json::Value, String> {
+    let _lifecycle_guard = lock_provider_lifecycle()?;
     let path = settings_path(&app)?;
-    let mut settings = normalize_settings_value(read_settings(&path)?);
+    let mut settings = normalize_settings_value(read_settings_for_provider_guard(&path));
+    let standby_provider = settings
+        .get("standbyProvider")
+        .and_then(Value::as_str)
+        .unwrap_or(DEFAULT_STANDBY_PROVIDER);
+    crate::webviews::close_standby_provider(&app, standby_provider)?;
     if let Value::Object(map) = &mut settings {
         map.insert(
             "portable".to_string(),
@@ -241,10 +328,20 @@ pub async fn settings_get(app: AppHandle) -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 pub async fn settings_set(app: AppHandle, settings: serde_json::Value) -> Result<(), String> {
+    let _lifecycle_guard = lock_provider_lifecycle()?;
     let path = settings_path(&app)?;
     let previous = read_settings(&path).unwrap_or_else(|_| Value::Object(Map::new()));
     let settings = normalize_settings_value(settings);
-    write_settings(&path, &settings)?;
+    let standby_provider = settings
+        .get("standbyProvider")
+        .and_then(Value::as_str)
+        .unwrap_or(DEFAULT_STANDBY_PROVIDER);
+    let bytes = serialized_settings(&settings)?;
+    // Prepare and validate the complete write before retiring the new standby. The final atomic
+    // replace happens only after the WebView close succeeds.
+    write_atomic_before_replace(&path, &bytes, || {
+        crate::webviews::close_standby_provider(&app, standby_provider)
+    })?;
     let changed = |key: &str| {
         previous.get(key).and_then(|value| value.as_str())
             != settings.get(key).and_then(|value| value.as_str())
@@ -317,7 +414,11 @@ pub async fn open_external_url(
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_settings_value, read_settings, write_settings};
+    use super::{
+        active_providers_for_settings, ensure_provider_active_value, normalize_settings_value,
+        read_settings, read_settings_for_provider_guard, write_atomic_before_replace,
+        write_settings,
+    };
     use serde_json::json;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -369,6 +470,20 @@ mod tests {
     }
 
     #[test]
+    fn malformed_settings_fall_back_to_the_safe_provider_lineup() {
+        let path = unique_path("malformed-provider-guard");
+        std::fs::write(&path, b"{not-json").expect("write malformed settings");
+
+        let settings = read_settings_for_provider_guard(&path);
+        for provider in ["chatgpt", "claude", "gemini", "grok"] {
+            assert!(ensure_provider_active_value(&settings, provider).is_ok());
+        }
+        assert!(ensure_provider_active_value(&settings, "meta").is_err());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn atomic_write_removes_tmp_and_overwrites_cleanly() {
         let path = unique_path("overwrite");
 
@@ -402,6 +517,37 @@ mod tests {
     }
 
     #[test]
+    fn failed_pre_replace_hook_preserves_settings_and_removes_tmp() {
+        let path = unique_path("pre-replace-failure");
+        write_settings(&path, &json!({ "value": 1 })).expect("seed settings");
+
+        let error = write_atomic_before_replace(&path, br#"{"value":2}"#, || {
+            Err("standby close failed".to_string())
+        })
+        .expect_err("hook failure must abort replace");
+
+        assert_eq!(error, "standby close failed");
+        assert_eq!(
+            read_settings(&path).expect("read preserved settings"),
+            json!({ "value": 1 })
+        );
+        let base = path.file_name().and_then(|name| name.to_str()).unwrap();
+        let leftovers: Vec<_> = std::fs::read_dir(path.parent().expect("temp parent"))
+            .expect("read temp dir")
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.starts_with(base) && name.ends_with(".tmp"))
+            })
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left behind");
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn normalizes_snapshot_settings_to_opt_in_safe_defaults() {
         assert_eq!(
             normalize_settings_value(json!({})),
@@ -412,11 +558,13 @@ mod tests {
                 "focusPaneWidth": 620,
                 "snapshotPersistence": false,
                 "snapshotRedactionTier": "metadata-only",
+                "standbyProvider": "meta",
                 "presentation": {
                     "chatgpt": "side",
                     "claude": "side",
                     "gemini": "side",
-                    "grok": "side"
+                    "grok": "side",
+                    "meta": "chip"
                 }
             })
         );
@@ -438,11 +586,13 @@ mod tests {
                 "focusPaneWidth": 620,
                 "snapshotPersistence": true,
                 "snapshotRedactionTier": "full-local",
+                "standbyProvider": "meta",
                 "presentation": {
                     "chatgpt": "chip",
                     "claude": "center",
                     "gemini": "side",
-                    "grok": "side"
+                    "grok": "side",
+                    "meta": "chip"
                 }
             })
         );
@@ -465,14 +615,78 @@ mod tests {
                 "focusPaneWidth": 620,
                 "snapshotPersistence": false,
                 "snapshotRedactionTier": "metadata-only",
+                "standbyProvider": "meta",
                 "presentation": {
                     "chatgpt": "center",
                     "claude": "side",
                     "gemini": "side",
-                    "grok": "side"
+                    "grok": "side",
+                    "meta": "chip"
                 }
             })
         );
+    }
+
+    #[test]
+    fn normalizes_standby_provider_and_keeps_exactly_four_active() {
+        for standby in ["chatgpt", "claude", "gemini", "grok", "meta"] {
+            let normalized = normalize_settings_value(json!({ "standbyProvider": standby }));
+            assert_eq!(normalized.get("standbyProvider"), Some(&json!(standby)));
+
+            let active = active_providers_for_settings(&normalized);
+            assert_eq!(active.len(), 4);
+            assert!(!active.contains(&standby));
+        }
+
+        for invalid in [json!(null), json!("unknown"), json!(42)] {
+            let normalized = normalize_settings_value(json!({ "standbyProvider": invalid }));
+            assert_eq!(normalized.get("standbyProvider"), Some(&json!("meta")));
+            assert_eq!(
+                active_providers_for_settings(&normalized),
+                vec!["chatgpt", "claude", "gemini", "grok"]
+            );
+        }
+    }
+
+    #[test]
+    fn standby_provider_is_denied_until_selected() {
+        let default_settings = json!({});
+        for provider in ["chatgpt", "claude", "gemini", "grok"] {
+            assert!(ensure_provider_active_value(&default_settings, provider).is_ok());
+        }
+        assert_eq!(
+            ensure_provider_active_value(&default_settings, "meta").unwrap_err(),
+            "meta is configured as the standby provider; select it in Settings before opening it"
+        );
+
+        let grok_standby = json!({ "standbyProvider": "grok" });
+        assert!(ensure_provider_active_value(&grok_standby, "meta").is_ok());
+        assert!(ensure_provider_active_value(&grok_standby, "grok").is_err());
+        assert_eq!(
+            ensure_provider_active_value(&grok_standby, "not-a-provider").unwrap_err(),
+            "unknown provider: not-a-provider"
+        );
+    }
+
+    #[test]
+    fn standby_provider_is_forced_to_chip_presentation() {
+        let normalized = normalize_settings_value(json!({
+            "standbyProvider": "grok",
+            "presentation": {
+                "chatgpt": "side",
+                "claude": "side",
+                "gemini": "side",
+                "grok": "center",
+                "meta": "center"
+            }
+        }));
+
+        assert_eq!(normalized["presentation"]["grok"], json!("chip"));
+        assert_eq!(normalized["presentation"]["meta"], json!("center"));
+
+        let missing_presentation = normalize_settings_value(json!({ "standbyProvider": "grok" }));
+        assert_eq!(missing_presentation["presentation"]["grok"], json!("chip"));
+        assert_eq!(missing_presentation["presentation"]["meta"], json!("side"));
     }
 
     #[test]

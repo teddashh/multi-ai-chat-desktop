@@ -224,6 +224,33 @@ describe('ReplayPanel', () => {
     expect(host.provider.openLogin).not.toHaveBeenCalled();
   });
 
+  it('does not offer login for an unavailable standby provider', async () => {
+    const snapshot = buildSnapshot();
+    vi.mocked(getLastSnapshot).mockReturnValue(snapshot);
+    vi.mocked(replaySnapshot).mockResolvedValueOnce({
+      ok: false,
+      blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['meta'], aliased: [] },
+    });
+    const onOpenLogin = vi.fn().mockResolvedValue(undefined);
+    const panel = new ReplayPanel({
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'grok'],
+      onOpenLogin,
+    });
+
+    propsOf(buttonWithText(panel.render(), t('replay.lastRun', 'en'))).onClick?.();
+    await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
+
+    const tree = panel.render();
+    expect(renderToStaticMarkup(tree)).toContain(`Meta AI ${t('replay.unavailable', 'en')}`);
+    expect(findAllElements(
+      tree,
+      (element) => element.type === 'button' && textOf(element).includes(t('replay.openLogin', 'en')),
+    )).toHaveLength(0);
+    expect(onOpenLogin).not.toHaveBeenCalled();
+    expect(host.provider.openLogin).not.toHaveBeenCalled();
+  });
+
   it('shows missing snapshots as a small error line', async () => {
     const snapshot = buildSnapshot();
     vi.mocked(getLastSnapshot).mockReturnValue(snapshot);

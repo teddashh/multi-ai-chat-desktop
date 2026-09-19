@@ -41,6 +41,7 @@ interface ReplayNotice {
 export interface ReplayPanelProps {
   locale?: Locale;
   responseLanguagePolicy?: ResponseLanguagePolicy;
+  activeProviders?: readonly AIProvider[];
   onReplayWillRun?: (plan: ReplayPlan) => void;
   onReplaySettled?: () => void;
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
@@ -116,6 +117,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
         onSnapshotComplete: this.props.onSnapshotComplete,
         locale: this.locale(),
         responseLanguagePolicy: this.props.responseLanguagePolicy,
+        activeProviders: this.props.activeProviders,
       });
 
       if (result.ok) {
@@ -324,17 +326,19 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
               {unavailable.map((provider) => (
                 <div key={provider} className="flex items-center justify-between gap-3 border border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-950 px-2 py-1.5">
                   <span>{providerName(provider)} {this.t('replay.unavailable')}</span>
-                  <button
-                    type="button"
-                    className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950"
-                    onClick={() => void (
-                      this.props.onOpenLogin
-                        ? this.props.onOpenLogin(provider)
-                        : host.provider.openLogin(provider)
-                    )}
-                  >
-                    {this.t('replay.openLogin')}
-                  </button>
+                  {this.props.activeProviders?.includes(provider) !== false ? (
+                    <button
+                      type="button"
+                      className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950"
+                      onClick={() => void (
+                        this.props.onOpenLogin
+                          ? this.props.onOpenLogin(provider)
+                          : host.provider.openLogin(provider)
+                      )}
+                    >
+                      {this.t('replay.openLogin')}
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>

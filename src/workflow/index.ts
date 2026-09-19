@@ -22,6 +22,7 @@ export interface RunWorkflowParams {
   presetId?: WorkflowPresetId;
   roles?: ModeRoles;
   targets?: AIProvider[];
+  activeProviders?: readonly AIProvider[];
   checkpoints?: boolean;
   locale?: Locale;
   snapshotPersistence?: boolean;
@@ -55,6 +56,7 @@ async function runPreparedWorkflow({
   presetId,
   roles,
   targets,
+  activeProviders,
   checkpoints,
   locale,
   snapshotPersistence,
@@ -84,10 +86,11 @@ async function runPreparedWorkflow({
     if (!CHAT_MODES[mode].serial) {
       const snapshot = await host.connections.get();
       const sendable = snapshot.filter(isSendable).map((state) => state.provider);
+      const active = activeProviders ?? DEFAULT_FREE_TARGET_PROVIDERS;
       const targetSet =
         targets === undefined
-          ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
-          : targets.filter((provider) => sendable.includes(provider));
+          ? sendable.filter((provider) => active.includes(provider))
+          : targets.filter((provider) => sendable.includes(provider) && active.includes(provider));
       await executeGraph(
         workflowGraphs.free,
         { text, context, targets: targetSet, checkpoints, locale, responseLanguagePolicy },

@@ -226,9 +226,16 @@ export const ja: Record<I18nKey, string> = {
   'settings.title': '設定',
   'settings.close': '閉じる',
   'settings.general': '一般',
+  'settings.providers': '有効なAI',
+  'settings.providersDescription':
+    '常に4つのAIを有効にします。別の予備AIを選ぶと、そのAIが無効になり、これまでの予備AIが有効になります。両方のログイン情報は保持されます。',
+  'settings.providersDefault': 'デフォルトの予備',
+  'settings.providersSelect': '予備のAI',
+  'settings.providerActive': '有効',
+  'settings.providerStandby': '予備',
   'settings.modeRoles': 'コラボレーションの役割',
   'settings.modeRolesDescription':
-    '組み込みの構造化プリセットでは、ChatGPT、Claude、Gemini、Grok を各 1 役に割り当てます。役割はカスタマイズでき、直列の役割では同じ AI を再利用できますが、同時に実行される役割（例：コンサルの最初の回答者 2 名）は重複させないでください。',
+    '組み込みの構造化プリセットでは、現在有効な 4 つの AI を各 1 役に割り当てます。役割はカスタマイズでき、直列の役割では同じ AI を再利用できますが、同時に実行される役割（例：コンサルの最初の回答者 2 名）は重複させないでください。',
   'settings.modeRoles.coding.planner': 'プランナー',
   'settings.modeRoles.coding.reviewer': 'レビュアー',
   'settings.modeRoles.coding.coder': '実装担当',

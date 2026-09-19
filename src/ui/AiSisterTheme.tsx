@@ -7,18 +7,29 @@ import geminiAvatarUrl from '../assets/themes/ai-sister/gemini.webp';
 import grokAvatarUrl from '../assets/themes/ai-sister/grok.webp';
 import { useI18n } from '../i18n/context';
 
-const AVATAR_URLS: Record<AIProvider, string> = {
+// The commemorative artwork intentionally covers the original four characters.
+// Optional providers use a small text badge so adding one cannot crash the theme
+// while trying to render a missing image.
+const AVATAR_URLS: Partial<Record<AIProvider, string>> = {
   chatgpt: chatgptAvatarUrl,
   claude: claudeAvatarUrl,
   gemini: geminiAvatarUrl,
   grok: grokAvatarUrl,
 };
 
-const PROVIDER_ACCENTS: Record<AIProvider, { solid: string; shadow: string }> = {
+interface ProviderAccent {
+  solid: string;
+  shadow: string;
+}
+
+const META_ACCENT: ProviderAccent = { solid: '#1877f2', shadow: 'rgba(24, 119, 242, 0.5)' };
+
+const PROVIDER_ACCENTS: Record<AIProvider, ProviderAccent> = {
   chatgpt: { solid: '#2dd4bf', shadow: 'rgba(45, 212, 191, 0.48)' },
   claude: { solid: '#f6b94b', shadow: 'rgba(246, 185, 75, 0.48)' },
   gemini: { solid: '#a78bfa', shadow: 'rgba(167, 139, 250, 0.5)' },
   grok: { solid: '#8b5cf6', shadow: 'rgba(139, 92, 246, 0.5)' },
+  meta: META_ACCENT,
 };
 
 export type AiSisterAvatarSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -34,9 +45,11 @@ export function AiSisterAvatar({
   size?: AiSisterAvatarSize;
   className?: string;
 }) {
+  const accent = PROVIDER_ACCENTS[provider];
+  const avatarUrl = AVATAR_URLS[provider];
   const style = {
-    '--ai-sister-accent': PROVIDER_ACCENTS[provider].solid,
-    '--ai-sister-accent-shadow': PROVIDER_ACCENTS[provider].shadow,
+    '--ai-sister-accent': accent.solid,
+    '--ai-sister-accent-shadow': accent.shadow,
   } as CSSProperties;
 
   return (
@@ -47,7 +60,17 @@ export function AiSisterAvatar({
       style={style}
       aria-hidden="true"
     >
-      <img src={AVATAR_URLS[provider]} alt="" draggable={false} />
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" draggable={false} />
+      ) : (
+        <span
+          className="grid h-full w-full place-items-center rounded-[inherit] text-[0.7em] font-bold"
+          data-avatar-fallback="true"
+          style={{ color: accent.solid }}
+        >
+          {provider.slice(0, 1).toUpperCase()}
+        </span>
+      )}
     </span>
   );
 }

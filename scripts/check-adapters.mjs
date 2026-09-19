@@ -90,6 +90,30 @@ const expected = {
     thinkingDetectors: ['button[data-testid="chat-stop"]', 'button[aria-label="Stop"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop response"]', '[data-streaming="true"]', { selector: '.thinking-container', textIncludes: 'Thinking', textExcludes: 'Thought for' }],
     stopButtonSelectors: ['button[data-testid="chat-stop"]', 'button[aria-label="Stop"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop response"]'],
   },
+  meta: {
+    schemaVersion: 1,
+    adapterVersion: 1,
+    urls: {
+      app: 'https://www.meta.ai',
+      login: 'https://www.meta.ai',
+      match: ['www.meta.ai/*', 'meta.ai/*'],
+      ssoMatch: ['auth.meta.com/*', 'auth.meta.ai/*'],
+    },
+    inputStrategy: 'default',
+    doneDelayMs: 5000,
+    chunkDebounceMs: 600,
+    inputSelectors: ['input[aria-label="Ask Meta AI"]', 'textarea[data-ecto-composer-prehydration-input]'],
+    sendButtonSelectors: ['[data-testid="composer-send-button"]', 'button[aria-label="Send"]'],
+    responseSelectors: ['[data-message-item]:not([data-user-message])', '[data-testid="assistant-message"]'],
+    loginDetectors: ['input[aria-label="Ask Meta AI"]', 'textarea[data-ecto-composer-prehydration-input]', 'button[aria-label="Send"]'],
+    loggedOutDetectors: [
+      '[inert] input[aria-label="Ask Meta AI"]',
+      '[inert] textarea[data-ecto-composer-prehydration-input]',
+      '[data-testid="login-button"]',
+    ],
+    thinkingDetectors: ['[data-testid="composer-stop-button"]', 'button[aria-label="Stop"]'],
+    stopButtonSelectors: ['[data-testid="composer-stop-button"]', 'button[aria-label="Stop"]'],
+  },
 };
 
 const assertEqual = (actual, expectedValue, label) => {
@@ -135,5 +159,31 @@ if (validate({ ...grokAdapter, schemaVersion: 1 })) {
 if (validate({ ...grokAdapter, loggedOutDetectors: [{ selector: 'button', textIncludes: '' }] })) {
   throw new Error('schema unexpectedly accepted an empty detector text filter');
 }
+
+// Meta starts as a deliberately narrow seed. These assertions keep unverified DOM fallbacks and
+// authentication origins from entering through an unrelated adapter update.
+const metaAdapter = JSON.parse(await readFile(path.join(adapterDir, 'meta.json'), 'utf8'));
+assertEqual(metaAdapter.urls.match, ['www.meta.ai/*', 'meta.ai/*'], 'meta.initialSeed.appScopes');
+assertEqual(metaAdapter.urls.ssoMatch, ['auth.meta.com/*', 'auth.meta.ai/*'], 'meta.initialSeed.ssoScopes');
+assertEqual(
+  metaAdapter.responseSelectors,
+  ['[data-message-item]:not([data-user-message])', '[data-testid="assistant-message"]'],
+  'meta.initialSeed.responseSelectors',
+);
+assertEqual(
+  metaAdapter.thinkingDetectors,
+  ['[data-testid="composer-stop-button"]', 'button[aria-label="Stop"]'],
+  'meta.initialSeed.thinkingDetectors',
+);
+assertEqual(
+  metaAdapter.stopButtonSelectors,
+  ['[data-testid="composer-stop-button"]', 'button[aria-label="Stop"]'],
+  'meta.initialSeed.stopButtonSelectors',
+);
+assertEqual(
+  metaAdapter.timing,
+  { doneDelayMs: 5000, chunkDebounceMs: 600, statusIntervalMs: 10000, backupPollMs: 3000 },
+  'meta.initialSeed.timing',
+);
 
 console.log('Adapter schema and SPEC section 5.1 seed checks passed.');

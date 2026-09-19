@@ -1,4 +1,4 @@
-import { AI_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS, DEFAULT_STANDBY_PROVIDER } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 
 export type WebviewPresentationState = 'chip' | 'side' | 'center';
@@ -12,16 +12,21 @@ export function isWebviewPresentationState(value: unknown): value is WebviewPres
 }
 
 export function defaultPresentation(): PresentationByProvider {
-  return Object.fromEntries(PROVIDERS.map((provider) => [provider, defaultPresentationState()])) as PresentationByProvider;
+  return Object.fromEntries(PROVIDERS.map((provider) => [provider, defaultPresentationState(provider)])) as PresentationByProvider;
 }
 
-export function normalizePresentation(value: unknown, _fallback: PresentationByProvider = defaultPresentation()): PresentationByProvider {
+export function normalizePresentation(value: unknown, fallback: PresentationByProvider = defaultPresentation()): PresentationByProvider {
   const input = value && typeof value === 'object' ? (value as Partial<Record<AIProvider, unknown>>) : {};
   const next = {} as PresentationByProvider;
   let centerSeen = false;
 
   for (const provider of PROVIDERS) {
-    const candidate = isWebviewPresentationState(input[provider]) ? input[provider] : defaultPresentationState();
+    const supplied = input[provider];
+    const candidate = isWebviewPresentationState(supplied)
+      ? supplied
+      : supplied === undefined
+        ? fallback[provider]
+        : 'side';
     if (candidate === 'center') {
       next[provider] = centerSeen ? 'side' : 'center';
       centerSeen = true;
@@ -33,8 +38,8 @@ export function normalizePresentation(value: unknown, _fallback: PresentationByP
   return next;
 }
 
-function defaultPresentationState(): WebviewPresentationState {
-  return 'side';
+function defaultPresentationState(provider: AIProvider): WebviewPresentationState {
+  return provider === DEFAULT_STANDBY_PROVIDER ? 'chip' : 'side';
 }
 
 export function setProviderPresentation(

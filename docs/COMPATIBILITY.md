@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-09-17 after the v1.8.8 Windows login and long-response smokes. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-09-19 after the v1.8.8 Windows login and long-response smokes plus a logged-out Meta AI DOM probe. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -41,6 +41,7 @@ The v2.0.0 source contract supports Node.js `^22.13.0 || >=24.0.0`, matching the
 | Claude | v4 | v3 text workflow **Verified**; v4 login-page detection and explicit Google SSO scope have automated coverage and await live retest | Not a compatibility claim |
 | Gemini | v2 | Base text workflow **Verified**; bounded Google `/sorry` navigation, blocked status, and passive bridge behavior have automated coverage and await live retest | Not a compatibility claim |
 | Grok | v7 + engine compatibility fallback | Base text workflow **Verified**; focused tests recognize all three current textarea composer selectors, preserve exact Unicode/Markdown input across a composer remount, detect and stop the current `chat-stop-button`, and keep login ready during the composer-to-generation-control transition. Host tests cover an explicit guarded reconnect for the unchanged-title bridge wedge without evaluating an ambiguous challenge document. A v1.8.8 Windows first-login trace showed the session persisted but the final `auth.x.ai` device-verification navigation was denied, requiring an app restart. That host remains denied and external per the frozen navigation contract; only the exact default HTTPS origin now triggers a bounded return to the allowed `grok.com` app surface using the same persistent profile. Heavy phase boundaries and the no-restart first-login repair still need a live retest | Not a compatibility claim |
+| Meta AI (experimental standby) | v1 seed | Logged-out Windows DOM verified for the inert composer, Send control, login detector, and narrow Meta auth redirect origins. Native input injection, exact-four standby enforcement, and selector schema checks have automated coverage. Login, response capture, completion, stop, and new-session behavior still require an authenticated live smoke; use mobile/email login because Facebook and Instagram leave the bundled Meta allowlist | Not a compatibility claim |
 
 Automated tests validate adapter structure, schema v1/v2 parser compatibility, typed detector rejection, logged-out precedence, approved strategies, HTTPS URL parsing, and navigation boundaries. They do not log into live provider accounts. Remote adapter updates cannot expand the URL scopes bundled with the installed app.
 

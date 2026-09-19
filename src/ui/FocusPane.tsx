@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AI_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { resetProviderBootState } from '../bridge/pull';
 import { host } from '../host';
@@ -14,7 +14,6 @@ import { ProcessTrace } from './ProcessTrace';
 import type { ProcessTraceState } from './processTraceModel';
 
 export type CenterSurface = 'text' | 'native';
-const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
 type ProviderActionState =
   | { provider: AIProvider; status: 'opening' }
@@ -44,6 +43,7 @@ export function FocusPane({
   processTrace,
   onTraceDetailOpenChange,
   onChipClick,
+  providers = DEFAULT_FREE_TARGET_PROVIDERS,
   stageExpanded = false,
   onToggleStageExpanded,
 }: {
@@ -70,6 +70,7 @@ export function FocusPane({
   processTrace?: ProcessTraceState;
   onTraceDetailOpenChange?: (open: boolean) => void;
   onChipClick?: (provider: AIProvider) => void;
+  providers?: readonly AIProvider[];
   stageExpanded?: boolean;
   onToggleStageExpanded?: () => void;
 }) {
@@ -120,6 +121,7 @@ export function FocusPane({
         />
       ) : (
         <FirstRunPanel
+          providers={providers}
           setCenterStageRef={setCenterStageRef}
           activateProvider={activateProvider}
           openingProvider={openingProvider}
@@ -151,6 +153,7 @@ export function FocusPane({
           activateProvider={activateProvider}
           openingProvider={openingProvider}
           onChipClick={onChipClick}
+          providers={providers}
         />
       )}
     </aside>
@@ -158,10 +161,12 @@ export function FocusPane({
 }
 
 function FirstRunPanel({
+  providers,
   setCenterStageRef,
   activateProvider,
   openingProvider,
 }: {
+  providers: readonly AIProvider[];
   setCenterStageRef: (el: HTMLDivElement | null) => void;
   activateProvider: (provider: AIProvider) => Promise<void>;
   openingProvider?: AIProvider;
@@ -184,7 +189,7 @@ function FirstRunPanel({
         </h1>
         <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{t('onboarding.description')}</p>
         <div className="ai-sister-onboarding-providers mt-5 grid grid-cols-2 gap-2 min-[900px]:grid-cols-3">
-          {PROVIDERS.map((provider) => {
+          {providers.map((provider) => {
             const opening = openingProvider === provider;
             return (
               <button
@@ -458,6 +463,7 @@ function StatusStrip({
   activateProvider,
   openingProvider,
   onChipClick,
+  providers,
 }: {
   centeredProvider?: AIProvider;
   scrollFocusedProvider?: AIProvider;
@@ -467,6 +473,7 @@ function StatusStrip({
   activateProvider: (provider: AIProvider) => Promise<void>;
   openingProvider?: AIProvider;
   onChipClick?: (provider: AIProvider) => void;
+  providers: readonly AIProvider[];
 }) {
   const { t } = useI18n();
   return (
@@ -476,7 +483,7 @@ function StatusStrip({
         <span className="text-[0.6875rem] text-zinc-500 dark:text-zinc-400">{t('provider.connectionsHint')}</span>
       </div>
       <div className="ai-sister-connection-grid grid grid-cols-4 gap-1.5">
-        {PROVIDERS.map((provider) => (
+        {providers.map((provider) => (
           <StatusStripItem
             key={provider}
             provider={provider}

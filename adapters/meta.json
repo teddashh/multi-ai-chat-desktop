@@ -1,0 +1,23 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "adapterVersion": 1,
+  "provider": "meta",
+  "displayName": "Meta AI",
+  "urls": {
+    "app": "https://www.meta.ai",
+    "login": "https://www.meta.ai",
+    "match": ["www.meta.ai/*", "meta.ai/*"],
+    "ssoMatch": ["auth.meta.com/*", "auth.meta.ai/*"]
+  },
+  "inputSelectors": ["input[aria-label=\"Ask Meta AI\"]", "textarea[data-ecto-composer-prehydration-input]"],
+  "sendButtonSelectors": ["[data-testid=\"composer-send-button\"]", "button[aria-label=\"Send\"]"],
+  "responseSelectors": ["[data-message-item]:not([data-user-message])", "[data-testid=\"assistant-message\"]"],
+  "loginDetectors": ["input[aria-label=\"Ask Meta AI\"]", "textarea[data-ecto-composer-prehydration-input]", "button[aria-label=\"Send\"]"],
+  "loggedOutDetectors": ["[inert] input[aria-label=\"Ask Meta AI\"]", "[inert] textarea[data-ecto-composer-prehydration-input]", "[data-testid=\"login-button\"]"],
+  "thinkingDetectors": ["[data-testid=\"composer-stop-button\"]", "button[aria-label=\"Stop\"]"],
+  "stopButtonSelectors": ["[data-testid=\"composer-stop-button\"]", "button[aria-label=\"Stop\"]"],
+  "inputStrategy": "default",
+  "sendStrategy": "click",
+  "timing": { "doneDelayMs": 5000, "chunkDebounceMs": 600, "statusIntervalMs": 10000, "backupPollMs": 3000 }
+}

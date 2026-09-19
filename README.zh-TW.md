@@ -2,17 +2,17 @@
 
 [English](./README.md) · **繁體中文** · [日本語](./README.ja.md) · [Deutsch](./README.de.md)
 
-只問一次，讓你已登入的 **ChatGPT、Claude、Gemini 與 Grok** 網頁 session 互相回答、審查、質疑，再一起收斂結果。Multi-AI Chat Desktop 是以 Tauri 2 打造的多 AI workflow 中樞，不只是把四個聊天視窗並排。
+只問一次，讓四個已登入的 AI 網頁 session 互相回答、審查、質疑，再一起收斂結果。**ChatGPT、Claude、Gemini、Grok 仍是預設陣容；Meta AI 是 Settings 裡實驗性的第五家備用選項。** Multi-AI Chat Desktop 是以 Tauri 2 打造的多 AI workflow 中樞，不只是把四個聊天視窗並排。
 
-[**前往官方網站 →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=zh-TW) · [下載 v1.8.7](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) · [所有版本](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · 不需 API Key · 無分析追蹤
+[**前往官方網站 →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=zh-TW) · [下載 v1.8.9](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9) · [所有版本](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · 不需 API Key · 無分析追蹤
 
 > 本 app 會自動操作你原本就在使用的 provider 網頁。第三方介面改版可能暫時使 adapter 失效，自動化使用也可能受各服務條款約束。請只使用你有權使用的帳號與內容；本 app 不會繞過登入、訂閱、年齡、用量或安全驗證。
 
-> **專案狀態：** 此 web-session 桌面版已停止新增功能。四家 provider、六個預設、底層五種 workflow mode、snapshot／replay，以及可選的 AI-Sister 四角色紀念版都已完成。後續只處理 provider 相容性、安全、資料遺失／crash、無障礙、封裝與 build 問題。
+> **專案狀態：** 六個預設、底層五種 workflow mode、snapshot／replay，以及可選的 AI-Sister 四角色紀念版仍維持 feature-frozen。目前 source 只有一項受限的實驗性擴充：provider 目錄共有五家、同時只啟用四家，且 Meta AI 預設為備用。穩定版 v1.8.9 仍只包含原本四家。
 
 ## 先安裝
 
-請從 [**v1.8.7 下載頁**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) 取得目前的穩定版。
+請從 [**v1.8.9 下載頁**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9) 取得目前的穩定版。
 
 | 平台 | 下載檔 | 第一次啟動須知 |
 |---|---|---|
@@ -21,6 +21,8 @@
 | **Linux x86_64** | `.AppImage` | 先執行 `chmod +x Multi-AI*.AppImage`。建議 Ubuntu 22.04／Debian 12 或更新版本。 |
 
 第一次使用時，請逐一打開 provider pane，直接在 provider 的真實頁面登入。憑證與 cookie 只留在該 provider 的獨立本機 WebView profile；Multi-AI Chat Desktop 不會向你索取密碼。
+
+使用實驗性的 Meta AI 時，請在 Meta 登入頁選擇「手機號碼或 Email」。Facebook 與 Instagram 登入會離開目前嚴格限定的 Meta 網域，因此刻意不在 app 內嵌。
 
 ### macOS 第一次啟動
 
@@ -32,14 +34,13 @@ Ad-hoc 簽章可保護 bundle 完整性，也避免 `v1.0.0` 曾出現的錯誤�
 
 Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest) 更新。安裝版可以檢查新版本並打開下載頁，但 app 不會自行下載或安裝更新。
 
-## v1.8.7 更新重點
+## v1.8.9 更新重點
 
-- **ChatGPT 慢速接力更可靠。** 送出確認現在必須符合剛渲染的使用者訊息；若靜默送出失敗，約 10–19 秒便會進入錯誤路徑，不再耗盡 600 秒回應逾時。
-- **只擷取目前回合。** 重新掛載的歷史答案無法誤完成重試或新 workflow，取消清理也會在替代流程開始前完整結束。
-- **Provider 錯誤會安全終止。** Debate、Consult、Coding、Roundtable 遇到無人操作的 provider 錯誤時會停止；Brainstorm 保留明確的「**重試／略過／取消**」。對話框與診斷也不再把 provider 錯誤誤標成逾時。
-- **完整驗證與依賴修補。** 522 個 frontend tests、81 個本機 Windows Rust tests、跨平台 CI 與 CodeQL 均通過。Vitest 4.1.11 解決 `GHSA-82fw-gwwq-j7x9`，發布時 pnpm audit 為零筆已知問題。
+- **Grok 首次登入修復。** 完成精確的外部 `auth.x.ai` 接力後，原本的內嵌 pane 會回到 `grok.com`，不擴大 provider 權限，也不必重開 app。
+- **ChatGPT Astra 接力修復。** Engine 會辨識目前的送出按鈕與收合的長 prompt，不再把 draft 尚未送走時的 optimistic bubble 當成成功，並在已觀察到的 Pro thinking 階段持續等待，避免後續 workflow input 打斷 Astra。
+- **不再誤報 bridge degraded。** 成功但暫時沒有訊息的 bridge pull 不會變成 `[Error: bridge degraded]`；workflow 仍保留精確的 600 秒 inactivity timeout。
 
-完整內容與誠實的驗證證據請見[雙語版發布說明](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7)。
+完整內容與 Windows 驗證清單請見[發布說明](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9)。
 
 ## 桌面版還是瀏覽器外掛？
 
@@ -79,7 +80,7 @@ Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Release
 
 結構化 workflow 會先檢查所有必要角色。如果 provider 不可用，app 會指出是哪一家，讓你開啟／登入、重新指派角色或改選其他模式，不會偷偷替換 provider。一般結構化 workflow 遇到持續錯誤會停止；腦力激盪則暫停，等待你明確選擇重試、略過或取消。
 
-腦力激盪刻意設計成最重的預設：請讓四個預設 provider session 都保持登入，並預留約 **45–90 分鐘**。48 次發言的恢復路徑已有自動測試；v1.8.7 仍待以真實帳號驗證 ChatGPT↔Grok 慢速接力。
+腦力激盪刻意設計成最重的預設：請讓四個預設 provider session 都保持登入，並預留約 **45–90 分鐘**。48 次發言的恢復路徑已有自動測試；v1.8.9 仍待以真實帳號驗證 ChatGPT↔Grok 慢速接力。
 
 Workflow 完成後，可從底部 composer 繼續同一個 app conversation；要乾淨的 session context 時請選「**新增對話**」。
 
@@ -102,8 +103,8 @@ Workflow 完成後，可從底部 composer 繼續同一個 app conversation；�
 - **Windows x64** 有已驗證的 packaged launch 證據，但未簽章產物可能觸發 SmartScreen。
 - **macOS Apple Silicon** 僅部分驗證。DMG 為 ad-hoc 簽章且未 notarize；較早的實機回報能開啟 app 並登入 ChatGPT、Claude、Gemini，但 Grok 卡在 Cloudflare。現行 Grok 恢復流程仍需 Apple Silicon live retest；沒有 Intel 產物。
 - **Linux x86_64** 目前只有 CI packaging 驗證，沒有 maintainer 的新實機啟動報告。
-- v1.8.7 尚未以真實帳號人工重驗 ChatGPT↔Grok 慢速接力、Grok Cloudflare challenge 流程，以及新版 Apple Silicon 啟動與 provider 登入 smoke。
-- Snapshot／replay／checkpoint 只維護既有相容性。本功能凍結版本不規劃 marketplace、graph editor、第五家 provider、新 persistence schema、內嵌 terminal agent、telemetry、Developer ID／notarization 計畫或 self-updater。
+- v1.8.9 尚未以真實帳號人工重驗 ChatGPT↔Grok 慢速接力、Grok Cloudflare challenge 流程，以及新版 Apple Silicon 啟動與 provider 登入 smoke。
+- Snapshot／replay／checkpoint 只維護既有相容性。除了實驗性的 Meta AI 備用選項外，本功能凍結版本不規劃 marketplace、graph editor、更多 provider 擴充、新 persistence schema、內嵌 terminal agent、telemetry、Developer ID／notarization 計畫或 self-updater。
 
 證據詳見[相容性矩陣](./docs/COMPATIBILITY.md)。CI 與自動測試不會被包裝成「已用真實 provider 帳號或實機桌面驗證」。
 

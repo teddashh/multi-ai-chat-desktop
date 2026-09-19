@@ -372,6 +372,57 @@ describe('snapshot replay', () => {
     );
   });
 
+  it('uses the current four-provider lineup when Meta AI is active during replay', async () => {
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    vi.mocked(host.connections.get).mockResolvedValue([
+      ...activeProviders.map((provider) => state(provider)),
+      state('grok', false),
+    ]);
+    const snapshot = buildSnapshot({
+      graphId: 'free',
+      graphVersion: 2,
+      roleMap: {},
+      userQuestion: inlineRef('meta replay'),
+      steps: [],
+    });
+
+    await expect(replaySnapshot({ snapshot }, { activeProviders })).resolves.toMatchObject({ ok: true });
+
+    expect(executeGraph).toHaveBeenCalledWith(
+      workflowGraphs.free,
+      { text: 'meta replay', roles: {}, targets: activeProviders },
+      { onSnapshotComplete: undefined },
+    );
+  });
+
+  it('drops a historical free target that is now the standby provider', async () => {
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    vi.mocked(host.connections.get).mockResolvedValue([
+      ...activeProviders.map((provider) => state(provider)),
+      state('grok'),
+    ]);
+    const snapshot = buildSnapshot({
+      graphId: 'free',
+      graphVersion: 2,
+      roleMap: {},
+      userQuestion: inlineRef('historical targets'),
+      steps: [
+        step('chatgpt-answer', { provider: 'chatgpt' }),
+        step('old-grok-answer', { provider: 'grok' }),
+        step('meta-answer', { provider: 'meta' }),
+      ],
+    });
+
+    await expect(replaySnapshot({ snapshot }, { activeProviders })).resolves.toMatchObject({ ok: true });
+
+    expect(planReplay(snapshot).targets).toEqual(['chatgpt', 'grok', 'meta']);
+    expect(executeGraph).toHaveBeenCalledWith(
+      workflowGraphs.free,
+      { text: 'historical targets', roles: {}, targets: ['chatgpt', 'meta'] },
+      { onSnapshotComplete: undefined },
+    );
+  });
+
   it('exposes full-local prior outputs for comparison', () => {
     const snapshot = buildSnapshot({
       steps: [

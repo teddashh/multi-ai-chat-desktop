@@ -132,3 +132,61 @@ export function assignModeRole(
 ): ModeRoleAssignments {
   return { ...assignments, [mode]: { ...assignments[mode], [role]: provider } };
 }
+
+/**
+ * Swap a provider out of every persisted collaboration seat. This is used
+ * when the four-active-provider lineup changes: the previous standby takes
+ * the exact seats that belonged to the newly selected standby provider.
+ */
+export function replaceModeRoleProvider(
+  assignments: ModeRoleAssignments,
+  removed: AIProvider,
+  added: AIProvider,
+): ModeRoleAssignments {
+  const next = {} as Record<keyof ModeRoleAssignments, Record<string, AIProvider>>;
+
+  for (const mode of Object.keys(MODE_ROLE_FIELDS) as (keyof ModeRoleAssignments)[]) {
+    const current = assignments[mode] as unknown as Record<string, AIProvider>;
+    next[mode] = Object.fromEntries(
+      MODE_ROLE_FIELDS[mode].map((role) => [role, current[role] === removed ? added : current[role]]),
+    );
+  }
+
+  return next as unknown as ModeRoleAssignments;
+}
+
+/** Repair corrupted or pre-feature settings without ever assigning standby. */
+export function keepModeRolesWithinProviders(
+  assignments: ModeRoleAssignments,
+  providers: readonly AIProvider[],
+): ModeRoleAssignments {
+  const allowed = new Set(providers);
+  const next = {} as Record<keyof ModeRoleAssignments, Record<string, AIProvider>>;
+
+  for (const mode of Object.keys(MODE_ROLE_FIELDS) as (keyof ModeRoleAssignments)[]) {
+    const current = assignments[mode] as unknown as Record<string, AIProvider>;
+    const repaired: Record<string, AIProvider> = {};
+    const providersAlreadyAssigned = new Set(
+      MODE_ROLE_FIELDS[mode]
+        .map((role) => current[role])
+        .filter((provider) => allowed.has(provider)),
+    );
+    for (const role of MODE_ROLE_FIELDS[mode]) {
+      const candidate = current[role];
+      if (allowed.has(candidate)) {
+        repaired[role] = candidate;
+        continue;
+      }
+      const alreadyUsed = new Set(Object.values(repaired));
+      const replacement =
+        providers.find((provider) => !providersAlreadyAssigned.has(provider)) ??
+        providers.find((provider) => !alreadyUsed.has(provider)) ??
+        providers[0];
+      repaired[role] = replacement;
+      providersAlreadyAssigned.add(replacement);
+    }
+    next[mode] = repaired;
+  }
+
+  return next as unknown as ModeRoleAssignments;
+}

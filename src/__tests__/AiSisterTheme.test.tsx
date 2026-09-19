@@ -26,4 +26,13 @@ describe('AI-Sister commemorative theme components', () => {
     expect(html).toContain('data-active="true"');
     expect(html).toContain('ai-sister-avatar--lg');
   });
+
+  it('uses a safe text badge when an optional provider has no commemorative portrait', () => {
+    const html = renderToStaticMarkup(<AiSisterAvatar provider="meta" size="md" />);
+
+    expect(html).toContain('data-provider="meta"');
+    expect(html).toContain('data-avatar-fallback="true"');
+    expect(html).toContain('>M</span>');
+    expect(html).not.toContain('<img');
+  });
 });

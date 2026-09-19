@@ -96,7 +96,13 @@ import { preflightFromResult, type PreflightSubject } from './ui/preflightFromRe
 import { processingAfterSend, processingAfterSettle, processingAfterWorkflowStatus } from './ui/processing';
 import { Resizer } from './ui/Resizer';
 import { SettingsModal } from './ui/SettingsModal';
-import { defaultSettings, mergeSettings, normalizeSettings, type AppSettings } from './ui/settingsModel';
+import {
+  activeProvidersForStandby,
+  defaultSettings,
+  mergeSettings,
+  normalizeSettings,
+  type AppSettings,
+} from './ui/settingsModel';
 import {
   clearStartupSessionCheckpointNotice,
   loadStartupSessionCheckpointNotice,
@@ -370,6 +376,10 @@ export default function App() {
   const pullBridge = useRef(new Map<AIProvider, PullBridgeState>());
   const replayPanelRef = useRef<ReplayPanel | null>(null);
   const targets = targetSelection.targets;
+  const activeProviders = useMemo(
+    () => activeProvidersForStandby(appSettings.standbyProvider),
+    [appSettings.standbyProvider],
+  );
   const centeredProvider = useMemo(() => centerPresentationProvider(presentation), [presentation]);
   const presentationHidden = useMemo(() => {
     const next = new Set(centerHidden);
@@ -388,7 +398,7 @@ export default function App() {
     return [centered];
   }, [centerSurface, modalHiddenProviders, presentation, states]);
   const hasFreeModeTargets = useMemo(() => hasEffectiveFreeModeTargets(targets, states), [states, targets]);
-  const anySendableTargets = useMemo(() => defaultTargets(states, PROVIDERS), [states]);
+  const anySendableTargets = useMemo(() => defaultTargets(states, activeProviders), [activeProviders, states]);
   const requiredModeProviders = useMemo(() => {
     const roles = defaultRolesForPreset(mode, presetId, appSettings.modeRoles);
     return roles
@@ -400,13 +410,16 @@ export default function App() {
     [requiredModeProviders, states],
   );
   const missingModeProviderCount = Math.max(0, requiredModeProviders.length - readyModeProviders.length);
-  const noSendableProviders = presetId === 'brainstorm'
+  const noSendableProviders = !settingsLoaded || (presetId === 'brainstorm'
     ? readyModeProviders.length === 0
     : mode === 'free'
       ? !hasFreeModeTargets
-      : anySendableTargets.length === 0;
+      : anySendableTargets.length === 0);
   const modeSendBlocked = (mode !== 'free' || presetId === 'brainstorm') && missingModeProviderCount > 0;
-  const openProviders = useMemo(() => PROVIDERS.filter((provider) => states[provider].webview === 'loaded'), [states]);
+  const openProviders = useMemo(
+    () => activeProviders.filter((provider) => states[provider].webview === 'loaded'),
+    [activeProviders, states],
+  );
   const latestCenterBubble = useMemo(() => {
     if (!centeredProvider) return undefined;
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -620,6 +633,22 @@ export default function App() {
     setLanguage(next.language);
     await host.settings.set(next);
   }, [setLanguage]);
+
+  useEffect(() => {
+    setTargetSelection((current) => {
+      const nextTargets = current.userTouched
+        ? current.targets.filter((provider) => activeProviders.includes(provider))
+        : [...activeProviders];
+      if (
+        current.defaultsInitialized &&
+        nextTargets.length === current.targets.length &&
+        nextTargets.every((provider, index) => provider === current.targets[index])
+      ) {
+        return current;
+      }
+      return { ...current, targets: nextTargets, defaultsInitialized: true };
+    });
+  }, [activeProviders]);
 
   useEffect(() => {
     let disposed = false;
@@ -1105,6 +1134,7 @@ export default function App() {
 
   const changeProviderPresentation = useCallback(
     async (provider: AIProvider, state: WebviewPresentationState) => {
+      if (!activeProvidersForStandby(settingsRef.current.standbyProvider).includes(provider)) return;
       const generation = beginPresentationTransition(provider);
       const next = setProviderPresentation(presentationRef.current, provider, state);
       if (state === 'center') startCenterTransitionInFlight(provider, generation);
@@ -1204,6 +1234,9 @@ export default function App() {
 
   const forceProviderNativeCenter = useCallback(
     async (provider: AIProvider) => {
+      if (!activeProvidersForStandby(settingsRef.current.standbyProvider).includes(provider)) {
+        throw new Error(`${provider} is configured as the standby provider`);
+      }
       forcedNativeCenterProviderRef.current = provider;
       setCenterSurfaceMode('native');
       markManualFocusControl(provider);
@@ -1343,12 +1376,13 @@ export default function App() {
       !settingsLoaded ||
       !connectionSnapshotLoaded ||
       !initialRestoreComplete ||
+      settingsOpen ||
       openProviders.join('|') === settingsRef.current.openProviders.join('|')
     ) {
       return;
     }
     void persistSettingsPatch({ openProviders });
-  }, [connectionSnapshotLoaded, initialRestoreComplete, openProviders, persistSettingsPatch, settingsLoaded]);
+  }, [connectionSnapshotLoaded, initialRestoreComplete, openProviders, persistSettingsPatch, settingsLoaded, settingsOpen]);
 
   useEffect(() => {
     const onResize = () => {
@@ -1449,6 +1483,7 @@ export default function App() {
         presetId,
         roles: workflowRoles,
         targets: workflowTargets,
+        activeProviders: activeProvidersForStandby(snapshotSettings.standbyProvider),
         locale: localeRef.current,
         snapshotPersistence: snapshotSettings.snapshotPersistence,
         snapshotRedactionTier: snapshotSettings.snapshotRedactionTier,
@@ -1620,12 +1655,12 @@ export default function App() {
     setWorkflowStatus('');
     setProcessTrace(undefined);
     setReplayDrawerOpen(false);
-    setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
+    setTargetSelection({ targets: [...activeProviders], defaultsInitialized: true, userTouched: false });
     activeResponses.current.clear();
     pendingProviderResetRef.current = new Set(
-      PROVIDERS.filter((provider) => statesRef.current[provider].webview === 'loaded'),
+      activeProviders.filter((provider) => statesRef.current[provider].webview === 'loaded'),
     );
-  }, [activeSessionId, isProcessing, messages, mode, presetId, sessions]);
+  }, [activeProviders, activeSessionId, isProcessing, messages, mode, presetId, sessions]);
 
   const selectConversationSession = useCallback(
     (session: ConversationSession) => {
@@ -1639,15 +1674,15 @@ export default function App() {
       setWorkflowStatus('');
       setProcessTrace(undefined);
       setReplayDrawerOpen(false);
-      setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
+      setTargetSelection({ targets: [...activeProviders], defaultsInitialized: true, userTouched: false });
       activeResponses.current.clear();
       // 切換歷史只換本地畫面，保留 provider webview 原連線（不重連）讓使用者能繼續瀏覽；
       // 遠端 thread 仍屬於前一個 session，真正送出前 executeSend 會先建立乾淨 provider session。
       pendingProviderResetRef.current = new Set(
-        PROVIDERS.filter((provider) => statesRef.current[provider].webview === 'loaded'),
+        activeProviders.filter((provider) => statesRef.current[provider].webview === 'loaded'),
       );
     },
-    [activeSessionId, isProcessing],
+    [activeProviders, activeSessionId, isProcessing],
   );
 
   const deleteConversationSession = useCallback(
@@ -1769,6 +1804,9 @@ export default function App() {
 
   const openProviderLogin = useCallback(
     async (provider: AIProvider) => {
+      if (!activeProvidersForStandby(settingsRef.current.standbyProvider).includes(provider)) {
+        throw new Error(`${provider} is configured as the standby provider`);
+      }
       setMessagesMaximized(false);
       for (let attempt = 0; attempt < 8 && overlayGuardOpenRef.current; attempt += 1) {
         await nextAnimationFrame();
@@ -1794,6 +1832,33 @@ export default function App() {
   );
 
   const applySavedSettings = (settings: AppSettings) => {
+    const previousStandby = settingsRef.current.standbyProvider;
+    const nextActiveProviders = activeProvidersForStandby(settings.standbyProvider);
+    if (previousStandby !== settings.standbyProvider) {
+      setTargetSelection((current) => {
+        if (!current.userTouched) {
+          return { targets: [...nextActiveProviders], defaultsInitialized: true, userTouched: false };
+        }
+        const nextTargets = Array.from(
+          new Set(
+            current.targets
+              .map((provider) => (provider === settings.standbyProvider ? previousStandby : provider))
+              .filter((provider) => nextActiveProviders.includes(provider)),
+          ),
+        );
+        return { ...current, targets: nextTargets, defaultsInitialized: true };
+      });
+      pendingRestore.current.delete(settings.standbyProvider);
+      pendingProviderResetRef.current.delete(settings.standbyProvider);
+      setUserHidden((current) => {
+        const next = new Set(current);
+        next.delete(settings.standbyProvider);
+        return next;
+      });
+      if (statesRef.current[settings.standbyProvider].webview !== 'none') {
+        void host.provider.close(settings.standbyProvider).catch(() => undefined);
+      }
+    }
     settingsRef.current = settings;
     presentationRef.current = settings.presentation;
     setAppSettings(settings);
@@ -1810,10 +1875,10 @@ export default function App() {
       setPresetId(nextPreset.id);
       setPresetDetailsId((current) => (current === nextPreset.id ? undefined : nextPreset.id));
       if (nextPreset.id === 'brainstorm') {
-        setTargetSelection({ targets: [...DEFAULT_FREE_TARGET_PROVIDERS], defaultsInitialized: true, userTouched: false });
+        setTargetSelection({ targets: [...activeProviders], defaultsInitialized: true, userTouched: false });
       }
     },
-    [isProcessing],
+    [activeProviders, isProcessing],
   );
 
   const persistReplaySnapshot = useCallback((snapshot: ExecutionSnapshot) => {
@@ -1899,6 +1964,7 @@ export default function App() {
                 locale={locale}
                 states={states}
                 modeRoles={appSettings.modeRoles}
+                activeProviders={activeProviders}
                 disabled={isProcessing}
                 detailsPresetId={presetDetailsId}
                 layout="sidebar"
@@ -1907,7 +1973,7 @@ export default function App() {
                 <section className="mt-2 rounded border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-950">
                   <div className="mb-2 text-xs font-semibold uppercase text-zinc-600 dark:text-zinc-400">{translate('input.sendSelectedProviders')}</div>
                   <div className="flex flex-wrap gap-1.5">
-                    <TargetChips providers={PROVIDERS} states={states} selected={targets} onChange={handleTargetsChange} disabled={isProcessing} locale={locale} />
+                    <TargetChips providers={activeProviders} states={states} selected={targets} onChange={handleTargetsChange} disabled={isProcessing} locale={locale} />
                   </div>
                 </section>
               ) : null}
@@ -1934,6 +2000,7 @@ export default function App() {
               ) : null}
             </section>
             <FocusPane
+              providers={activeProviders}
               centeredProvider={centeredProvider}
               scrollFocusedProvider={scrollFocusedProvider}
               states={states}
@@ -2062,6 +2129,7 @@ export default function App() {
               ref={replayPanelRef}
               locale={locale}
               responseLanguagePolicy={createResponseLanguagePolicy(appSettings.responseLanguage, locale)}
+              activeProviders={activeProviders}
               onReplayWillRun={prepareReplayTrace}
               onReplaySettled={settleReplayTrace}
               onSnapshotComplete={persistReplaySnapshot}
@@ -2138,6 +2206,7 @@ export default function App() {
         focusPaneWidth={focusPaneWidth}
         presentation={presentation}
         providerStates={states}
+        providerSelectionDisabled={isProcessing}
         activeModeRoleSettings={presetId === 'brainstorm' ? 'roundtable' : mode === 'free' ? undefined : mode}
         onClose={() => setSettingsOpen(false)}
         onSaved={applySavedSettings}

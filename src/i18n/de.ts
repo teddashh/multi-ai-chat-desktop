@@ -226,9 +226,16 @@ export const de: Record<I18nKey, string> = {
   'settings.title': 'Einstellungen',
   'settings.close': 'Schließen',
   'settings.general': 'Allgemein',
+  'settings.providers': 'Aktive KI-Anbieter',
+  'settings.providersDescription':
+    'Es bleiben immer vier Anbieter aktiv. Wird eine andere Reserve gewählt, wird dieser Anbieter deaktiviert und die bisherige Reserve aktiviert; beide Anmeldungen bleiben gespeichert.',
+  'settings.providersDefault': 'Standardmäßig in Reserve',
+  'settings.providersSelect': 'Anbieter in Reserve',
+  'settings.providerActive': 'Aktiv',
+  'settings.providerStandby': 'Reserve',
   'settings.modeRoles': 'Kollaborationsrollen',
   'settings.modeRolesDescription':
-    'Die integrierten strukturierten Presets weisen ChatGPT, Claude, Gemini und Grok jeweils genau eine Rolle zu. Rollen lassen sich anpassen: Serielle Rollen dürfen dieselbe KI wiederverwenden; gleichzeitig laufende Rollen, etwa die ersten beiden Antworten der Beratung, müssen unterschiedlich bleiben.',
+    'Die integrierten strukturierten Presets weisen jeder der vier aktiven KIs genau eine Rolle zu. Rollen lassen sich anpassen: Serielle Rollen dürfen dieselbe KI wiederverwenden; gleichzeitig laufende Rollen, etwa die ersten beiden Antworten der Beratung, müssen unterschiedlich bleiben.',
   'settings.modeRoles.coding.planner': 'Planung',
   'settings.modeRoles.coding.reviewer': 'Prüfung',
   'settings.modeRoles.coding.coder': 'Implementierung',
