@@ -2,17 +2,17 @@
 
 **English** · [繁體中文](./README.zh-TW.md) · [日本語](./README.ja.md) · [Deutsch](./README.de.md)
 
-Ask once. Let your signed-in **ChatGPT, Claude, Gemini, and Grok** web sessions answer, review, challenge, and refine one another. Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
+Ask once. Let four signed-in AI web sessions answer, review, challenge, and refine one another. **ChatGPT, Claude, Gemini, and Grok remain the default lineup; Meta AI is an experimental fifth standby option in Settings.** Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
 
-[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.8.7](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
+[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.8.9](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
 
 > This app automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider's terms. Use only accounts and content you are authorized to use. The app never bypasses login, subscription, age, rate-limit, or security checks.
 
-> **Project status:** the web-session desktop edition is feature-frozen. Its four providers, six presets, five underlying workflow modes, snapshot/replay tools, and optional AI-Sister Commemorative Edition are complete. Future changes are limited to provider compatibility, security, data-loss/crash prevention, accessibility, packaging, and build breakage.
+> **Project status:** six presets, five underlying workflow modes, snapshot/replay tools, and the optional AI-Sister Commemorative Edition remain feature-frozen. Current source contains one bounded experimental expansion: a five-provider catalog with exactly four active at a time and Meta AI on standby by default. Stable v1.8.9 still ships the original four-provider lineup.
 
 ## Install first
 
-Get the current stable release from the [**v1.8.7 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7).
+Get the current stable release from the [**v1.8.9 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9).
 
 | Platform | Download | First-launch note |
 |---|---|---|
@@ -21,6 +21,8 @@ Get the current stable release from the [**v1.8.7 download page**](https://githu
 | **Linux x86_64** | `.AppImage` | Run `chmod +x Multi-AI*.AppImage`. Ubuntu 22.04 / Debian 12 or newer is recommended. |
 
 Open each provider pane once and sign in on the provider's real page. Credentials and cookies stay in that provider's isolated local WebView profile; Multi-AI Chat Desktop never asks for your password.
+
+In the experimental Meta AI path, choose **mobile number or email** on Meta's sign-in page. Facebook and Instagram sign-in leave the narrowly allowlisted Meta origins and are intentionally not embedded.
 
 ### macOS first launch
 
@@ -32,14 +34,13 @@ The ad-hoc signature protects bundle integrity and avoids the false “app is da
 
 Portable Windows builds do not show in-app update controls. Update them manually from [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installed builds can check for a newer release and open its download page, but the app does not download or install updates itself.
 
-## What's new in v1.8.7
+## What's new in v1.8.9
 
-- **Reliable slow handoffs to ChatGPT.** Delivery confirmation now requires the matching newly rendered user turn. A silent send failure reaches an error in about 10–19 seconds instead of consuming the 600-second response timeout.
-- **Current-turn response capture.** Remounted historical answers can no longer complete a retry or new workflow, and cancellation settles before a replacement run starts.
-- **Safe provider-error behavior.** Debate, Consult, Coding, and Roundtable stop on unattended provider errors; Brainstorm keeps explicit **Retry**, **Skip**, and **Cancel** recovery. Dialogs and diagnostics now distinguish provider errors from timeouts.
-- **Validated and dependency-hardened.** The release passed 522 frontend tests, 81 local Windows Rust tests, cross-platform CI and CodeQL. Vitest 4.1.11 resolves `GHSA-82fw-gwwq-j7x9`, with zero known pnpm audit findings at release time.
+- **Grok first-login recovery.** After the exact external `auth.x.ai` handoff, the original embedded pane returns to `grok.com` without expanding provider permissions or requiring an app restart.
+- **ChatGPT Astra handoffs.** The engine recognizes the current submit control and collapsed long prompts, rejects an optimistic bubble while the draft is still idle, and keeps the observed Pro-thinking phase active so later workflow input cannot interrupt Astra.
+- **No fake bridge failure.** A successful empty bridge pull no longer becomes `[Error: bridge degraded]`; the workflow retains the exact 600-second inactivity timeout.
 
-Read the [complete bilingual release notes and validation evidence](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7).
+Read the [complete release notes and Windows validation checklist](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9).
 
 ## Desktop or browser extension?
 
@@ -79,7 +80,7 @@ Choose Desktop when you want a dedicated workspace and the full local workflow t
 
 Structured workflows preflight every required role. If a provider is unavailable, the app identifies it and lets you open/login, reassign the role, or choose another mode; it never silently substitutes a provider. Standard structured workflows stop on a persistent provider error. Brainstorm instead pauses for an explicit Retry, Skip, or Cancel choice.
 
-Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its 48-contribution recovery path has automated coverage; v1.8.7 still needs a real-account ChatGPT↔Grok slow-handoff check.
+Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its 48-contribution recovery path has automated coverage; v1.8.9 still needs a real-account ChatGPT↔Grok slow-handoff check.
 
 After a workflow finishes, continue from the bottom composer to keep the same app conversation. Choose **New conversation** for clean session context.
 
@@ -102,8 +103,8 @@ Report vulnerabilities privately through [SECURITY.md](./SECURITY.md); never put
 - **Windows x64** has verified packaged launch evidence, but artifacts are unsigned and can trigger SmartScreen.
 - **macOS Apple Silicon** is partially verified. The DMG is ad-hoc signed and not notarized; an earlier real-device report opened the app and logged into ChatGPT, Claude, and Gemini, while Grok remained on Cloudflare. Current Grok recovery still needs a live Apple Silicon retest. There is no Intel artifact.
 - **Linux x86_64** packaging is CI-verified only; there is no current maintainer real-device launch report.
-- For v1.8.7, a real-account ChatGPT↔Grok slow handoff, the Grok Cloudflare challenge path, and a new Apple Silicon launch/provider-login smoke were not manually reverified.
-- Snapshots/replay/checkpoints are compatibility-maintained in their shipped form. There is no marketplace, graph editor, fifth provider, new persistence schema, embedded terminal agent, telemetry roadmap, Developer ID/notarization program, or self-updater planned for this feature-frozen edition.
+- For v1.8.9, a real-account ChatGPT↔Grok slow handoff, the Grok Cloudflare challenge path, and a new Apple Silicon launch/provider-login smoke were not manually reverified.
+- Snapshots/replay/checkpoints are compatibility-maintained in their shipped form. Beyond the experimental Meta AI standby, there is no marketplace, graph editor, further provider expansion, new persistence schema, embedded terminal agent, telemetry roadmap, Developer ID/notarization program, or self-updater planned for this feature-frozen edition.
 
 See the evidence-based [compatibility matrix](./docs/COMPATIBILITY.md). CI and automated tests are never presented as proof that a live provider account or real desktop device was exercised.
 

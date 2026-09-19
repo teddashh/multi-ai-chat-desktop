@@ -285,6 +285,41 @@ describe('workflow engine', () => {
     expect(statuses).toEqual(['']);
   });
 
+  it('drops an explicitly selected standby provider even when stale state says it is sendable', async () => {
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    vi.mocked(host.connections.get).mockResolvedValue([
+      ...activeProviders.map((provider) => state(provider)),
+      state('grok'),
+    ]);
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({
+      text: 'standby filter',
+      mode: 'free',
+      targets: ['grok', 'meta'],
+      activeProviders,
+    })).resolves.toEqual({ ok: true });
+
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(['meta']);
+  });
+
+  it('uses the caller active lineup when Meta AI replaces a default free target', async () => {
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    vi.mocked(host.connections.get).mockResolvedValue([
+      ...activeProviders.map((provider) => state(provider)),
+      state('grok', false),
+    ]);
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({ text: 'meta fallback', mode: 'free', activeProviders })).resolves.toEqual({ ok: true });
+
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(activeProviders);
+  });
+
   it('routes Brainstorm through twelve rounds of four rotating seats and records graph v4', async () => {
     const order: AIProvider[] = [];
     const prompts: string[] = [];

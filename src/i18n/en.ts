@@ -224,9 +224,16 @@ export const en: Record<I18nKey, string> = {
   'settings.title': 'Settings',
   'settings.close': 'Close',
   'settings.general': 'General',
+  'settings.providers': 'Active AI providers',
+  'settings.providersDescription':
+    'Four providers stay active at a time. Selecting a different standby deactivates that provider and activates the previous standby; both logins stay saved.',
+  'settings.providersDefault': 'Default standby',
+  'settings.providersSelect': 'Standby provider',
+  'settings.providerActive': 'Active',
+  'settings.providerStandby': 'Standby',
   'settings.modeRoles': 'Collaboration roles',
   'settings.modeRolesDescription':
-    'Built-in structured setups assign ChatGPT, Claude, Gemini, and Grok once each. You can customize the roles; serial roles may reuse one AI, while roles that run at the same time, such as Consult first/second, must stay distinct.',
+    'Built-in structured setups assign each of the four active AIs once. You can customize the roles; serial roles may reuse one AI, while roles that run at the same time, such as Consult first/second, must stay distinct.',
   'settings.modeRoles.coding.planner': 'Planner',
   'settings.modeRoles.coding.reviewer': 'Reviewer',
   'settings.modeRoles.coding.coder': 'Coder',

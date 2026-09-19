@@ -2,17 +2,17 @@
 
 [English](./README.md) · [繁體中文](./README.zh-TW.md) · **日本語** · [Deutsch](./README.de.md)
 
-一度質問するだけで、ログイン済みの **ChatGPT、Claude、Gemini、Grok** のWebセッションが回答し、レビューし、反論しながら結果を磨きます。Multi-AI Chat Desktopは、4つのチャットを横に並べただけではない、Tauri 2製のマルチAIワークフローハブです。
+一度質問するだけで、ログイン済みの4つのAI Webセッションが回答し、レビューし、反論しながら結果を磨きます。**ChatGPT、Claude、Gemini、Grokが引き続きデフォルトで、Meta AIはSettingsで選べる実験的な5番目のスタンバイです。** Multi-AI Chat Desktopは、4つのチャットを横に並べただけではない、Tauri 2製のマルチAIワークフローハブです。
 
-[**公式サイトを見る →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=ja) · [v1.8.7をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7) · [すべてのリリース](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · APIキー不要 · アナリティクスなし
+[**公式サイトを見る →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=ja) · [v1.8.9をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9) · [すべてのリリース](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · APIキー不要 · アナリティクスなし
 
 > このアプリは、普段利用しているプロバイダーのWebページを自動操作します。プロバイダー側のUI変更でアダプターが一時的に動かなくなる場合があり、自動操作には各サービスの利用規約が適用されることがあります。利用権限のあるアカウントとコンテンツだけを使用してください。ログイン、契約、年齢、利用上限、セキュリティ確認を回避する機能はありません。
 
-> **プロジェクト状況：** Webセッション版Desktopは機能凍結済みです。4プロバイダー、6プリセット、基盤となる5ワークフローモード、snapshot／replay、任意のAI-Sister 4キャラクター記念版は完成しています。今後の変更は、プロバイダー互換性、セキュリティ、データ損失／クラッシュ防止、アクセシビリティ、パッケージ、ビルド障害に限られます。
+> **プロジェクト状況：** 6プリセット、基盤となる5ワークフローモード、snapshot／replay、任意のAI-Sister 4キャラクター記念版は引き続き機能凍結です。現在のsourceには、5プロバイダー中ちょうど4つだけを有効にし、Meta AIをデフォルトのスタンバイとする限定的な実験機能があります。安定版v1.8.9は従来の4プロバイダー構成です。
 
 ## まずインストール
 
-現在の安定版は[**v1.8.7ダウンロードページ**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7)から入手できます。
+現在の安定版は[**v1.8.9ダウンロードページ**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9)から入手できます。
 
 | プラットフォーム | ダウンロード | 初回起動時の注意 |
 |---|---|---|
@@ -21,6 +21,8 @@
 | **Linux x86_64** | `.AppImage` | `chmod +x Multi-AI*.AppImage` を実行してください。Ubuntu 22.04／Debian 12以降を推奨します。 |
 
 初回は各プロバイダーのpaneを開き、実際のプロバイダーページでログインします。認証情報とcookieはプロバイダーごとに分離されたローカルWebView profileに残り、Multi-AI Chat Desktopがパスワードを尋ねることはありません。
+
+実験的なMeta AIでは、Metaのログインページで**携帯番号またはメール**を選んでください。Facebook／Instagramログインは厳密に許可されたMeta originの外へ移動するため、意図的に埋め込んでいません。
 
 ### macOSでの初回起動
 
@@ -32,14 +34,13 @@ Ad-hoc署名はbundleの完全性を守り、`v1.0.0` で発生した誤った�
 
 Windows portable版にはアプリ内更新UIがありません。[GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)から手動で更新してください。インストール版は新しいリリースを確認してダウンロードページを開けますが、アプリ自身が更新をダウンロード／インストールすることはありません。
 
-## v1.8.7の主な変更
+## v1.8.9の主な変更
 
-- **ChatGPTへの遅いハンドオフを安定化。** 送信確認には、新しく描画された一致するユーザー発言が必要になりました。送信が無反応のまま失敗した場合も、600秒の応答timeoutを使い切らず約10〜19秒でエラーになります。
-- **現在のturnだけを取得。** 再マウントされた過去の回答が再試行や新しいworkflowを誤って完了させることはなく、キャンセル処理も次のrun開始前に完了します。
-- **Provider errorを安全に処理。** Debate、Consult、Coding、Roundtableは無人のprovider errorで停止し、Brainstormは明示的な**再試行・スキップ・キャンセル**を維持します。Dialogと診断もprovider errorをtimeoutと誤表示しません。
-- **検証と依存関係の強化。** 522件のfrontend test、81件のローカルWindows Rust test、クロスプラットフォームCI、CodeQLに合格しました。Vitest 4.1.11で `GHSA-82fw-gwwq-j7x9` を解消し、公開時点のpnpm auditは既知の問題0件です。
+- **Grok初回ログインの復旧。** 正確な外部`auth.x.ai`ハンドオフ後、権限範囲を広げず、アプリの再起動なしで元の埋め込みpaneを`grok.com`へ戻します。
+- **ChatGPT Astraへのハンドオフ。** 現在の送信controlと折りたたまれた長いpromptを認識し、draftが残ったままのoptimistic bubbleを成功とせず、観測済みのPro thinking中は待機を続けて後続inputによるAstraの中断を防ぎます。
+- **偽のbridge degradedを解消。** 成功した空のbridge pullを`[Error: bridge degraded]`に変換せず、workflowの正確な600秒inactivity timeoutを維持します。
 
-詳細と検証範囲は[日英併記のリリースノート](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.7)をご覧ください。
+詳細とWindows検証チェックリストは[リリースノート](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9)をご覧ください。
 
 ## Desktopとブラウザー拡張のどちらを選ぶ？
 
@@ -79,7 +80,7 @@ Windows portable版にはアプリ内更新UIがありません。[GitHub Releas
 
 構造化workflowは開始前に必要な全roleを確認します。利用できないプロバイダーがあれば、その名前を示し、open／login、role再割り当て、別modeへの切り替えを案内します。暗黙のプロバイダー置換はしません。通常の構造化workflowは継続するprovider errorで停止し、Brainstormだけは再試行・スキップ・キャンセルの明示選択まで一時停止します。
 
-Brainstormは意図的に最も重いpresetです。標準の4 provider sessionをすべてログイン済みにし、約 **45〜90分** を見込んでください。48件の復旧経路には自動テストがありますが、v1.8.7では実アカウントによるChatGPT↔Grokの遅いハンドオフ確認が残っています。
+Brainstormは意図的に最も重いpresetです。標準の4 provider sessionをすべてログイン済みにし、約 **45〜90分** を見込んでください。48件の復旧経路には自動テストがありますが、v1.8.9では実アカウントによるChatGPT↔Grokの遅いハンドオフ確認が残っています。
 
 Workflow完了後は画面下のcomposerから同じapp conversationを続けられます。文脈を一新する場合は「**新しい会話**」を選んでください。
 
@@ -102,8 +103,8 @@ Workflow完了後は画面下のcomposerから同じapp conversationを続けら
 - **Windows x64** はpackaged launchの検証実績がありますが、未署名artifactがSmartScreenを表示する場合があります。
 - **macOS Apple Silicon** は部分検証です。DMGはad-hoc署名済み・notarize未実施です。以前の実機報告ではアプリを開きChatGPT、Claude、Geminiへloginできましたが、GrokはCloudflareで停止しました。現在のGrok復旧もApple Siliconでlive retestが必要です。Intel artifactはありません。
 - **Linux x86_64** はCI packagingのみ検証済みで、maintainerによる新しい実機起動報告はありません。
-- v1.8.7では、実アカウントでのChatGPT↔Grokの遅いハンドオフ、Grok Cloudflare challenge、新しいApple Siliconでの起動とprovider login smokeを手動で再検証していません。
-- Snapshot／replay／checkpointは既存互換性だけを保守します。この機能凍結版にmarketplace、graph editor、第5のprovider、新persistence schema、組み込みterminal agent、telemetry、Developer ID／notarization program、self-updaterを追加する予定はありません。
+- v1.8.9では、実アカウントでのChatGPT↔Grokの遅いハンドオフ、Grok Cloudflare challenge、新しいApple Siliconでの起動とprovider login smokeを手動で再検証していません。
+- Snapshot／replay／checkpointは既存互換性だけを保守します。実験的なMeta AIスタンバイ以外に、marketplace、graph editor、さらなるprovider追加、新persistence schema、組み込みterminal agent、telemetry、Developer ID／notarization program、self-updaterを追加する予定はありません。
 
 根拠は[互換性マトリクス](./docs/COMPATIBILITY.md)をご覧ください。CIや自動テストを、実際のprovider accountやdesktop deviceを操作した証拠として扱うことはありません。
 
