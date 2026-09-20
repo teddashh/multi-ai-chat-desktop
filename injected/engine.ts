@@ -285,6 +285,7 @@ class InactiveSendOperationError extends Error {
   let draftStaging = false;
   let lastResponseText = '';
   let lastCompletionActivityAt = 0;
+  let lastGrokThinking: boolean | undefined;
   let pendingPromptText = '';
   let matchingChatGptUserTurnBaseline = 0;
   let activeChatGptUserTurnAnchor: Element | null = null;
@@ -1682,6 +1683,7 @@ class InactiveSendOperationError extends Error {
     matchingChatGptUserTurnBaseline = 0;
     activeChatGptUserTurnAnchor = null;
     lastActivatedInput = null;
+    lastGrokThinking = undefined;
     resetChatGptTerminalGate();
   }
 
@@ -1697,6 +1699,20 @@ class InactiveSendOperationError extends Error {
     if (sendOperation !== undefined) releaseSendOperation(sendOperation);
   }
 
+  function recordGrokGenerationActivity() {
+    if (adapter?.provider !== 'grok') return;
+    const thinking = isThinking();
+    const resumed = thinking && lastGrokThinking === false;
+    lastGrokThinking = thinking;
+    if (!resumed) return;
+    // Heavy can resume without changing its intermediate answer. Cancel both the text
+    // stability timer and the post-generation timer, then wait for generation to stop again.
+    if (responseTimeout !== undefined) window.clearTimeout(responseTimeout);
+    responseTimeout = undefined;
+    clearFinishResponseTimeout();
+    checkIfDone();
+  }
+
   let observerInstalled = false;
   function observeResponses() {
     if (observerInstalled) return;
@@ -1710,6 +1726,7 @@ class InactiveSendOperationError extends Error {
     }
     const observer = new MutationObserver(() => {
       if (!waitingForResponse) return;
+      recordGrokGenerationActivity();
       if (isThinking()) return;
       const currentText = getLatestResponseText();
       if (!currentText || currentText === lastResponseText) return;
@@ -1742,6 +1759,7 @@ class InactiveSendOperationError extends Error {
         pollInterval = undefined;
         return;
       }
+      recordGrokGenerationActivity();
       const currentText = getLatestResponseText();
       if (!currentText || currentText === lastResponseText) return;
       clearFinishResponseTimeout();
