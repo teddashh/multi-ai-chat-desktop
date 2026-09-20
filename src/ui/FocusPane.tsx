@@ -15,9 +15,11 @@ import type { ProcessTraceState } from './processTraceModel';
 
 export type CenterSurface = 'text' | 'native';
 
-type ProviderActionState =
-  | { provider: AIProvider; status: 'opening' }
-  | { provider: AIProvider; status: 'error' };
+type ProviderActionState = {
+  provider: AIProvider;
+  action: 'open' | 'login';
+  status: 'opening' | 'error';
+};
 
 export function FocusPane({
   centeredProvider,
@@ -79,17 +81,20 @@ export function FocusPane({
   const providerActionGeneration = useRef(0);
   const effectiveStageExpanded = stageExpanded && Boolean(onToggleStageExpanded);
 
-  const activateProvider = async (provider: AIProvider) => {
+  const runProviderAction = async (provider: AIProvider, action: ProviderActionState['action']) => {
     const generation = (providerActionGeneration.current += 1);
-    setProviderAction({ provider, status: 'opening' });
+    setProviderAction({ provider, action, status: 'opening' });
     try {
-      await changeProviderPresentation(provider, 'center');
+      if (action === 'login') await onOpenLogin(provider);
+      else await changeProviderPresentation(provider, 'center');
       if (generation === providerActionGeneration.current) setProviderAction(undefined);
     } catch {
-      if (generation === providerActionGeneration.current) setProviderAction({ provider, status: 'error' });
+      if (generation === providerActionGeneration.current) setProviderAction({ provider, action, status: 'error' });
     }
   };
 
+  const activateProvider = (provider: AIProvider) => runProviderAction(provider, 'open');
+  const openProviderLogin = (provider: AIProvider) => runProviderAction(provider, 'login');
   const openingProvider = providerAction?.status === 'opening' ? providerAction.provider : undefined;
 
   return (
@@ -112,7 +117,7 @@ export function FocusPane({
           onManualFocusControl={onManualFocusControl}
           onEnlargeCenter={onEnlargeCenter}
           onCollapseCenter={onCollapseCenter}
-          onOpenLogin={onOpenLogin}
+          onOpenLogin={openProviderLogin}
           syncBounds={syncBounds}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
@@ -134,7 +139,7 @@ export function FocusPane({
           <button
             type="button"
             className="shrink-0 rounded border border-red-400 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-700 dark:hover:bg-red-900"
-            onClick={() => void activateProvider(providerAction.provider)}
+            onClick={() => void runProviderAction(providerAction.provider, providerAction.action)}
           >
             {t('provider.retry')}
           </button>
