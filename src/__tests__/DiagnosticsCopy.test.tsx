@@ -1,11 +1,18 @@
 import { Children, isValidElement, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { host } from '../host';
 import { AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { t } from '../i18n/t';
 import { DiagnosticsSection } from '../ui/SettingsModal';
 import { normalizeSettings } from '../ui/settingsModel';
 
+vi.mock('../host', () => ({
+  host: {
+    app: { version: vi.fn().mockResolvedValue('1.8.9') },
+    share: { exportMarkdown: vi.fn().mockResolvedValue('/tmp/debug.md') },
+  },
+}));
 vi.mock('react', async (importOriginal) => {
   const react = await importOriginal<typeof import('react')>();
   return { ...react, useEffect: vi.fn(), useMemo: vi.fn(react.useMemo), useRef: vi.fn(react.useRef), useState: vi.fn(react.useState) };
@@ -17,7 +24,7 @@ vi.mock('../ui/useEventLog', () => ({ useEventLog: () => [
 ] }));
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-type Props = { children?: ReactNode; onClick?: () => void; onChange?: (event: { target: { value: string } }) => void };
+type Props = { children?: ReactNode; disabled?: boolean; onClick?: () => void; onChange?: (event: { target: { value: string } }) => void };
 function find(node: ReactNode, type: string, label?: string): ReactElement<Props> | undefined {
   if (!isValidElement<Props>(node)) return undefined;
   if (node.type === type && (label === undefined || node.props.children === label)) return node;
@@ -64,6 +71,12 @@ function harness(writeText = vi.fn().mockResolvedValue(undefined)) {
       expect(btn).toBeDefined(); btn!.props.onClick!();
     },
     hasNotice: (label: string) => Boolean(find(render(), 'button', label)),
+    exportButton: () => {
+      const tree = render();
+      const btn = find(tree, 'button', t('settings.exportDebugBundle', 'en')) ?? find(tree, 'button', t('settings.exporting', 'en'));
+      expect(btn).toBeDefined();
+      return btn!;
+    },
   };
 }
 
@@ -112,5 +125,57 @@ describe('diagnostics copy completion scope', () => {
     await vi.waitFor(() => expect(ui.hasNotice('Copy failed')).toBe(true));
     old.resolve(); await old.promise;
     expect(ui.hasNotice('Copy failed')).toBe(true);
+  });
+});
+
+describe('diagnostics export in-flight guard', () => {
+  it.each(['saved', 'cancelled', 'failed'] as const)('coalesces clicks through version lookup and save, then unlocks after %s', async (outcome) => {
+    vi.mocked(host.app.version).mockReset().mockResolvedValue('1.8.9');
+    vi.mocked(host.share.exportMarkdown).mockReset().mockResolvedValue('/tmp/retry.md');
+    let resolveVersion!: (value: string) => void;
+    const versionPending = new Promise<string>((resolve) => { resolveVersion = resolve; });
+    const version = vi.mocked(host.app.version).mockReturnValueOnce(versionPending);
+    let resolveSave!: (value: string | null) => void;
+    let rejectSave!: (reason: Error) => void;
+    const savePending = new Promise<string | null>((resolve, reject) => { resolveSave = resolve; rejectSave = reject; });
+    const save = vi.mocked(host.share.exportMarkdown).mockReturnValueOnce(savePending);
+    const ui = harness();
+    const click = ui.exportButton().props.onClick!;
+    click(); click();
+    expect(version).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+    expect(ui.exportButton().props.disabled).toBe(true);
+
+    resolveVersion('1.8.9');
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    click();
+    expect(version).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
+    if (outcome === 'failed') rejectSave(new Error('save denied'));
+    else resolveSave(outcome === 'saved' ? '/tmp/first.md' : null);
+    await vi.waitFor(() => expect(ui.exportButton().props.disabled).toBe(false));
+
+    ui.exportButton().props.onClick!();
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(version).toHaveBeenCalledTimes(2);
+  });
+
+  it('unlocks when version lookup fails before a save dialog opens', async () => {
+    vi.mocked(host.app.version).mockReset().mockResolvedValue('1.8.9');
+    vi.mocked(host.share.exportMarkdown).mockReset().mockResolvedValue(null);
+    let rejectVersion!: (reason: Error) => void;
+    const pending = new Promise<string>((_, reject) => { rejectVersion = reject; });
+    const version = vi.mocked(host.app.version).mockReturnValueOnce(pending);
+    const save = vi.mocked(host.share.exportMarkdown);
+    const ui = harness();
+    const click = ui.exportButton().props.onClick!;
+    click(); click();
+    expect(version).toHaveBeenCalledTimes(1);
+    rejectVersion(new Error('version unavailable'));
+    await vi.waitFor(() => expect(ui.exportButton().props.disabled).toBe(false));
+    expect(save).not.toHaveBeenCalled();
+    ui.exportButton().props.onClick!();
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(version).toHaveBeenCalledTimes(2);
   });
 });
