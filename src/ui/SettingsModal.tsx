@@ -122,6 +122,7 @@ export function SettingsModal({
   const fontSizeDebounceRef = useRef<TrailingDebounce<PendingFontSizeUpdate> | undefined>(undefined);
   const modalSessionRef = useRef(0);
   const updateCheckSeqRef = useRef(0);
+  const updateCheckAbortRef = useRef<AbortController | undefined>();
   const draftUpdateSeqRef = useRef(0);
   const languageUpdateSeqRef = useRef(0);
   const fontSizeUpdateSeqRef = useRef(0);
@@ -176,6 +177,7 @@ export function SettingsModal({
       });
     return () => {
       disposed = true;
+      updateCheckAbortRef.current?.abort();
     };
   }, [open]);
 
@@ -288,7 +290,10 @@ export function SettingsModal({
     const modalSession = modalSessionRef.current;
     try {
       await fontSizeDebounceRef.current?.flush();
-      if (modalSession === modalSessionRef.current) onClose();
+      if (modalSession === modalSessionRef.current) {
+        updateCheckAbortRef.current?.abort();
+        onClose();
+      }
     } catch {
       // persistFontSize already restored the last persisted value and exposed the error.
     }
@@ -326,14 +331,20 @@ export function SettingsModal({
   };
 
   const checkForUpdates = async () => {
+    updateCheckAbortRef.current?.abort();
+    const controller = new AbortController();
+    updateCheckAbortRef.current = controller;
     const modalSession = modalSessionRef.current;
     const updateCheckSeq = ++updateCheckSeqRef.current;
-    const isCurrent = () => modalSession === modalSessionRef.current && updateCheckSeq === updateCheckSeqRef.current;
+    const isCurrent = () =>
+      !controller.signal.aborted &&
+      modalSession === modalSessionRef.current &&
+      updateCheckSeq === updateCheckSeqRef.current;
     setUpdateCheck({ status: 'checking' });
     try {
       const currentVersion = await host.app.version();
       if (!isCurrent()) return;
-      const latest = await fetchLatestRelease();
+      const latest = await fetchLatestRelease(undefined, controller.signal);
       if (!isCurrent()) return;
       if (!latest) {
         setUpdateCheck({ status: 'unavailable' });
@@ -347,6 +358,8 @@ export function SettingsModal({
     } catch (reason) {
       if (!isCurrent()) return;
       setUpdateCheck({ status: 'error', message: reason instanceof Error ? reason.message : String(reason) });
+    } finally {
+      if (updateCheckAbortRef.current === controller) updateCheckAbortRef.current = undefined;
     }
   };
 
