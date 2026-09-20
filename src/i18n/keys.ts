@@ -261,6 +261,7 @@ export const I18N_KEYS = [
   'settings.upToDate',
   'settings.newVersionAvailable',
   'settings.downloadPage',
+  'settings.downloadPageFailed',
   'settings.releasesUnavailable',
   'settings.updateCheckFailed',
   'settings.telemetryNone',

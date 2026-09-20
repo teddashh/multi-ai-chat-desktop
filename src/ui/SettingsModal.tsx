@@ -579,13 +579,7 @@ export function SettingsModal({
                   {updateCheck.status === 'available' ? (
                     <span className="text-xs text-sky-700 dark:text-sky-300">
                       {t('settings.newVersionAvailable').replace('{version}', updateCheck.tagName)} {'->'}{' '}
-                      <button
-                        type="button"
-                        className="underline hover:text-sky-800 dark:hover:text-sky-200"
-                        onClick={() => void host.app.openExternal(updateCheck.htmlUrl)}
-                      >
-                        {t('settings.downloadPage')}
-                      </button>
+                      <DownloadPageLink key={updateCheck.htmlUrl} url={updateCheck.htmlUrl} />
                     </span>
                   ) : null}
                   {updateCheck.status === 'unavailable' ? (
@@ -935,4 +929,43 @@ function EventLogRow({ event, now }: { event: EventLogEvent; now: number }) {
 
 function errorDetail(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
+}
+
+export function DownloadPageLink({ url }: { url: string }) {
+  const { t } = useI18n();
+  const [status, setStatus] = useState<'opening' | 'error'>();
+  const inFlight = useRef(false);
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current += 1; }, []);
+
+  const openPage = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const request = ++generation.current;
+    setStatus('opening');
+    try {
+      await host.app.openExternal(url);
+      if (request === generation.current) setStatus(undefined);
+    } catch {
+      if (request === generation.current) setStatus('error');
+    } finally {
+      inFlight.current = false;
+    }
+  };
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      {status === 'error' ? (
+        <span role="alert" className="text-red-700 dark:text-red-300">{t('settings.downloadPageFailed')}</span>
+      ) : null}
+      <button
+        type="button"
+        className="underline hover:text-sky-800 dark:hover:text-sky-200 disabled:cursor-wait disabled:opacity-50"
+        disabled={status === 'opening'}
+        onClick={() => void openPage()}
+      >
+        {t(status === 'error' ? 'provider.retry' : 'settings.downloadPage')}
+      </button>
+    </span>
+  );
 }
