@@ -17,7 +17,7 @@ export type CenterSurface = 'text' | 'native';
 
 type ProviderActionState = {
   provider: AIProvider;
-  action: 'open' | 'login' | 'reload';
+  action: 'open' | 'login' | 'reload' | 'browser';
   status: 'opening' | 'error';
 };
 
@@ -90,7 +90,8 @@ export function FocusPane({
         resetProviderBootState(provider);
         await host.provider.reload(provider);
         await syncBounds(provider);
-      } else await changeProviderPresentation(provider, 'center');
+      } else if (action === 'browser') await host.provider.openLoginExternal(provider);
+      else await changeProviderPresentation(provider, 'center');
       if (generation === providerActionGeneration.current) setProviderAction(undefined);
     } catch {
       if (generation === providerActionGeneration.current) setProviderAction({ provider, action, status: 'error' });
@@ -100,6 +101,7 @@ export function FocusPane({
   const activateProvider = (provider: AIProvider) => runProviderAction(provider, 'open');
   const openProviderLogin = (provider: AIProvider) => runProviderAction(provider, 'login');
   const reloadProvider = (provider: AIProvider) => runProviderAction(provider, 'reload');
+  const openProviderInBrowser = (provider: AIProvider) => runProviderAction(provider, 'browser');
   const openingProvider = providerAction?.status === 'opening' ? providerAction.provider : undefined;
 
   return (
@@ -124,6 +126,7 @@ export function FocusPane({
           onCollapseCenter={onCollapseCenter}
           onOpenLogin={openProviderLogin}
           onReload={reloadProvider}
+          onOpenInBrowser={openProviderInBrowser}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
           stageExpanded={effectiveStageExpanded}
@@ -240,6 +243,7 @@ function FocusStage({
   onCollapseCenter,
   onOpenLogin,
   onReload,
+  onOpenInBrowser,
   reportProvider,
   reportBusy,
   stageExpanded,
@@ -260,6 +264,7 @@ function FocusStage({
   onCollapseCenter: () => void;
   onOpenLogin: (provider: AIProvider) => Promise<void>;
   onReload: (provider: AIProvider) => Promise<void>;
+  onOpenInBrowser: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
   stageExpanded: boolean;
@@ -394,7 +399,7 @@ function FocusStage({
       {(provider === 'gemini' || provider === 'grok') && state.login === 'blocked' ? (
         <div className="flex items-center justify-between gap-2 border-b border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
           <span>{t(provider === 'grok' ? 'provider.grokChallengeActive' : 'provider.embeddedLoginBlocked')}</span>
-          <button type="button" className="border border-amber-300 dark:border-amber-700 px-2 py-1 hover:bg-amber-100 dark:hover:bg-amber-900" onClick={() => void host.provider.openLoginExternal(provider)}>
+          <button type="button" className="border border-amber-300 dark:border-amber-700 px-2 py-1 hover:bg-amber-100 dark:hover:bg-amber-900" onClick={() => void onOpenInBrowser(provider)}>
             {t('provider.openInBrowser')}
           </button>
         </div>

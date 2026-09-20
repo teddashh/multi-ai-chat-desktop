@@ -19,19 +19,22 @@ vi.mock('../i18n/context', () => ({
 
 afterEach(() => vi.restoreAllMocks());
 
-function findReloadButton(node: ReactNode): ReactElement<{ onClick: () => void }> | undefined {
+function findButton(node: ReactNode, label: string): ReactElement<{ onClick: () => void }> | undefined {
   if (!isValidElement<{ children?: ReactNode }>(node)) return undefined;
-  if (node.type === 'button' && node.props.children === 'Reload') {
+  if (node.type === 'button' && node.props.children === label) {
     return node as ReactElement<{ onClick: () => void }>;
   }
   for (const child of Children.toArray(node.props.children)) {
-    const button = findReloadButton(child);
+    const button = findButton(child, label);
     if (button) return button;
   }
   return undefined;
 }
 
-function harness(onOpenLogin = vi.fn<(provider: AIProvider) => Promise<void>>()) {
+function harness(
+  onOpenLogin = vi.fn<(provider: AIProvider) => Promise<void>>(),
+  { provider = 'meta', login = 'logged_out' }: { provider?: AIProvider; login?: ProviderState['login'] } = {},
+) {
   // Retain the parent hooks across renders; child components use React's SSR hooks.
   let actionState: unknown;
   const generation = { current: 0 };
@@ -41,13 +44,14 @@ function harness(onOpenLogin = vi.fn<(provider: AIProvider) => Promise<void>>())
     provider, webview: 'loaded', dom: 'ready', login: 'logged_out',
     thinking: false, lastStatusAt: 1, bridge: 'ok', adapter: 'ok',
   }])) as Record<AIProvider, ProviderState>;
+  states[provider].login = login;
   const render = () => {
     vi.mocked(useState).mockImplementationOnce(() => [actionState, (next) => { actionState = next; }]);
     vi.mocked(useRef).mockReturnValueOnce(generation);
     return FocusPane({
-      centeredProvider: 'meta', states,
-      presentation: { ...defaultPresentation(), grok: 'chip', meta: 'center' },
-      providers: ['chatgpt', 'claude', 'gemini', 'meta'],
+      centeredProvider: provider, states,
+      presentation: { ...defaultPresentation(), grok: provider === 'meta' ? 'chip' : 'side', [provider]: 'center' },
+      providers: ['chatgpt', 'claude', 'gemini', provider === 'meta' ? 'meta' : 'grok'],
       centerSurface: 'native', centerTextFinal: false,
       userHidden: new Set(), presentationHidden: new Set(),
       setPaneRef: vi.fn(), setCenterStageRef: vi.fn(), changeProviderPresentation,
@@ -65,22 +69,45 @@ function harness(onOpenLogin = vi.fn<(provider: AIProvider) => Promise<void>>())
     expect(alert).toBeTruthy();
     (alert.props.children[1] as ReactElement<{ onClick: () => void }>).props.onClick();
   };
-  const reload = () => {
+  const clickStageButton = (label: string, moreMenuOpen = false) => {
     const element = stage();
     const closeMenu = vi.fn();
-    vi.mocked(useState).mockReturnValueOnce([true, closeMenu]);
+    vi.mocked(useState).mockReturnValueOnce([moreMenuOpen, closeMenu]);
     vi.mocked(useRef).mockReturnValueOnce({ current: null });
     vi.mocked(useEffect).mockImplementationOnce(() => undefined);
     const renderStage = element.type as (props: typeof element.props) => ReactElement;
-    const button = findReloadButton(renderStage(element.props));
+    const button = findButton(renderStage(element.props), label);
     expect(button).toBeDefined();
     button!.props.onClick();
-    expect(closeMenu).toHaveBeenCalledWith(false);
+    if (moreMenuOpen) expect(closeMenu).toHaveBeenCalledWith(false);
   };
-  return { render, stage, retry, reload, onOpenLogin, changeProviderPresentation, syncBounds };
+  return {
+    render, stage, retry, onOpenLogin, changeProviderPresentation, syncBounds,
+    reload: () => clickStageButton('Reload', true),
+    openInBrowser: () => clickStageButton('Open in browser'),
+  };
 }
 
 describe('FocusPane provider action failure recovery', () => {
+  it.each(['grok', 'gemini'] as const)('retries only the browser action when opening %s externally is rejected', async (provider) => {
+    const external = vi.spyOn(host.provider, 'openLoginExternal')
+      .mockRejectedValueOnce(new Error('host rejected external login'))
+      .mockResolvedValueOnce(undefined);
+    const reload = vi.spyOn(host.provider, 'reload').mockResolvedValue(undefined);
+    const ui = harness(undefined, { provider, login: 'blocked' });
+
+    ui.openInBrowser();
+    await vi.waitFor(() => expect(renderToStaticMarkup(ui.render()).includes('role="alert"')).toBe(true));
+    expect(renderToStaticMarkup(ui.render())).toContain(`Couldn&#x27;t open ${AI_PROVIDERS[provider].name}. Please try again.`);
+    ui.retry();
+    await vi.waitFor(() => expect(external.mock.calls).toEqual([[provider], [provider]]));
+    expect(reload).not.toHaveBeenCalled();
+    expect(ui.onOpenLogin).not.toHaveBeenCalled();
+    expect(ui.changeProviderPresentation).not.toHaveBeenCalled();
+    expect(ui.syncBounds).not.toHaveBeenCalled();
+    expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
+  });
+
   it.each(['reload', 'bounds'])('retries Reload after %s rejects without reopening the provider', async (failure) => {
     const reload = vi.spyOn(host.provider, 'reload').mockResolvedValue(undefined);
     const ui = harness();
