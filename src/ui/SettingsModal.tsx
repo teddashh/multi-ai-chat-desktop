@@ -726,7 +726,7 @@ function AccessTransparencySection() {
   );
 }
 
-function DiagnosticsSection({
+export function DiagnosticsSection({
   providerStates,
   settings,
 }: {
@@ -737,12 +737,16 @@ function DiagnosticsSection({
   const events = useEventLog();
   const [providerFilter, setProviderFilter] = useState<EventLogProviderFilter>('all');
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const copyGeneration = useRef(0);
   const [exportState, setExportState] = useState<DebugBundleExportState>({ status: 'idle' });
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 15_000);
-    return () => window.clearInterval(timer);
+    return () => {
+      copyGeneration.current += 1;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -769,12 +773,14 @@ function DiagnosticsSection({
   const recentEvents = useMemo(() => [...filteredEvents].reverse().slice(0, 120), [filteredEvents]);
 
   const copyLog = async () => {
+    const generation = ++copyGeneration.current;
+    setCopyState('idle');
     try {
       if (!navigator.clipboard) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(formatEventLogText(filteredEvents));
-      setCopyState('copied');
+      if (generation === copyGeneration.current) setCopyState('copied');
     } catch {
-      setCopyState('error');
+      if (generation === copyGeneration.current) setCopyState('error');
     }
   };
 
@@ -810,7 +816,11 @@ function DiagnosticsSection({
             {t('settings.provider')}
             <select
               value={providerFilter}
-              onChange={(event) => setProviderFilter(event.target.value as EventLogProviderFilter)}
+              onChange={(event) => {
+                copyGeneration.current += 1;
+                setCopyState('idle');
+                setProviderFilter(event.target.value as EventLogProviderFilter);
+              }}
               className="border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
             >
               <option value="all">{t('settings.all')}</option>
