@@ -80,6 +80,9 @@ export function FocusPane({
   const [providerAction, setProviderAction] = useState<ProviderActionState | undefined>();
   const providerActionGeneration = useRef(0);
   const reportInFlight = useRef(false);
+  useEffect(() => () => {
+    providerActionGeneration.current += 1;
+  }, []);
   const effectiveStageExpanded = stageExpanded && Boolean(onToggleStageExpanded);
 
   const runProviderAction = async (provider: AIProvider, action: ProviderActionState['action']) => {
@@ -100,6 +103,7 @@ export function FocusPane({
       else if (action === 'reconnect') {
         resetProviderBootState(provider);
         await host.provider.reconnect(provider);
+        if (generation !== providerActionGeneration.current) return;
         await changeProviderPresentation(provider, 'center');
       } else await changeProviderPresentation(provider, 'center');
       if (generation === providerActionGeneration.current) setProviderAction(undefined);

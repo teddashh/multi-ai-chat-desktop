@@ -61,6 +61,10 @@ function harness(
   let actionState: unknown;
   const generation = { current: 0 };
   const reportInFlight = { current: false };
+  let cleanup: (() => void) | undefined;
+  let mounted = true;
+  let effectRan = false;
+  const updatesAfterUnmount = vi.fn();
   const changeProviderPresentation = vi.fn().mockResolvedValue(undefined);
   const syncBounds = vi.fn().mockResolvedValue(undefined);
   const reportProvider = vi.fn().mockResolvedValue(undefined);
@@ -85,9 +89,17 @@ function harness(
     ? (['chatgpt', 'claude', 'gemini', 'grok', provider === 'meta' ? 'meta' : 'chatgpt'] as AIProvider[])
     : (['chatgpt', 'claude', 'gemini', provider === 'meta' ? 'meta' : 'grok'] as AIProvider[]);
   const render = () => {
-    vi.mocked(useState).mockImplementationOnce(() => [actionState, (next) => { actionState = next; }]);
+    vi.mocked(useState).mockImplementationOnce(() => [actionState, (next) => {
+      if (!mounted) updatesAfterUnmount();
+      actionState = next;
+    }]);
     vi.mocked(useRef).mockReturnValueOnce(generation).mockReturnValueOnce(reportInFlight);
-    return FocusPane({
+    vi.mocked(useEffect).mockImplementationOnce((effect) => {
+      if (effectRan) return;
+      effectRan = true;
+      cleanup = effect() || undefined;
+    });
+    const tree = FocusPane({
       centeredProvider: provider, states,
       presentation: { ...defaultPresentation(), grok: provider === 'meta' ? 'chip' : 'side', [provider]: 'center' },
       providers: [...new Set(providers)],
@@ -98,6 +110,8 @@ function harness(
       onOpenLogin, syncBounds,
       reportProvider, reportBusy: false,
     });
+    vi.mocked(useEffect).mockReset();
+    return tree;
   };
   const stage = () => render().props.children[0] as ReactElement<{
     onOpenLogin: (provider: AIProvider) => Promise<void>;
@@ -140,6 +154,7 @@ function harness(
     expect(undefined).toBeDefined();
   };
   return {
+    updatesAfterUnmount, unmount: () => { mounted = false; cleanup?.(); },
     render, stage, retry, onOpenLogin, changeProviderPresentation, syncBounds, states, reportProvider,
     report: () => clickStageButton('Report', true),
     reload: () => clickStageButton('Reload', true),
@@ -208,6 +223,30 @@ describe('FocusPane provider action failure recovery', () => {
     expect(ui.changeProviderPresentation).not.toHaveBeenCalled();
     expect(ui.syncBounds).not.toHaveBeenCalled();
     expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
+  });
+
+  it.each(['resolve', 'reject'] as const)('ignores reconnect %s after unmount while a new pane reconnects normally', async (outcome) => {
+    let resolve!: () => void;
+    let reject!: (reason: Error) => void;
+    const pending = new Promise<void>((ok, fail) => { resolve = ok; reject = fail; });
+    const reconnect = vi.spyOn(host.provider, 'reconnect').mockResolvedValue(undefined).mockReturnValueOnce(pending);
+    const oldPane = harness(undefined, { stuckGrok: true });
+    oldPane.clickStuckRecover();
+    oldPane.unmount();
+
+    const newPane = harness(undefined, { stuckGrok: true });
+    newPane.clickStuckRecover();
+    await vi.waitFor(() => expect(newPane.changeProviderPresentation).toHaveBeenCalledWith('grok', 'center'));
+    if (outcome === 'resolve') resolve();
+    else reject(new Error('late reconnect rejection'));
+    await pending.catch(() => undefined);
+    await Promise.resolve();
+
+    expect(oldPane.changeProviderPresentation).not.toHaveBeenCalled();
+    expect(oldPane.syncBounds).not.toHaveBeenCalled();
+    expect(oldPane.updatesAfterUnmount).not.toHaveBeenCalled();
+    expect(newPane.changeProviderPresentation).toHaveBeenCalledTimes(1);
+    expect(reconnect.mock.calls).toEqual([['grok'], ['grok']]);
   });
 
   it.each(['reconnect', 'activate'])('retries status-strip reconnect after %s rejects without Login/Reload/browser', async (failure) => {
