@@ -92,7 +92,7 @@ describe('event log reducer', () => {
     },
   );
 
-  it('recognizes and filters Meta AI provider errors without retaining their body', () => {
+  it('filters mixed diagnostics to Meta AI events and sanitized copy text without changing the source log', () => {
     const responseText = '[Error: Meta guest session reached a provider gate]';
     const event = eventFromBridgeMessage({
       v: 1,
@@ -102,16 +102,32 @@ describe('event log reducer', () => {
       transport: 'pull',
     });
 
-    const events = appendEvent([], event!, { now: () => 234 });
+    const otherProviders = ['chatgpt', 'claude', 'gemini', 'grok'] as const;
+    const mixedEvents: EventLogEvent[] = [
+      ...otherProviders.map((provider) => ({
+        ts: 100,
+        provider,
+        kind: 'provider-state' as const,
+        summary: `${provider}-only`,
+      })),
+      { ts: 200, kind: 'workflow-step', summary: 'global-only' },
+      { ts: 201, provider: 'meta', kind: 'provider-state', summary: 'Meta AI state: logged_out' },
+    ];
+    const events = Object.freeze(appendEvent(mixedEvents, event!, { now: () => 234 }));
     const filtered = filterEventLogByProvider(events, 'meta');
     const copied = formatEventLogText(filtered);
 
-    expect(filtered).toHaveLength(1);
-    expect(filtered[0]).toMatchObject({ provider: 'meta', kind: 'response-error' });
-    expect(filtered[0].summary).toBe(`Meta AI response error (${responseText.length} chars)`);
+    expect(filtered).toEqual([events[5], events[6]]);
+    expect(filtered[1]).toMatchObject({ provider: 'meta', kind: 'response-error' });
+    expect(filtered[1].summary).toBe(`Meta AI response error (${responseText.length} chars)`);
     expect(copied).toContain('[Meta AI]');
+    expect(copied).toContain('Meta AI state: logged_out');
+    expect(copied).toContain('Meta AI response error');
+    for (const provider of otherProviders) expect(copied).not.toContain(`${provider}-only`);
+    expect(copied).not.toContain('global-only');
     expect(copied).not.toContain(responseText);
     expect(copied).not.toContain('guest session');
+    expect(filterEventLogByProvider(events, 'all')).toEqual([...mixedEvents, events[6]]);
   });
 
   it('stores prompt length instead of prompt text', () => {
