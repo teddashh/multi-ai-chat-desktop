@@ -365,6 +365,7 @@ export const en: Record<I18nKey, string> = {
   'reportPreview.noStructuralFailure': 'No structural selector failure was detected. Empty composers do not render send buttons, and new conversations do not contain response nodes. Reproduce the actual failure and export a debug log before filing an issue.',
   'reportPreview.cancel': 'Cancel',
   'reportPreview.openGithubIssue': 'Open GitHub issue',
+  'reportPreview.openFailed': "Couldn't open the GitHub issue. Please try again.",
   'fileInsert.binaryUnsupported': 'PDFs, images, and document files are not supported yet. Please choose a plain-text file.',
   'fileInsert.fileTooLarge': 'Text files must be smaller than about 256 KB. Please choose a smaller file.',
   'fileInsert.attachmentLimit': 'You can attach up to 8 text files totaling about 256 KB. Remove a file or choose smaller files.',

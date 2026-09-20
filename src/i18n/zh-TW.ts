@@ -353,6 +353,7 @@ export const zhTW: Record<I18nKey, string> = {
   'reportPreview.noStructuralFailure': '未偵測到 selector 結構錯誤。空白輸入框不會渲染送出鍵，新對話也不會有回覆節點。請先重現實際失敗並匯出 debug log，再建立 Issue。',
   'reportPreview.cancel': '取消',
   'reportPreview.openGithubIssue': '開啟 GitHub issue',
+  'reportPreview.openFailed': "無法開啟 GitHub issue，請再試一次。",
   'fileInsert.binaryUnsupported': '目前尚不支援 PDF、圖片或文件檔，請選擇純文字檔。',
   'fileInsert.fileTooLarge': '文字檔需小於約 256 KB，請選擇較小的檔案。',
   'fileInsert.attachmentLimit': '最多可附加 8 個文字檔，總大小約 256 KB；請移除或改選較小的檔案。',

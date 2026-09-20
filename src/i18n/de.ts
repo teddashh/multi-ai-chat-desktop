@@ -367,6 +367,7 @@ export const de: Record<I18nKey, string> = {
   'reportPreview.noStructuralFailure': 'Es wurde kein struktureller Selektorfehler erkannt. Bei einem leeren Eingabefeld wird keine Senden-Schaltfläche gerendert, und neue Unterhaltungen enthalten noch keine Antwortknoten. Reproduzieren Sie den tatsächlichen Fehler und exportieren Sie vor dem Erstellen eines Issues das Debug-Protokoll.',
   'reportPreview.cancel': 'Abbrechen',
   'reportPreview.openGithubIssue': 'GitHub-Issue öffnen',
+  'reportPreview.openFailed': "Das GitHub-Issue konnte nicht geöffnet werden. Bitte erneut versuchen.",
   'fileInsert.binaryUnsupported': 'PDFs, Bilder und Dokumentdateien werden noch nicht unterstützt. Bitte eine reine Textdatei auswählen.',
   'fileInsert.fileTooLarge': 'Textdateien müssen kleiner als etwa 256 KB sein. Bitte eine kleinere Datei auswählen.',
   'fileInsert.attachmentLimit': 'Du kannst bis zu 8 Textdateien mit insgesamt etwa 256 KB anhängen. Entferne eine Datei oder wähle kleinere Dateien.',

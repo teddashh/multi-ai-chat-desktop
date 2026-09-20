@@ -135,7 +135,7 @@ import {
   eventFromWorkflowStart,
 } from './diagnostics/eventLog';
 import { recordEventLog } from './diagnostics/eventLogStore';
-import { ModalDialog } from './ui/ModalDialog';
+import { ReportPreviewDialog } from './ui/ReportPreviewDialog';
 
 interface Bubble {
   id: string;
@@ -1754,9 +1754,6 @@ export default function App() {
     setReportBusy(true);
     try {
       await host.adapter.openIssue(reportPreview.provider, reportPreview.body);
-      setReportPreview(null);
-    } catch (error) {
-      setAdapterNotice({ provider: reportPreview.provider, kind: 'report-failed', message: String(error) });
     } finally {
       setReportBusy(false);
     }
@@ -2215,78 +2212,12 @@ export default function App() {
         <ReportPreviewDialog
           preview={reportPreview}
           busy={reportBusy}
-          onOpenIssue={() => void openReportIssue()}
+          onOpenIssue={openReportIssue}
           onCancel={() => setReportPreview(null)}
           locale={locale}
         />
       ) : null}
     </main>
-  );
-}
-
-function ReportPreviewDialog({
-  preview,
-  busy,
-  onOpenIssue,
-  onCancel,
-  locale,
-}: {
-  preview: { provider: AIProvider; digest: ReportDigest; body: string };
-  busy: boolean;
-  onOpenIssue: () => void;
-  onCancel: () => void;
-  locale: Locale;
-}) {
-  const digest = preview.digest;
-  return (
-    <ModalDialog
-      titleId="report-preview-title"
-      onEscape={onCancel}
-      onBackdrop={onCancel}
-      panelClassName="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-lg border border-zinc-300 bg-white p-5 shadow-2xl dark:border-zinc-700 dark:bg-zinc-950"
-    >
-        <div className="mb-4 border-b border-zinc-200 dark:border-zinc-800 pb-3">
-          <h2 id="report-preview-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{translateKey('reportPreview.title', locale)}</h2>
-        </div>
-        <div className="grid gap-2 text-xs text-zinc-700 dark:text-zinc-300 sm:grid-cols-2">
-          <div>
-            {translateKey('reportPreview.provider', locale)}: {digest.displayName} ({digest.provider})
-          </div>
-          <div>
-            {translateKey('reportPreview.adapterVersion', locale)}: {digest.adapterVersion}
-          </div>
-          <div>
-            {translateKey('reportPreview.appVersion', locale)}: {digest.appVersion}
-          </div>
-          <div>
-            {translateKey('reportPreview.path', locale)}: {digest.path}
-          </div>
-          <div className="sm:col-span-2">
-            {translateKey('reportPreview.firstMissingField', locale)}: {digest.firstMissingField ?? translateKey('reportPreview.none', locale)}
-          </div>
-        </div>
-        {!digest.firstMissingField ? (
-          <div className="mt-4 border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-900 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100">
-            {translateKey('reportPreview.noStructuralFailure', locale)}
-          </div>
-        ) : null}
-        <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 text-xs leading-relaxed text-zinc-800 dark:text-zinc-200">
-          {preview.body}
-        </pre>
-        <div className="mt-5 flex items-center justify-end gap-2 border-t border-zinc-200 dark:border-zinc-800 pt-4">
-          <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={onCancel}>
-            {translateKey('reportPreview.cancel', locale)}
-          </button>
-          <button
-            type="button"
-            className="border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950 px-3 py-1.5 text-sm text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={onOpenIssue}
-            disabled={busy || !digest.firstMissingField}
-          >
-            {translateKey('reportPreview.openGithubIssue', locale)}
-          </button>
-        </div>
-    </ModalDialog>
   );
 }
 

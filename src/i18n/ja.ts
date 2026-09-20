@@ -367,6 +367,7 @@ export const ja: Record<I18nKey, string> = {
   'reportPreview.noStructuralFailure': 'セレクター構造のエラーは検出されませんでした。空の入力欄では送信ボタンが表示されず、新しい会話には応答ノードがまだありません。Issue を作成する前に実際の失敗を再現し、デバッグログを出力してください。',
   'reportPreview.cancel': 'キャンセル',
   'reportPreview.openGithubIssue': 'GitHub Issueを開く',
+  'reportPreview.openFailed': "GitHub issueを開けませんでした。もう一度お試しください。",
   'fileInsert.binaryUnsupported': 'PDF、画像、文書ファイルにはまだ対応していません。プレーンテキストファイルを選択してください。',
   'fileInsert.fileTooLarge': 'テキストファイルは約256 KB未満にしてください。より小さいファイルを選択してください。',
   'fileInsert.attachmentLimit': '添付できるテキストファイルは合計約256 KB、最大8件です。ファイルを削除するか、より小さいファイルを選択してください。',

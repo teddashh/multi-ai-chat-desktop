@@ -344,6 +344,7 @@ export const I18N_KEYS = [
   'reportPreview.noStructuralFailure',
   'reportPreview.cancel',
   'reportPreview.openGithubIssue',
+  'reportPreview.openFailed',
   'fileInsert.binaryUnsupported',
   'fileInsert.fileTooLarge',
   'fileInsert.attachmentLimit',
