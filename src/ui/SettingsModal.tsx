@@ -740,12 +740,14 @@ export function DiagnosticsSection({
   const copyGeneration = useRef(0);
   const [exportState, setExportState] = useState<DebugBundleExportState>({ status: 'idle' });
   const exportInFlight = useRef(false);
+  const exportGeneration = useRef(0);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 15_000);
     return () => {
       copyGeneration.current += 1;
+      exportGeneration.current += 1;
       window.clearInterval(timer);
     };
   }, []);
@@ -788,11 +790,14 @@ export function DiagnosticsSection({
   const exportDebugBundle = async () => {
     if (exportInFlight.current) return;
     exportInFlight.current = true;
+    const generation = ++exportGeneration.current;
     setExportState({ status: 'exporting' });
     try {
       const generatedAt = new Date();
+      const appVersion = await host.app.version();
+      if (generation !== exportGeneration.current) return;
       const bundle = buildDebugBundle({
-        appVersion: await host.app.version(),
+        appVersion,
         timestampMs: generatedAt.getTime(),
         userAgent: navigator.userAgent,
         platform: navigator.platform,
@@ -801,8 +806,10 @@ export function DiagnosticsSection({
         events,
       });
       const saved = await host.share.exportMarkdown(debugBundleFilename(generatedAt), bundle);
+      if (generation !== exportGeneration.current) return;
       setExportState(saved ? { status: 'saved', message: formatI18n(t('share.exported'), { path: saved }) } : { status: 'cancelled' });
     } catch (reason) {
+      if (generation !== exportGeneration.current) return;
       setExportState({ status: 'error', message: reason instanceof Error ? reason.message : String(reason) });
     } finally {
       exportInFlight.current = false;

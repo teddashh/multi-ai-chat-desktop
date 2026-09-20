@@ -40,9 +40,14 @@ function deferred() {
   return { promise, resolve, reject };
 }
 function harness(writeText = vi.fn().mockResolvedValue(undefined)) {
-  vi.stubGlobal('navigator', { clipboard: { writeText } });
+  vi.stubGlobal('navigator', { clipboard: { writeText }, userAgent: 'test', platform: 'Linux' });
+  vi.stubGlobal('window', { setInterval: vi.fn(() => 1), clearInterval: vi.fn(), setTimeout: vi.fn(() => 1), clearTimeout: vi.fn() });
   const states: unknown[] = [];
   const refs: { current: unknown }[] = [];
+  const cleanups: Array<() => void> = [];
+  let mounted = true;
+  let mountEffectRan = false;
+  const updatesAfterUnmount = vi.fn();
   const providerStates = Object.fromEntries(Object.keys(AI_PROVIDERS).map((provider) => [provider, {
     provider, webview: 'loaded', dom: 'ready', login: 'logged_in', thinking: false, lastStatusAt: 1,
   }])) as Record<AIProvider, ProviderState>;
@@ -52,18 +57,28 @@ function harness(writeText = vi.fn().mockResolvedValue(undefined)) {
     vi.mocked(useState).mockImplementation((initial?: unknown): [unknown, (next: unknown) => void] => {
       const index = stateIndex++;
       if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial;
-      return [states[index], (next) => { states[index] = typeof next === 'function' ? next(states[index]) : next; }];
+      return [states[index], (next) => {
+        if (!mounted) updatesAfterUnmount();
+        states[index] = typeof next === 'function' ? next(states[index]) : next;
+      }];
     });
     vi.mocked(useRef).mockImplementation((initial) => refs[refIndex++] ?? (refs[refIndex - 1] = { current: initial }));
     vi.mocked(useMemo).mockImplementation((factory) => factory());
-    vi.mocked(useEffect).mockImplementation(() => undefined);
+    vi.mocked(useEffect).mockImplementation((effect, deps) => {
+      if (deps && deps.length !== 0) return;
+      if (mountEffectRan) return;
+      mountEffectRan = true;
+      const cleanup = effect();
+      if (typeof cleanup === 'function') cleanups.push(cleanup);
+    });
     const tree = DiagnosticsSection({ providerStates, settings: normalizeSettings({}) });
     vi.mocked(useState).mockRestore();
     vi.mocked(useRef).mockRestore();
     vi.mocked(useMemo).mockRestore();
     return tree;
   };
-  return { writeText, render,
+  return { writeText, render, updatesAfterUnmount,
+    unmount: () => { mounted = false; for (const cleanup of cleanups) cleanup(); },
     select: (provider: string) => find(render(), 'select')!.props.onChange!({ target: { value: provider } }),
     copy: () => {
       const tree = render();
@@ -177,5 +192,51 @@ describe('diagnostics export in-flight guard', () => {
     ui.exportButton().props.onClick!();
     await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(version).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('diagnostics export after Settings closes', () => {
+  it.each(['resolve', 'reject'] as const)('ignores version %s after close and allows export in a reopened panel', async (outcome) => {
+    vi.mocked(host.app.version).mockReset().mockResolvedValue('1.8.9');
+    vi.mocked(host.share.exportMarkdown).mockReset().mockResolvedValue('/tmp/retry.md');
+    let resolveVersion!: (value: string) => void;
+    let rejectVersion!: (reason: Error) => void;
+    const pending = new Promise<string>((resolve, reject) => { resolveVersion = resolve; rejectVersion = reject; });
+    vi.mocked(host.app.version).mockReturnValueOnce(pending);
+    const save = vi.mocked(host.share.exportMarkdown);
+    const closed = harness();
+    closed.exportButton().props.onClick!();
+    expect(host.app.version).toHaveBeenCalledTimes(1);
+    closed.unmount();
+    const reopened = harness();
+    reopened.exportButton().props.onClick!();
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    if (outcome === 'resolve') resolveVersion('1.8.9');
+    else rejectVersion(new Error('late version failure'));
+    await pending.catch(() => undefined);
+    await Promise.resolve();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(closed.updatesAfterUnmount).not.toHaveBeenCalled();
+    expect(reopened.exportButton().props.disabled).toBe(false);
+  });
+
+  it.each(['resolve', 'reject'] as const)('ignores save %s after close', async (outcome) => {
+    vi.mocked(host.app.version).mockReset().mockResolvedValue('1.8.9');
+    vi.mocked(host.share.exportMarkdown).mockReset().mockResolvedValue('/tmp/retry.md');
+    let resolveSave!: (value: string | null) => void;
+    let rejectSave!: (reason: Error) => void;
+    const pending = new Promise<string | null>((resolve, reject) => { resolveSave = resolve; rejectSave = reject; });
+    vi.mocked(host.share.exportMarkdown).mockReturnValueOnce(pending);
+    const save = vi.mocked(host.share.exportMarkdown);
+    const ui = harness();
+    ui.exportButton().props.onClick!();
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    ui.unmount();
+    if (outcome === 'resolve') resolveSave('/tmp/late.md');
+    else rejectSave(new Error('late save failure'));
+    await pending.catch(() => undefined);
+    await Promise.resolve();
+    expect(ui.updatesAfterUnmount).not.toHaveBeenCalled();
+    expect(save).toHaveBeenCalledTimes(1);
   });
 });
