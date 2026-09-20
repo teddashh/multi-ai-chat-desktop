@@ -36,6 +36,7 @@ interface ReplayBlockState {
 interface ReplayNotice {
   kind: 'ok' | 'error';
   text: string;
+  retryLoginProvider?: AIProvider;
 }
 
 export interface ReplayPanelProps {
@@ -72,6 +73,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
   state: ReplayPanelState = initialState;
 
   private mounted = false;
+  private loginRequestGeneration = 0;
 
   componentDidMount(): void {
     this.mounted = true;
@@ -80,6 +82,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
 
   componentWillUnmount(): void {
     this.mounted = false;
+    this.loginRequestGeneration += 1;
   }
 
   async refreshStoredSnapshots(): Promise<void> {
@@ -96,6 +99,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
   }
 
   async startReplay(source: ReplaySource, options: ReplayRunOptions = {}): Promise<ReplayResult | undefined> {
+    this.loginRequestGeneration += 1;
     const busyKey = sourceKey(source);
     const question = options.question?.trim();
     this.updateState({ busyKey, notice: undefined, block: undefined });
@@ -149,7 +153,28 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
     }
   }
 
+  private async openProviderLogin(provider: AIProvider): Promise<void> {
+    if (this.props.activeProviders?.includes(provider) === false) return;
+    const generation = ++this.loginRequestGeneration;
+    const block = this.state.block;
+    this.updateState({ notice: undefined });
+    try {
+      if (this.props.onOpenLogin) await this.props.onOpenLogin(provider);
+      else await host.provider.openLogin(provider);
+    } catch {
+      if (generation !== this.loginRequestGeneration || this.state.block !== block) return;
+      this.updateState({
+        notice: {
+          kind: 'error',
+          text: formatI18n(this.t('provider.openFailed'), { provider: providerName(provider) }),
+          retryLoginProvider: provider,
+        },
+      });
+    }
+  }
+
   async deleteStoredSnapshot(snapshotId: string): Promise<void> {
+    this.loginRequestGeneration += 1;
     const busyKey = `delete:${snapshotId}`;
     this.updateState({ busyKey, notice: undefined });
     try {
@@ -166,6 +191,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
   render() {
     const lastSnapshot = getLastSnapshot();
     const { storedSnapshots, loadingStored, listError, busyKey, block, question, notice } = this.state;
+    const retryLoginProvider = notice?.retryLoginProvider;
 
     return (
       <section aria-label={this.t('replay.snapshotReplay')} className="mt-4 border-t border-zinc-200 dark:border-zinc-800 pt-4">
@@ -258,7 +284,20 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
           </section>
         </div>
 
-        {notice ? <div className={`mt-3 border px-3 py-2 text-xs ${noticeClass(notice.kind)}`}>{notice.text}</div> : null}
+        {notice ? (
+          <div role={notice.kind === 'error' ? 'alert' : undefined} className={`mt-3 border px-3 py-2 text-xs ${noticeClass(notice.kind)}`}>
+            {notice.text}
+            {retryLoginProvider && this.props.activeProviders?.includes(retryLoginProvider) !== false ? (
+              <button
+                type="button"
+                className="ml-3 border border-red-400 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-700 dark:hover:bg-red-900"
+                onClick={() => void this.openProviderLogin(retryLoginProvider)}
+              >
+                {this.t('provider.retry')}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {block ? this.renderBlock(block, question, busyKey) : null}
       </section>
     );
@@ -330,11 +369,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
                     <button
                       type="button"
                       className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950"
-                      onClick={() => void (
-                        this.props.onOpenLogin
-                          ? this.props.onOpenLogin(provider)
-                          : host.provider.openLogin(provider)
-                      )}
+                      onClick={() => void this.openProviderLogin(provider)}
                     >
                       {this.t('replay.openLogin')}
                     </button>
