@@ -95,6 +95,7 @@ function metaAdapter(overrides: Partial<TestAdapter> = {}): Partial<TestAdapter>
 
 describe('injected engine input hardening', () => {
   afterEach(() => {
+    FakeMutationObserver.instances = [];
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.unstubAllGlobals();
@@ -1829,6 +1830,53 @@ describe('injected engine input hardening', () => {
     });
   });
 
+  it.each([false, true].flatMap((initiallyThinking) =>
+    ['poll', 'mutation'].map((observation) => ({ initiallyThinking, observation })),
+  ))('restarts Grok quiet time after unchanged-text generation resumes ($observation, initially thinking: $initiallyThinking)', async ({ initiallyThinking, observation }) => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const stopButton = new FakeElement(env.document, 'button');
+    const setThinking = (thinking: boolean) => {
+      env.detectorElements.set(GROK_CHAT_STOP_BUTTON_SELECTOR, thinking ? [stopButton] : []);
+    };
+    setThinking(initiallyThinking);
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      timing: {
+        doneDelayMs: 8_000,
+        chunkDebounceMs: 600,
+        statusIntervalMs: 10_000,
+        backupPollMs: 3_000,
+      },
+    });
+    if (env.sendButton) env.sendButton.onClick = () => env.input.setVisibleText('');
+
+    send(handler, 'multi-phase Heavy answer');
+    await flushMicrotasks();
+    env.responses = [new FakeElement(env.document, 'div', 'unchanged intermediate answer')];
+    await vi.advanceTimersByTimeAsync(initiallyThinking ? 12_000 : 3_000);
+    if (initiallyThinking) {
+      setThinking(false);
+      // Let the completion watcher arm its post-generation quiet timer.
+      await vi.advanceTimersByTimeAsync(3_000);
+    }
+
+    setThinking(true);
+    if (observation === 'mutation') FakeMutationObserver.notify();
+    // A short DOM-observed phase must also reset the deadline between backup polls.
+    await vi.advanceTimersByTimeAsync(observation === 'mutation' ? 400 : 3_000);
+    setThinking(false);
+    if (observation === 'mutation') FakeMutationObserver.notify();
+    // The previous quiet deadline must not survive the resumed generation,
+    // even though neither the response element nor its text changed.
+    await vi.advanceTimersByTimeAsync(7_999);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(4_001);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toEqual([
+      { v: 1, action: 'RESPONSE_DONE', provider: 'grok', payload: 'unchanged intermediate answer' },
+    ]);
+  });
+
   it('FILL_DRAFT inserts text without clicking send, dispatching Enter, or scheduling send retry', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -3523,8 +3571,16 @@ class FakeDataTransfer {
 }
 
 class FakeMutationObserver {
-  constructor(_callback: MutationCallback) {
-    // no-op
+  static instances: FakeMutationObserver[] = [];
+
+  constructor(private readonly callback: MutationCallback) {
+    FakeMutationObserver.instances.push(this);
+  }
+
+  static notify() {
+    for (const observer of FakeMutationObserver.instances) {
+      observer.callback([], observer as unknown as MutationObserver);
+    }
   }
 
   observe(_target: Node, _options?: MutationObserverInit) {
