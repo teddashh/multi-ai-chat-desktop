@@ -1742,8 +1742,6 @@ export default function App() {
         const raw = await host.adapter.reportBroken(provider);
         const digest = JSON.parse(raw) as ReportDigest;
         setReportPreview({ provider, digest, body: formatReportBody(digest) });
-      } catch (error) {
-        setAdapterNotice({ provider, kind: 'report-failed', message: String(error) });
       } finally {
         setReportBusy(false);
       }

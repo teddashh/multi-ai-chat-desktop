@@ -60,8 +60,10 @@ function harness(
   // Retain the parent hooks across renders; child components use React's SSR hooks.
   let actionState: unknown;
   const generation = { current: 0 };
+  const reportInFlight = { current: false };
   const changeProviderPresentation = vi.fn().mockResolvedValue(undefined);
   const syncBounds = vi.fn().mockResolvedValue(undefined);
+  const reportProvider = vi.fn().mockResolvedValue(undefined);
   const states = Object.fromEntries(Object.keys(AI_PROVIDERS).map((provider) => [provider, {
     provider, webview: 'loaded', dom: 'ready', login: 'logged_out',
     thinking: false, lastStatusAt: 1, bridge: 'ok', adapter: 'ok',
@@ -84,7 +86,7 @@ function harness(
     : (['chatgpt', 'claude', 'gemini', provider === 'meta' ? 'meta' : 'grok'] as AIProvider[]);
   const render = () => {
     vi.mocked(useState).mockImplementationOnce(() => [actionState, (next) => { actionState = next; }]);
-    vi.mocked(useRef).mockReturnValueOnce(generation);
+    vi.mocked(useRef).mockReturnValueOnce(generation).mockReturnValueOnce(reportInFlight);
     return FocusPane({
       centeredProvider: provider, states,
       presentation: { ...defaultPresentation(), grok: provider === 'meta' ? 'chip' : 'side', [provider]: 'center' },
@@ -94,7 +96,7 @@ function harness(
       setPaneRef: vi.fn(), setCenterStageRef: vi.fn(), changeProviderPresentation,
       onManualFocusControl: vi.fn(), onEnlargeCenter: vi.fn(), onCollapseCenter: vi.fn(),
       onOpenLogin, syncBounds,
-      reportProvider: vi.fn().mockResolvedValue(undefined), reportBusy: false,
+      reportProvider, reportBusy: false,
     });
   };
   const stage = () => render().props.children[0] as ReactElement<{
@@ -138,7 +140,8 @@ function harness(
     expect(undefined).toBeDefined();
   };
   return {
-    render, stage, retry, onOpenLogin, changeProviderPresentation, syncBounds, states,
+    render, stage, retry, onOpenLogin, changeProviderPresentation, syncBounds, states, reportProvider,
+    report: () => clickStageButton('Report', true),
     reload: () => clickStageButton('Reload', true),
     openInBrowser: () => clickStageButton('Open in browser'),
     clickStuckRecover,
@@ -146,6 +149,48 @@ function harness(
 }
 
 describe('FocusPane provider action failure recovery', () => {
+  it.each(['async', 'sync'] as const)('shows %s report failure and retries only report', async (kind) => {
+    const ui = harness();
+    ui.reportProvider.mockImplementationOnce(() => {
+      if (kind === 'sync') throw new Error('host denied report');
+      return Promise.reject(new Error('host denied report'));
+    });
+    expect(() => ui.report()).not.toThrow();
+    await vi.waitFor(() => expect(renderToStaticMarkup(ui.render())).toContain('role="alert"'));
+    expect(renderToStaticMarkup(ui.render())).toContain('Couldn&#x27;t prepare the report for Meta AI. Please try again.');
+    ui.retry();
+    await vi.waitFor(() => expect(ui.reportProvider.mock.calls).toEqual([['meta'], ['meta']]));
+    expect(ui.onOpenLogin).not.toHaveBeenCalled();
+    expect(ui.changeProviderPresentation).not.toHaveBeenCalled();
+    expect(ui.syncBounds).not.toHaveBeenCalled();
+    expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
+  });
+
+  it('ignores duplicate report and Retry clicks until the pending report settles', async () => {
+    const ui = harness();
+    let reject!: (reason: Error) => void;
+    const first = new Promise<void>((_, fail) => { reject = fail; });
+    let resolve!: () => void;
+    const second = new Promise<void>((ok) => { resolve = ok; });
+    ui.reportProvider.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    ui.report();
+    ui.report();
+    expect(ui.reportProvider).toHaveBeenCalledTimes(1);
+    reject(new Error('report denied'));
+    await vi.waitFor(() => expect(renderToStaticMarkup(ui.render())).toContain('role="alert"'));
+    const alert = ui.render().props.children[1] as ReactElement<{ children: ReactElement[] }>;
+    const retry = alert.props.children[1] as ReactElement<{ onClick: () => void }>;
+    retry.props.onClick();
+    retry.props.onClick();
+    ui.report();
+    expect(ui.reportProvider).toHaveBeenCalledTimes(2);
+    resolve();
+    await second;
+    expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
+    ui.report();
+    expect(ui.reportProvider).toHaveBeenCalledTimes(3);
+  });
+
   it.each(['grok', 'gemini'] as const)('retries only the browser action when opening %s externally is rejected', async (provider) => {
     const external = vi.spyOn(host.provider, 'openLoginExternal')
       .mockRejectedValueOnce(new Error('host rejected external login'))

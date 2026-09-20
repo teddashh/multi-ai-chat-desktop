@@ -118,6 +118,7 @@ export const en: Record<I18nKey, string> = {
   'provider.moreActions': 'More provider actions',
   'provider.reload': 'Reload',
   'provider.report': 'Report',
+  'provider.reportFailed': "Couldn't prepare the report for {provider}. Please try again.",
   'provider.adapterBroken': 'Adapter broken',
   'provider.bridgeDegradedReload': 'Bridge degraded. Reload suggested.',
   'provider.embeddedLoginBlocked': 'Security checks on this site prevent sign-in within the app. Use this AI in your browser, or retry this page later.',

@@ -120,6 +120,7 @@ export const de: Record<I18nKey, string> = {
   'provider.moreActions': 'Weitere Anbieteraktionen',
   'provider.reload': 'Neu laden',
   'provider.report': 'Melden',
+  'provider.reportFailed': "Der Problembericht für {provider} konnte nicht erstellt werden. Bitte erneut versuchen.",
   'provider.adapterBroken': 'Adapter defekt',
   'provider.bridgeDegradedReload': 'Bridge beeinträchtigt. Neu laden empfohlen.',
   'provider.embeddedLoginBlocked': 'Die Sicherheitsprüfung der Website blockiert die Anmeldung in der App. Diese KI im Browser nutzen oder diese Seite später erneut versuchen.',

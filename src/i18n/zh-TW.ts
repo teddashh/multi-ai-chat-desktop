@@ -108,6 +108,7 @@ export const zhTW: Record<I18nKey, string> = {
   'provider.moreActions': '更多 provider 操作',
   'provider.reload': '重新載入',
   'provider.report': '回報',
+  'provider.reportFailed': "無法準備 {provider} 的問題回報，請再試一次。",
   'provider.adapterBroken': 'Adapter 異常',
   'provider.bridgeDegradedReload': '橋接降級。建議重新載入。',
   'provider.embeddedLoginBlocked': '網站的安全驗證擋下了 app 內登入。請改在瀏覽器使用這個 AI，或稍後重試此頁面。',

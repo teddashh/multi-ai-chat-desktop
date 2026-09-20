@@ -17,7 +17,7 @@ export type CenterSurface = 'text' | 'native';
 
 type ProviderActionState = {
   provider: AIProvider;
-  action: 'open' | 'login' | 'reload' | 'browser' | 'reconnect';
+  action: 'open' | 'login' | 'reload' | 'browser' | 'reconnect' | 'report';
   status: 'opening' | 'error';
 };
 
@@ -79,13 +79,19 @@ export function FocusPane({
   const { locale, t } = useI18n();
   const [providerAction, setProviderAction] = useState<ProviderActionState | undefined>();
   const providerActionGeneration = useRef(0);
+  const reportInFlight = useRef(false);
   const effectiveStageExpanded = stageExpanded && Boolean(onToggleStageExpanded);
 
   const runProviderAction = async (provider: AIProvider, action: ProviderActionState['action']) => {
+    if (action === 'report') {
+      if (reportInFlight.current || reportBusy) return;
+      reportInFlight.current = true;
+    }
     const generation = (providerActionGeneration.current += 1);
     setProviderAction({ provider, action, status: 'opening' });
     try {
-      if (action === 'login') await onOpenLogin(provider);
+      if (action === 'report') await reportProvider(provider);
+      else if (action === 'login') await onOpenLogin(provider);
       else if (action === 'reload') {
         resetProviderBootState(provider);
         await host.provider.reload(provider);
@@ -99,6 +105,8 @@ export function FocusPane({
       if (generation === providerActionGeneration.current) setProviderAction(undefined);
     } catch {
       if (generation === providerActionGeneration.current) setProviderAction({ provider, action, status: 'error' });
+    } finally {
+      if (action === 'report') reportInFlight.current = false;
     }
   };
 
@@ -107,7 +115,7 @@ export function FocusPane({
   const reloadProvider = (provider: AIProvider) => runProviderAction(provider, 'reload');
   const openProviderInBrowser = (provider: AIProvider) => runProviderAction(provider, 'browser');
   const reconnectProvider = (provider: AIProvider) => runProviderAction(provider, 'reconnect');
-  const openingProvider = providerAction?.status === 'opening' ? providerAction.provider : undefined;
+  const openingProvider = providerAction?.status === 'opening' && providerAction.action !== 'report' ? providerAction.provider : undefined;
 
   return (
     // overflow-y-auto 是極端小視窗下的逃生口，讓連線列在被擠壓時仍可捲到；
@@ -132,8 +140,8 @@ export function FocusPane({
           onOpenLogin={openProviderLogin}
           onReload={reloadProvider}
           onOpenInBrowser={openProviderInBrowser}
-          reportProvider={reportProvider}
-          reportBusy={reportBusy}
+          reportProvider={(provider) => runProviderAction(provider, 'report')}
+          reportBusy={reportBusy || (providerAction?.action === 'report' && providerAction.status === 'opening')}
           stageExpanded={effectiveStageExpanded}
           onToggleStageExpanded={onToggleStageExpanded}
         />
@@ -148,7 +156,7 @@ export function FocusPane({
 
       {providerAction?.status === 'error' ? (
         <div className="mt-3 flex items-center justify-between gap-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert">
-          <span>{formatI18n(t('provider.openFailed'), { provider: AI_PROVIDERS[providerAction.provider].name })}</span>
+          <span>{formatI18n(t(providerAction.action === 'report' ? 'provider.reportFailed' : 'provider.openFailed'), { provider: AI_PROVIDERS[providerAction.provider].name })}</span>
           <button
             type="button"
             className="shrink-0 rounded border border-red-400 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-700 dark:hover:bg-red-900"

@@ -101,6 +101,7 @@ export const I18N_KEYS = [
   'provider.moreActions',
   'provider.reload',
   'provider.report',
+  'provider.reportFailed',
   'provider.adapterBroken',
   'provider.bridgeDegradedReload',
   'provider.embeddedLoginBlocked',

@@ -120,6 +120,7 @@ export const ja: Record<I18nKey, string> = {
   'provider.moreActions': 'プロバイダーのその他の操作',
   'provider.reload': '再読み込み',
   'provider.report': '報告',
+  'provider.reportFailed': "{provider}の問題報告を準備できませんでした。もう一度お試しください。",
   'provider.adapterBroken': 'アダプター破損',
   'provider.bridgeDegradedReload': 'ブリッジに問題があります。再読み込みをお勧めします。',
   'provider.embeddedLoginBlocked': 'サイトのセキュリティ検証により、アプリ内でのログインがブロックされています。ブラウザーでこの AI をご利用いただくか、後でもう一度このページをお試しください。',
