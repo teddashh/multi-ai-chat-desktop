@@ -61,6 +61,7 @@ function harness(
   let actionState: unknown;
   const generation = { current: 0 };
   const reportInFlight = { current: false };
+  const reloadInFlight = { current: new Set<AIProvider>() };
   let cleanup: (() => void) | undefined;
   let mounted = true;
   let effectRan = false;
@@ -93,7 +94,7 @@ function harness(
       if (!mounted) updatesAfterUnmount();
       actionState = next;
     }]);
-    vi.mocked(useRef).mockReturnValueOnce(generation).mockReturnValueOnce(reportInFlight);
+    vi.mocked(useRef).mockReturnValueOnce(generation).mockReturnValueOnce(reportInFlight).mockReturnValueOnce(reloadInFlight);
     vi.mocked(useEffect).mockImplementationOnce((effect) => {
       if (effectRan) return;
       effectRan = true;
@@ -247,6 +248,58 @@ describe('FocusPane provider action failure recovery', () => {
     expect(oldPane.updatesAfterUnmount).not.toHaveBeenCalled();
     expect(newPane.changeProviderPresentation).toHaveBeenCalledTimes(1);
     expect(reconnect.mock.calls).toEqual([['grok'], ['grok']]);
+  });
+
+  it.each(['success', 'failure'] as const)('coalesces Reload and Retry clicks, then unlocks after reload %s', async (outcome) => {
+    let resolve!: () => void;
+    let reject!: (reason: Error) => void;
+    const pending = new Promise<void>((ok, fail) => { resolve = ok; reject = fail; });
+    const reload = vi.spyOn(host.provider, 'reload').mockResolvedValue(undefined).mockReturnValueOnce(pending);
+    const ui = harness();
+    ui.reload(); ui.reload();
+    expect(reload).toHaveBeenCalledTimes(1);
+    if (outcome === 'success') resolve();
+    else reject(new Error('reload denied'));
+    await pending.catch(() => undefined);
+    await Promise.resolve();
+
+    let resolveRetry!: () => void;
+    const retryPending = new Promise<void>((done) => { resolveRetry = done; });
+    reload.mockReturnValueOnce(retryPending);
+    if (outcome === 'failure') {
+      await vi.waitFor(() => expect(renderToStaticMarkup(ui.render())).toContain('role="alert"'));
+      const alert = ui.render().props.children[1] as ReactElement<{ children: ReactElement[] }>;
+      expect(alert).toBeTruthy();
+      const click = (alert.props.children[1] as ReactElement<{ onClick: () => void }>).props.onClick;
+      click(); click();
+    } else {
+      ui.reload();
+    }
+    ui.reload();
+    expect(reload.mock.calls).toEqual([['meta'], ['meta']]);
+    resolveRetry(); await retryPending; await Promise.resolve();
+    expect(ui.syncBounds).toHaveBeenCalledTimes(outcome === 'success' ? 2 : 1);
+    expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
+  });
+
+  it.each(['success', 'failure'] as const)('keeps Reload guarded until bounds sync %s and releases it afterwards', async (outcome) => {
+    const reload = vi.spyOn(host.provider, 'reload').mockResolvedValue(undefined);
+    let resolve!: () => void;
+    let reject!: (reason: Error) => void;
+    const pending = new Promise<void>((ok, fail) => { resolve = ok; reject = fail; });
+    const ui = harness();
+    ui.syncBounds.mockReturnValueOnce(pending);
+    ui.reload();
+    await vi.waitFor(() => expect(ui.syncBounds).toHaveBeenCalledTimes(1));
+    ui.reload();
+    expect(reload).toHaveBeenCalledTimes(1);
+    if (outcome === 'success') resolve();
+    else reject(new Error('bounds failed'));
+    await pending.catch(() => undefined);
+    await Promise.resolve();
+    ui.reload();
+    await vi.waitFor(() => expect(ui.syncBounds).toHaveBeenCalledTimes(2));
+    expect(reload.mock.calls).toEqual([['meta'], ['meta']]);
   });
 
   it.each(['unmount', 'newer-action'] as const)('does not sync bounds after a pending Reload is invalidated by %s', async (action) => {
