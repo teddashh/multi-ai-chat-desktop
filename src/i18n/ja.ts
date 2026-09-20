@@ -285,6 +285,7 @@ export const ja: Record<I18nKey, string> = {
   'settings.newVersionAvailable': '新しいバージョン{version}を利用できます',
   'settings.downloadPage': 'ダウンロードページ',
   'settings.downloadPageFailed': "ダウンロードページを開けませんでした。もう一度お試しください。",
+  'settings.externalLinkFailed': "このリンクを開けませんでした。もう一度お試しください。",
   'settings.releasesUnavailable': 'リリースを確認できませんでした。後でもう一度お試しください。',
   'settings.updateCheckFailed': 'アップデートの確認に失敗：',
   'settings.telemetryNone': 'テレメトリー：なし',

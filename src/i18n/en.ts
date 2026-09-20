@@ -283,6 +283,7 @@ export const en: Record<I18nKey, string> = {
   'settings.newVersionAvailable': 'New version {version} available',
   'settings.downloadPage': 'download page',
   'settings.downloadPageFailed': "Couldn't open the download page. Please try again.",
+  'settings.externalLinkFailed': "Couldn't open this link. Please try again.",
   'settings.releasesUnavailable': 'Could not check releases. Try again later.',
   'settings.updateCheckFailed': 'Update check failed:',
   'settings.telemetryNone': 'telemetry: none',

@@ -285,6 +285,7 @@ export const de: Record<I18nKey, string> = {
   'settings.newVersionAvailable': 'Neue Version {version} verfügbar',
   'settings.downloadPage': 'Downloadseite',
   'settings.downloadPageFailed': "Die Downloadseite konnte nicht geöffnet werden. Bitte erneut versuchen.",
+  'settings.externalLinkFailed': "Dieser Link konnte nicht geöffnet werden. Bitte erneut versuchen.",
   'settings.releasesUnavailable': 'Versionen konnten nicht geprüft werden. Bitte später erneut versuchen.',
   'settings.updateCheckFailed': 'Updateprüfung fehlgeschlagen:',
   'settings.telemetryNone': 'Telemetrie: keine',

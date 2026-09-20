@@ -271,6 +271,7 @@ export const zhTW: Record<I18nKey, string> = {
   'settings.newVersionAvailable': '有新版本 {version}',
   'settings.downloadPage': '下載頁',
   'settings.downloadPageFailed': "無法開啟下載頁，請再試一次。",
+  'settings.externalLinkFailed': "無法開啟此連結，請再試一次。",
   'settings.releasesUnavailable': '無法檢查 releases。請稍後再試。',
   'settings.updateCheckFailed': '更新檢查失敗：',
   'settings.telemetryNone': 'telemetry：無',

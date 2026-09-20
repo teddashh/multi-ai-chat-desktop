@@ -643,23 +643,21 @@ export function SettingsModal({
         <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
           <div className="space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
             <div>
-              <button
-                type="button"
+              <SettingsExternalLink
+                url="https://ted-h.com"
+                label={t('settings.madeByTedH')}
+                errorMessage={t('settings.externalLinkFailed')}
                 className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
-                onClick={() => void host.app.openExternal('https://ted-h.com')}
-              >
-                {t('settings.madeByTedH')}
-              </button>
+              />
               <span> · Ted Huang · </span>
               <span className="select-all">TED@TED-H.com</span>
             </div>
-            <button
-              type="button"
+            <SettingsExternalLink
+              url="https://ai-sister.com"
+              label={t('settings.sponsoredByAiSister')}
+              errorMessage={t('settings.externalLinkFailed')}
               className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
-              onClick={() => void host.app.openExternal('https://ai-sister.com')}
-            >
-              {t('settings.sponsoredByAiSister')}
-            </button>
+            />
           </div>
           <div className="flex items-center justify-end gap-2">
             <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={closeSettings}>
@@ -933,12 +931,33 @@ function errorDetail(reason: unknown): string {
 
 export function DownloadPageLink({ url }: { url: string }) {
   const { t } = useI18n();
+  return (
+    <SettingsExternalLink
+      url={url}
+      label={t('settings.downloadPage')}
+      errorMessage={t('settings.downloadPageFailed')}
+    />
+  );
+}
+
+export function SettingsExternalLink({
+  url,
+  label,
+  errorMessage,
+  className = 'underline hover:text-sky-800 dark:hover:text-sky-200',
+}: {
+  url: string;
+  label: string;
+  errorMessage: string;
+  className?: string;
+}) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<'opening' | 'error'>();
   const inFlight = useRef(false);
   const generation = useRef(0);
   useEffect(() => () => { generation.current += 1; }, []);
 
-  const openPage = async () => {
+  const openLink = async () => {
     if (inFlight.current) return;
     inFlight.current = true;
     const request = ++generation.current;
@@ -956,15 +975,15 @@ export function DownloadPageLink({ url }: { url: string }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       {status === 'error' ? (
-        <span role="alert" className="text-red-700 dark:text-red-300">{t('settings.downloadPageFailed')}</span>
+        <span role="alert" className="text-red-700 dark:text-red-300">{errorMessage}</span>
       ) : null}
       <button
         type="button"
-        className="underline hover:text-sky-800 dark:hover:text-sky-200 disabled:cursor-wait disabled:opacity-50"
+        className={`${className} disabled:cursor-wait disabled:opacity-50`}
         disabled={status === 'opening'}
-        onClick={() => void openPage()}
+        onClick={() => void openLink()}
       >
-        {t(status === 'error' ? 'provider.retry' : 'settings.downloadPage')}
+        {status === 'error' ? t('provider.retry') : label}
       </button>
     </span>
   );
