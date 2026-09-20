@@ -62,6 +62,7 @@ function harness(
   const generation = { current: 0 };
   const reportInFlight = { current: false };
   const reloadInFlight = { current: new Set<AIProvider>() };
+  const loginInFlight = { current: new Set<AIProvider>() };
   let cleanup: (() => void) | undefined;
   let mounted = true;
   let effectRan = false;
@@ -94,7 +95,7 @@ function harness(
       if (!mounted) updatesAfterUnmount();
       actionState = next;
     }]);
-    vi.mocked(useRef).mockReturnValueOnce(generation).mockReturnValueOnce(reportInFlight).mockReturnValueOnce(reloadInFlight);
+    vi.mocked(useRef).mockReturnValueOnce(generation).mockReturnValueOnce(reportInFlight).mockReturnValueOnce(reloadInFlight).mockReturnValueOnce(loginInFlight);
     vi.mocked(useEffect).mockImplementationOnce((effect) => {
       if (effectRan) return;
       effectRan = true;
@@ -159,6 +160,7 @@ function harness(
     render, stage, retry, onOpenLogin, changeProviderPresentation, syncBounds, states, reportProvider,
     report: () => clickStageButton('Report', true),
     reload: () => clickStageButton('Reload', true),
+    login: () => clickStageButton('Login'),
     openInBrowser: () => clickStageButton('Open in browser'),
     clickStuckRecover,
   };
@@ -280,6 +282,42 @@ describe('FocusPane provider action failure recovery', () => {
     resolveRetry(); await retryPending; await Promise.resolve();
     expect(ui.syncBounds).toHaveBeenCalledTimes(outcome === 'success' ? 2 : 1);
     expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
+  });
+
+  it.each(['success', 'failure'] as const)('coalesces Login and Retry clicks, then unlocks after login %s', async (outcome) => {
+    let resolve!: () => void;
+    let reject!: (reason: Error) => void;
+    const pending = new Promise<void>((ok, fail) => { resolve = ok; reject = fail; });
+    const onOpenLogin = vi.fn<(provider: AIProvider) => Promise<void>>()
+      .mockResolvedValue(undefined).mockReturnValueOnce(pending);
+    const ui = harness(onOpenLogin);
+    ui.login(); ui.login();
+    expect(onOpenLogin).toHaveBeenCalledTimes(1);
+    if (outcome === 'success') resolve();
+    else reject(new Error('login denied'));
+    await pending.catch(() => undefined);
+    await Promise.resolve();
+
+    let resolveRetry!: () => void;
+    const retryPending = new Promise<void>((done) => { resolveRetry = done; });
+    onOpenLogin.mockReturnValueOnce(retryPending);
+    if (outcome === 'failure') {
+      await vi.waitFor(() => expect(renderToStaticMarkup(ui.render())).toContain('role="alert"'));
+      const alert = ui.render().props.children[1] as ReactElement<{ children: ReactElement[] }>;
+      expect(alert).toBeTruthy();
+      const click = (alert.props.children[1] as ReactElement<{ onClick: () => void }>).props.onClick;
+      click(); click();
+    } else {
+      ui.login();
+    }
+    ui.login();
+    expect(onOpenLogin.mock.calls).toEqual([['meta'], ['meta']]);
+    resolveRetry(); await retryPending; await Promise.resolve();
+    expect(ui.changeProviderPresentation).not.toHaveBeenCalled();
+    expect(ui.syncBounds).not.toHaveBeenCalled();
+    expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
+    ui.login();
+    expect(onOpenLogin.mock.calls).toEqual([['meta'], ['meta'], ['meta']]);
   });
 
   it.each(['success', 'failure'] as const)('keeps Reload guarded until bounds sync %s and releases it afterwards', async (outcome) => {

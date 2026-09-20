@@ -81,6 +81,7 @@ export function FocusPane({
   const providerActionGeneration = useRef(0);
   const reportInFlight = useRef(false);
   const reloadInFlight = useRef(new Set<AIProvider>());
+  const loginInFlight = useRef(new Set<AIProvider>());
   useEffect(() => () => {
     providerActionGeneration.current += 1;
   }, []);
@@ -94,6 +95,10 @@ export function FocusPane({
     if (action === 'reload') {
       if (reloadInFlight.current.has(provider)) return;
       reloadInFlight.current.add(provider);
+    }
+    if (action === 'login') {
+      if (loginInFlight.current.has(provider)) return;
+      loginInFlight.current.add(provider);
     }
     const generation = (providerActionGeneration.current += 1);
     setProviderAction({ provider, action, status: 'opening' });
@@ -118,6 +123,7 @@ export function FocusPane({
     } finally {
       if (action === 'report') reportInFlight.current = false;
       if (action === 'reload') reloadInFlight.current.delete(provider);
+      if (action === 'login') loginInFlight.current.delete(provider);
     }
   };
 
