@@ -31,9 +31,31 @@ function findButton(node: ReactNode, label: string): ReactElement<{ onClick: () 
   return undefined;
 }
 
+function findButtonByAria(
+  node: ReactNode,
+  ariaIncludes: string,
+): ReactElement<{ onClick: () => void }> | undefined {
+  if (!isValidElement<{ children?: ReactNode; 'aria-label'?: string; onClick?: () => void }>(node)) {
+    return undefined;
+  }
+  if (node.type === 'button' && (node.props['aria-label'] || '').includes(ariaIncludes)) {
+    return node as ReactElement<{ onClick: () => void }>;
+  }
+  for (const child of Children.toArray(node.props.children)) {
+    const button = findButtonByAria(child, ariaIncludes);
+    if (button) return button;
+  }
+  return undefined;
+}
+
+
 function harness(
   onOpenLogin = vi.fn<(provider: AIProvider) => Promise<void>>(),
-  { provider = 'meta', login = 'logged_out' }: { provider?: AIProvider; login?: ProviderState['login'] } = {},
+  {
+    provider = 'meta',
+    login = 'logged_out',
+    stuckGrok = false,
+  }: { provider?: AIProvider; login?: ProviderState['login']; stuckGrok?: boolean } = {},
 ) {
   // Retain the parent hooks across renders; child components use React's SSR hooks.
   let actionState: unknown;
@@ -45,13 +67,28 @@ function harness(
     thinking: false, lastStatusAt: 1, bridge: 'ok', adapter: 'ok',
   }])) as Record<AIProvider, ProviderState>;
   states[provider].login = login;
+  if (stuckGrok) {
+    states.grok = {
+      provider: 'grok',
+      webview: 'loaded',
+      dom: 'unknown',
+      login: 'unknown',
+      thinking: false,
+      lastStatusAt: Date.now() - 50_001,
+      bridge: 'ok',
+      adapter: 'ok',
+    };
+  }
+  const providers = stuckGrok
+    ? (['chatgpt', 'claude', 'gemini', 'grok', provider === 'meta' ? 'meta' : 'chatgpt'] as AIProvider[])
+    : (['chatgpt', 'claude', 'gemini', provider === 'meta' ? 'meta' : 'grok'] as AIProvider[]);
   const render = () => {
     vi.mocked(useState).mockImplementationOnce(() => [actionState, (next) => { actionState = next; }]);
     vi.mocked(useRef).mockReturnValueOnce(generation);
     return FocusPane({
       centeredProvider: provider, states,
       presentation: { ...defaultPresentation(), grok: provider === 'meta' ? 'chip' : 'side', [provider]: 'center' },
-      providers: ['chatgpt', 'claude', 'gemini', provider === 'meta' ? 'meta' : 'grok'],
+      providers: [...new Set(providers)],
       centerSurface: 'native', centerTextFinal: false,
       userHidden: new Set(), presentationHidden: new Set(),
       setPaneRef: vi.fn(), setCenterStageRef: vi.fn(), changeProviderPresentation,
@@ -81,10 +118,30 @@ function harness(
     button!.props.onClick();
     if (moreMenuOpen) expect(closeMenu).toHaveBeenCalledWith(false);
   };
+  const clickStuckRecover = (ariaIncludes = 'Click to reload and recover the connection') => {
+    const pane = render();
+    const stripEl = Children.toArray(pane.props.children).find(
+      (child) => isValidElement(child) && typeof (child.props as { reconnectProvider?: unknown }).reconnectProvider === 'function',
+    ) as ReactElement<{ reconnectProvider: (provider: AIProvider) => Promise<void> }> | undefined;
+    expect(stripEl).toBeDefined();
+    const strip = (stripEl!.type as (props: typeof stripEl.props) => ReactElement<{ children: ReactNode }>)(stripEl!.props);
+    const grid = Children.toArray(strip.props.children)[1] as ReactElement<{ children: ReactNode }>;
+    for (const item of Children.toArray(grid.props.children)) {
+      if (!isValidElement(item)) continue;
+      const chip = (item.type as (props: object) => ReactNode)(item.props as object);
+      const button = findButtonByAria(chip, ariaIncludes);
+      if (button) {
+        button.props.onClick();
+        return;
+      }
+    }
+    expect(undefined).toBeDefined();
+  };
   return {
-    render, stage, retry, onOpenLogin, changeProviderPresentation, syncBounds,
+    render, stage, retry, onOpenLogin, changeProviderPresentation, syncBounds, states,
     reload: () => clickStageButton('Reload', true),
     openInBrowser: () => clickStageButton('Open in browser'),
+    clickStuckRecover,
   };
 }
 
@@ -104,6 +161,30 @@ describe('FocusPane provider action failure recovery', () => {
     expect(reload).not.toHaveBeenCalled();
     expect(ui.onOpenLogin).not.toHaveBeenCalled();
     expect(ui.changeProviderPresentation).not.toHaveBeenCalled();
+    expect(ui.syncBounds).not.toHaveBeenCalled();
+    expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
+  });
+
+  it.each(['reconnect', 'activate'])('retries status-strip reconnect after %s rejects without Login/Reload/browser', async (failure) => {
+    const reconnect = vi.spyOn(host.provider, 'reconnect').mockResolvedValue(undefined);
+    const reload = vi.spyOn(host.provider, 'reload').mockResolvedValue(undefined);
+    const external = vi.spyOn(host.provider, 'openLoginExternal').mockResolvedValue(undefined);
+    const ui = harness(undefined, { stuckGrok: true });
+    if (failure === 'reconnect') reconnect.mockRejectedValueOnce(new Error('host rejected reconnect'));
+    else ui.changeProviderPresentation.mockRejectedValueOnce(new Error('activate after reconnect rejected'));
+
+    ui.clickStuckRecover();
+    await vi.waitFor(() => expect(renderToStaticMarkup(ui.render()).includes('role="alert"')).toBe(true));
+    expect(renderToStaticMarkup(ui.render())).toContain('Couldn&#x27;t open Grok. Please try again.');
+    expect(ui.changeProviderPresentation).toHaveBeenCalledTimes(failure === 'reconnect' ? 0 : 1);
+
+    ui.retry();
+    await vi.waitFor(() => expect(ui.changeProviderPresentation).toHaveBeenCalledTimes(failure === 'reconnect' ? 1 : 2));
+    expect(reconnect.mock.calls).toEqual([['grok'], ['grok']]);
+    expect(ui.changeProviderPresentation).toHaveBeenLastCalledWith('grok', 'center');
+    expect(ui.onOpenLogin).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+    expect(external).not.toHaveBeenCalled();
     expect(ui.syncBounds).not.toHaveBeenCalled();
     expect(renderToStaticMarkup(ui.render())).not.toContain('role="alert"');
   });
