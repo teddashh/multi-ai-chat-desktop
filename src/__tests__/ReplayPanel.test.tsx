@@ -254,6 +254,67 @@ describe('ReplayPanel', () => {
     expect(renderToStaticMarkup(panel.render())).not.toContain('role="alert"');
   });
 
+  it.each(['host', 'callback'] as const)('ignores duplicate Open Login and Retry clicks while %s login is pending', async (path) => {
+    vi.mocked(replaySnapshot).mockResolvedValueOnce({
+      ok: false, blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['meta'], aliased: [] },
+    });
+    let rejectFirst!: (reason: Error) => void;
+    const first = new Promise<void>((_, reject) => { rejectFirst = reject; });
+    let resolveRetry!: () => void;
+    const retry = new Promise<void>((resolve) => { resolveRetry = resolve; });
+    const onOpenLogin = vi.fn().mockResolvedValue(undefined);
+    const login = path === 'host' ? vi.mocked(host.provider.openLogin) : onOpenLogin;
+    login.mockReturnValueOnce(first).mockReturnValueOnce(retry);
+    const panel = new ReplayPanel({ onOpenLogin: path === 'host' ? undefined : onOpenLogin });
+    await panel.startReplay({ kind: 'last', snapshot: buildSnapshot() });
+    const openClick = propsOf(buttonWithText(panel.render(), t('replay.openLogin', 'en'))).onClick!;
+
+    openClick();
+    openClick();
+    expect(login).toHaveBeenCalledTimes(1);
+    rejectFirst(new Error('login unavailable'));
+    await vi.waitFor(() => expect(panel.state.notice?.kind).toBe('error'));
+    const retryClick = propsOf(buttonWithText(panel.render(), t('provider.retry', 'en'))).onClick!;
+    retryClick();
+    retryClick();
+    openClick();
+    expect(login.mock.calls).toEqual([['meta'], ['meta']]);
+
+    resolveRetry();
+    await retry;
+    openClick();
+    expect(login.mock.calls).toEqual([['meta'], ['meta'], ['meta']]);
+    expect(replaySnapshot).toHaveBeenCalledTimes(1);
+    expect(path === 'host' ? onOpenLogin : host.provider.openLogin).not.toHaveBeenCalled();
+    expect(panel.state.notice).toBeUndefined();
+  });
+
+  it('keeps a stale Login request guarded until it settles, then allows a new Login', async () => {
+    vi.mocked(replaySnapshot).mockResolvedValue({
+      ok: false, blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['meta'], aliased: [] },
+    });
+    let reject!: (reason: Error) => void;
+    const pending = new Promise<void>((_, fail) => { reject = fail; });
+    const onOpenLogin = vi.fn().mockResolvedValue(undefined).mockReturnValueOnce(pending);
+    const panel = new ReplayPanel({ onOpenLogin });
+    const source = { kind: 'last' as const, snapshot: buildSnapshot() };
+    await panel.startReplay(source);
+    propsOf(buttonWithText(panel.render(), t('replay.openLogin', 'en'))).onClick?.();
+    await panel.startReplay(source);
+    const openClick = propsOf(buttonWithText(panel.render(), t('replay.openLogin', 'en'))).onClick!;
+    openClick();
+    expect(onOpenLogin).toHaveBeenCalledTimes(1);
+
+    reject(new Error('stale login rejection'));
+    await pending.catch(() => undefined);
+    expect(panel.state.notice).toBeUndefined();
+    openClick();
+    expect(onOpenLogin.mock.calls).toEqual([['meta'], ['meta']]);
+    expect(replaySnapshot).toHaveBeenCalledTimes(2);
+  });
+
   it('removes Login retry when that provider becomes standby and guards an old retry click', async () => {
     vi.mocked(replaySnapshot).mockResolvedValueOnce({
       ok: false, blocked: 'preflight',
