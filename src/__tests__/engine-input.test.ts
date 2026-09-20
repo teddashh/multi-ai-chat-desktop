@@ -1557,6 +1557,50 @@ describe('injected engine input hardening', () => {
     ]);
   });
 
+  it.each(['poll', 'mutation'] as const)(
+    'waits through two Grok generation resumes with unchanged text (%s)',
+    async (observation) => {
+      vi.useFakeTimers();
+      const env = createEnv({ inputKind: 'textarea' });
+      const stopButton = new FakeElement(env.document, 'button');
+      const setThinking = (thinking: boolean) => {
+        env.detectorElements.set(GROK_CHAT_STOP_BUTTON_SELECTOR, thinking ? [stopButton] : []);
+      };
+      const handler = await installEngine(env);
+      dispatchAdapter(handler, {
+        timing: {
+          doneDelayMs: 8_000,
+          chunkDebounceMs: 600,
+          statusIntervalMs: 10_000,
+          backupPollMs: 3_000,
+        },
+      });
+      if (env.sendButton) env.sendButton.onClick = () => env.input.setVisibleText('');
+
+      send(handler, 'two more Heavy phases');
+      await flushMicrotasks();
+      env.responses = [new FakeElement(env.document, 'div', 'unchanged intermediate answer')];
+      await vi.advanceTimersByTimeAsync(3_000);
+
+      for (let phase = 0; phase < 2; phase += 1) {
+        setThinking(true);
+        if (observation === 'mutation') FakeMutationObserver.notify();
+        await vi.advanceTimersByTimeAsync(observation === 'mutation' ? 400 : 3_000);
+        setThinking(false);
+        if (observation === 'mutation') FakeMutationObserver.notify();
+        // Cross the previous deadline while staying within this phase's quiet window.
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+      }
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toEqual([
+        { v: 1, action: 'RESPONSE_DONE', provider: 'grok', payload: 'unchanged intermediate answer' },
+      ]);
+    },
+  );
+
+
   it('FILL_DRAFT inserts text without clicking send, dispatching Enter, or scheduling send retry', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
