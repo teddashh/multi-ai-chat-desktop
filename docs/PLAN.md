@@ -1,24 +1,44 @@
 # PLAN — Multi-AI Chat Desktop
 
-> Status: **feature freeze / final commemorative edition**
-> Date: 2026-07-18
-> Stable maintenance baseline: `v1.6.4`; feature development remains frozen after the final compatibility, Brainstorm, lifecycle, and provider-status hardening. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
-> Working model: the web-session desktop edition is complete. The final source-distribution work formalizes the existing Codex/Claude launch path as a tested Agent-Ready Source Release; it does not add an embedded agent runtime. After this patch, only provider compatibility, security, build-breakage, and release-critical fixes remain in scope.
+> Status: **feature freeze / bounded optional-provider amendment**
+> Date: 2026-09-19
+> Stable maintenance baseline: `v1.8.9`; feature development remains frozen after the final compatibility, Brainstorm, lifecycle, and provider-status hardening. Contract: `docs/SPEC.md`. Decisions: `docs/ARCHITECTURE.md`.
+> Working model: the web-session desktop edition is complete. The original ChatGPT/Claude/Gemini/Grok lineup remains the default; current source adds Meta AI as one experimental standby/replacement while enforcing exactly four active providers. The source-distribution work formalizes the existing Codex/Claude launch path as a tested Agent-Ready Source Release; it does not add an embedded agent runtime. After this bounded amendment, only provider compatibility, security, build-breakage, and release-critical fixes remain in scope.
 
 ## Final scope
 
 | Area | Decision |
 |---|---|
-| Core product | Frozen at four providers and five workflow modes. |
+| Core product | Frozen at five code-defined provider choices with **exactly four active at a time** and five workflow modes. ChatGPT, Claude, Gemini, and Grok are active by default; Meta AI is the default experimental standby. |
 | Snapshot / replay / checkpoints | Keep the shipped implementation for compatibility. No new schema, comparison UI, sharing format, or reproducibility roadmap. |
-| Final feature | ✅ One optional **AI-Sister Commemorative Edition** theme showing all four characters together, with supplied per-provider portraits and active-speaker treatment. |
-| Final hardening | Correct runtime version provenance, session-safe Markdown export metadata, a main-webview-only Tauri capability, production CSP, non-expanding remote adapter URL scopes, security/compatibility templates, the versioned Agent-Ready Source Release contract, challenge-passive provider/Cloudflare WebView startup, Grok History isolation, Claude login detection, response-language routing, activity-aware long-response timeouts with an absolute safety cap, and the final Brainstorm graph (12 rounds × 4 providers = 48 contributions across five phases). Other shipped workflow sequences remain frozen. |
+| Final feature | ✅ One optional **AI-Sister Commemorative Edition** theme showing the original four characters together, with supplied per-provider portraits, a separate supplied Meta AI portrait for optional-provider surfaces, and active-speaker treatment. |
+| Final hardening | Correct runtime version provenance, session-safe Markdown export metadata, a main-webview-only Tauri capability, production CSP, non-expanding remote adapter URL scopes, security/compatibility templates, the versioned Agent-Ready Source Release contract, challenge-passive provider/Cloudflare WebView startup, Grok History isolation, Claude login detection, response-language routing, activity-aware long-response timeouts with an absolute safety cap, the final Brainstorm graph (12 rounds × 4 providers = 48 contributions across five phases), and the bounded Meta AI standby path with Meta-aware diagnostics. Other shipped workflow sequences remain frozen. |
 | Agent source lane | ✅ Explicit-only Codex/Claude Skills, strict manifest/schema, deterministic doctor/audit/launch/status/stop commands, app-level READY evidence, identity-safe stop, local receipts, dry-run, and cross-platform contract tests. No host-tool installer or automatic rollback. |
-| Maintenance | Fix provider DOM adapters, response-language routing regressions, security issues, data-loss bugs, dependency/build failures, and release blockers. |
-| Closed work | Fifth provider, workflow-pack marketplace, graph editor, dynamic preset promotion, additional snapshot work, in-app auto-updater, Developer ID/notarization program, Docker source lane, host package manager, and an embedded terminal-agent runtime. Ad-hoc macOS bundle signing remains a release-integrity requirement. |
+| Maintenance | Fix provider DOM adapters (including the experimental Meta adapter), response-language routing regressions, security issues, data-loss bugs, dependency/build failures, and release blockers. |
+| Closed work | A sixth provider, five-provider simultaneous workflows, workflow-pack marketplace, graph editor, dynamic preset promotion, additional snapshot work, in-app auto-updater, Developer ID/notarization program, Docker source lane, host package manager, and an embedded terminal-agent runtime. Ad-hoc macOS bundle signing remains a release-integrity requirement. |
 | Separate future product | Any terminal/SDK multi-agent OS belongs in another repository and does not reopen this edition. |
 
 There are no active N-series milestones. References to N0–N9 below or in historical study material describe the design process only; they are not commitments.
+
+## Optional Meta AI amendment (bounded release scope)
+
+This amendment may ship before live guest-access behavior is exhaustively characterized. It does not claim that Meta always permits anonymous use; it treats an enabled composer as usable and an inert/login-gated composer as logged out, then relies on a manual smoke test for the current region/account state.
+
+**Deliverables**
+
+- Five code-defined provider choices, with exactly four active and one standby; `meta` is standby by default.
+- Settings can exchange Meta AI with one original provider without deleting either local profile. Standby webviews are closed and denied by the host until activated.
+- Free targets, role assignments, preset readiness, snapshot replay, and restored settings repair themselves to the active four-provider lineup; no workflow silently grows a fifth seat.
+- Bundled, schema-valid `adapters/meta.json` plus bounded Meta navigation/SSO scopes.
+- AI-Sister Meta portrait sourced from `teddashh/Multi-Ai-Chatapp` and recorded in the theme notice.
+- Event log, provider filter, and debug bundle recognize `meta` as **Meta AI**, including provider error/status and adapter-version events, without storing prompt or response bodies.
+
+**Acceptance**
+
+- `pnpm verify` and the relevant Rust tests pass.
+- Automated tests cover default Meta standby, every possible standby swap, host-side standby denial, workflow/replay repair, Meta adapter behavior, the real Meta portrait (no text fallback), and Meta-aware diagnostics.
+- Manual: activate Meta AI, confirm current guest or login-gated state is reported honestly, send/receive when the composer is usable, force one provider error and confirm it is filterable/exportable as Meta AI, restart, and confirm the selected standby plus all profile sessions persist.
+- Release notes call Meta AI experimental and state both invariants: the original four remain default and exactly four providers are active at a time.
 
 ## Milestone map (risk-first ordering)
 
@@ -121,7 +141,7 @@ The M-series below is retained as an engineering record. Acceptance language tha
 ## Working agreements (all milestones)
 
 1. **Dispatch**: one codex /goal per milestone with SPEC §refs + acceptance list inline; large milestones (M2) may split into 2 dispatches (engine port / webview mgmt).
-2. **Safety**: commit before every dispatch; codex is unsandboxed — review `git diff --stat` first, then full diff of key files; never let codex touch `refs/`, `docs/ARCHITECTURE.md`, `docs/SPEC.md`.
+2. **Safety**: commit before every dispatch; codex is unsandboxed — review `git diff --stat` first, then full diff of key files; never let codex touch `refs/`, `docs/ARCHITECTURE.md`, or `docs/SPEC.md` except for an explicit owner-approved contract amendment such as v2.2.8.
 3. **Review chain**: codex implements → Claude reviews diff vs acceptance → grok reviews on M1/M2/M3 exits (protocol + engine are the risk areas) → Claude final gate → commit + `plans/<milestone>-log.md` entry.
 4. **Blocked?** codex writes findings to `plans/` and stops rather than improvising around SPEC.
 5. Effort key: S ≈ half day, M ≈ 1–2 days, L ≈ 3+ days (agent-days, parallelizable inside milestone).

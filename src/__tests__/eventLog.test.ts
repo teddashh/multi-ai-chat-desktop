@@ -92,6 +92,28 @@ describe('event log reducer', () => {
     },
   );
 
+  it('recognizes and filters Meta AI provider errors without retaining their body', () => {
+    const responseText = '[Error: Meta guest session reached a provider gate]';
+    const event = eventFromBridgeMessage({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'meta',
+      payload: responseText,
+      transport: 'pull',
+    });
+
+    const events = appendEvent([], event!, { now: () => 234 });
+    const filtered = filterEventLogByProvider(events, 'meta');
+    const copied = formatEventLogText(filtered);
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]).toMatchObject({ provider: 'meta', kind: 'response-error' });
+    expect(filtered[0].summary).toBe(`Meta AI response error (${responseText.length} chars)`);
+    expect(copied).toContain('[Meta AI]');
+    expect(copied).not.toContain(responseText);
+    expect(copied).not.toContain('guest session');
+  });
+
   it('stores prompt length instead of prompt text', () => {
     const prompt = 'private user prompt';
     const events = appendEvent([], eventFromProviderSend('claude', prompt), { now: () => 456 });

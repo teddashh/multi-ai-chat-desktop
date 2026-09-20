@@ -5,16 +5,17 @@ import claudeAvatarUrl from '../assets/themes/ai-sister/claude.webp';
 import ensembleUrl from '../assets/themes/ai-sister/ensemble.jpg';
 import geminiAvatarUrl from '../assets/themes/ai-sister/gemini.webp';
 import grokAvatarUrl from '../assets/themes/ai-sister/grok.webp';
+import metaAvatarUrl from '../assets/themes/ai-sister/meta.webp';
 import { useI18n } from '../i18n/context';
 
-// The commemorative artwork intentionally covers the original four characters.
-// Optional providers use a small text badge so adding one cannot crash the theme
-// while trying to render a missing image.
-const AVATAR_URLS: Partial<Record<AIProvider, string>> = {
+// The ensemble remains the original four-character commemorative artwork, while
+// every code-defined provider has an identity portrait for provider surfaces.
+const AVATAR_URLS: Record<AIProvider, string> = {
   chatgpt: chatgptAvatarUrl,
   claude: claudeAvatarUrl,
   gemini: geminiAvatarUrl,
   grok: grokAvatarUrl,
+  meta: metaAvatarUrl,
 };
 
 interface ProviderAccent {
@@ -60,17 +61,7 @@ export function AiSisterAvatar({
       style={style}
       aria-hidden="true"
     >
-      {avatarUrl ? (
-        <img src={avatarUrl} alt="" draggable={false} />
-      ) : (
-        <span
-          className="grid h-full w-full place-items-center rounded-[inherit] text-[0.7em] font-bold"
-          data-avatar-fallback="true"
-          style={{ color: accent.solid }}
-        >
-          {provider.slice(0, 1).toUpperCase()}
-        </span>
-      )}
+      <img src={avatarUrl} alt="" draggable={false} />
     </span>
   );
 }
