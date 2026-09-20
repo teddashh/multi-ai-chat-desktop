@@ -249,6 +249,32 @@ describe('FocusPane provider action failure recovery', () => {
     expect(reconnect.mock.calls).toEqual([['grok'], ['grok']]);
   });
 
+  it.each(['unmount', 'newer-action'] as const)('does not sync bounds after a pending Reload is invalidated by %s', async (action) => {
+    let resolve!: () => void;
+    const pending = new Promise<void>((done) => { resolve = done; });
+    const reload = vi.spyOn(host.provider, 'reload').mockResolvedValue(undefined).mockReturnValueOnce(pending);
+    const ui = harness();
+    ui.reload();
+    if (action === 'unmount') {
+      ui.unmount();
+    } else {
+      // Start a newer provider action so generation advances while Reload is pending.
+      ui.reportProvider.mockReturnValueOnce(new Promise(() => {}));
+      ui.report();
+    }
+    resolve();
+    await pending;
+    await Promise.resolve();
+
+    expect(ui.syncBounds).not.toHaveBeenCalled();
+    expect(ui.updatesAfterUnmount).not.toHaveBeenCalled();
+    const newPane = harness();
+    newPane.reload();
+    await vi.waitFor(() => expect(newPane.syncBounds).toHaveBeenCalledWith('meta'));
+    expect(newPane.syncBounds).toHaveBeenCalledTimes(1);
+    expect(reload.mock.calls).toEqual([['meta'], ['meta']]);
+  });
+
   it.each(['reconnect', 'activate'])('retries status-strip reconnect after %s rejects without Login/Reload/browser', async (failure) => {
     const reconnect = vi.spyOn(host.provider, 'reconnect').mockResolvedValue(undefined);
     const reload = vi.spyOn(host.provider, 'reload').mockResolvedValue(undefined);
