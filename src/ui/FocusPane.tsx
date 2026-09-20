@@ -17,7 +17,7 @@ export type CenterSurface = 'text' | 'native';
 
 type ProviderActionState = {
   provider: AIProvider;
-  action: 'open' | 'login';
+  action: 'open' | 'login' | 'reload';
   status: 'opening' | 'error';
 };
 
@@ -86,7 +86,11 @@ export function FocusPane({
     setProviderAction({ provider, action, status: 'opening' });
     try {
       if (action === 'login') await onOpenLogin(provider);
-      else await changeProviderPresentation(provider, 'center');
+      else if (action === 'reload') {
+        resetProviderBootState(provider);
+        await host.provider.reload(provider);
+        await syncBounds(provider);
+      } else await changeProviderPresentation(provider, 'center');
       if (generation === providerActionGeneration.current) setProviderAction(undefined);
     } catch {
       if (generation === providerActionGeneration.current) setProviderAction({ provider, action, status: 'error' });
@@ -95,6 +99,7 @@ export function FocusPane({
 
   const activateProvider = (provider: AIProvider) => runProviderAction(provider, 'open');
   const openProviderLogin = (provider: AIProvider) => runProviderAction(provider, 'login');
+  const reloadProvider = (provider: AIProvider) => runProviderAction(provider, 'reload');
   const openingProvider = providerAction?.status === 'opening' ? providerAction.provider : undefined;
 
   return (
@@ -118,7 +123,7 @@ export function FocusPane({
           onEnlargeCenter={onEnlargeCenter}
           onCollapseCenter={onCollapseCenter}
           onOpenLogin={openProviderLogin}
-          syncBounds={syncBounds}
+          onReload={reloadProvider}
           reportProvider={reportProvider}
           reportBusy={reportBusy}
           stageExpanded={effectiveStageExpanded}
@@ -234,7 +239,7 @@ function FocusStage({
   onEnlargeCenter,
   onCollapseCenter,
   onOpenLogin,
-  syncBounds,
+  onReload,
   reportProvider,
   reportBusy,
   stageExpanded,
@@ -254,7 +259,7 @@ function FocusStage({
   onEnlargeCenter: () => void;
   onCollapseCenter: () => void;
   onOpenLogin: (provider: AIProvider) => Promise<void>;
-  syncBounds: (provider: AIProvider) => Promise<void>;
+  onReload: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
   stageExpanded: boolean;
@@ -348,8 +353,7 @@ function FocusStage({
                   className="block w-full px-2 py-1.5 text-left text-xs text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => {
                     setMoreMenuOpen(false);
-                    resetProviderBootState(provider);
-                    void host.provider.reload(provider).then(() => syncBounds(provider));
+                    void onReload(provider);
                   }}
                   disabled={state.webview !== 'loaded'}
                 >
