@@ -104,6 +104,7 @@ export const zhTW: Record<I18nKey, string> = {
   'provider.currentlyReading': '正在閱讀',
   'provider.clickToRecover': '點一下重新載入以恢復連線',
   'provider.login': '登入',
+  'provider.metaLoginGuidance': '請在 Meta 頁面選擇電子郵件或手機登入（若有提供）。本程式不支援內嵌 Facebook／Instagram 登入；若被導向該頁，請按上方「登入」返回 Meta。若未提供電子郵件或手機選項，此工作階段便無法在程式內登入。若訪客輸入框可用，可直接使用，無須登入。',
   'provider.moreActions': '更多 provider 操作',
   'provider.reload': '重新載入',
   'provider.report': '回報',

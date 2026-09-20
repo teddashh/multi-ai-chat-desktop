@@ -83,6 +83,24 @@ describe('FocusPane provider header', () => {
     expect(renderHeader('logged_in')).not.toContain('Login');
   });
 
+  it('explains Meta email/mobile login limits without gating a usable guest composer', () => {
+    const renderMeta = (login: ProviderState['login']) => renderFocusPane({
+      centeredProvider: 'meta',
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'meta'],
+      presentation: { ...defaultPresentation(), grok: 'chip', meta: 'center' },
+      stateOverrides: { meta: { login } },
+    });
+
+    for (const login of ['logged_out', 'blocked'] as const) {
+      const html = renderMeta(login);
+      expect(html).toContain('choose email or mobile login if offered');
+      expect(html).toContain('Facebook and Instagram login are not supported inside this app');
+      expect(html).toContain('If neither option is available');
+    }
+    expect(renderMeta('logged_in')).not.toContain('choose email or mobile login');
+    expect(renderHeader('logged_out')).not.toContain('choose email or mobile login');
+  });
+
   it('renders a four-provider status strip with login and thinking states', () => {
     const html = renderFocusPane({
       presentation: setProviderPresentation(defaultPresentation(), 'chatgpt', 'center'),

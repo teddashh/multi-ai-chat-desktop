@@ -114,6 +114,7 @@ export const en: Record<I18nKey, string> = {
   'provider.currentlyReading': 'Currently reading',
   'provider.clickToRecover': 'Click to reload and recover the connection',
   'provider.login': 'Login',
+  'provider.metaLoginGuidance': 'On the Meta page, choose email or mobile login if offered. Facebook and Instagram login are not supported inside this app. If redirected there, use Login above to return to Meta. If neither option is available, this session cannot sign in inside the app. An available guest composer can be used without signing in.',
   'provider.moreActions': 'More provider actions',
   'provider.reload': 'Reload',
   'provider.report': 'Report',

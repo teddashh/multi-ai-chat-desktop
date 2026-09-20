@@ -116,6 +116,7 @@ export const de: Record<I18nKey, string> = {
   'provider.currentlyReading': 'Wird gerade gelesen',
   'provider.clickToRecover': 'Zum Neuladen und Wiederherstellen klicken',
   'provider.login': 'Anmelden',
+  'provider.metaLoginGuidance': 'Wähle auf der Meta-Seite die Anmeldung per E-Mail oder Mobilnummer, falls angeboten. Facebook- und Instagram-Anmeldungen werden innerhalb dieser App nicht unterstützt. Bei einer Weiterleitung dorthin gelangst du über Anmelden oben zurück zu Meta. Fehlen beide Optionen, ist in dieser Sitzung keine Anmeldung innerhalb der App möglich. Ein verfügbarer Gast-Chat kann ohne Anmeldung genutzt werden.',
   'provider.moreActions': 'Weitere Anbieteraktionen',
   'provider.reload': 'Neu laden',
   'provider.report': 'Melden',

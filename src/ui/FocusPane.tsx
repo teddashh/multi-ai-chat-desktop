@@ -367,6 +367,11 @@ function FocusStage({
           </div>
         </div>
       </div>
+      {provider === 'meta' && showLoginCta ? (
+        <div className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          {t('provider.metaLoginGuidance')}
+        </div>
+      ) : null}
       {/* WebView 以此區域定位，讓上方標題列（含「文字檢視」返回鈕）保持可見 */}
       <div ref={setCenterStageRef} className="flex min-h-0 flex-1 flex-col">
       {state.adapter === 'broken' ? (
