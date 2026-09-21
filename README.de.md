@@ -4,15 +4,15 @@
 
 Eine Frage genügt: Vier angemeldete KI-Websitzungen antworten, prüfen, widersprechen und verfeinern das Ergebnis gemeinsam. **ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist eine experimentelle fünfte Standby-Option in den Einstellungen.** Multi-AI Chat Desktop ist ein Workflow-Hub auf Basis von Tauri 2 – nicht bloß vier nebeneinander angeordnete Chats.
 
-[**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.9.2 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.2) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
+[**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.9.3 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.3) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
 
 > Diese App automatisiert die Anbieter-Webseiten, die du bereits verwendest. Änderungen an deren Oberfläche können einen Adapter vorübergehend beeinträchtigen; außerdem können die Bedingungen des jeweiligen Dienstes gelten. Verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist. Anmeldung, Abonnement, Alter, Nutzungslimits und Sicherheitsprüfungen werden weder umgangen noch automatisiert gelöst.
 
-> **Projektstatus:** Sechs Presets, fünf zugrunde liegende Workflow-Modi, Snapshot/Replay und die optionale AI-Sister-Gedenkausgabe mit vier Figuren bleiben funktionsgefroren. v1.9.2 enthält fünf Anbieter zur Auswahl, davon immer genau vier aktiv. ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist ein experimenteller optionaler Standby.
+> **Projektstatus:** Sechs Presets, fünf zugrunde liegende Workflow-Modi, Snapshot/Replay und die optionale AI-Sister-Gedenkausgabe mit vier Figuren bleiben funktionsgefroren. v1.9.3 enthält fünf Anbieter zur Auswahl, davon immer genau vier aktiv. ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist ein experimenteller optionaler Standby.
 
 ## Zuerst installieren
 
-Die aktuelle stabile Version steht auf der [**Downloadseite für v1.9.2**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.2) bereit.
+Die aktuelle stabile Version steht auf der [**Downloadseite für v1.9.3**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.3) bereit.
 
 | Plattform | Download | Hinweis zum ersten Start |
 |---|---|---|
@@ -34,8 +34,9 @@ Die Ad-hoc-Signatur schützt die Bundle-Integrität und verhindert die falsche M
 
 Portable Windows-Builds zeigen keine Update-Steuerung in der App. Aktualisiere sie manuell über [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installierte Builds können nach einer neuen Version suchen und deren Downloadseite öffnen; die App lädt oder installiert Updates jedoch nicht selbst.
 
-## Neu in v1.9.2
+## Neu in v1.9.3
 
+- **Meta-Anmeldung wird erkannt.** Ein sichtbares, bearbeitbares Eingabefeld gilt als angemeldet, auch wenn ein Anmeldebutton oder ein inertes Feld bleibt.
 - **Meta-Anmeldung bleibt im Fenster.** Facebook- und Instagram-Anmeldung werden in der App abgeschlossen. Eine Anmeldung in einem anderen Browser kehrt nicht ins isolierte Meta-Profil zurück.
 - **Grok-Heavy-Fortsetzungs-Timer.** Stellt Grok die Stop-Kontrolle wieder her und erzeugt weiter, ohne den Zwischentext zu ändern, werden veraltete Ruhe-Timer verworfen; die App wartet erneut auf das Ende der Erzeugung.
 - **Optionaler Meta-AI-Standby.** Fünf Auswahlmöglichkeiten, immer genau vier aktiv. Die ursprünglichen vier bleiben Standard; in den Einstellungen kann genau ein Anbieter getauscht werden. Profile bleiben erhalten, Rollen und Ziele werden auf die aktuelle Auswahl repariert.
@@ -43,7 +44,7 @@ Portable Windows-Builds zeigen keine Update-Steuerung in der App. Aktualisiere s
 - **Fehlgeschlagene Aktionen wiederholen.** Fehler bei Anmeldung, Reload, Report und Replay können wiederholt werden. Doppelte und veraltete Klicks werden ignoriert.
 - **Vorprüfung der aktiven vier.** Workflows prüfen die aktuellen vier, auch wenn ein Standby weiterhin Ready wirkt. Debattenplätze decken Meta ab, sobald es aktiv ist.
 
-Die [Release Notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.2) beschreiben Änderungen und Grenzen.
+Die [Release Notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.3) beschreiben Änderungen und Grenzen.
 
 ## Desktop oder Browser-Erweiterung?
 
@@ -84,7 +85,7 @@ Wähle Desktop für einen eigenen Arbeitsbereich und den vollständigen lokalen 
 
 Strukturierte Workflows prüfen vorab jede notwendige Rolle. Ist ein Anbieter nicht verfügbar, benennt die App ihn und bietet Öffnen/Anmelden, Neuzuordnung oder einen anderen Modus an; sie ersetzt Anbieter nie stillschweigend. Normale strukturierte Workflows enden bei einem dauerhaften Anbieterfehler. Brainstorming pausiert dagegen bis zur ausdrücklichen Wahl von Wiederholen, Überspringen oder Abbrechen.
 
-Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; v1.9.2 fügt keine neue langsame ChatGPT↔Grok-Übergabe mit echten Konten hinzu.
+Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; v1.9.3 fügt keine neue langsame ChatGPT↔Grok-Übergabe mit echten Konten hinzu.
 
 Nach Abschluss kannst du über den Composer unten dasselbe App-Gespräch fortsetzen. **Neues Gespräch** beginnt mit sauberem Sitzungskontext.
 
@@ -107,7 +108,7 @@ Melde Schwachstellen gemäß [SECURITY.md](./SECURITY.md) privat. Veröffentlich
 - Für **Windows x64** gibt es verifizierte Paket-Starts; unsignierte Artefakte können dennoch SmartScreen auslösen.
 - **macOS Apple Silicon** ist teilweise geprüft. Das DMG ist ad-hoc signiert, nicht notarisiert. Ein früherer Gerätebericht konnte die App öffnen und ChatGPT, Claude und Gemini anmelden, während Grok bei Cloudflare hängen blieb. Die aktuelle Grok-Wiederherstellung benötigt weiterhin einen Live-Retest auf Apple Silicon. Es gibt kein Intel-Artefakt.
 - **Linux x86_64** ist nur durch CI-Paketierung bestätigt; ein neuer realer Startbericht eines Maintainers fehlt.
-- Für v1.9.2 wurde kein neuer authentifizierter Meta-, Grok-Heavy↔ChatGPT-Astra- oder VM-Smoke ausgeführt. Frühere Windows-Paketstarts, der frühere Apple-Silicon-Bericht zu ChatGPT-/Claude-/Gemini-Anmeldung (Grok blieb bei Cloudflare) und die Linux-CI-Paketierung bleiben der aktuelle Nachweis. Eine langsame ChatGPT↔Grok-Übergabe mit echten Konten, der Grok-Cloudflare-Challenge-Pfad sowie ein neuer Start- und Anbieter-Login-Smoke auf Apple Silicon wurden nicht manuell wiederholt. Der Grok-Fortsetzungs-Timer-Pfad hat nur automatisierte Abdeckung.
+- Für v1.9.3 wurde kein neuer authentifizierter Meta-, Grok-Heavy↔ChatGPT-Astra- oder VM-Smoke ausgeführt. Frühere Windows-Paketstarts, der frühere Apple-Silicon-Bericht zu ChatGPT-/Claude-/Gemini-Anmeldung (Grok blieb bei Cloudflare) und die Linux-CI-Paketierung bleiben der aktuelle Nachweis. Eine langsame ChatGPT↔Grok-Übergabe mit echten Konten, der Grok-Cloudflare-Challenge-Pfad sowie ein neuer Start- und Anbieter-Login-Smoke auf Apple Silicon wurden nicht manuell wiederholt. Der Grok-Fortsetzungs-Timer-Pfad hat nur automatisierte Abdeckung.
 - Gast-, E-Mail-/Mobil- oder Facebook/Instagram-Anmeldung von Meta AI muss im Meta-Fenster erfolgen. Eine Anmeldung in einem anderen Browser kehrt nicht in die App zurück.
 - Snapshot/Replay/Checkpoint werden nur in ihrer ausgelieferten Form kompatibel gehalten. Über den experimentellen Meta-AI-Standby hinaus sind für diese funktionsgefrorene Ausgabe weder Marketplace, Graph-Editor, weitere Anbieter, neues Persistenzschema, eingebetteter Terminal-Agent, Telemetrie, Developer-ID-/Notarisierungsprogramm noch Self-Updater geplant.
 
