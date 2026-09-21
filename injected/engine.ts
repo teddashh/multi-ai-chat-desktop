@@ -510,7 +510,8 @@ class InactiveSendOperationError extends Error {
       // A usable composer wins. After Facebook/Instagram login the page can still
       // expose a login control or an inert prehydration field beside the real editor.
       login = 'logged_in';
-    } else if (hasDetector(adapter.loggedOutDetectors)) {
+    } else if (hasDetector(adapter.loggedOutDetectors) || adapter.provider === 'meta') {
+      // Meta does not treat a visible but gated composer, or Send alone, as logged in.
       login = 'logged_out';
     } else if (
       hasDetector(adapter.loginDetectors) ||
