@@ -355,19 +355,19 @@ Meta AI is code-defined and bundled, but it is experimental and is not part of t
 
 | Field | meta |
 |---|---|
-| schemaVersion / adapterVersion | `1` / `2` |
+| schemaVersion / adapterVersion | `1` / `3` |
 | urls.app / urls.login | `https://www.meta.ai` / `https://www.meta.ai` |
 | urls.match | `www.meta.ai/*` · `meta.ai/*` |
 | urls.ssoMatch | `auth.meta.com/*` · `auth.meta.ai/*` · `www.facebook.com/*` · `m.facebook.com/*` · `facebook.com/*` · `www.instagram.com/*` · `instagram.com/*` |
-| inputSelectors | `input[aria-label="Ask Meta AI"]` · `textarea[data-ecto-composer-prehydration-input]` |
+| inputSelectors | `input[aria-label="Ask Meta AI"]` · `textarea[aria-label="Ask Meta AI"]` · `textarea[data-ecto-composer-prehydration-input]` · `[contenteditable="true"][aria-label="Ask Meta AI"]` · `[contenteditable="true"][role="textbox"]` |
 | sendButtonSelectors | `[data-testid="composer-send-button"]` · `button[aria-label="Send"]` |
 | responseSelectors | `[data-message-item]:not([data-user-message])` · `[data-testid="assistant-message"]` |
-| loginDetectors | the enabled input/textarea selectors above · `button[aria-label="Send"]` |
+| loginDetectors | the enabled composer selectors above · `button[aria-label="Send"]` |
 | loggedOutDetectors | inert input/textarea variants · `[data-testid="login-button"]` |
 | thinking / stop | composer stop test id · `button[aria-label="Stop"]` |
 | inputStrategy / doneDelayMs | `default` / `5000` |
 
-Meta AI status is capability-based: an enabled composer reports `login:'logged_in'` and may be used without an account when Meta currently permits guest access. An inert composer or login control reports `logged_out` and wins over the positive detector. This does not bypass login, regional availability, rate limits, or later provider-side gates; those remain live-smoke concerns and surface through normal provider-error diagnostics.
+Meta AI status is capability-based: a visible, editable, non-inert composer reports `login:'logged_in'` even when a login control or inert prehydration field is also present. An inert composer or login control reports `logged_out` only when no usable composer is found. This does not bypass login, regional availability, rate limits, or later provider-side gates; those remain live-smoke concerns and surface through normal provider-error diagnostics.
 
 ## 6. Webview management (Rust, `webviews.rs`)
 

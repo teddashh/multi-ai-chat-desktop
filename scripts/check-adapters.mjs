@@ -92,7 +92,7 @@ const expected = {
   },
   meta: {
     schemaVersion: 1,
-    adapterVersion: 2,
+    adapterVersion: 3,
     urls: {
       app: 'https://www.meta.ai',
       login: 'https://www.meta.ai',
@@ -110,10 +110,23 @@ const expected = {
     inputStrategy: 'default',
     doneDelayMs: 5000,
     chunkDebounceMs: 600,
-    inputSelectors: ['input[aria-label="Ask Meta AI"]', 'textarea[data-ecto-composer-prehydration-input]'],
+    inputSelectors: [
+      'input[aria-label="Ask Meta AI"]',
+      'textarea[aria-label="Ask Meta AI"]',
+      'textarea[data-ecto-composer-prehydration-input]',
+      '[contenteditable="true"][aria-label="Ask Meta AI"]',
+      '[contenteditable="true"][role="textbox"]',
+    ],
     sendButtonSelectors: ['[data-testid="composer-send-button"]', 'button[aria-label="Send"]'],
     responseSelectors: ['[data-message-item]:not([data-user-message])', '[data-testid="assistant-message"]'],
-    loginDetectors: ['input[aria-label="Ask Meta AI"]', 'textarea[data-ecto-composer-prehydration-input]', 'button[aria-label="Send"]'],
+    loginDetectors: [
+      'input[aria-label="Ask Meta AI"]',
+      'textarea[aria-label="Ask Meta AI"]',
+      'textarea[data-ecto-composer-prehydration-input]',
+      '[contenteditable="true"][aria-label="Ask Meta AI"]',
+      '[contenteditable="true"][role="textbox"]',
+      'button[aria-label="Send"]',
+    ],
     loggedOutDetectors: [
       '[inert] input[aria-label="Ask Meta AI"]',
       '[inert] textarea[data-ecto-composer-prehydration-input]',

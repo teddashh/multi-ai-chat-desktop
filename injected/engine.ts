@@ -506,11 +506,13 @@ class InactiveSendOperationError extends Error {
     let login: 'logged_in' | 'logged_out' | 'blocked' = 'logged_out';
     if (isProviderChallengeActive(adapter.provider)) {
       login = 'blocked';
-    } else if (hasDetector(adapter.loggedOutDetectors)) {
+    } else if (adapter.provider === 'meta' && queryInput(adapter) !== null) {
+      // A usable composer wins. After Facebook/Instagram login the page can still
+      // expose a login control or an inert prehydration field beside the real editor.
+      login = 'logged_in';
+    } else if (hasDetector(adapter.loggedOutDetectors) || adapter.provider === 'meta') {
+      // Meta does not treat a visible but gated composer, or Send alone, as logged in.
       login = 'logged_out';
-    } else if (adapter.provider === 'meta') {
-      // Meta's visible Send control alone does not prove that its composer can accept input.
-      if (queryInput(adapter) !== null) login = 'logged_in';
     } else if (
       hasDetector(adapter.loginDetectors) ||
       (adapter.provider === 'grok' &&
