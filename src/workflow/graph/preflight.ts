@@ -4,6 +4,13 @@ import type { PreflightResult } from '../preflight';
 import { isSendable } from '../sendability';
 import type { GraphNode, ProviderRef, RoleKey, WorkflowGraph } from './types';
 
+export function isInactiveStandbyProvider(
+  provider: AIProvider,
+  activeProviders?: readonly AIProvider[],
+): boolean {
+  return activeProviders?.includes(provider) === false;
+}
+
 export async function preflightGraph(
   graph: WorkflowGraph,
   roles?: ModeRoles | Partial<Record<RoleKey, AIProvider>>,
@@ -20,7 +27,7 @@ export async function preflightGraph(
       requiredRoles
         .map((role) => providerForRequiredRole(graph, resolved, role))
         .filter((provider) =>
-          activeProviders?.includes(provider) === false ||
+          isInactiveStandbyProvider(provider, activeProviders) ||
           !isSendable(byProvider.get(provider) ?? missingState(provider)),
         ),
     ),

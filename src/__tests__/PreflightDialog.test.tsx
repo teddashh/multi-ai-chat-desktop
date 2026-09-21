@@ -1,7 +1,10 @@
 import { Children, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AIProvider } from '../../shared/types';
+import { t } from '../i18n/t';
 import { PreflightDialog } from '../ui/PreflightDialog';
+import type { PreflightDialogModel } from '../ui/preflightModel';
 
 vi.mock('react', async (importOriginal) => {
   const react = await importOriginal<typeof import('react')>();
@@ -18,19 +21,34 @@ function button(node: ReactNode, label: string): ReactElement<{ onClick: () => v
   }
 }
 
-function harness(onOpenLogin: (provider: 'meta' | 'chatgpt' | 'claude' | 'gemini' | 'grok') => void | Promise<void>) {
+function harness(
+  onOpenLogin: (provider: AIProvider) => void | Promise<void>,
+  options: {
+    onOpenSettings?: () => void;
+    activeProviders?: AIProvider[];
+    model?: PreflightDialogModel;
+  } = {},
+) {
   let state: unknown;
   const refs: { current: unknown }[] = [];
   let cleanup: (() => void) | undefined;
   const onClose = vi.fn();
   const onSwitchMode = vi.fn();
-  const model = { title: 'Cannot start', unavailable: [{ provider: 'meta' as const, label: 'Meta AI', reason: 'Needs login' }], aliased: [] };
+  const model = options.model ?? { title: 'Cannot start', unavailable: [{ provider: 'meta' as const, label: 'Meta AI', reason: 'Needs login' }], aliased: [] };
   const render = (hidden = false) => {
     let index = 0;
     vi.mocked(useState).mockImplementationOnce(() => [state, (next) => { state = next; }]);
     vi.mocked(useRef).mockImplementation((initial) => refs[index++] ?? (refs[index - 1] = { current: initial }));
     vi.mocked(useEffect).mockImplementationOnce((effect) => { cleanup = effect() || undefined; });
-    const tree = PreflightDialog({ model, onOpenLogin, onClose, onSwitchMode, hidden });
+    const tree = PreflightDialog({
+      model,
+      onOpenLogin,
+      onOpenSettings: options.onOpenSettings,
+      onClose,
+      onSwitchMode,
+      hidden,
+      activeProviders: options.activeProviders,
+    });
     vi.mocked(useRef).mockRestore();
     vi.mocked(useEffect).mockReset();
     return tree;
@@ -113,5 +131,84 @@ describe('PreflightDialog login recovery', () => {
     expect(ui.html()).not.toContain('role="alert"');
     expect(ui.onClose).toHaveBeenCalledTimes(action === 'Back' ? 1 : 0);
     expect(ui.onSwitchMode).toHaveBeenCalledTimes(action === 'Use Free mode' ? 1 : 0);
+  });
+
+  it('uses the active lineup rather than translated status copy for recovery', () => {
+    const onOpenLogin = vi.fn();
+    const onOpenSettings = vi.fn();
+    const ui = harness(onOpenLogin, {
+      onOpenSettings,
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'meta'],
+      model: {
+        title: 'Cannot start',
+        unavailable: [{ provider: 'meta', label: 'Meta AI', reason: t('settings.providerStandby', 'en') }],
+        aliased: [],
+      },
+    });
+    expect(button(ui.render(), t('settings.title', 'en'))).toBeUndefined();
+    ui.click('Open/Login');
+    expect(onOpenLogin).toHaveBeenCalledWith('meta');
+    expect(onOpenSettings).not.toHaveBeenCalled();
+  });
+
+  it('does not offer login for a standby provider and uses Settings instead', () => {
+    const onOpenLogin = vi.fn();
+    const onOpenSettings = vi.fn();
+    const ui = harness(onOpenLogin, {
+      onOpenSettings,
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'grok'],
+      model: {
+        title: 'Cannot start',
+        unavailable: [{ provider: 'meta', label: 'Meta AI', reason: 'No webview' }],
+        aliased: [],
+      },
+    });
+    expect(ui.html()).toContain(` - ${t('settings.providerStandby', 'en')}`);
+    expect(button(ui.render(), 'Open/Login')).toBeUndefined();
+    ui.click(t('settings.title', 'en'));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(onOpenLogin).not.toHaveBeenCalled();
+    expect(ui.onClose).not.toHaveBeenCalled();
+  });
+
+  it('treats an inactive lineup provider as standby even when the reason is login', () => {
+    const onOpenLogin = vi.fn();
+    const onOpenSettings = vi.fn();
+    const ui = harness(onOpenLogin, {
+      onOpenSettings,
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'grok'],
+      model: {
+        title: 'Cannot start',
+        unavailable: [
+          { provider: 'claude', label: 'Claude', reason: 'Needs login' },
+          { provider: 'meta', label: 'Meta AI', reason: 'Needs login' },
+        ],
+        aliased: [],
+      },
+    });
+    expect(ui.html()).toContain(' - Needs login');
+    expect(ui.html()).toContain(` - ${t('settings.providerStandby', 'en')}`);
+    expect(button(ui.render(), 'Open/Login')).toBeDefined();
+    ui.click(t('settings.title', 'en'));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(onOpenLogin).not.toHaveBeenCalled();
+  });
+
+  it('hides login retry after that provider becomes standby and ignores a stale retry click', async () => {
+    const login = vi.fn().mockRejectedValueOnce(new Error('host denied'));
+    const onOpenSettings = vi.fn();
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    const ui = harness(login, { onOpenSettings, activeProviders });
+    ui.click('Open/Login');
+    await vi.waitFor(() => expect(ui.html()).toContain('role="alert"'));
+    const retry = button(ui.render(), 'Try again')!;
+
+    activeProviders.splice(activeProviders.indexOf('meta'), 1, 'grok');
+    expect(button(ui.render(), 'Try again')).toBeUndefined();
+    retry.props.onClick();
+    await Promise.resolve();
+    expect(login).toHaveBeenCalledTimes(1);
+    ui.click(t('settings.title', 'en'));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 });

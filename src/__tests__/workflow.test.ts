@@ -307,6 +307,45 @@ describe('workflow engine', () => {
     expect(new Set(expected)).toEqual(new Set(activeProviders));
   });
 
+  it.each(providers.flatMap((standbyProvider) =>
+    (['consult', 'coding', 'roundtable', 'brainstorm'] as const).map((workflow) => ({ standbyProvider, workflow })),
+  ))('preserves $workflow sequence and recorded roles when Meta replaces $standbyProvider', async ({ standbyProvider, workflow }) => {
+    const settings = normalizeSettings({ standbyProvider });
+    const activeProviders = activeProvidersForStandby(standbyProvider);
+    // Include a stale Ready standby to prove the saved lineup controls every send.
+    vi.mocked(host.connections.get).mockResolvedValue([...providers, 'meta' as const].map((provider) => state(provider)));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+    const roles = settings.modeRoles[workflow === 'brainstorm' ? 'roundtable' : workflow];
+
+    await expect(runWorkflow({
+      text: 'four-seat workflow',
+      mode: workflow === 'brainstorm' ? 'free' : workflow,
+      ...(workflow === 'brainstorm' ? { presetId: 'brainstorm' as const } : {}),
+      roles,
+      activeProviders,
+    })).resolves.toEqual({ ok: true });
+
+    const roundtableSeats = Object.values(DEFAULT_ROUNDTABLE_ROLES);
+    const { planner, reviewer, coder, tester } = DEFAULT_CODING_ROLES;
+    const baseline: AIProvider[] = workflow === 'consult'
+      ? Object.values(DEFAULT_CONSULT_ROLES)
+      : workflow === 'coding'
+        ? [planner, reviewer, coder, reviewer, tester, coder, planner, coder]
+        : workflow === 'roundtable'
+          ? Array.from({ length: 5 }, () => roundtableSeats).flat()
+          : Array.from({ length: BRAINSTORM_ROUND_COUNT }, (_, round) =>
+            roundtableSeats.map((_, seat) => roundtableSeats[(round + seat) % 4]),
+          ).flat();
+    const expected = baseline.map((provider) => provider === standbyProvider ? 'meta' : provider);
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(expected);
+    expect(new Set(expected)).toEqual(new Set(activeProviders));
+    expect(getLastSnapshot()?.roleMap).toEqual(roles);
+    expect(getLastSnapshot()?.steps.map((step) => step.provider)).toEqual(expected);
+    expect(getLastSnapshot()?.steps.every((step) => step.status === 'done')).toBe(true);
+  });
+
   it('free mode sends only selected sendable targets and treats an empty target list as no-op', async () => {
     const statuses: string[] = [];
     const unsubscribe = onBridgeMessage((message) => {

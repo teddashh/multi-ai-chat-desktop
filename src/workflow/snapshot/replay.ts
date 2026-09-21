@@ -80,14 +80,17 @@ export function parseStoredSnapshot(json: string): ExecutionSnapshot {
     throwSchemaError('Stored snapshot redactionTier is not recognized.');
   }
   if (!isRecord(parsed.roleMap)) throwSchemaError('Stored snapshot roleMap must be an object.');
-  if (!Object.values(parsed.roleMap).every((value) => typeof value === 'string')) {
-    throwSchemaError('Stored snapshot roleMap values must be strings.');
+  if (!Object.values(parsed.roleMap).every(isAIProvider)) {
+    throwSchemaError('Stored snapshot roleMap values must be recognized providers.');
   }
   if (!Array.isArray(parsed.steps)) throwSchemaError('Stored snapshot steps must be an array.');
   if (!isRecord(parsed.userQuestion)) throwSchemaError('Stored snapshot userQuestion must be an object.');
   parsed.steps.forEach((step, index) => {
     if (!isRecord(step)) throwSchemaError(`Stored snapshot steps[${index}] must be an object.`);
     if (typeof step.nodeId !== 'string') throwSchemaError(`Stored snapshot steps[${index}].nodeId must be a string.`);
+    if (step.provider !== undefined && !isAIProvider(step.provider)) {
+      throwSchemaError(`Stored snapshot steps[${index}].provider must be a recognized provider.`);
+    }
     if (!isRecord(step.inputRef)) throwSchemaError(`Stored snapshot steps[${index}].inputRef must be an object.`);
     if (!isRecord(step.outputRef)) throwSchemaError(`Stored snapshot steps[${index}].outputRef must be an object.`);
   });
@@ -184,7 +187,8 @@ function throwSchemaError(message: string): never {
 function runnableRoles(snapshot: ExecutionSnapshot): Partial<Record<string, AIProvider>> {
   const roles: Partial<Record<string, AIProvider>> = {};
   Object.entries(snapshot.roleMap).forEach(([role, provider]) => {
-    if (isAIProvider(provider)) roles[role] = provider;
+    if (!isAIProvider(provider)) throwSchemaError(`Stored snapshot role "${role}" has an unsupported provider.`);
+    roles[role] = provider;
   });
   return roles;
 }
@@ -218,7 +222,9 @@ function retainedResponseLanguagePolicy(snapshot: ExecutionSnapshot): ResponseLa
 function freeTargets(snapshot: ExecutionSnapshot): AIProvider[] | undefined {
   const targets: AIProvider[] = [];
   snapshot.steps.forEach((step) => {
-    if (isAIProvider(step.provider) && !targets.includes(step.provider)) targets.push(step.provider);
+    if (step.provider === undefined) return;
+    if (!isAIProvider(step.provider)) throwSchemaError('Stored snapshot has an unsupported free target provider.');
+    if (!targets.includes(step.provider)) targets.push(step.provider);
   });
   return targets.length > 0 ? targets : undefined;
 }
@@ -238,7 +244,7 @@ function inlineText(ref: RedactedValueRef | undefined): string | undefined {
 }
 
 function isAIProvider(value: unknown): value is AIProvider {
-  return typeof value === 'string' && value in AI_PROVIDERS;
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(AI_PROVIDERS, value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -116,7 +116,7 @@ export const ja: Record<I18nKey, string> = {
   'provider.currentlyReading': '現在読んでいるメッセージ',
   'provider.clickToRecover': 'クリックで再読み込みして接続を回復',
   'provider.login': 'ログイン',
-  'provider.metaLoginGuidance': 'Meta のページで、表示される場合はメールまたは携帯電話でのログインを選んでください。このアプリ内では Facebook／Instagram ログインに対応していません。そちらに移動した場合は、上のログインボタンで Meta に戻ってください。メールと携帯電話の選択肢がない場合、このセッションではアプリ内でログインできません。ゲスト入力欄が使える場合はログイン不要です。',
+  'provider.metaLoginGuidance': '表示される場合はゲストチャットかメール／携帯番号でログイン。Facebook／Instagramログインは非対応です。',
   'provider.moreActions': 'プロバイダーのその他の操作',
   'provider.reload': '再読み込み',
   'provider.report': '報告',
@@ -229,8 +229,7 @@ export const ja: Record<I18nKey, string> = {
   'settings.close': '閉じる',
   'settings.general': '一般',
   'settings.providers': '有効なAI',
-  'settings.providersDescription':
-    '常に4つのAIを有効にします。別の予備AIを選ぶと、そのAIが無効になり、これまでの予備AIが有効になります。両方のログイン情報は保持されます。',
+  'settings.providersDescription': '4つが有効、1つが予備。ログイン情報は保持されます。',
   'settings.providersDefault': 'デフォルトの予備',
   'settings.providersSelect': '予備のAI',
   'settings.providerActive': '有効',

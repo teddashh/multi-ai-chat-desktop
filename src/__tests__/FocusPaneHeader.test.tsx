@@ -99,12 +99,11 @@ describe('FocusPane provider header', () => {
 
     for (const login of ['logged_out', 'blocked'] as const) {
       const html = renderMeta(login);
-      expect(html).toContain('choose email or mobile login if offered');
-      expect(html).toContain('Facebook and Instagram login are not supported inside this app');
-      expect(html).toContain('If neither option is available');
+      expect(html).toContain('Use guest chat or email/mobile login if offered');
+      expect(html).toContain('Facebook/Instagram login is unavailable here');
     }
-    expect(renderMeta('logged_in')).not.toContain('choose email or mobile login');
-    expect(renderHeader('logged_out')).not.toContain('choose email or mobile login');
+    expect(renderMeta('logged_in')).not.toContain('Use guest chat or email/mobile login');
+    expect(renderHeader('logged_out')).not.toContain('Use guest chat or email/mobile login');
   });
 
   it.each(['text', 'native'] as const)('keeps translated Meta login guidance outside the webview bounds in %s view', (centerSurface) => {

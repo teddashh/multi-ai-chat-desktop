@@ -127,6 +127,7 @@ export function SettingsModal({
   const languageUpdateSeqRef = useRef(0);
   const fontSizeUpdateSeqRef = useRef(0);
   const liveRef = useRef({ openProviders, focusPaneWidth, presentation });
+  const saveInFlightRef = useRef(false);
   liveRef.current = { openProviders, focusPaneWidth, presentation };
 
   useEffect(() => {
@@ -222,6 +223,17 @@ export function SettingsModal({
       };
     });
 
+  const applySavedSettings = (settings: AppSettings) => {
+    // A queued autosave can start before React renders the new parent props.
+    // Keep its live provider state aligned with the just-committed standby swap.
+    liveRef.current = {
+      openProviders: settings.openProviders,
+      focusPaneWidth: settings.focusPaneWidth,
+      presentation: settings.presentation,
+    };
+    onSaved(settings);
+  };
+
   const updateLanguage = async (language: AppSettings['language']) => {
     const modalSession = modalSessionRef.current;
     const updateSeq = ++languageUpdateSeqRef.current;
@@ -230,7 +242,7 @@ export function SettingsModal({
     setLanguage(language);
     try {
       const next = await persistSettingsPatch({ language });
-      onSaved(next);
+      applySavedSettings(next);
       if (modalSession === modalSessionRef.current) setError(undefined);
     } catch (reason) {
       if (updateSeq === languageUpdateSeqRef.current) {
@@ -248,7 +260,7 @@ export function SettingsModal({
     const modalSession = modalSessionRef.current;
     try {
       const next = await persistSettingsPatch({ fontSize });
-      onSaved(next);
+      applySavedSettings(next);
       if (modalSession === modalSessionRef.current) setError(undefined);
     } catch (reason) {
       if (updateSeq === fontSizeUpdateSeqRef.current && modalSession === modalSessionRef.current) {
@@ -272,7 +284,7 @@ export function SettingsModal({
   };
 
   const updateStandbyProvider = (standbyProvider: AIProvider) => {
-    if (!draft || standbyProvider === draft.standbyProvider || providerSelectionDisabled) return;
+    if (!draft || standbyProvider === draft.standbyProvider || providerSelectionDisabled || saveInFlightRef.current) return;
     const previousStandby = draft.standbyProvider;
     updateDraft({
       standbyProvider,
@@ -287,10 +299,11 @@ export function SettingsModal({
   };
 
   const closeSettings = async () => {
+    if (saveInFlightRef.current) return;
     const modalSession = modalSessionRef.current;
     try {
       await fontSizeDebounceRef.current?.flush();
-      if (modalSession === modalSessionRef.current) {
+      if (modalSession === modalSessionRef.current && !saveInFlightRef.current) {
         updateCheckAbortRef.current?.abort();
         onClose();
       }
@@ -300,7 +313,8 @@ export function SettingsModal({
   };
 
   const save = async () => {
-    if (!draft) return;
+    if (!draft || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     const modalSession = modalSessionRef.current;
     const draftUpdateSeq = draftUpdateSeqRef.current;
     const languageUpdateSeq = ++languageUpdateSeqRef.current;
@@ -313,7 +327,7 @@ export function SettingsModal({
         { ...draft },
         { standbyProvider: draft.standbyProvider },
       );
-      onSaved(next);
+      applySavedSettings(next);
       if (modalSession === modalSessionRef.current && draftUpdateSeq === draftUpdateSeqRef.current) {
         setSaved(true);
         closeTimerRef.current = window.setTimeout(onClose, 400);
@@ -326,6 +340,7 @@ export function SettingsModal({
         setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
       }
     } finally {
+      saveInFlightRef.current = false;
       if (modalSession === modalSessionRef.current) setSaving(false);
     }
   };
@@ -372,7 +387,7 @@ export function SettingsModal({
     >
         <div className="mb-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
           <h2 id="settings-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h2>
-          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={closeSettings}>
+          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50" onClick={closeSettings} disabled={saving}>
             {t('settings.close')}
           </button>
         </div>
@@ -462,7 +477,7 @@ export function SettingsModal({
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                   {t('settings.providers')}
                 </h3>
-                <p className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
+                <p id="settings-providers-description" className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
                   {t('settings.providersDescription')}
                 </p>
               </div>
@@ -472,7 +487,11 @@ export function SettingsModal({
                 </span>
                 <select
                   value={draft.standbyProvider}
-                  disabled={providerSelectionDisabled}
+                  disabled={providerSelectionDisabled || saving}
+                  aria-describedby={
+                    providerSelectionDisabled ? 'settings-providers-unavailable' : 'settings-providers-description'
+                  }
+                  title={providerSelectionDisabled ? t('input.workflowRunning') : undefined}
                   onChange={(event) => updateStandbyProvider(event.target.value as AIProvider)}
                   className="w-full border border-zinc-300 bg-zinc-50 px-2 py-1.5 text-sm text-zinc-900 outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-sky-600"
                 >
@@ -483,7 +502,12 @@ export function SettingsModal({
                   ))}
                 </select>
               </label>
-              <div className="flex flex-wrap gap-1.5" aria-label={t('settings.providerActive')}>
+              {providerSelectionDisabled ? (
+                <p id="settings-providers-unavailable" className="text-xs text-zinc-500 dark:text-zinc-500">
+                  {t('input.workflowRunning')}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('settings.providers')}>
                 {activeProvidersForStandby(draft.standbyProvider).map((provider) => (
                   <span key={provider} className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
                     {AI_PROVIDERS[provider].name} · {t('settings.providerActive')}
@@ -673,7 +697,7 @@ export function SettingsModal({
             />
           </div>
           <div className="flex items-center justify-end gap-2">
-            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={closeSettings}>
+            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-50" onClick={closeSettings} disabled={saving}>
               {t('settings.cancel')}
             </button>
             <button

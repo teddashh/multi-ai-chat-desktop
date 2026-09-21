@@ -4,15 +4,15 @@
 
 Eine Frage genügt: Vier angemeldete KI-Websitzungen antworten, prüfen, widersprechen und verfeinern das Ergebnis gemeinsam. **ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist eine experimentelle fünfte Standby-Option in den Einstellungen.** Multi-AI Chat Desktop ist ein Workflow-Hub auf Basis von Tauri 2 – nicht bloß vier nebeneinander angeordnete Chats.
 
-[**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.8.9 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
+[**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.9.0 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
 
 > Diese App automatisiert die Anbieter-Webseiten, die du bereits verwendest. Änderungen an deren Oberfläche können einen Adapter vorübergehend beeinträchtigen; außerdem können die Bedingungen des jeweiligen Dienstes gelten. Verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist. Anmeldung, Abonnement, Alter, Nutzungslimits und Sicherheitsprüfungen werden weder umgangen noch automatisiert gelöst.
 
-> **Projektstatus:** Sechs Presets, fünf zugrunde liegende Workflow-Modi, Snapshot/Replay und die optionale AI-Sister-Gedenkausgabe mit vier Figuren bleiben funktionsgefroren. Der aktuelle Quellstand enthält eine begrenzte experimentelle Erweiterung: fünf Anbieter im Katalog, davon immer genau vier aktiv, mit Meta AI als Standard-Standby. Die stabile Version v1.8.9 enthält weiterhin die ursprünglichen vier Anbieter.
+> **Projektstatus:** Sechs Presets, fünf zugrunde liegende Workflow-Modi, Snapshot/Replay und die optionale AI-Sister-Gedenkausgabe mit vier Figuren bleiben funktionsgefroren. v1.9.0 enthält fünf Anbieter zur Auswahl, davon immer genau vier aktiv. ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist ein experimenteller optionaler Standby.
 
 ## Zuerst installieren
 
-Die aktuelle stabile Version steht auf der [**Downloadseite für v1.8.9**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9) bereit.
+Die aktuelle stabile Version steht auf der [**Downloadseite für v1.9.0**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0) bereit.
 
 | Plattform | Download | Hinweis zum ersten Start |
 |---|---|---|
@@ -22,7 +22,7 @@ Die aktuelle stabile Version steht auf der [**Downloadseite für v1.8.9**](https
 
 Öffne beim ersten Start jeden Anbieter-Pane einmal und melde dich direkt auf der echten Anbieterseite an. Zugangsdaten und Cookies bleiben im getrennten lokalen WebView-Profil des jeweiligen Anbieters; Multi-AI Chat Desktop fragt nie nach deinem Passwort.
 
-Wähle beim experimentellen Meta-AI-Pfad auf Metas Anmeldeseite **Mobilnummer oder E-Mail**. Facebook- und Instagram-Anmeldungen verlassen die eng begrenzten Meta-Ursprünge und werden deshalb absichtlich nicht eingebettet.
+Beim experimentellen Meta-AI-Pfad hängen Gastzugang oder E-Mail-/Mobilanmeldung davon ab, was Metas Website derzeit anbietet. Erscheint eine Anmeldeseite, wähle **Mobilnummer oder E-Mail**. Facebook- und Instagram-Anmeldung werden nicht eingebettet.
 
 ### Erster Start unter macOS
 
@@ -34,13 +34,14 @@ Die Ad-hoc-Signatur schützt die Bundle-Integrität und verhindert die falsche M
 
 Portable Windows-Builds zeigen keine Update-Steuerung in der App. Aktualisiere sie manuell über [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installierte Builds können nach einer neuen Version suchen und deren Downloadseite öffnen; die App lädt oder installiert Updates jedoch nicht selbst.
 
-## Neu in v1.8.9
+## Neu in v1.9.0
 
-- **Grok-Erholung bei der ersten Anmeldung.** Nach der exakten externen `auth.x.ai`-Übergabe kehrt das ursprüngliche eingebettete Pane ohne erweiterte Berechtigungen und ohne App-Neustart zu `grok.com` zurück.
-- **ChatGPT-Astra-Übergaben.** Die Engine erkennt das aktuelle Sendeelement und eingeklappte lange Prompts, akzeptiert keine optimistische Blase bei unverändertem Entwurf und wartet während der beobachteten Pro-Thinking-Phase weiter, damit spätere Eingaben Astra nicht unterbrechen.
-- **Kein falsches bridge degraded.** Ein erfolgreicher leerer Bridge-Pull wird nicht mehr zu `[Error: bridge degraded]`; der exakte 600-Sekunden-Inaktivitätstimeout des Workflows bleibt erhalten.
+- **Optionaler Meta-AI-Standby.** Fünf Auswahlmöglichkeiten, immer genau vier aktiv. Die ursprünglichen vier bleiben Standard; in den Einstellungen kann genau ein Anbieter getauscht werden. Profile bleiben erhalten, Rollen und Ziele werden auf die aktuelle Auswahl repariert.
+- **Porträt und Diagnose.** Meta AI hat ein eigenes Porträt. Ereignisprotokoll und Debug-Bundle kennzeichnen es als Meta AI, ohne Prompts oder Antworten zu speichern.
+- **Fehlgeschlagene Aktionen wiederholen.** Fehler bei Anmeldung, Reload, Report und Replay können wiederholt werden. Doppelte und veraltete Klicks werden ignoriert.
+- **Vorprüfung der aktiven vier.** Workflows prüfen die aktuellen vier, auch wenn ein Standby weiterhin Ready wirkt. Debattenplätze decken Meta ab, sobald es aktiv ist.
 
-Die [vollständigen Release Notes mit Windows-Prüfliste](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9) beschreiben Änderungen und Prüfgrenzen.
+Die [Release Notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0) beschreiben Änderungen und Grenzen.
 
 ## Desktop oder Browser-Erweiterung?
 
@@ -60,6 +61,7 @@ Wähle Desktop für einen eigenen Arbeitsbereich und den vollständigen lokalen 
 - **Gesprächsorientierter Arbeitsbereich.** Das Transkript kann das gesamte Fenster nutzen, während Provider-Chips die echte Seite und aktuelle Leseposition erkennbar halten.
 - **Sechs Presets, fünf stabile Modi.** Frei, Debatte, Beratung, Coding, Rundtisch sowie das zusätzliche Brainstorming-Preset auf der eingefrorenen Workflow-Laufzeit.
 - **Konfigurierbare Rollen.** Standardbelegungen mit vier Rollen verwenden ChatGPT, Claude, Gemini und Grok jeweils einmal. Serielle Rollen dürfen einen Anbieter wiederverwenden; parallel laufende Rollen müssen getrennt bleiben.
+- **Optionaler Meta-AI-Standby.** In den Einstellungen kann genau ein Standardanbieter ersetzt werden. Profile bleiben erhalten; Rollen und Ziele werden auf die aktiven vier repariert.
 - **Lokale Fortsetzung.** Beginne ein leeres Gespräch oder öffne bis zu 30 ausschließlich lokal gespeicherte Transkripte. Fortsetzungen erhalten begrenzten Kontext nur aus derselben Sitzung.
 - **Lesbare, getreue Ausgabe.** Sicheres semantisches Markdown bewahrt Überschriften, verschachtelte Listen, Links, Zitate, fenced code, mathematischen Quelltext und horizontal scrollbar Tabellen. Auch reine ChatGPT-Bildantworten können abgeschlossen werden.
 - **Reproduzierbare Arbeit.** Optionale Snapshots mit den eingefrorenen Datenschutzstufen, Replay, Checkpoints, Markdown-Export, Anbieterdialognostik und ein dedupliziertes In-Memory-Log mit 2.000 Ereignissen bleiben verfügbar.
@@ -80,7 +82,7 @@ Wähle Desktop für einen eigenen Arbeitsbereich und den vollständigen lokalen 
 
 Strukturierte Workflows prüfen vorab jede notwendige Rolle. Ist ein Anbieter nicht verfügbar, benennt die App ihn und bietet Öffnen/Anmelden, Neuzuordnung oder einen anderen Modus an; sie ersetzt Anbieter nie stillschweigend. Normale strukturierte Workflows enden bei einem dauerhaften Anbieterfehler. Brainstorming pausiert dagegen bis zur ausdrücklichen Wahl von Wiederholen, Überspringen oder Abbrechen.
 
-Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; für v1.8.9 fehlt noch eine langsame ChatGPT↔Grok-Übergabe mit echten Konten.
+Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; v1.9.0 fügt keine neue langsame ChatGPT↔Grok-Übergabe mit echten Konten hinzu.
 
 Nach Abschluss kannst du über den Composer unten dasselbe App-Gespräch fortsetzen. **Neues Gespräch** beginnt mit sauberem Sitzungskontext.
 
@@ -103,7 +105,8 @@ Melde Schwachstellen gemäß [SECURITY.md](./SECURITY.md) privat. Veröffentlich
 - Für **Windows x64** gibt es verifizierte Paket-Starts; unsignierte Artefakte können dennoch SmartScreen auslösen.
 - **macOS Apple Silicon** ist teilweise geprüft. Das DMG ist ad-hoc signiert, nicht notarisiert. Ein früherer Gerätebericht konnte die App öffnen und ChatGPT, Claude und Gemini anmelden, während Grok bei Cloudflare hängen blieb. Die aktuelle Grok-Wiederherstellung benötigt weiterhin einen Live-Retest auf Apple Silicon. Es gibt kein Intel-Artefakt.
 - **Linux x86_64** ist nur durch CI-Paketierung bestätigt; ein neuer realer Startbericht eines Maintainers fehlt.
-- Für v1.8.9 wurden eine langsame ChatGPT↔Grok-Übergabe mit echten Konten, der Grok-Cloudflare-Challenge-Pfad sowie ein neuer Start- und Anbieter-Login-Smoke auf Apple Silicon nicht manuell wiederholt.
+- Für v1.9.0 wurde kein neuer authentifizierter Meta- oder VM-Smoke ausgeführt. Frühere Windows-Paketstarts, der frühere Apple-Silicon-Bericht zu ChatGPT-/Claude-/Gemini-Anmeldung (Grok blieb bei Cloudflare) und die Linux-CI-Paketierung bleiben der aktuelle Nachweis. Eine langsame ChatGPT↔Grok-Übergabe mit echten Konten, der Grok-Cloudflare-Challenge-Pfad sowie ein neuer Start- und Anbieter-Login-Smoke auf Apple Silicon wurden nicht manuell wiederholt.
+- Gastzugang oder E-Mail-/Mobilanmeldung von Meta AI hängen davon ab, was Metas Website derzeit anbietet. Facebook- und Instagram-Anmeldung werden nicht eingebettet.
 - Snapshot/Replay/Checkpoint werden nur in ihrer ausgelieferten Form kompatibel gehalten. Über den experimentellen Meta-AI-Standby hinaus sind für diese funktionsgefrorene Ausgabe weder Marketplace, Graph-Editor, weitere Anbieter, neues Persistenzschema, eingebetteter Terminal-Agent, Telemetrie, Developer-ID-/Notarisierungsprogramm noch Self-Updater geplant.
 
 Die evidenzbasierte [Kompatibilitätsmatrix](./docs/COMPATIBILITY.md) enthält Details. CI und automatisierte Tests werden nie als Beleg dafür dargestellt, dass ein echtes Anbieterkonto oder Desktopgerät benutzt wurde.

@@ -4,15 +4,15 @@
 
 Ask once. Let four signed-in AI web sessions answer, review, challenge, and refine one another. **ChatGPT, Claude, Gemini, and Grok remain the default lineup; Meta AI is an experimental fifth standby option in Settings.** Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
 
-[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.8.9](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
+[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.9.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
 
 > This app automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider's terms. Use only accounts and content you are authorized to use. The app never bypasses login, subscription, age, rate-limit, or security checks.
 
-> **Project status:** six presets, five underlying workflow modes, snapshot/replay tools, and the optional AI-Sister Commemorative Edition remain feature-frozen. Current source contains one bounded experimental expansion: a five-provider catalog with exactly four active at a time and Meta AI on standby by default. Stable v1.8.9 still ships the original four-provider lineup.
+> **Project status:** six presets, five underlying workflow modes, snapshot/replay tools, and the optional AI-Sister Commemorative Edition remain feature-frozen. v1.9.0 ships five provider choices with exactly four active at a time. ChatGPT, Claude, Gemini, and Grok remain the default; Meta AI is an experimental optional standby.
 
 ## Install first
 
-Get the current stable release from the [**v1.8.9 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9).
+Get the current stable release from the [**v1.9.0 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0).
 
 | Platform | Download | First-launch note |
 |---|---|---|
@@ -22,7 +22,7 @@ Get the current stable release from the [**v1.8.9 download page**](https://githu
 
 Open each provider pane once and sign in on the provider's real page. Credentials and cookies stay in that provider's isolated local WebView profile; Multi-AI Chat Desktop never asks for your password.
 
-In the experimental Meta AI path, choose **mobile number or email** on Meta's sign-in page. Facebook and Instagram sign-in leave the narrowly allowlisted Meta origins and are intentionally not embedded.
+In the experimental Meta AI path, guest or email/mobile access depends on what Meta's site currently offers. If a sign-in page is shown, choose **mobile number or email**. Facebook and Instagram sign-in are not embedded.
 
 ### macOS first launch
 
@@ -34,13 +34,14 @@ The ad-hoc signature protects bundle integrity and avoids the false “app is da
 
 Portable Windows builds do not show in-app update controls. Update them manually from [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installed builds can check for a newer release and open its download page, but the app does not download or install updates itself.
 
-## What's new in v1.8.9
+## What's new in v1.9.0
 
-- **Grok first-login recovery.** After the exact external `auth.x.ai` handoff, the original embedded pane returns to `grok.com` without expanding provider permissions or requiring an app restart.
-- **ChatGPT Astra handoffs.** The engine recognizes the current submit control and collapsed long prompts, rejects an optimistic bubble while the draft is still idle, and keeps the observed Pro-thinking phase active so later workflow input cannot interrupt Astra.
-- **No fake bridge failure.** A successful empty bridge pull no longer becomes `[Error: bridge degraded]`; the workflow retains the exact 600-second inactivity timeout.
+- **Optional Meta AI standby.** Five choices, exactly four active. The original four stay default; Settings can swap one provider. Profiles stay, and roles and targets repair.
+- **Portrait and diagnostics.** Meta AI has its own portrait. Event log and debug bundle label it Meta AI without storing prompts or replies.
+- **Recover failed actions.** Login, reload, report, and replay errors can be retried. Duplicate and stale clicks are ignored.
+- **Active-lineup preflight.** Workflows check the current four even if a standby still looks Ready. Debate seats cover Meta when it is active.
 
-Read the [complete release notes and Windows validation checklist](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.8.9).
+Read the [release notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0).
 
 ## Desktop or browser extension?
 
@@ -60,6 +61,7 @@ Choose Desktop when you want a dedicated workspace and the full local workflow t
 - **Conversation-first workspace.** The transcript can expand across the window, while provider chips keep the live page and current reading position easy to identify.
 - **Six presets, five stable modes.** Free, Debate, Consult, Coding, Roundtable, and the additional Brainstorm preset built on the frozen workflow runtime.
 - **Configurable roles.** Four-role defaults assign ChatGPT, Claude, Gemini, and Grok once each. Sequential roles may reuse a provider; roles that run in parallel must remain distinct.
+- **Optional Meta AI standby.** Settings can replace exactly one default provider. Profiles stay; roles and targets repair to the active four.
 - **Local continuity.** Start a clean conversation or reopen up to 30 locally stored transcripts. Restored follow-ups receive bounded context from that same session only.
 - **Readable, faithful output.** Safe semantic Markdown supports headings, nested lists, links, quotes, fenced code, and scrollable tables while preserving math source. Image-only ChatGPT responses can also complete.
 - **Reproducible work.** Opt-in snapshots with frozen privacy tiers, replay, checkpoints, Markdown export, provider diagnostics, and a 2,000-event deduplicated in-memory log remain available.
@@ -80,7 +82,7 @@ Choose Desktop when you want a dedicated workspace and the full local workflow t
 
 Structured workflows preflight every required role. If a provider is unavailable, the app identifies it and lets you open/login, reassign the role, or choose another mode; it never silently substitutes a provider. Standard structured workflows stop on a persistent provider error. Brainstorm instead pauses for an explicit Retry, Skip, or Cancel choice.
 
-Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its 48-contribution recovery path has automated coverage; v1.8.9 still needs a real-account ChatGPT↔Grok slow-handoff check.
+Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its 48-contribution recovery path has automated coverage; v1.9.0 does not add a new real-account ChatGPT↔Grok slow-handoff check.
 
 After a workflow finishes, continue from the bottom composer to keep the same app conversation. Choose **New conversation** for clean session context.
 
@@ -103,7 +105,8 @@ Report vulnerabilities privately through [SECURITY.md](./SECURITY.md); never put
 - **Windows x64** has verified packaged launch evidence, but artifacts are unsigned and can trigger SmartScreen.
 - **macOS Apple Silicon** is partially verified. The DMG is ad-hoc signed and not notarized; an earlier real-device report opened the app and logged into ChatGPT, Claude, and Gemini, while Grok remained on Cloudflare. Current Grok recovery still needs a live Apple Silicon retest. There is no Intel artifact.
 - **Linux x86_64** packaging is CI-verified only; there is no current maintainer real-device launch report.
-- For v1.8.9, a real-account ChatGPT↔Grok slow handoff, the Grok Cloudflare challenge path, and a new Apple Silicon launch/provider-login smoke were not manually reverified.
+- For v1.9.0, no new authenticated Meta or VM smoke was run. Prior Windows packaged-launch evidence, the earlier Apple Silicon ChatGPT/Claude/Gemini login report (Grok remained on Cloudflare), and Linux CI-only packaging remain the current record. A real-account ChatGPT↔Grok slow handoff, the Grok Cloudflare challenge path, and a new Apple Silicon launch/provider-login smoke were not manually repeated.
+- Meta AI guest or email/mobile access depends on what Meta's site currently offers. Facebook and Instagram sign-in are not embedded.
 - Snapshots/replay/checkpoints are compatibility-maintained in their shipped form. Beyond the experimental Meta AI standby, there is no marketplace, graph editor, further provider expansion, new persistence schema, embedded terminal agent, telemetry roadmap, Developer ID/notarization program, or self-updater planned for this feature-frozen edition.
 
 See the evidence-based [compatibility matrix](./docs/COMPATIBILITY.md). CI and automated tests are never presented as proof that a live provider account or real desktop device was exercised.

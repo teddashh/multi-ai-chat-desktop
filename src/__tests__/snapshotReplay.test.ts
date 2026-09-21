@@ -424,15 +424,43 @@ describe('snapshot replay', () => {
   });
 
   it('blocks a historical debate standby role even when its last connection state is Ready', async () => {
-    await expect(replaySnapshot({ snapshot: buildSnapshot() }, {
+    const snapshot = buildSnapshot();
+    const originalRoleMap = { ...snapshot.roleMap };
+    await expect(replaySnapshot({ snapshot }, {
       activeProviders: ['chatgpt', 'claude', 'gemini', 'meta'],
     })).resolves.toEqual({
       ok: false,
       blocked: 'preflight',
       preflight: { ok: false, unavailable: ['grok'], aliased: [] },
     });
+    expect(snapshot.roleMap).toEqual(originalRoleMap);
+    expect(planReplay(snapshot).roles).toEqual(originalRoleMap);
     expect(executeGraph).not.toHaveBeenCalled();
     expect(host.provider.send).not.toHaveBeenCalled();
+  });
+
+  it.each(providers)('replays recorded Meta debate roles unchanged after replacing %s', async (standbyProvider) => {
+    const activeProviders = [...providers.filter((provider) => provider !== standbyProvider), 'meta' as const];
+    const roleMap = Object.fromEntries(Object.entries(DEFAULT_DEBATE_ROLES).map(([role, provider]) =>
+      [role, provider === standbyProvider ? 'meta' : provider],
+    )) as Record<string, AIProvider>;
+    const snapshot = buildSnapshot({ roleMap });
+    vi.mocked(host.connections.get).mockResolvedValue([...providers, 'meta' as const].map((provider) => state(provider)));
+
+    await expect(replaySnapshot({ snapshot }, { activeProviders })).resolves.toMatchObject({ ok: true, plan: { roles: roleMap } });
+
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(Object.values(roleMap));
+    expect(getLastSnapshot()?.roleMap).toEqual(roleMap);
+    expect(snapshot.roleMap).toEqual(roleMap);
+
+    vi.mocked(host.provider.send).mockClear();
+    await expect(replaySnapshot({ snapshot }, { activeProviders: providers })).resolves.toEqual({
+      ok: false,
+      blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['meta'], aliased: [] },
+    });
+    expect(host.provider.send).not.toHaveBeenCalled();
+    expect(planReplay(snapshot).roles).toEqual(roleMap);
   });
 
   it('exposes full-local prior outputs for comparison', () => {
@@ -486,6 +514,32 @@ describe('snapshot replay', () => {
       steps: [{}],
     });
     expect(captureReplayError(() => parseStoredSnapshot(badStepSchema))?.kind).toBe('schema');
+  });
+
+  it.each(['retired-provider', 'toString', 'constructor'])('rejects recorded role provider %s instead of substituting a default', async (provider) => {
+    const snapshot = buildSnapshot({
+      roleMap: { ...DEFAULT_DEBATE_ROLES, pro: provider as AIProvider },
+    });
+
+    expect(captureReplayError(() => parseStoredSnapshot(JSON.stringify(snapshot)))?.kind).toBe('schema');
+    expect(captureReplayError(() => planReplay(snapshot))?.kind).toBe('schema');
+    await expect(replaySnapshot({ snapshot })).rejects.toMatchObject({ kind: 'schema' });
+    expect(executeGraph).not.toHaveBeenCalled();
+    expect(host.provider.send).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unknown recorded free target instead of falling back to all active providers', async () => {
+    const snapshot = buildSnapshot({
+      graphId: 'free',
+      graphVersion: 2,
+      roleMap: {},
+      steps: [step('fanout:0', { provider: 'retired-provider' as AIProvider })],
+    });
+
+    expect(captureReplayError(() => parseStoredSnapshot(JSON.stringify(snapshot)))?.kind).toBe('schema');
+    await expect(replaySnapshot({ snapshot })).rejects.toMatchObject({ kind: 'schema' });
+    expect(executeGraph).not.toHaveBeenCalled();
+    expect(host.provider.send).not.toHaveBeenCalled();
   });
 
   it('returns not-found when durable snapshot load misses and does not execute', async () => {

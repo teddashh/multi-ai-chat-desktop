@@ -378,13 +378,73 @@ describe('ReplayPanel', () => {
     await vi.waitFor(() => expect(replaySnapshot).toHaveBeenCalledTimes(1));
 
     const tree = panel.render();
-    expect(renderToStaticMarkup(tree)).toContain(`Meta AI ${t('replay.unavailable', 'en')}`);
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain(`Meta AI ${t('settings.providerStandby', 'en')}`);
+    expect(html).not.toContain(t('replay.preflightHelp', 'en'));
     expect(findAllElements(
       tree,
       (element) => element.type === 'button' && textOf(element).includes(t('replay.openLogin', 'en')),
     )).toHaveLength(0);
+    expect(findAllElements(
+      tree,
+      (element) => element.type === 'button' && textOf(element).includes(t('settings.title', 'en')),
+    )).toHaveLength(0);
     expect(onOpenLogin).not.toHaveBeenCalled();
     expect(host.provider.openLogin).not.toHaveBeenCalled();
+  });
+
+  it('offers Settings instead of login when a required snapshot provider is standby', async () => {
+    vi.mocked(replaySnapshot).mockResolvedValueOnce({
+      ok: false,
+      blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['claude', 'meta'], aliased: [] },
+    });
+    const onOpenLogin = vi.fn().mockResolvedValue(undefined);
+    const onOpenSettings = vi.fn();
+    const panel = new ReplayPanel({
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'grok'],
+      onOpenLogin,
+      onOpenSettings,
+    });
+    await panel.startReplay({ kind: 'last', snapshot: buildSnapshot() });
+
+    const tree = panel.render();
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain(`Claude ${t('replay.unavailable', 'en')}`);
+    expect(html).toContain(`Meta AI ${t('settings.providerStandby', 'en')}`);
+    expect(html).toContain(t('replay.preflightHelp', 'en'));
+    expect(findAllElements(
+      tree,
+      (element) => element.type === 'button' && textOf(element).includes(t('replay.openLogin', 'en')),
+    )).toHaveLength(1);
+    propsOf(buttonWithText(tree, t('settings.title', 'en'))).onClick?.();
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(onOpenLogin).not.toHaveBeenCalled();
+    expect(host.provider.openLogin).not.toHaveBeenCalled();
+  });
+
+  it('replaces login retry with Settings after that provider becomes standby', async () => {
+    vi.mocked(replaySnapshot).mockResolvedValueOnce({
+      ok: false, blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['meta'], aliased: [] },
+    });
+    vi.mocked(host.provider.openLogin).mockRejectedValueOnce(new Error('login unavailable'));
+    const onOpenSettings = vi.fn();
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    const panel = new ReplayPanel({ activeProviders, onOpenSettings });
+    await panel.startReplay({ kind: 'last', snapshot: buildSnapshot() });
+    propsOf(buttonWithText(panel.render(), t('replay.openLogin', 'en'))).onClick?.();
+    await vi.waitFor(() => expect(renderToStaticMarkup(panel.render()).includes('role="alert"')).toBe(true));
+    const oldRetry = buttonWithText(panel.render(), t('provider.retry', 'en'));
+
+    activeProviders.splice(activeProviders.indexOf('meta'), 1, 'grok');
+    expect(findAllElements(panel.render(), (element) => element.type === 'button'
+      && textOf(element).includes(t('provider.retry', 'en')))).toHaveLength(0);
+    propsOf(oldRetry).onClick?.();
+    await Promise.resolve();
+    expect(host.provider.openLogin).toHaveBeenCalledTimes(1);
+    propsOf(buttonWithText(panel.render(), t('settings.title', 'en'))).onClick?.();
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
   it('shows missing snapshots as a small error line', async () => {
