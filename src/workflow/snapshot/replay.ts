@@ -145,7 +145,7 @@ export async function replaySnapshot(input: ReplayInput, options: ReplayOptions 
 
   prepareWorkflowRun();
 
-  const preflight = await preflightGraph(plan.graph!, plan.roles);
+  const preflight = await preflightGraph(plan.graph!, plan.roles, options.activeProviders);
   if (!preflight.ok) return { ok: false, blocked: 'preflight', preflight };
 
   const targets = await replayTargets(plan, options.activeProviders);

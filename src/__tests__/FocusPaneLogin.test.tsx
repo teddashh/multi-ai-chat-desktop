@@ -142,7 +142,9 @@ function harness(
       (child) => isValidElement(child) && typeof (child.props as { reconnectProvider?: unknown }).reconnectProvider === 'function',
     ) as ReactElement<{ reconnectProvider: (provider: AIProvider) => Promise<void> }> | undefined;
     expect(stripEl).toBeDefined();
-    const strip = (stripEl!.type as (props: typeof stripEl.props) => ReactElement<{ children: ReactNode }>)(stripEl!.props);
+    if (!stripEl) throw new Error('Provider status strip was not rendered');
+    const stripProps = stripEl.props;
+    const strip = (stripEl.type as (props: typeof stripProps) => ReactElement<{ children: ReactNode }>)(stripProps);
     const grid = Children.toArray(strip.props.children)[1] as ReactElement<{ children: ReactNode }>;
     for (const item of Children.toArray(grid.props.children)) {
       if (!isValidElement(item)) continue;

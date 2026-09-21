@@ -1575,7 +1575,11 @@ export default function App() {
     const serialGraph = brainstorm ? workflowGraphs.brainstorm : serialMode ? workflowGraphs[serialMode] : undefined;
     if (serialGraph) {
       try {
-        const result = await preflightGraph(serialGraph, workflowRoles);
+        const result = await preflightGraph(
+          serialGraph,
+          workflowRoles,
+          activeProvidersForStandby(settingsRef.current.standbyProvider),
+        );
         if (!result.ok) {
           recordEventLog(eventFromWorkflowPreflightBlocked(mode, result.unavailable.length + result.aliased.length));
           setPreflight({ mode: brainstorm ? 'brainstorm' : serialMode!, result });

@@ -45,6 +45,7 @@ import {
 } from '../workflow/waitForResponse';
 import { resetWorkflowRuntimeForTests, runWorkflow } from '../workflow';
 import { createResponseLanguagePolicy } from '../workflow/responseLanguage';
+import { activeProvidersForStandby, normalizeSettings } from '../ui/settingsModel';
 
 vi.mock('../host', () => ({
   host: {
@@ -261,6 +262,49 @@ describe('workflow engine', () => {
     await expect(
       preflightSerialMode('consult', { first: 'chatgpt', second: 'chatgpt', reviewer: 'claude', summary: 'gemini' }),
     ).resolves.toMatchObject({ ok: false, aliased: ['chatgpt'] });
+  });
+
+  it.each([
+    { mode: 'debate' },
+    { mode: 'consult' },
+    { mode: 'coding' },
+    { mode: 'roundtable' },
+    { mode: 'free', presetId: 'brainstorm' },
+  ] as const)('blocks standby roles before any send despite stale Ready state: %j', async (workflow) => {
+    vi.mocked(host.connections.get).mockResolvedValue([...providers, 'meta' as const].map((provider) => state(provider)));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({
+      ...workflow,
+      text: 'stale standby must not run',
+      activeProviders: activeProvidersForStandby('grok'),
+    })).resolves.toEqual({
+      ok: false,
+      preflight: { ok: false, unavailable: ['grok'], aliased: [] },
+    });
+    expect(host.provider.send).not.toHaveBeenCalled();
+  });
+
+  it.each(providers)('preserves all four debate steps when Meta replaces %s', async (standbyProvider) => {
+    const settings = normalizeSettings({ standbyProvider });
+    const activeProviders = activeProvidersForStandby(standbyProvider);
+    vi.mocked(host.connections.get).mockResolvedValue(activeProviders.map((provider) => state(provider)));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({
+      text: 'four-seat debate',
+      mode: 'debate',
+      roles: settings.modeRoles.debate,
+      activeProviders,
+    })).resolves.toEqual({ ok: true });
+
+    const expected = Object.values(DEFAULT_DEBATE_ROLES).map((provider) => provider === standbyProvider ? 'meta' : provider);
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(expected);
+    expect(new Set(expected)).toEqual(new Set(activeProviders));
   });
 
   it('free mode sends only selected sendable targets and treats an empty target list as no-op', async () => {

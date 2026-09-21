@@ -76,7 +76,7 @@ async function runPreparedWorkflow({
     };
     if (presetId === 'brainstorm') {
       const graph = workflowGraphs.brainstorm;
-      const preflight = await preflightGraph(graph, roles);
+      const preflight = await preflightGraph(graph, roles, activeProviders);
       if (!preflight.ok) return { ok: false, preflight };
 
       await executeGraph(graph, { text, context, roles, checkpoints, locale, responseLanguagePolicy }, graphOptions);
@@ -101,7 +101,7 @@ async function runPreparedWorkflow({
 
     const serialMode = mode as Exclude<ChatMode, 'free'>;
     const graph = workflowGraphs[serialMode];
-    const preflight = await preflightGraph(graph, roles);
+    const preflight = await preflightGraph(graph, roles, activeProviders);
     if (!preflight.ok) return { ok: false, preflight };
 
     await executeGraph(graph, { text, context, roles, checkpoints, locale, responseLanguagePolicy }, graphOptions);

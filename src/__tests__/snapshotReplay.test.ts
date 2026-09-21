@@ -423,6 +423,18 @@ describe('snapshot replay', () => {
     );
   });
 
+  it('blocks a historical debate standby role even when its last connection state is Ready', async () => {
+    await expect(replaySnapshot({ snapshot: buildSnapshot() }, {
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'meta'],
+    })).resolves.toEqual({
+      ok: false,
+      blocked: 'preflight',
+      preflight: { ok: false, unavailable: ['grok'], aliased: [] },
+    });
+    expect(executeGraph).not.toHaveBeenCalled();
+    expect(host.provider.send).not.toHaveBeenCalled();
+  });
+
   it('exposes full-local prior outputs for comparison', () => {
     const snapshot = buildSnapshot({
       steps: [
