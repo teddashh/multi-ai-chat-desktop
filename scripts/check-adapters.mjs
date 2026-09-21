@@ -92,12 +92,20 @@ const expected = {
   },
   meta: {
     schemaVersion: 1,
-    adapterVersion: 1,
+    adapterVersion: 2,
     urls: {
       app: 'https://www.meta.ai',
       login: 'https://www.meta.ai',
       match: ['www.meta.ai/*', 'meta.ai/*'],
-      ssoMatch: ['auth.meta.com/*', 'auth.meta.ai/*'],
+      ssoMatch: [
+        'auth.meta.com/*',
+        'auth.meta.ai/*',
+        'www.facebook.com/*',
+        'm.facebook.com/*',
+        'facebook.com/*',
+        'www.instagram.com/*',
+        'instagram.com/*',
+      ],
     },
     inputStrategy: 'default',
     doneDelayMs: 5000,
@@ -160,11 +168,23 @@ if (validate({ ...grokAdapter, loggedOutDetectors: [{ selector: 'button', textIn
   throw new Error('schema unexpectedly accepted an empty detector text filter');
 }
 
-// Meta starts as a deliberately narrow seed. These assertions keep unverified DOM fallbacks and
-// authentication origins from entering through an unrelated adapter update.
+// Meta app surface stays on meta.ai. Facebook/Instagram are SSO-only so a live Log in
+// redirect stays in the isolated Meta profile instead of the system browser.
 const metaAdapter = JSON.parse(await readFile(path.join(adapterDir, 'meta.json'), 'utf8'));
 assertEqual(metaAdapter.urls.match, ['www.meta.ai/*', 'meta.ai/*'], 'meta.initialSeed.appScopes');
-assertEqual(metaAdapter.urls.ssoMatch, ['auth.meta.com/*', 'auth.meta.ai/*'], 'meta.initialSeed.ssoScopes');
+assertEqual(
+  metaAdapter.urls.ssoMatch,
+  [
+    'auth.meta.com/*',
+    'auth.meta.ai/*',
+    'www.facebook.com/*',
+    'm.facebook.com/*',
+    'facebook.com/*',
+    'www.instagram.com/*',
+    'instagram.com/*',
+  ],
+  'meta.initialSeed.ssoScopes',
+);
 assertEqual(
   metaAdapter.responseSelectors,
   ['[data-message-item]:not([data-user-message])', '[data-testid="assistant-message"]'],

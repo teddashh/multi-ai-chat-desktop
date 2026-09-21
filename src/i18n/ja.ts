@@ -116,7 +116,7 @@ export const ja: Record<I18nKey, string> = {
   'provider.currentlyReading': '現在読んでいるメッセージ',
   'provider.clickToRecover': 'クリックで再読み込みして接続を回復',
   'provider.login': 'ログイン',
-  'provider.metaLoginGuidance': '表示される場合はゲストチャットかメール／携帯番号でログイン。Facebook／Instagramログインは非対応です。',
+  'provider.metaLoginGuidance': 'ゲスト、メール／携帯、またはFacebook／Instagramのログインはこのウィンドウで完了してください。別のブラウザでログインしてもここに戻れません。',
   'provider.moreActions': 'プロバイダーのその他の操作',
   'provider.reload': '再読み込み',
   'provider.report': '報告',

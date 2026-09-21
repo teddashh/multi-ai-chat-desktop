@@ -114,7 +114,7 @@ export const en: Record<I18nKey, string> = {
   'provider.currentlyReading': 'Currently reading',
   'provider.clickToRecover': 'Click to reload and recover the connection',
   'provider.login': 'Login',
-  'provider.metaLoginGuidance': 'Use guest chat or email/mobile login if offered. Facebook/Instagram login is unavailable here.',
+  'provider.metaLoginGuidance': 'Complete guest, email/mobile, or Facebook/Instagram sign-in in this window. A login in another browser cannot return here.',
   'provider.moreActions': 'More provider actions',
   'provider.reload': 'Reload',
   'provider.report': 'Report',

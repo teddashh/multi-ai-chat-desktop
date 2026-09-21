@@ -104,7 +104,7 @@ export const zhTW: Record<I18nKey, string> = {
   'provider.currentlyReading': '正在閱讀',
   'provider.clickToRecover': '點一下重新載入以恢復連線',
   'provider.login': '登入',
-  'provider.metaLoginGuidance': '可用時選訪客聊天或 Email／手機登入；不支援 Facebook／Instagram 登入。',
+  'provider.metaLoginGuidance': '訪客、Email／手機或 Facebook／Instagram 登入請在這個視窗完成。在別的瀏覽器登入無法回到 app。',
   'provider.moreActions': '更多 provider 操作',
   'provider.reload': '重新載入',
   'provider.report': '回報',

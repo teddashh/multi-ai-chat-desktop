@@ -22,7 +22,7 @@
 
 第一次使用時，請逐一打開 provider pane，直接在 provider 的真實頁面登入。憑證與 cookie 只留在該 provider 的獨立本機 WebView profile；Multi-AI Chat Desktop 不會向你索取密碼。
 
-使用實驗性的 Meta AI 時，訪客或 Email／手機登入取決於 Meta 網站目前提供的方式。若出現登入頁，請選擇「手機號碼或 Email」。Facebook 與 Instagram 登入不支援內嵌。
+使用實驗性的 Meta AI 時，請在 **Meta 窗格內** 完成訪客、Email／手機或 Facebook／Instagram 登入。在別的瀏覽器登入無法回到 app 的隔離 profile。
 
 ### macOS 第一次啟動
 
@@ -107,7 +107,7 @@ Workflow 完成後，可從底部 composer 繼續同一個 app conversation；�
 - **macOS Apple Silicon** 僅部分驗證。DMG 為 ad-hoc 簽章且未 notarize；較早的實機回報能開啟 app 並登入 ChatGPT、Claude、Gemini，但 Grok 卡在 Cloudflare。現行 Grok 恢復流程仍需 Apple Silicon live retest；沒有 Intel 產物。
 - **Linux x86_64** 目前只有 CI packaging 驗證，沒有 maintainer 的新實機啟動報告。
 - v1.9.1 沒有新增已登入的 Meta、Grok Heavy ↔ ChatGPT Astra 或 VM smoke。先前的 Windows packaged launch 證據、較早的 Apple Silicon ChatGPT／Claude／Gemini 登入回報（Grok 卡在 Cloudflare），以及 Linux 僅 CI packaging，仍是目前紀錄。真實帳號的 ChatGPT↔Grok 慢速接力、Grok Cloudflare challenge，以及新的 Apple Silicon 啟動與 provider 登入 smoke 都沒有人工重做。Grok 恢復生成的計時器路徑僅有自動測試覆蓋。
-- Meta AI 訪客或 Email／手機登入取決於 Meta 網站目前提供的方式。Facebook 與 Instagram 登入不支援內嵌。
+- Meta AI 的訪客、Email／手機或 Facebook／Instagram 登入必須在 Meta 窗格內完成。在別的瀏覽器登入無法回到 app。
 - Snapshot／replay／checkpoint 只維護既有相容性。除了實驗性的 Meta AI 備用選項外，本功能凍結版本不規劃 marketplace、graph editor、更多 provider 擴充、新 persistence schema、內嵌 terminal agent、telemetry、Developer ID／notarization 計畫或 self-updater。
 
 證據詳見[相容性矩陣](./docs/COMPATIBILITY.md)。CI 與自動測試不會被包裝成「已用真實 provider 帳號或實機桌面驗證」。

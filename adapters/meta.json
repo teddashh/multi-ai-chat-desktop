@@ -1,14 +1,22 @@
 {
   "$schema": "./schema.json",
   "schemaVersion": 1,
-  "adapterVersion": 1,
+  "adapterVersion": 2,
   "provider": "meta",
   "displayName": "Meta AI",
   "urls": {
     "app": "https://www.meta.ai",
     "login": "https://www.meta.ai",
     "match": ["www.meta.ai/*", "meta.ai/*"],
-    "ssoMatch": ["auth.meta.com/*", "auth.meta.ai/*"]
+    "ssoMatch": [
+      "auth.meta.com/*",
+      "auth.meta.ai/*",
+      "www.facebook.com/*",
+      "m.facebook.com/*",
+      "facebook.com/*",
+      "www.instagram.com/*",
+      "instagram.com/*"
+    ]
   },
   "inputSelectors": ["input[aria-label=\"Ask Meta AI\"]", "textarea[data-ecto-composer-prehydration-input]"],
   "sendButtonSelectors": ["[data-testid=\"composer-send-button\"]", "button[aria-label=\"Send\"]"],

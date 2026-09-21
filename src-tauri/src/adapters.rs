@@ -909,6 +909,11 @@ mod tests {
             ("grok", "https://www.google.com/accounts/ServiceLogin"),
             ("meta", "https://auth.meta.com/login"),
             ("meta", "https://auth.meta.ai/login"),
+            ("meta", "https://www.facebook.com/login.php"),
+            ("meta", "https://m.facebook.com/login.php"),
+            ("meta", "https://facebook.com/login"),
+            ("meta", "https://www.instagram.com/accounts/login"),
+            ("meta", "https://instagram.com/accounts/login"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(
@@ -949,7 +954,10 @@ mod tests {
             ("meta", "http://auth.meta.com/login"),
             ("meta", "https://auth.meta.com:8443/login"),
             ("meta", "https://user:pass@auth.meta.com/login"),
-            ("meta", "https://www.facebook.com/login"),
+            ("meta", "http://www.facebook.com/login"),
+            ("meta", "https://www.facebook.com.evil.net/login"),
+            ("meta", "https://facebook.com.evil.net/login"),
+            ("meta", "https://www.instagram.com.evil.net/accounts/login"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(
@@ -1029,6 +1037,7 @@ mod tests {
     fn meta_initial_seed_is_registered_and_keeps_navigation_narrow() {
         let meta = adapters().get("meta").expect("Meta adapter is bundled");
         assert_eq!(meta.display_name, "Meta AI");
+        assert_eq!(meta.adapter_version, 2);
         assert_eq!(meta.urls.app, "https://www.meta.ai");
         assert_eq!(meta.urls.login, "https://www.meta.ai");
         assert_eq!(
@@ -1037,8 +1046,22 @@ mod tests {
         );
         assert_eq!(
             meta.urls.sso_match,
-            vec!["auth.meta.com/*".to_string(), "auth.meta.ai/*".to_string()]
+            vec![
+                "auth.meta.com/*".to_string(),
+                "auth.meta.ai/*".to_string(),
+                "www.facebook.com/*".to_string(),
+                "m.facebook.com/*".to_string(),
+                "facebook.com/*".to_string(),
+                "www.instagram.com/*".to_string(),
+                "instagram.com/*".to_string(),
+            ]
         );
+        let hosts = app_hosts_for_provider("meta").unwrap();
+        assert!(hosts.contains(&"www.meta.ai".to_string()));
+        assert!(hosts.contains(&"meta.ai".to_string()));
+        assert!(!hosts.contains(&"www.facebook.com".to_string()));
+        assert!(!hosts.contains(&"facebook.com".to_string()));
+        assert!(!hosts.contains(&"instagram.com".to_string()));
 
         for value in [
             "https://www.meta.ai/",

@@ -99,8 +99,8 @@ describe('FocusPane provider header', () => {
 
     for (const login of ['logged_out', 'blocked'] as const) {
       const html = renderMeta(login);
-      expect(html).toContain('Use guest chat or email/mobile login if offered');
-      expect(html).toContain('Facebook/Instagram login is unavailable here');
+      expect(html).toContain('Complete guest, email/mobile, or Facebook/Instagram sign-in in this window');
+      expect(html).toContain('A login in another browser cannot return here');
     }
     expect(renderMeta('logged_in')).not.toContain('Use guest chat or email/mobile login');
     expect(renderHeader('logged_out')).not.toContain('Use guest chat or email/mobile login');
