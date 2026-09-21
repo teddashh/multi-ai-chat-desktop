@@ -124,7 +124,7 @@ describe('M4b UI helpers', () => {
     expect(normalized.portable).toBe(true);
     expect(normalized.snapshotPersistence).toBe(true);
     expect(normalized.snapshotRedactionTier).toBe('metadata-only');
-    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side' });
+    expect(normalized.presentation).toEqual({ chatgpt: 'chip', claude: 'center', gemini: 'side', grok: 'side', meta: 'chip' });
 
     expect(mergeSettings(normalized, { snapshotRedactionTier: 'hashes', language: 'zh-TW', responseLanguage: 'en' })).toMatchObject({
       layoutMode: 'focus',

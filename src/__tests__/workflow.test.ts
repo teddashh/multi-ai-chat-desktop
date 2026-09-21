@@ -45,6 +45,7 @@ import {
 } from '../workflow/waitForResponse';
 import { resetWorkflowRuntimeForTests, runWorkflow } from '../workflow';
 import { createResponseLanguagePolicy } from '../workflow/responseLanguage';
+import { activeProvidersForStandby, normalizeSettings } from '../ui/settingsModel';
 
 vi.mock('../host', () => ({
   host: {
@@ -263,6 +264,88 @@ describe('workflow engine', () => {
     ).resolves.toMatchObject({ ok: false, aliased: ['chatgpt'] });
   });
 
+  it.each([
+    { mode: 'debate' },
+    { mode: 'consult' },
+    { mode: 'coding' },
+    { mode: 'roundtable' },
+    { mode: 'free', presetId: 'brainstorm' },
+  ] as const)('blocks standby roles before any send despite stale Ready state: %j', async (workflow) => {
+    vi.mocked(host.connections.get).mockResolvedValue([...providers, 'meta' as const].map((provider) => state(provider)));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({
+      ...workflow,
+      text: 'stale standby must not run',
+      activeProviders: activeProvidersForStandby('grok'),
+    })).resolves.toEqual({
+      ok: false,
+      preflight: { ok: false, unavailable: ['grok'], aliased: [] },
+    });
+    expect(host.provider.send).not.toHaveBeenCalled();
+  });
+
+  it.each(providers)('preserves all four debate steps when Meta replaces %s', async (standbyProvider) => {
+    const settings = normalizeSettings({ standbyProvider });
+    const activeProviders = activeProvidersForStandby(standbyProvider);
+    vi.mocked(host.connections.get).mockResolvedValue(activeProviders.map((provider) => state(provider)));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({
+      text: 'four-seat debate',
+      mode: 'debate',
+      roles: settings.modeRoles.debate,
+      activeProviders,
+    })).resolves.toEqual({ ok: true });
+
+    const expected = Object.values(DEFAULT_DEBATE_ROLES).map((provider) => provider === standbyProvider ? 'meta' : provider);
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(expected);
+    expect(new Set(expected)).toEqual(new Set(activeProviders));
+  });
+
+  it.each(providers.flatMap((standbyProvider) =>
+    (['consult', 'coding', 'roundtable', 'brainstorm'] as const).map((workflow) => ({ standbyProvider, workflow })),
+  ))('preserves $workflow sequence and recorded roles when Meta replaces $standbyProvider', async ({ standbyProvider, workflow }) => {
+    const settings = normalizeSettings({ standbyProvider });
+    const activeProviders = activeProvidersForStandby(standbyProvider);
+    // Include a stale Ready standby to prove the saved lineup controls every send.
+    vi.mocked(host.connections.get).mockResolvedValue([...providers, 'meta' as const].map((provider) => state(provider)));
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+    const roles = settings.modeRoles[workflow === 'brainstorm' ? 'roundtable' : workflow];
+
+    await expect(runWorkflow({
+      text: 'four-seat workflow',
+      mode: workflow === 'brainstorm' ? 'free' : workflow,
+      ...(workflow === 'brainstorm' ? { presetId: 'brainstorm' as const } : {}),
+      roles,
+      activeProviders,
+    })).resolves.toEqual({ ok: true });
+
+    const roundtableSeats = Object.values(DEFAULT_ROUNDTABLE_ROLES);
+    const { planner, reviewer, coder, tester } = DEFAULT_CODING_ROLES;
+    const baseline: AIProvider[] = workflow === 'consult'
+      ? Object.values(DEFAULT_CONSULT_ROLES)
+      : workflow === 'coding'
+        ? [planner, reviewer, coder, reviewer, tester, coder, planner, coder]
+        : workflow === 'roundtable'
+          ? Array.from({ length: 5 }, () => roundtableSeats).flat()
+          : Array.from({ length: BRAINSTORM_ROUND_COUNT }, (_, round) =>
+            roundtableSeats.map((_, seat) => roundtableSeats[(round + seat) % 4]),
+          ).flat();
+    const expected = baseline.map((provider) => provider === standbyProvider ? 'meta' : provider);
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(expected);
+    expect(new Set(expected)).toEqual(new Set(activeProviders));
+    expect(getLastSnapshot()?.roleMap).toEqual(roles);
+    expect(getLastSnapshot()?.steps.map((step) => step.provider)).toEqual(expected);
+    expect(getLastSnapshot()?.steps.every((step) => step.status === 'done')).toBe(true);
+  });
+
   it('free mode sends only selected sendable targets and treats an empty target list as no-op', async () => {
     const statuses: string[] = [];
     const unsubscribe = onBridgeMessage((message) => {
@@ -283,6 +366,41 @@ describe('workflow engine', () => {
     unsubscribe();
     expect(host.provider.send).not.toHaveBeenCalled();
     expect(statuses).toEqual(['']);
+  });
+
+  it('drops an explicitly selected standby provider even when stale state says it is sendable', async () => {
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    vi.mocked(host.connections.get).mockResolvedValue([
+      ...activeProviders.map((provider) => state(provider)),
+      state('grok'),
+    ]);
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({
+      text: 'standby filter',
+      mode: 'free',
+      targets: ['grok', 'meta'],
+      activeProviders,
+    })).resolves.toEqual({ ok: true });
+
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(['meta']);
+  });
+
+  it('uses the caller active lineup when Meta AI replaces a default free target', async () => {
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    vi.mocked(host.connections.get).mockResolvedValue([
+      ...activeProviders.map((provider) => state(provider)),
+      state('grok', false),
+    ]);
+    vi.mocked(host.provider.send).mockImplementation(async (provider) => {
+      publishBridgeMessage(done(provider, `${provider}-answer`));
+    });
+
+    await expect(runWorkflow({ text: 'meta fallback', mode: 'free', activeProviders })).resolves.toEqual({ ok: true });
+
+    expect(vi.mocked(host.provider.send).mock.calls.map(([provider]) => provider)).toEqual(activeProviders);
   });
 
   it('routes Brainstorm through twelve rounds of four rotating seats and records graph v4', async () => {

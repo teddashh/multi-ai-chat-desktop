@@ -1,14 +1,14 @@
 # SPEC — Multi-AI Chat Desktop (Tauri 2)
 
-> Status: **v2.2.7 feature-frozen** (four-provider web edition; `v1.6.4` maintenance baseline)
-> Date: 2026-07-18
+> Status: **v2.2.8 feature-frozen** (four active web providers + one optional Meta AI standby; `v1.8.9` maintenance baseline)
+> Date: 2026-09-19
 > Authority: `docs/PLAN.md` final-scope table supersedes every historical `NEXT-PHASE` note in this document and in `.orchestration/` material.
-> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo; v2.2.6 surfaces Grok challenge state without starting automation on the challenge page; v2.2.7 repairs logged-out status detection and keeps Gemini's Google challenge passive.
+> Review history: v1.0 DRAFT received adversarial codex + grok review; v1.2.1 live-gated the callback-pull bridge; v2.1 retired the original fifth-provider experiment; v2.2 closes feature development after one final AI-Sister commemorative theme; v2.2.5 hardens the response-language compatibility repair against provider echo; v2.2.6 surfaces Grok challenge state without starting automation on the challenge page; v2.2.7 repairs logged-out status detection and keeps Gemini's Google challenge passive; v2.2.8 admits Meta AI as one bounded, experimental standby while preserving exactly four active providers.
 > Audience: maintenance contributors. Existing snapshot/replay/checkpoint behavior is compatibility-maintained but has no vNext roadmap.
 
 ## 0. One-paragraph summary
 
-A Tauri 2 desktop app with one main window: a React control pane and child webviews loading the real ChatGPT, Claude, Gemini, and Grok sites. The user types once; DOM automation sends through the user's logged-in web sessions and aggregates responses into five shipped workflows. Zero API keys and local provider profiles remain the product core. Adapter JSON can be maintained when provider DOM changes. Sessions, snapshots, replay, checkpoints, diagnostics, and source-launch Skills remain available in their shipped form. No marketplace, graph editor, fifth provider, embedded terminal agent, or snapshot vNext is planned. The only final product addition is the optional AI-Sister Commemorative Edition theme; the response-language rule in §1.1 #5 is a maintenance compatibility repair.
+A Tauri 2 desktop app with one main window: a React control pane and child webviews loading exactly four active provider sites. ChatGPT, Claude, Gemini, and Grok remain the default lineup; Meta AI is one code-defined experimental standby that may replace exactly one default provider through Settings. The user types once; DOM automation sends through usable local web sessions and aggregates responses into five shipped workflows. Zero API keys and isolated local provider profiles remain the product core. A provider is usable when its live composer is available; for Meta AI this may include account-free guest access when the site offers it, but the app neither promises nor bypasses provider login policy. Adapter JSON can be maintained when provider DOM changes. Sessions, snapshots, replay, checkpoints, diagnostics, and source-launch Skills remain available in their shipped form. No marketplace, graph editor, sixth provider, five-provider simultaneous fan-out, embedded terminal agent, or snapshot vNext is planned. The optional AI-Sister Commemorative Edition theme includes portraits for the four original providers and the Meta AI standby; the response-language rule in §1.1 #5 is a maintenance compatibility repair.
 
 ## 1. Goals / Non-goals (v2.1)
 
@@ -21,6 +21,7 @@ A Tauri 2 desktop app with one main window: a React control pane and child webvi
 - G6. **SHIPPED floor:** MIT, community-forkable; `adapters/` contributable without touching Rust for existing providers.
 - G7. **FROZEN compatibility:** shipped sessions, snapshots, replay, checkpoints, local-file insertion, preset catalog, and process trace may receive bug fixes but no feature expansion or new persistence schema.
 - G8. **FINAL addition:** one optional AI-Sister Commemorative Edition theme; it must not alter provider automation, workflow ordering, security boundaries, or the default readable theme.
+- G9. **BOUNDED experiment:** Meta AI may be selected as the sole optional standby/replacement provider. Exactly four providers remain active, the original four remain the default, and existing four-seat workflow semantics do not expand to a five-provider run.
 
 ### 1.1 Declared behavior improvements (the ONLY intentional deviations)
 1. **Status tri-state** — `ProviderState` replaces the original boolean `connected` (ARCH D5 #1).
@@ -33,7 +34,7 @@ Everything else must match the original extension's observable behavior. Any oth
 
 ### 1.2 Frozen capability boundary
 
-The shipped five-mode sequences, graph runtime, snapshots/replay, checkpoints, local sessions, diagnostics, preset catalog, focus layout, and local-file insertion form the compatibility boundary. Maintenance may repair data loss, crashes, inaccessible UI, or provider breakage. It must not introduce new workflow-pack formats, snapshot schemas, graph editing, telemetry, provider IDs, or background services. The commemorative theme is presentation-only.
+The shipped five-mode sequences, graph runtime, snapshots/replay, checkpoints, local sessions, diagnostics, preset catalog, focus layout, and local-file insertion form the compatibility boundary. Maintenance may repair data loss, crashes, inaccessible UI, or provider breakage. The provider catalog is fixed to the four original providers plus optional Meta AI, with exactly four active at a time. Maintenance must not introduce new workflow-pack formats, snapshot schemas, graph editing, telemetry, a sixth provider ID, or background services. The commemorative theme is presentation-only.
 
 ### Non-goals (v2.1)
 - No API-key mode. This is not a deferred option: zero-key web-session identity is the product core.
@@ -42,7 +43,7 @@ The shipped five-mode sequences, graph runtime, snapshots/replay, checkpoints, l
 - No split-tree drag-and-drop layout. The v2 RAM model is chip/side/center, not a tempo-term pane tree.
 - No remote Tauri IPC to provider origins. No local WebSocket server for provider pages.
 - No Developer ID/notarization or self-updater program in this frozen edition; macOS DMGs use an ad-hoc bundle signature as a minimum integrity requirement, and GitHub Releases remains the documented distribution channel.
-- No new provider IDs via adapters alone: **the provider set is fixed and code-defined**; adding any future provider requires code changes (types, UI labels, seed adapter/profile dir).
+- No new provider IDs via adapters alone: **the provider set is fixed and code-defined** as `chatgpt|claude|gemini|grok|meta`; adding any sixth provider requires code changes (types, UI labels, seed adapter/profile dir) and a new owner-approved contract amendment.
 - No adapter signing in v2.0 (schema validation + repo-pinned HTTPS only; signing remains v2+).
 - No workflow graph editor or pack marketplace.
 - No embedded agent SDK/CLI runtime in this web-session edition. Any terminal-agent work belongs to a separate product and repository.
@@ -99,11 +100,11 @@ The snippets in this section are **ILLUSTRATIVE shape summaries** for implemente
 
 ### 4.1 SHIPPED types (current code)
 
-Current code (`shared/types.ts`) has exactly four providers (`chatgpt|claude|gemini|grok`). `ProviderState` has no `presentation` field today. Current graph code (`src/workflow/graph/types.ts:8-18`) has no monotonic content `version` field.
+Current code (`shared/types.ts`) has five selectable providers (`chatgpt|claude|gemini|grok|meta`) but permits exactly four active providers at a time; `meta` is the default standby. `ProviderState` has no `presentation` field today. Current graph code (`src/workflow/graph/types.ts:8-18`) has no monotonic content `version` field.
 
 ```ts
 // shared/types.ts (SHIPPED current code summary)
-type AIProvider = 'chatgpt' | 'claude' | 'gemini' | 'grok';
+type AIProvider = 'chatgpt' | 'claude' | 'gemini' | 'grok' | 'meta';
 type ChatMode  = 'free' | 'debate' | 'consult' | 'coding' | 'roundtable';
 
 interface ProviderState {
@@ -115,7 +116,9 @@ interface ProviderState {
   lastStatusAt: number;                      // staleness watchdog
 }
 // Replaces the original's single boolean `connected` (improvement #1).
-// A provider is *sendable* iff webview=loaded && dom=ready && login=logged_in.
+// A provider is *sendable* iff it is in the active four-provider lineup and
+// webview=loaded && dom=ready && login=logged_in. For Meta AI, logged_in means
+// that a usable composer was detected; it is not proof that an account exists.
 // Visibility (show/hide) does NOT affect sendability.
 
 interface BridgeMessage {                     // envelope, both directions
@@ -346,6 +349,26 @@ Source of truth: `docs/study/multi-ai-chat.md` §2 + §7 (line-referenced to the
 
 (Exact selector strings for the "stop buttons subset" cells are enumerated in the study §2 line refs; implementer copies them verbatim from `refs/multi-ai-chat/src/content/<provider>.ts`.)
 
+### 5.2 Optional Meta AI standby adapter
+
+Meta AI is code-defined and bundled, but it is experimental and is not part of the default active lineup or the §5.1 four-provider compatibility floor. Settings stores one `standbyProvider`; choosing any original provider as standby activates Meta AI in that provider's place. The app MUST keep exactly four active providers, close any webview that becomes standby, preserve every provider profile, and repair role assignments so a standby provider is never silently executed.
+
+| Field | meta |
+|---|---|
+| schemaVersion / adapterVersion | `1` / `1` |
+| urls.app / urls.login | `https://www.meta.ai` / `https://www.meta.ai` |
+| urls.match | `www.meta.ai/*` · `meta.ai/*` |
+| urls.ssoMatch | `auth.meta.com/*` · `auth.meta.ai/*` |
+| inputSelectors | `input[aria-label="Ask Meta AI"]` · `textarea[data-ecto-composer-prehydration-input]` |
+| sendButtonSelectors | `[data-testid="composer-send-button"]` · `button[aria-label="Send"]` |
+| responseSelectors | `[data-message-item]:not([data-user-message])` · `[data-testid="assistant-message"]` |
+| loginDetectors | the enabled input/textarea selectors above · `button[aria-label="Send"]` |
+| loggedOutDetectors | inert input/textarea variants · `[data-testid="login-button"]` |
+| thinking / stop | composer stop test id · `button[aria-label="Stop"]` |
+| inputStrategy / doneDelayMs | `default` / `5000` |
+
+Meta AI status is capability-based: an enabled composer reports `login:'logged_in'` and may be used without an account when Meta currently permits guest access. An inert composer or login control reports `logged_out` and wins over the positive detector. This does not bypass login, regional availability, rate limits, or later provider-side gates; those remain live-smoke concerns and surface through normal provider-error diagnostics.
+
 ## 6. Webview management (Rust, `webviews.rs`)
 
 - `#[tauri::command] async fn provider_open(provider, bounds)` — **async mandatory** (Windows deadlock, ARCH D1). Creates or promotes a child webview:
@@ -490,7 +513,7 @@ When input/send/response resolution fails permanently (e.g. input element not fo
 - Step timeout default 600 s, surfaced in UI with countdown (improvement #2): **retry** re-runs `sendAndWait` for the current step only; **skip** substitutes `"(no response — skipped)"` as that provider's answer in all downstream prompts and continues; **cancel** aborts the workflow.
 - Default serial behavior without user action stays original: timeout/error aborts the serial workflow.
 - `CANCEL_WORKFLOW`: sets abort flag (original) + best-effort `provider_eval` stop-click via adapter `stopButtonSelectors` on in-flight providers. Skip does NOT stop-click.
-- `targets?: AIProvider[]` (improvement #4): free mode sends to the ConnectionBar-selected subset; omitted/all-selected = all sendable providers (original parity, golden-tested). Serial modes ignore `targets` unless a v2 pack explicitly exposes a role/provider choice before preflight.
+- `targets?: AIProvider[]` (improvement #4): free mode sends to the ConnectionBar-selected subset of the active lineup; omitted/all-selected = all active sendable providers (original four by default, golden-tested). If Meta AI replaces a standby provider, free-mode defaults are repaired to the current four-provider lineup. Serial modes ignore `targets` unless a v2 pack explicitly exposes a role/provider choice before preflight.
 - **NEXT-PHASE (N1):** every graph-backed run creates an `ExecutionSnapshot` object. Durable persistence is opt-in (§11), but the in-memory object exists for replay preview, debug bundle linking, and the run trace until the app exits.
 - **SHIPPED today:** diagnostics/event log is in-memory only (`src/diagnostics/`, capped 500); no snapshot/pack/execution-log persistence exists until N1/N3.
 
@@ -523,7 +546,7 @@ When input/send/response resolution fails permanently (e.g. input element not fo
 
 ### 9.4 Connections lifecycle
 
-- On mount, control pane calls `host.connections.get()` → full `ProviderState[]` snapshot (replaces `GET_CONNECTIONS` round-trip).
+- On mount, control pane calls `host.connections.get()` → full `ProviderState[]` snapshot for all five selectable providers (replaces `GET_CONNECTIONS` round-trip). Standby state is retained for diagnostics but is not sendable or openable until selected into the active four-provider lineup.
 - Any change to `webview|dom|login|thinking` (from STATUS_REPORT ingestion, webview lifecycle, staleness watchdog) ⇒ `CONNECTIONS_UPDATE` event to the control pane with the changed `ProviderState`.
 - **NEXT-PHASE (N5):** presentation-state changes (`chip|side|center`) also emit `CONNECTIONS_UPDATE`; this requires adding `ProviderState.presentation` because `shared/types.ts` has no `presentation` field today.
 - Staleness: no STATUS_REPORT for >30 s while `webview:'loaded'` ⇒ Rust dispatches `CHECK_STATUS`; still silent after another 10 s ⇒ `dom:'unknown'` + `CONNECTIONS_UPDATE` (UI shows stale chip + suggests reload).
@@ -546,7 +569,7 @@ Non-free modes and imported serial packs refuse to start unless **every role-ass
 
 Ported components remain part of the shipped floor: ConnectionBar, ModeSelector, RoleConfig, ChatArea (chronological bubbles + streaming marker + role badges from `ROLE_ASSIGNMENT` pending-label semantics), InputBar (Enter=send, Shift+Enter=newline, stop button; disabled + status line driven by `WORKFLOW_STATUS` — original `isProcessing` port), SettingsModal (§11).
 
-ConnectionBar chip mapping (SHIPPED floor, normative): `no-webview` (webview≠loaded) / `needs-login` (login∈{logged_out, blocked}) / `stale` (dom=unknown or watchdog-stale) / `ready` (sendable). Chips double as free-mode `targets` toggles (improvement #4): clicking a ready chip toggles selection; default all selected.
+ConnectionBar chip mapping (SHIPPED floor, normative): `no-webview` (webview≠loaded) / `needs-login` (login∈{logged_out, blocked}) / `stale` (dom=unknown or watchdog-stale) / `ready` (sendable). The connection surface renders only the active four-provider lineup; Settings names the fifth provider as standby. Active ready chips double as free-mode `targets` toggles (improvement #4): clicking a ready chip toggles selection; default all selected.
 
 **NEXT-PHASE (N5):** presentation chips add `session-ready` for profile-present but currently hibernated providers; they are not sendable until promoted and ready. **NEXT-PHASE (N4/N5):** when `ProviderState.thinking` and `presentation='chip'`, show a pulse/badge on the session-ready chip and a process-trace activity row.
 
@@ -585,6 +608,7 @@ Desktop deviation from the original "open new tab" (equivalent outcome, document
 |---|---|---|
 | chatgpt / claude / grok | navigate `ai-<provider>` webview to `adapter.urls.login`, show + focus pane | — |
 | gemini | same attempt, but if Google embedded-login block is detected (login `blocked`) | banner + button → system browser via opener; user logs in in Chrome/Edge, then retries embedded (session cookie sometimes carries); **no cookie import, no UA spoofing** (ARCH D6/D6b) |
+| meta (only while active) | navigate to `https://www.meta.ai`, show + focus pane; an enabled guest composer is already usable and does not require this action | inert/login-gated composer stays `logged_out`; the app does not bypass or promise account-free access |
 
 SSO redirects during login stay in-webview per §6.3.
 
@@ -601,7 +625,7 @@ User sees the exact payload in a preview dialog and must confirm; then a prefill
 
 ## 11. Settings & persistence
 
-`<app-data>/settings.json` stores interface language, response-language preference, layout, provider selection, adapter channel/base URL, portable/update-channel flags, snapshot opt-in/redaction settings, and `telemetry=none`. The response-language preference defaults to `auto`: explicit output-language requests win, followed by the current question and established conversation language, with the resolved interface locale as the final fallback. Provider credentials are never stored there. A configured HackMD token is plaintext on this machine, as disclosed in Settings.
+`<app-data>/settings.json` stores interface language, response-language preference, layout, provider selection, the single `standbyProvider` (default `meta`), adapter channel/base URL, portable/update-channel flags, snapshot opt-in/redaction settings, and `telemetry=none`. Exactly four of the five code-defined providers are active; changing standby swaps the old standby into the active lineup, retires the new standby's webview, and preserves both profile directories. The response-language preference defaults to `auto`: explicit output-language requests win, followed by the current question and established conversation language, with the resolved interface locale as the final fallback. Provider credentials are never stored there. A configured HackMD token is plaintext on this machine, as disclosed in Settings.
 
 `<app-data>/webviews/<provider>/` contains isolated provider profiles. `<app-data>/adapters-cache/` contains last-known-good adapters. Local conversation sessions and minimum workflow checkpoints are bounded and stored locally.
 
@@ -647,6 +671,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 | Login expired | loggedOut/login detectors flip | chip → needs-login; free mode excludes; serial mode = preflight block or mid-run timeout UI (§9.5) |
 | Google blocks Gemini login | blocked-login DOM detected | banner + system-browser guidance (§10.1) |
 | Provider-side error UI (rate limit / refusal / verification) | response never appears; error-as-DONE (§8.3) | bubble shows `[Error: …]`; serial workflows surface timeout/retry/skip UI |
+| Meta AI guest/login gate | enabled composer vs inert composer/login control (§5.2) | enabled guest composer may be sendable without an account; an inert or later-gated composer remains logged out/error and is never bypassed |
 | Cloudflare challenge | challenge DOM detected, or a known Grok challenge title observed natively | pane surfaces webview for manual solve; bridge startup remains deferred; the native title observer may report Grok as blocked without page injection |
 | Workflow step stall | no chunk within step timeout | countdown UI → retry / skip / cancel (§9) |
 | Adapter fetch fails | reqwest error / validation fail | silent fallback to cache; toast on downgrade |
@@ -679,6 +704,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 - Capability/security tests: capability targets `webviews:["main"]` and omits `windows`/`remote`, production CSP preserves only required control-pane connections, `withGlobalTauri:false`, and provider webviews receive no Tauri capability.
 - Adapter Rust tests reject HTTPS credential/port/query tricks, provider-host expansion, and SSO path broadening while allowing selector/timing changes inside bundled URL scopes.
 - Agent source-contract tests validate the manifest/schema, entrypoint/package alignment, Skill-body parity, explicit invocation, JSON output, invalid-usage exit code, audit/dry-run non-mutation, current-run READY segmentation, and runner identity. CI executes them on Windows, macOS, and Linux; GUI observation remains a separate manual claim.
+- Optional-provider tests validate the five-provider catalog, exactly-four-active invariant, Meta-default standby migration, role/default-target repair after a standby swap, host-side denial of standby webviews, Meta adapter schema/selectors, and snapshot/replay compatibility. Event-log and debug-bundle tests MUST recognize provider id `meta`, label it `Meta AI`, retain its provider errors/status/adapter version, and expose it in provider filtering without recording prompt or response bodies.
 - Manual smoke checklist per milestone (docs/PLAN.md): create webviews, login persist across restart, send/receive on shipped providers, DPI 100/125/150%, mode runs, cancel/stop, hot-update, portable zip run, graph parity, snapshot replay, pack import/export, chip/side/center promotion, local-file insert.
 - Playwright-driven adapter smoke against live sites can run on CI cron; it must not require API keys.
 
@@ -689,11 +715,13 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 3. Adapter signing, Developer ID/notarization, and self-update are closed scope; ad-hoc macOS bundle signing is release integrity, not a new signing program.
 4. Durable snapshots stay opt-in; snapshot/replay/checkpoint behavior is compatibility-only and will not gain new schemas or UI.
 5. Terminal-agent work, if pursued, is a separate product and repository.
-6. The only final presentation work is the AI-Sister ensemble commemorative theme.
+6. The only final presentation work is the AI-Sister ensemble commemorative theme: its ensemble remains the original four characters, with one supplied Meta AI portrait for optional-provider identity surfaces.
 7. The repository-scoped Agent-Ready Source Release remains a narrow source-launch contract, not Docker, a package manager, daemon, embedded agent SDK, or host rollback system.
+8. The provider catalog is the original four plus Meta AI, with exactly four active at a time. Meta AI is experimental and defaults to standby; no five-provider simultaneous workflow is implied.
 
 ## 16. Changelog
 
+- **v2.2.8 (2026-09-19)** — bounded optional-provider amendment: adds Meta AI as the default standby in a five-provider catalog while enforcing exactly four active providers, preserves the original four-provider defaults and four-seat workflow semantics, documents capability-based guest composer detection, adds the supplied Meta portrait, and locks Meta-aware event-log/debug-bundle coverage.
 - **v2.2.7 (2026-07-18)** — provider connection-status repair: supports typed schema-v2 logged-out detectors without breaking schema v1, recognizes stale-composer login pages for ChatGPT and Grok, allows only Gemini's bounded Google `/sorry` challenge path, leaves that challenge document unmodified, and adds parser, URL-boundary, locale, and precedence tests.
 - **v2.2.6 (2026-07-18)** — challenge-passive status repair: keeps bridge startup deferred on provider security checks, surfaces known Grok challenge titles through Tauri's native title observer, replaces the misleading cross-profile login promise, and adds focused frontend/Rust coverage.
 - **v2.2.5 (2026-07-15)** — response-language echo hardening: moves the internal routing policy before the provider request, marks it as non-user-visible metadata, and sanitizes complete, fenced, or partially streamed policy echoes before workflow/UI consumption.
@@ -713,7 +741,7 @@ Snapshot/replay/checkpoint persistence receives compatibility and data-loss fixe
 
 Allowed after the commemorative edition:
 
-- provider selector/DOM compatibility fixes and adapter hot-updates;
+- provider selector/DOM compatibility fixes and adapter hot-updates for the original four plus optional Meta AI;
 - security fixes, privacy corrections, data-loss prevention, and crash fixes;
 - dependency, CI, packaging, and operating-system build-breakage fixes;
 - compatibility fixes for the versioned Agent source manifest, lifecycle scripts, and shipped Codex/Claude Skills;
@@ -724,11 +752,11 @@ Closed permanently in this repository:
 
 - snapshot/replay/checkpoint expansion, new persistence formats, or comparison UI;
 - workflow-pack import/export, marketplace, graph editor, promotion metrics, or telemetry;
-- fifth provider, embedded SDK/CLI agents, or terminal orchestration;
+- sixth provider, five-provider simultaneous workflows, embedded SDK/CLI agents, or terminal orchestration;
 - Docker/container source launch, automatic host-tool installation/uninstallation, or machine-wide rollback;
 - self-update, package-manager distribution, Developer ID/notarization program, or new platform matrix;
 - new workflow modes or changes to the five shipped sequences.
 
 ## 18. Final AI-Sister commemorative theme
 
-The final scoped feature is the shipped optional presentation theme featuring all four AI-Sister characters together. It adds supplied artwork, provider avatars, active-speaker treatment, color tokens, and themed panel surfaces while preserving the default theme, text contrast, keyboard focus, reduced-motion behavior, responsive layout, and every provider/workflow behavior. Asset provenance and implementation scope are defined in `docs/AI-SISTER-THEME.md`.
+The final scoped feature is the shipped optional presentation theme featuring the original four AI-Sister characters together. It adds supplied artwork, provider avatars (including a separate supplied Meta AI portrait for the optional standby), active-speaker treatment, color tokens, and themed panel surfaces while preserving the original four-character ensemble, default theme, text contrast, keyboard focus, reduced-motion behavior, responsive layout, and every provider/workflow behavior. Asset provenance and implementation scope are defined in `docs/AI-SISTER-THEME.md`.

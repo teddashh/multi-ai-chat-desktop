@@ -1,4 +1,4 @@
-import { AI_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS, ALL_AI_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, BridgeMessage, ChatMode, ProviderState } from '../../shared/types';
 import type { StepTimeoutEvent } from '../workflow/stepTimeout';
 import {
@@ -47,7 +47,7 @@ export interface NavBlockedLike {
   host: string;
 }
 
-const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
+const PROVIDERS: readonly AIProvider[] = ALL_AI_PROVIDERS;
 const SENSITIVE_DETAIL_KEYS = new Set([
   'text',
   'prompt',

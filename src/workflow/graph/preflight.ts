@@ -4,7 +4,18 @@ import type { PreflightResult } from '../preflight';
 import { isSendable } from '../sendability';
 import type { GraphNode, ProviderRef, RoleKey, WorkflowGraph } from './types';
 
-export async function preflightGraph(graph: WorkflowGraph, roles?: ModeRoles | Partial<Record<RoleKey, AIProvider>>): Promise<PreflightResult> {
+export function isInactiveStandbyProvider(
+  provider: AIProvider,
+  activeProviders?: readonly AIProvider[],
+): boolean {
+  return activeProviders?.includes(provider) === false;
+}
+
+export async function preflightGraph(
+  graph: WorkflowGraph,
+  roles?: ModeRoles | Partial<Record<RoleKey, AIProvider>>,
+  activeProviders?: readonly AIProvider[],
+): Promise<PreflightResult> {
   if (graph.preflight.kind === 'free') return { ok: true, unavailable: [], aliased: [] };
 
   const resolved = resolveGraphRoles(graph, roles);
@@ -15,7 +26,10 @@ export async function preflightGraph(graph: WorkflowGraph, roles?: ModeRoles | P
     ...new Set(
       requiredRoles
         .map((role) => providerForRequiredRole(graph, resolved, role))
-        .filter((provider) => !isSendable(byProvider.get(provider) ?? missingState(provider))),
+        .filter((provider) =>
+          isInactiveStandbyProvider(provider, activeProviders) ||
+          !isSendable(byProvider.get(provider) ?? missingState(provider)),
+        ),
     ),
   ];
   const aliased = graph.preflight.aliasRules?.flatMap((rule) => aliasedProviders(resolved, rule.roles)) ?? [];

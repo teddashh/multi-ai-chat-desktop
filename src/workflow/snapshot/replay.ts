@@ -55,6 +55,7 @@ interface ReplayOptions {
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
   locale?: Locale;
   responseLanguagePolicy?: ResponseLanguagePolicy;
+  activeProviders?: readonly AIProvider[];
 }
 
 type ReplayInput = { snapshotId: string; question?: string } | { snapshot: ExecutionSnapshot; question?: string };
@@ -79,14 +80,17 @@ export function parseStoredSnapshot(json: string): ExecutionSnapshot {
     throwSchemaError('Stored snapshot redactionTier is not recognized.');
   }
   if (!isRecord(parsed.roleMap)) throwSchemaError('Stored snapshot roleMap must be an object.');
-  if (!Object.values(parsed.roleMap).every((value) => typeof value === 'string')) {
-    throwSchemaError('Stored snapshot roleMap values must be strings.');
+  if (!Object.values(parsed.roleMap).every(isAIProvider)) {
+    throwSchemaError('Stored snapshot roleMap values must be recognized providers.');
   }
   if (!Array.isArray(parsed.steps)) throwSchemaError('Stored snapshot steps must be an array.');
   if (!isRecord(parsed.userQuestion)) throwSchemaError('Stored snapshot userQuestion must be an object.');
   parsed.steps.forEach((step, index) => {
     if (!isRecord(step)) throwSchemaError(`Stored snapshot steps[${index}] must be an object.`);
     if (typeof step.nodeId !== 'string') throwSchemaError(`Stored snapshot steps[${index}].nodeId must be a string.`);
+    if (step.provider !== undefined && !isAIProvider(step.provider)) {
+      throwSchemaError(`Stored snapshot steps[${index}].provider must be a recognized provider.`);
+    }
     if (!isRecord(step.inputRef)) throwSchemaError(`Stored snapshot steps[${index}].inputRef must be an object.`);
     if (!isRecord(step.outputRef)) throwSchemaError(`Stored snapshot steps[${index}].outputRef must be an object.`);
   });
@@ -144,10 +148,10 @@ export async function replaySnapshot(input: ReplayInput, options: ReplayOptions 
 
   prepareWorkflowRun();
 
-  const preflight = await preflightGraph(plan.graph!, plan.roles);
+  const preflight = await preflightGraph(plan.graph!, plan.roles, options.activeProviders);
   if (!preflight.ok) return { ok: false, blocked: 'preflight', preflight };
 
-  const targets = await replayTargets(plan);
+  const targets = await replayTargets(plan, options.activeProviders);
   const appVersion = await getRuntimeAppVersion();
   const responseLanguagePolicy = plan.responseLanguagePolicy ?? options.responseLanguagePolicy;
 
@@ -183,7 +187,8 @@ function throwSchemaError(message: string): never {
 function runnableRoles(snapshot: ExecutionSnapshot): Partial<Record<string, AIProvider>> {
   const roles: Partial<Record<string, AIProvider>> = {};
   Object.entries(snapshot.roleMap).forEach(([role, provider]) => {
-    if (isAIProvider(provider)) roles[role] = provider;
+    if (!isAIProvider(provider)) throwSchemaError(`Stored snapshot role "${role}" has an unsupported provider.`);
+    roles[role] = provider;
   });
   return roles;
 }
@@ -217,18 +222,21 @@ function retainedResponseLanguagePolicy(snapshot: ExecutionSnapshot): ResponseLa
 function freeTargets(snapshot: ExecutionSnapshot): AIProvider[] | undefined {
   const targets: AIProvider[] = [];
   snapshot.steps.forEach((step) => {
-    if (isAIProvider(step.provider) && !targets.includes(step.provider)) targets.push(step.provider);
+    if (step.provider === undefined) return;
+    if (!isAIProvider(step.provider)) throwSchemaError('Stored snapshot has an unsupported free target provider.');
+    if (!targets.includes(step.provider)) targets.push(step.provider);
   });
   return targets.length > 0 ? targets : undefined;
 }
 
-async function replayTargets(plan: ReplayPlan): Promise<AIProvider[] | undefined> {
+async function replayTargets(plan: ReplayPlan, activeProviders?: readonly AIProvider[]): Promise<AIProvider[] | undefined> {
   if (plan.graph?.preflight.kind !== 'free') return plan.targets;
   const snapshot = await host.connections.get();
   const sendable = snapshot.filter(isSendable).map((state) => state.provider);
+  const active = activeProviders ?? DEFAULT_FREE_TARGET_PROVIDERS;
   return plan.targets === undefined
-    ? sendable.filter((provider) => (DEFAULT_FREE_TARGET_PROVIDERS as readonly AIProvider[]).includes(provider))
-    : plan.targets.filter((provider) => sendable.includes(provider));
+    ? sendable.filter((provider) => active.includes(provider))
+    : plan.targets.filter((provider) => sendable.includes(provider) && active.includes(provider));
 }
 
 function inlineText(ref: RedactedValueRef | undefined): string | undefined {
@@ -236,7 +244,7 @@ function inlineText(ref: RedactedValueRef | undefined): string | undefined {
 }
 
 function isAIProvider(value: unknown): value is AIProvider {
-  return typeof value === 'string' && value in AI_PROVIDERS;
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(AI_PROVIDERS, value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

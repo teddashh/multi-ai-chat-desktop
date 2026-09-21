@@ -51,14 +51,15 @@ function releaseFromJson(value: unknown): LatestRelease | null {
   return { tagName: release.tag_name, htmlUrl: release.html_url };
 }
 
-export async function fetchLatestRelease(repo = DEFAULT_RELEASE_REPO): Promise<LatestRelease | null> {
-  if (!isReleaseRepo(repo)) return null;
+export async function fetchLatestRelease(repo = DEFAULT_RELEASE_REPO, signal?: AbortSignal): Promise<LatestRelease | null> {
+  if (signal?.aborted || !isReleaseRepo(repo)) return null;
 
   try {
     const response = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
       headers: {
         Accept: 'application/vnd.github+json',
       },
+      signal,
     });
     if (!response.ok) return null;
 

@@ -6,6 +6,7 @@ import type { Locale } from '../i18n/resolve';
 import { formatI18n, t } from '../i18n/t';
 import { host, type StoredSnapshotInfo } from '../host';
 import { getLastSnapshot } from '../workflow/snapshot/recorder';
+import { isInactiveStandbyProvider } from '../workflow/graph/preflight';
 import {
   parseStoredSnapshot,
   planReplay,
@@ -36,15 +37,18 @@ interface ReplayBlockState {
 interface ReplayNotice {
   kind: 'ok' | 'error';
   text: string;
+  retryLoginProvider?: AIProvider;
 }
 
 export interface ReplayPanelProps {
   locale?: Locale;
   responseLanguagePolicy?: ResponseLanguagePolicy;
+  activeProviders?: readonly AIProvider[];
   onReplayWillRun?: (plan: ReplayPlan) => void;
   onReplaySettled?: () => void;
   onSnapshotComplete?: (snapshot: ExecutionSnapshot) => void | Promise<void>;
   onOpenLogin?: (provider: AIProvider) => void | Promise<void>;
+  onOpenSettings?: () => void;
 }
 
 interface ReplayPanelState {
@@ -71,6 +75,8 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
   state: ReplayPanelState = initialState;
 
   private mounted = false;
+  private loginRequestGeneration = 0;
+  private loginInFlight = false;
 
   componentDidMount(): void {
     this.mounted = true;
@@ -79,6 +85,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
 
   componentWillUnmount(): void {
     this.mounted = false;
+    this.loginRequestGeneration += 1;
   }
 
   async refreshStoredSnapshots(): Promise<void> {
@@ -95,6 +102,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
   }
 
   async startReplay(source: ReplaySource, options: ReplayRunOptions = {}): Promise<ReplayResult | undefined> {
+    this.loginRequestGeneration += 1;
     const busyKey = sourceKey(source);
     const question = options.question?.trim();
     this.updateState({ busyKey, notice: undefined, block: undefined });
@@ -116,6 +124,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
         onSnapshotComplete: this.props.onSnapshotComplete,
         locale: this.locale(),
         responseLanguagePolicy: this.props.responseLanguagePolicy,
+        activeProviders: this.props.activeProviders,
       });
 
       if (result.ok) {
@@ -147,7 +156,40 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
     }
   }
 
+  private async openProviderLogin(provider: AIProvider): Promise<void> {
+    if (this.loginInFlight || this.isInactiveStandby(provider)) return;
+    this.loginInFlight = true;
+    const generation = ++this.loginRequestGeneration;
+    const block = this.state.block;
+    this.updateState({ notice: undefined });
+    try {
+      if (this.props.onOpenLogin) await this.props.onOpenLogin(provider);
+      else await host.provider.openLogin(provider);
+    } catch {
+      if (generation !== this.loginRequestGeneration || this.state.block !== block) return;
+      this.updateState({
+        notice: {
+          kind: 'error',
+          text: formatI18n(this.t('provider.openFailed'), { provider: providerName(provider) }),
+          retryLoginProvider: provider,
+        },
+      });
+    } finally {
+      this.loginInFlight = false;
+    }
+  }
+
+  private openSettings(): void {
+    this.loginRequestGeneration += 1;
+    this.props.onOpenSettings?.();
+  }
+
+  private isInactiveStandby(provider: AIProvider): boolean {
+    return isInactiveStandbyProvider(provider, this.props.activeProviders);
+  }
+
   async deleteStoredSnapshot(snapshotId: string): Promise<void> {
+    this.loginRequestGeneration += 1;
     const busyKey = `delete:${snapshotId}`;
     this.updateState({ busyKey, notice: undefined });
     try {
@@ -164,6 +206,7 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
   render() {
     const lastSnapshot = getLastSnapshot();
     const { storedSnapshots, loadingStored, listError, busyKey, block, question, notice } = this.state;
+    const retryLoginProvider = notice?.retryLoginProvider;
 
     return (
       <section aria-label={this.t('replay.snapshotReplay')} className="mt-4 border-t border-zinc-200 dark:border-zinc-800 pt-4">
@@ -256,7 +299,28 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
           </section>
         </div>
 
-        {notice ? <div className={`mt-3 border px-3 py-2 text-xs ${noticeClass(notice.kind)}`}>{notice.text}</div> : null}
+        {notice ? (
+          <div role={notice.kind === 'error' ? 'alert' : undefined} className={`mt-3 border px-3 py-2 text-xs ${noticeClass(notice.kind)}`}>
+            {notice.text}
+            {retryLoginProvider && !this.isInactiveStandby(retryLoginProvider) ? (
+              <button
+                type="button"
+                className="ml-3 border border-red-400 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-700 dark:hover:bg-red-900"
+                onClick={() => void this.openProviderLogin(retryLoginProvider)}
+              >
+                {this.t('provider.retry')}
+              </button>
+            ) : retryLoginProvider && this.props.onOpenSettings ? (
+              <button
+                type="button"
+                className="ml-3 border border-red-400 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-700 dark:hover:bg-red-900"
+                onClick={() => this.openSettings()}
+              >
+                {this.t('settings.title')}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {block ? this.renderBlock(block, question, busyKey) : null}
       </section>
     );
@@ -315,28 +379,40 @@ export class ReplayPanel extends Component<ReplayPanelProps, ReplayPanelState> {
     if (block.reason === 'preflight') {
       const unavailable = block.preflight?.unavailable ?? [];
       const aliased = block.preflight?.aliased ?? [];
+      const hasLoginUnavailable = unavailable.some((provider) => !this.isInactiveStandby(provider));
       return (
         <section className="mt-3 border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 p-3 text-xs text-amber-800 dark:text-amber-100">
           <h4 className="font-semibold">{this.t('replay.cannotStartReplay')}</h4>
-          <p className="mt-1 text-amber-800 dark:text-amber-200">{this.t('replay.preflightHelp')}</p>
+          {hasLoginUnavailable ? <p className="mt-1 text-amber-800 dark:text-amber-200">{this.t('replay.preflightHelp')}</p> : null}
           {unavailable.length > 0 ? (
             <div className="mt-3 grid gap-2">
-              {unavailable.map((provider) => (
-                <div key={provider} className="flex items-center justify-between gap-3 border border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-950 px-2 py-1.5">
-                  <span>{providerName(provider)} {this.t('replay.unavailable')}</span>
-                  <button
-                    type="button"
-                    className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950"
-                    onClick={() => void (
-                      this.props.onOpenLogin
-                        ? this.props.onOpenLogin(provider)
-                        : host.provider.openLogin(provider)
+              {unavailable.map((provider) => {
+                const standby = this.isInactiveStandby(provider);
+                return (
+                  <div key={provider} className="flex items-center justify-between gap-3 border border-amber-300 dark:border-amber-800 bg-white dark:bg-zinc-950 px-2 py-1.5">
+                    <span>{providerName(provider)} {standby ? this.t('settings.providerStandby') : this.t('replay.unavailable')}</span>
+                    {standby ? (
+                      this.props.onOpenSettings ? (
+                        <button
+                          type="button"
+                          className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950"
+                          onClick={() => this.openSettings()}
+                        >
+                          {this.t('settings.title')}
+                        </button>
+                      ) : null
+                    ) : (
+                      <button
+                        type="button"
+                        className="border border-emerald-300 dark:border-emerald-700 px-2 py-1 text-emerald-700 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-950"
+                        onClick={() => void this.openProviderLogin(provider)}
+                      >
+                        {this.t('replay.openLogin')}
+                      </button>
                     )}
-                  >
-                    {this.t('replay.openLogin')}
-                  </button>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           ) : null}
           {aliased.length > 0 ? <div className="mt-2 text-amber-800 dark:text-amber-200">{this.t('replay.aliasedRoles')} {aliased.map(providerName).join(', ')}</div> : null}

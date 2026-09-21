@@ -26,6 +26,7 @@ import {
   type StepNode,
   type WorkflowGraph,
 } from '../workflow/graph';
+import { isInactiveStandbyProvider } from '../workflow/graph/preflight';
 import { flushSessionCheckpointForTests, resetSessionCheckpointForTests } from '../workflow/sessionCheckpoint';
 import { resetWorkflowStateForTests } from '../workflow/state';
 import { resetStepTimeoutForTests } from '../workflow/stepTimeout';
@@ -254,6 +255,22 @@ describe('workflow graph foundation', () => {
       unavailable: ['claude'],
       aliased: [],
     });
+  });
+
+  it('blocks an inactive standby role without rewriting the supplied role map', async () => {
+    const roles = { ...DEFAULT_DEBATE_ROLES };
+    const activeProviders: AIProvider[] = ['chatgpt', 'claude', 'gemini', 'meta'];
+    vi.mocked(host.connections.get).mockResolvedValue([...activeProviders, 'grok' as const].map((provider) => state(provider)));
+
+    await expect(preflightGraph(debateGraph, roles, activeProviders)).resolves.toMatchObject({
+      ok: false,
+      unavailable: ['grok'],
+      aliased: [],
+    });
+    expect(roles).toEqual(DEFAULT_DEBATE_ROLES);
+    expect(isInactiveStandbyProvider('grok', activeProviders)).toBe(true);
+    expect(isInactiveStandbyProvider('claude', activeProviders)).toBe(false);
+    expect(isInactiveStandbyProvider('claude')).toBe(false);
   });
 
   it('rejects unknown prompt builders and unresolved output refs', () => {

@@ -6,12 +6,19 @@ import { AdapterAccessPanel } from './FocusPane';
 import { useI18n } from '../i18n/context';
 import { formatI18n } from '../i18n/t';
 import type { PresentationByProvider } from './presentation';
-import { type AppSettings, DEFAULT_FONT_SIZE, MIN_FONT_SIZE, normalizeSettings } from './settingsModel';
+import {
+  activeProvidersForStandby,
+  type AppSettings,
+  DEFAULT_FONT_SIZE,
+  MIN_FONT_SIZE,
+  normalizeSettings,
+} from './settingsModel';
 import {
   MODE_ROLE_FIELDS,
   MODE_ROLE_LABEL_KEYS,
   MODE_ROLE_MODE_LABEL_KEYS,
   assignModeRole,
+  replaceModeRoleProvider,
   type ModeRoleAssignments,
 } from './modeRoleAssignment';
 import { compareVersions, fetchLatestRelease } from './updateCheck';
@@ -50,6 +57,33 @@ interface PendingFontSizeUpdate {
   updateSeq: number;
 }
 
+interface PersistSettingsOptions {
+  standbyProvider?: AIProvider;
+}
+
+// Exported for the persistence regression test; keeping the merge beside the
+// modal makes its live-prop precedence explicit.
+// eslint-disable-next-line react-refresh/only-export-components
+export function applyStandbyProviderToLiveSettings(
+  previousStandbyProvider: AIProvider,
+  nextStandbyProvider: AIProvider,
+  openProviders: readonly AIProvider[],
+  presentation: PresentationByProvider,
+): Pick<AppSettings, 'openProviders' | 'presentation'> {
+  if (previousStandbyProvider === nextStandbyProvider) {
+    return { openProviders: [...openProviders], presentation: { ...presentation } };
+  }
+
+  return {
+    openProviders: openProviders.filter((provider) => provider !== nextStandbyProvider),
+    presentation: {
+      ...presentation,
+      [previousStandbyProvider]: 'side',
+      [nextStandbyProvider]: 'chip',
+    },
+  };
+}
+
 export function SettingsModal({
   open,
   openProviders,
@@ -57,6 +91,7 @@ export function SettingsModal({
   presentation,
   providerStates,
   activeModeRoleSettings,
+  providerSelectionDisabled = false,
   onClose,
   onSaved,
 }: {
@@ -66,6 +101,7 @@ export function SettingsModal({
   presentation: PresentationByProvider;
   providerStates: Record<AIProvider, ProviderState>;
   activeModeRoleSettings?: keyof ModeRoleAssignments;
+  providerSelectionDisabled?: boolean;
   onClose: () => void;
   onSaved: (settings: AppSettings) => void;
 }) {
@@ -86,10 +122,12 @@ export function SettingsModal({
   const fontSizeDebounceRef = useRef<TrailingDebounce<PendingFontSizeUpdate> | undefined>(undefined);
   const modalSessionRef = useRef(0);
   const updateCheckSeqRef = useRef(0);
+  const updateCheckAbortRef = useRef<AbortController | undefined>();
   const draftUpdateSeqRef = useRef(0);
   const languageUpdateSeqRef = useRef(0);
   const fontSizeUpdateSeqRef = useRef(0);
   const liveRef = useRef({ openProviders, focusPaneWidth, presentation });
+  const saveInFlightRef = useRef(false);
   liveRef.current = { openProviders, focusPaneWidth, presentation };
 
   useEffect(() => {
@@ -140,6 +178,7 @@ export function SettingsModal({
       });
     return () => {
       disposed = true;
+      updateCheckAbortRef.current?.abort();
     };
   }, [open]);
 
@@ -163,16 +202,37 @@ export function SettingsModal({
     setDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
-  const persistSettingsPatch = (patch: Partial<AppSettings>): Promise<AppSettings> =>
+  const persistSettingsPatch = (
+    patch: Partial<AppSettings>,
+    options: PersistSettingsOptions = {},
+  ): Promise<AppSettings> =>
     settingsPersistenceRef.current.update(() => {
       const live = liveRef.current;
+      const liveProviderSettings = options.standbyProvider
+        ? applyStandbyProviderToLiveSettings(
+            settingsPersistenceRef.current.current()?.standbyProvider ?? options.standbyProvider,
+            options.standbyProvider,
+            live.openProviders,
+            live.presentation,
+          )
+        : { openProviders: [...live.openProviders], presentation: { ...live.presentation } };
       return {
         ...patch,
-        openProviders: live.openProviders,
+        ...liveProviderSettings,
         focusPaneWidth: live.focusPaneWidth,
-        presentation: live.presentation,
       };
     });
+
+  const applySavedSettings = (settings: AppSettings) => {
+    // A queued autosave can start before React renders the new parent props.
+    // Keep its live provider state aligned with the just-committed standby swap.
+    liveRef.current = {
+      openProviders: settings.openProviders,
+      focusPaneWidth: settings.focusPaneWidth,
+      presentation: settings.presentation,
+    };
+    onSaved(settings);
+  };
 
   const updateLanguage = async (language: AppSettings['language']) => {
     const modalSession = modalSessionRef.current;
@@ -182,7 +242,7 @@ export function SettingsModal({
     setLanguage(language);
     try {
       const next = await persistSettingsPatch({ language });
-      onSaved(next);
+      applySavedSettings(next);
       if (modalSession === modalSessionRef.current) setError(undefined);
     } catch (reason) {
       if (updateSeq === languageUpdateSeqRef.current) {
@@ -200,7 +260,7 @@ export function SettingsModal({
     const modalSession = modalSessionRef.current;
     try {
       const next = await persistSettingsPatch({ fontSize });
-      onSaved(next);
+      applySavedSettings(next);
       if (modalSession === modalSessionRef.current) setError(undefined);
     } catch (reason) {
       if (updateSeq === fontSizeUpdateSeqRef.current && modalSession === modalSessionRef.current) {
@@ -223,18 +283,38 @@ export function SettingsModal({
     fontSizeDebounceRef.current?.schedule({ fontSize, updateSeq });
   };
 
+  const updateStandbyProvider = (standbyProvider: AIProvider) => {
+    if (!draft || standbyProvider === draft.standbyProvider || providerSelectionDisabled || saveInFlightRef.current) return;
+    const previousStandby = draft.standbyProvider;
+    updateDraft({
+      standbyProvider,
+      modeRoles: replaceModeRoleProvider(draft.modeRoles, standbyProvider, previousStandby),
+      openProviders: draft.openProviders.filter((provider) => provider !== standbyProvider),
+      presentation: {
+        ...draft.presentation,
+        [previousStandby]: 'side',
+        [standbyProvider]: 'chip',
+      },
+    });
+  };
+
   const closeSettings = async () => {
+    if (saveInFlightRef.current) return;
     const modalSession = modalSessionRef.current;
     try {
       await fontSizeDebounceRef.current?.flush();
-      if (modalSession === modalSessionRef.current) onClose();
+      if (modalSession === modalSessionRef.current && !saveInFlightRef.current) {
+        updateCheckAbortRef.current?.abort();
+        onClose();
+      }
     } catch {
       // persistFontSize already restored the last persisted value and exposed the error.
     }
   };
 
   const save = async () => {
-    if (!draft) return;
+    if (!draft || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     const modalSession = modalSessionRef.current;
     const draftUpdateSeq = draftUpdateSeqRef.current;
     const languageUpdateSeq = ++languageUpdateSeqRef.current;
@@ -243,13 +323,11 @@ export function SettingsModal({
     setSaving(true);
     setError(undefined);
     try {
-      const next = await persistSettingsPatch({
-        ...draft,
-        openProviders,
-        focusPaneWidth,
-        presentation,
-      });
-      onSaved(next);
+      const next = await persistSettingsPatch(
+        { ...draft },
+        { standbyProvider: draft.standbyProvider },
+      );
+      applySavedSettings(next);
       if (modalSession === modalSessionRef.current && draftUpdateSeq === draftUpdateSeqRef.current) {
         setSaved(true);
         closeTimerRef.current = window.setTimeout(onClose, 400);
@@ -262,19 +340,26 @@ export function SettingsModal({
         setError({ messageKey: 'settings.saveFailed', detail: errorDetail(reason) });
       }
     } finally {
+      saveInFlightRef.current = false;
       if (modalSession === modalSessionRef.current) setSaving(false);
     }
   };
 
   const checkForUpdates = async () => {
+    updateCheckAbortRef.current?.abort();
+    const controller = new AbortController();
+    updateCheckAbortRef.current = controller;
     const modalSession = modalSessionRef.current;
     const updateCheckSeq = ++updateCheckSeqRef.current;
-    const isCurrent = () => modalSession === modalSessionRef.current && updateCheckSeq === updateCheckSeqRef.current;
+    const isCurrent = () =>
+      !controller.signal.aborted &&
+      modalSession === modalSessionRef.current &&
+      updateCheckSeq === updateCheckSeqRef.current;
     setUpdateCheck({ status: 'checking' });
     try {
       const currentVersion = await host.app.version();
       if (!isCurrent()) return;
-      const latest = await fetchLatestRelease();
+      const latest = await fetchLatestRelease(undefined, controller.signal);
       if (!isCurrent()) return;
       if (!latest) {
         setUpdateCheck({ status: 'unavailable' });
@@ -288,6 +373,8 @@ export function SettingsModal({
     } catch (reason) {
       if (!isCurrent()) return;
       setUpdateCheck({ status: 'error', message: reason instanceof Error ? reason.message : String(reason) });
+    } finally {
+      if (updateCheckAbortRef.current === controller) updateCheckAbortRef.current = undefined;
     }
   };
 
@@ -300,7 +387,7 @@ export function SettingsModal({
     >
         <div className="mb-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
           <h2 id="settings-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{t('settings.title')}</h2>
-          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={closeSettings}>
+          <button type="button" className="border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50" onClick={closeSettings} disabled={saving}>
             {t('settings.close')}
           </button>
         </div>
@@ -385,6 +472,53 @@ export function SettingsModal({
               </label>
             </section>
 
+            <section className="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  {t('settings.providers')}
+                </h3>
+                <p id="settings-providers-description" className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">
+                  {t('settings.providersDescription')}
+                </p>
+              </div>
+              <label className="block text-xs text-zinc-600 dark:text-zinc-400">
+                <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">
+                  {t('settings.providersSelect')}
+                </span>
+                <select
+                  value={draft.standbyProvider}
+                  disabled={providerSelectionDisabled || saving}
+                  aria-describedby={
+                    providerSelectionDisabled ? 'settings-providers-unavailable' : 'settings-providers-description'
+                  }
+                  title={providerSelectionDisabled ? t('input.workflowRunning') : undefined}
+                  onChange={(event) => updateStandbyProvider(event.target.value as AIProvider)}
+                  className="w-full border border-zinc-300 bg-zinc-50 px-2 py-1.5 text-sm text-zinc-900 outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-sky-600"
+                >
+                  {PROVIDERS.map((provider) => (
+                    <option key={provider} value={provider}>
+                      {AI_PROVIDERS[provider].name}{provider === 'meta' ? ` — ${t('settings.providersDefault')}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {providerSelectionDisabled ? (
+                <p id="settings-providers-unavailable" className="text-xs text-zinc-500 dark:text-zinc-500">
+                  {t('input.workflowRunning')}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('settings.providers')}>
+                {activeProvidersForStandby(draft.standbyProvider).map((provider) => (
+                  <span key={provider} className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                    {AI_PROVIDERS[provider].name} · {t('settings.providerActive')}
+                  </span>
+                ))}
+                <span className="rounded-full border border-zinc-300 bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                  {AI_PROVIDERS[draft.standbyProvider].name} · {t('settings.providerStandby')}
+                </span>
+              </div>
+            </section>
+
             <section className="space-y-3 border-t border-zinc-200 dark:border-zinc-800 pt-4">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('settings.modeRoles')}</h3>
               <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-500">{t('settings.modeRolesDescription')}</p>
@@ -418,7 +552,7 @@ export function SettingsModal({
                           }
                           className="w-full border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
                         >
-                          {PROVIDERS.map((provider) => (
+                          {activeProvidersForStandby(draft.standbyProvider).map((provider) => (
                             <option key={provider} value={provider}>{AI_PROVIDERS[provider].name}</option>
                           ))}
                         </select>
@@ -482,13 +616,7 @@ export function SettingsModal({
                   {updateCheck.status === 'available' ? (
                     <span className="text-xs text-sky-700 dark:text-sky-300">
                       {t('settings.newVersionAvailable').replace('{version}', updateCheck.tagName)} {'->'}{' '}
-                      <button
-                        type="button"
-                        className="underline hover:text-sky-800 dark:hover:text-sky-200"
-                        onClick={() => void host.app.openExternal(updateCheck.htmlUrl)}
-                      >
-                        {t('settings.downloadPage')}
-                      </button>
+                      <DownloadPageLink key={updateCheck.htmlUrl} url={updateCheck.htmlUrl} />
                     </span>
                   ) : null}
                   {updateCheck.status === 'unavailable' ? (
@@ -552,26 +680,24 @@ export function SettingsModal({
         <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
           <div className="space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
             <div>
-              <button
-                type="button"
+              <SettingsExternalLink
+                url="https://ted-h.com"
+                label={t('settings.madeByTedH')}
+                errorMessage={t('settings.externalLinkFailed')}
                 className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
-                onClick={() => void host.app.openExternal('https://ted-h.com')}
-              >
-                {t('settings.madeByTedH')}
-              </button>
+              />
               <span> · Ted Huang · </span>
               <span className="select-all">TED@TED-H.com</span>
             </div>
-            <button
-              type="button"
+            <SettingsExternalLink
+              url="https://ai-sister.com"
+              label={t('settings.sponsoredByAiSister')}
+              errorMessage={t('settings.externalLinkFailed')}
               className="text-sky-700 underline underline-offset-2 hover:text-sky-900 dark:text-sky-300 dark:hover:text-sky-100"
-              onClick={() => void host.app.openExternal('https://ai-sister.com')}
-            >
-              {t('settings.sponsoredByAiSister')}
-            </button>
+            />
           </div>
           <div className="flex items-center justify-end gap-2">
-            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100" onClick={closeSettings}>
+            <button type="button" className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-50" onClick={closeSettings} disabled={saving}>
               {t('settings.cancel')}
             </button>
             <button
@@ -629,7 +755,7 @@ function AccessTransparencySection() {
   );
 }
 
-function DiagnosticsSection({
+export function DiagnosticsSection({
   providerStates,
   settings,
 }: {
@@ -640,12 +766,19 @@ function DiagnosticsSection({
   const events = useEventLog();
   const [providerFilter, setProviderFilter] = useState<EventLogProviderFilter>('all');
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const copyGeneration = useRef(0);
   const [exportState, setExportState] = useState<DebugBundleExportState>({ status: 'idle' });
+  const exportInFlight = useRef(false);
+  const exportGeneration = useRef(0);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 15_000);
-    return () => window.clearInterval(timer);
+    return () => {
+      copyGeneration.current += 1;
+      exportGeneration.current += 1;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -672,21 +805,28 @@ function DiagnosticsSection({
   const recentEvents = useMemo(() => [...filteredEvents].reverse().slice(0, 120), [filteredEvents]);
 
   const copyLog = async () => {
+    const generation = ++copyGeneration.current;
+    setCopyState('idle');
     try {
       if (!navigator.clipboard) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(formatEventLogText(filteredEvents));
-      setCopyState('copied');
+      if (generation === copyGeneration.current) setCopyState('copied');
     } catch {
-      setCopyState('error');
+      if (generation === copyGeneration.current) setCopyState('error');
     }
   };
 
   const exportDebugBundle = async () => {
+    if (exportInFlight.current) return;
+    exportInFlight.current = true;
+    const generation = ++exportGeneration.current;
     setExportState({ status: 'exporting' });
     try {
       const generatedAt = new Date();
+      const appVersion = await host.app.version();
+      if (generation !== exportGeneration.current) return;
       const bundle = buildDebugBundle({
-        appVersion: await host.app.version(),
+        appVersion,
         timestampMs: generatedAt.getTime(),
         userAgent: navigator.userAgent,
         platform: navigator.platform,
@@ -695,9 +835,13 @@ function DiagnosticsSection({
         events,
       });
       const saved = await host.share.exportMarkdown(debugBundleFilename(generatedAt), bundle);
+      if (generation !== exportGeneration.current) return;
       setExportState(saved ? { status: 'saved', message: formatI18n(t('share.exported'), { path: saved }) } : { status: 'cancelled' });
     } catch (reason) {
+      if (generation !== exportGeneration.current) return;
       setExportState({ status: 'error', message: reason instanceof Error ? reason.message : String(reason) });
+    } finally {
+      exportInFlight.current = false;
     }
   };
 
@@ -713,7 +857,11 @@ function DiagnosticsSection({
             {t('settings.provider')}
             <select
               value={providerFilter}
-              onChange={(event) => setProviderFilter(event.target.value as EventLogProviderFilter)}
+              onChange={(event) => {
+                copyGeneration.current += 1;
+                setCopyState('idle');
+                setProviderFilter(event.target.value as EventLogProviderFilter);
+              }}
               className="border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 outline-none focus:border-sky-500 dark:focus:border-sky-600"
             >
               <option value="all">{t('settings.all')}</option>
@@ -816,4 +964,64 @@ function EventLogRow({ event, now }: { event: EventLogEvent; now: number }) {
 
 function errorDetail(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
+}
+
+export function DownloadPageLink({ url }: { url: string }) {
+  const { t } = useI18n();
+  return (
+    <SettingsExternalLink
+      url={url}
+      label={t('settings.downloadPage')}
+      errorMessage={t('settings.downloadPageFailed')}
+    />
+  );
+}
+
+export function SettingsExternalLink({
+  url,
+  label,
+  errorMessage,
+  className = 'underline hover:text-sky-800 dark:hover:text-sky-200',
+}: {
+  url: string;
+  label: string;
+  errorMessage: string;
+  className?: string;
+}) {
+  const { t } = useI18n();
+  const [status, setStatus] = useState<'opening' | 'error'>();
+  const inFlight = useRef(false);
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current += 1; }, []);
+
+  const openLink = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const request = ++generation.current;
+    setStatus('opening');
+    try {
+      await host.app.openExternal(url);
+      if (request === generation.current) setStatus(undefined);
+    } catch {
+      if (request === generation.current) setStatus('error');
+    } finally {
+      inFlight.current = false;
+    }
+  };
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      {status === 'error' ? (
+        <span role="alert" className="text-red-700 dark:text-red-300">{errorMessage}</span>
+      ) : null}
+      <button
+        type="button"
+        className={`${className} disabled:cursor-wait disabled:opacity-50`}
+        disabled={status === 'opening'}
+        onClick={() => void openLink()}
+      >
+        {status === 'error' ? t('provider.retry') : label}
+      </button>
+    </span>
+  );
 }

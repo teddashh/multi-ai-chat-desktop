@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { applyStandbyProviderToLiveSettings } from '../ui/SettingsModal';
 import { createSettingsPersistence } from '../ui/settingsPersistence';
 import { defaultSettings, type AppSettings } from '../ui/settingsModel';
 
@@ -25,6 +26,42 @@ function storeWith(settings: AppSettings) {
 }
 
 describe('settings persistence', () => {
+  it('applies a standby swap over the latest live provider state', () => {
+    const live = defaultSettings();
+    live.openProviders = ['chatgpt', 'claude', 'grok'];
+    live.presentation = {
+      ...live.presentation,
+      chatgpt: 'center',
+      claude: 'chip',
+      grok: 'side',
+      meta: 'chip',
+    };
+
+    const result = applyStandbyProviderToLiveSettings('meta', 'grok', live.openProviders, live.presentation);
+
+    expect(result.openProviders).toEqual(['chatgpt', 'claude']);
+    expect(result.presentation).toEqual({
+      ...live.presentation,
+      meta: 'side',
+      grok: 'chip',
+    });
+    expect(result.presentation.chatgpt).toBe('center');
+    expect(live.openProviders).toEqual(['chatgpt', 'claude', 'grok']);
+    expect(live.presentation.meta).toBe('chip');
+  });
+
+  it('preserves live provider state when the standby provider is unchanged', () => {
+    const live = defaultSettings();
+    live.openProviders = ['chatgpt'];
+    live.presentation = { ...live.presentation, chatgpt: 'center' };
+
+    const result = applyStandbyProviderToLiveSettings('meta', 'meta', live.openProviders, live.presentation);
+
+    expect(result).toEqual({ openProviders: live.openProviders, presentation: live.presentation });
+    expect(result.openProviders).not.toBe(live.openProviders);
+    expect(result.presentation).not.toBe(live.presentation);
+  });
+
   it('persists rapid font-size updates in order so the last input wins', async () => {
     const initial = defaultSettings();
     const store = storeWith(initial);

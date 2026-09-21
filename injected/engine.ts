@@ -427,9 +427,35 @@ class InactiveSendOperationError extends Error {
     return true;
   }
 
+  function queryFirstUsable(selectors: string[] = []): Element | null {
+    for (const selector of selectors) {
+      const matches = document.querySelectorAll(selector);
+      for (const match of matches) {
+        if (isComposerUsable(match)) return match;
+      }
+    }
+    return null;
+  }
+
+  function isComposerUsable(element: Element): boolean {
+    const html = element as HTMLElement & { disabled?: boolean; readOnly?: boolean; inert?: boolean };
+    return (
+      isElementVisible(element) &&
+      !isDisabled(element) &&
+      !html.readOnly &&
+      !html.hasAttribute('readonly') &&
+      html.getAttribute('aria-readonly') !== 'true' &&
+      !html.inert &&
+      !element.closest('[inert]')
+    );
+  }
+
   function queryInput(activeAdapter: AdapterConfig): Element | null {
     if (activeAdapter.provider === 'grok') {
       return queryLastVisible([...GROK_LIVE_TEXTAREA_SELECTORS, ...activeAdapter.inputSelectors]);
+    }
+    if (activeAdapter.provider === 'meta') {
+      return queryFirstUsable(activeAdapter.inputSelectors);
     }
     return queryFirst(activeAdapter.inputSelectors);
   }
@@ -481,6 +507,9 @@ class InactiveSendOperationError extends Error {
       login = 'blocked';
     } else if (hasDetector(adapter.loggedOutDetectors)) {
       login = 'logged_out';
+    } else if (adapter.provider === 'meta') {
+      // Meta's visible Send control alone does not prove that its composer can accept input.
+      if (queryInput(adapter) !== null) login = 'logged_in';
     } else if (
       hasDetector(adapter.loginDetectors) ||
       (adapter.provider === 'grok' &&
@@ -979,7 +1008,7 @@ class InactiveSendOperationError extends Error {
     sendOperation: number,
     allowComposerRestore: boolean,
   ): Promise<Element | null> {
-    if (activeAdapter.provider !== 'chatgpt' && activeAdapter.provider !== 'grok') return stagedInput;
+    if (!['chatgpt', 'grok', 'meta'].includes(activeAdapter.provider)) return stagedInput;
     const provider = activeAdapter.provider;
     const liveInput = await retryLookup(() => queryInput(activeAdapter), {
       intervalMs: SELECTOR_RETRY_INTERVAL_MS,
@@ -1033,8 +1062,11 @@ class InactiveSendOperationError extends Error {
     tryFocus(el, 'default input');
     assertCanMutate();
 
-    if (input instanceof HTMLTextAreaElement) {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+    if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
+      const inputPrototype = input instanceof HTMLTextAreaElement
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(inputPrototype, 'value')?.set;
       if (setter) setter.call(input, text);
       else input.value = text;
       assertCanMutate();
@@ -1783,7 +1815,7 @@ class InactiveSendOperationError extends Error {
 
   function getInputText(input: Element | null): string {
     if (!input) return '';
-    if (input instanceof HTMLTextAreaElement) return input.value;
+    if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) return input.value;
     return input.textContent ?? '';
   }
 

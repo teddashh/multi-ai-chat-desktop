@@ -6,9 +6,9 @@
 
 ## Scope
 
-AI-Sister Commemorative Edition is one four-character theme for Multi-AI Chat Desktop. It changes only the app-owned interface: panel surfaces, accents, provider portraits, active-speaker states, process rows, and the compact ensemble hero. Provider webpages, automation selectors, workflow order, snapshots, and stored sessions are unchanged.
+AI-Sister Commemorative Edition keeps its original four-character ensemble for Multi-AI Chat Desktop and supplies an additional standalone Meta AI portrait for the optional provider. It changes only the app-owned interface: panel surfaces, accents, provider portraits, active-speaker states, process rows, and the compact ensemble hero. Provider webpages, automation selectors, workflow order, snapshots, and stored sessions are unchanged.
 
-The supplied ensemble image is intentionally used as a compact hero and brand mark rather than a full-window background so its low-resolution detail remains readable. The four provider portraits appear only where they improve speaker recognition.
+The supplied ensemble image is intentionally used as a compact hero and brand mark rather than a full-window background so its low-resolution detail remains readable. Provider portraits appear only where they improve speaker recognition; Meta AI does not alter the original four-character ensemble.
 
 ## Companion Brainstorm preset
 
@@ -22,6 +22,7 @@ The final **Brainstorm** preset is available in every visual theme, including Li
 | Claude | White and gold | `src/assets/themes/ai-sister/claude.webp` |
 | Gemini | Lavender | `src/assets/themes/ai-sister/gemini.webp` |
 | Grok | Black and violet | `src/assets/themes/ai-sister/grok.webp` |
+| Meta AI (optional standby) | Black hoodie, sunglasses, and blue Meta marks | `src/assets/themes/ai-sister/meta.webp` |
 | Ensemble | All four characters | `src/assets/themes/ai-sister/ensemble.jpg` |
 
 ## UI behavior
@@ -37,7 +38,7 @@ The final **Brainstorm** preset is available in every visual theme, including Li
 
 Made by **TED-H / Ted Huang** (`TED@TED-H.com`, [ted-h.com](https://ted-h.com)). Sponsored by [AI-Sister.com](https://ai-sister.com).
 
-The five character images were supplied by the project owner for this commemorative edition. See `src/assets/themes/ai-sister/NOTICE.md` for redistribution terms. The artwork is not independently licensed under the repository's MIT software license.
+The six images were supplied by the project owner for this commemorative edition. The Meta AI portrait is copied byte-for-byte from the owner-controlled `teddashh/Multi-Ai-Chatapp` asset `web/public/avatars/venice.webp`; see `src/assets/themes/ai-sister/NOTICE.md` for the recorded digest and redistribution terms. The artwork is not independently licensed under the repository's MIT software license.
 
 ## Maintenance policy
 

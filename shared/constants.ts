@@ -5,6 +5,8 @@ import type { AIProvider, ChatMode, DebateRoles, ConsultRoles, CodingRoles, Roun
 
 // === AI Provider Info ===
 
+export const ALL_AI_PROVIDERS = ['chatgpt', 'claude', 'gemini', 'grok', 'meta'] as const satisfies readonly AIProvider[];
+
 export const AI_PROVIDERS: Record<AIProvider, {
   name: string;
   url: string;
@@ -35,10 +37,17 @@ export const AI_PROVIDERS: Record<AIProvider, {
     loginUrl: 'https://grok.com',
     color: '#e11d48',
   },
+  meta: {
+    name: 'Meta AI',
+    url: 'https://www.meta.ai',
+    loginUrl: 'https://www.meta.ai',
+    color: '#0668e1',
+  },
 };
 
 export const DOCK_SLOT_PROVIDERS = ['chatgpt', 'claude', 'gemini', 'grok'] as const satisfies readonly AIProvider[];
 export const DEFAULT_FREE_TARGET_PROVIDERS = ['chatgpt', 'claude', 'gemini', 'grok'] as const satisfies readonly AIProvider[];
+export const DEFAULT_STANDBY_PROVIDER: AIProvider = 'meta';
 
 // === Mode Definitions ===
 

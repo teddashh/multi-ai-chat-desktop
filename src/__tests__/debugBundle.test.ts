@@ -252,4 +252,40 @@ describe('debug bundle builder', () => {
     expect(parsed.eventLog).toContain('ChatGPT adapter update v7');
     expect(debugBundleFilename(new Date('2026-07-05T01:02:03Z'))).toBe('multi-ai-chat-debug-2026-07-05-01-02-03.txt');
   });
+
+  it('includes Meta AI status and adapter version in the debug bundle', () => {
+    const events: EventLogEvent[] = [
+      {
+        ts: 1,
+        provider: 'meta',
+        kind: 'adapter-notice',
+        summary: 'Meta AI adapter update v1',
+        detail: { adapterVersion: 1, schemaVersion: 1 },
+      },
+    ];
+    const bundle = baseBundle({
+      providerStates: {
+        meta: state('meta', { login: 'logged_out', adapter: 'broken' }),
+      },
+      events,
+    });
+    const parsed = JSON.parse(bundle) as {
+      providers: Array<{
+        provider: AIProvider;
+        name: string;
+        status: { adapter: string; login: string };
+        adapterVersion?: number;
+      }>;
+      eventLog: string;
+    };
+    const meta = parsed.providers.find((provider) => provider.provider === 'meta');
+
+    expect(meta).toMatchObject({
+      provider: 'meta',
+      name: 'Meta AI',
+      status: { adapter: 'broken', login: 'logged_out' },
+      adapterVersion: 1,
+    });
+    expect(parsed.eventLog).toContain('[Meta AI]');
+  });
 });

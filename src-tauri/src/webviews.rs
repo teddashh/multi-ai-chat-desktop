@@ -15,7 +15,7 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{adapters, bridge::BridgeMessage};
+use crate::{adapters, bridge::BridgeMessage, settings};
 
 const BOOTSTRAP_JS: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -1059,6 +1059,10 @@ pub async fn provider_open(
     ensure_control_webview(&webview)?;
     let (position, size) = physical_bounds(&bounds)?;
     let adapter = adapters::get_adapter(&provider)?;
+    // Serialize provider creation with standby changes. Otherwise settings_set could select this
+    // provider as standby after the first active check but before add_child registers the WebView.
+    let _lifecycle_guard = settings::lock_provider_lifecycle()?;
+    settings::ensure_provider_active_locked(&app, &provider)?;
     let label = provider_label(&provider);
     if let Some(webview) = app.get_webview(&label) {
         webview.show().map_err(|error| error.to_string())?;
@@ -1352,27 +1356,39 @@ pub async fn provider_close(
     provider: String,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
-    let label = provider_label(&provider);
-    retire_grok_document(&provider);
+    close_provider(&app, &provider)
+}
+
+fn close_provider(app: &AppHandle, provider: &str) -> Result<(), String> {
+    let label = provider_label(provider);
+    retire_grok_document(provider);
     if let Some(webview) = app.get_webview(&label) {
         webview.close().map_err(|error| error.to_string())?;
     }
     if let Ok(mut guard) = runtime().lock() {
-        guard.engine_boot.remove(&provider);
-        guard.bridge_boot.remove(&provider);
-        guard.status_boot.remove(&provider);
-        guard.grok_app_title_epoch.remove(&provider);
-        guard.grok_adopted_boot.remove(&provider);
-        guard.grok_pending_navigation.remove(&provider);
-        guard.pending_session_boot.remove(&provider);
-        guard.last_push_ms.remove(&provider);
-        guard.stale_check_sent.remove(&provider);
+        guard.engine_boot.remove(provider);
+        guard.bridge_boot.remove(provider);
+        guard.status_boot.remove(provider);
+        guard.grok_app_title_epoch.remove(provider);
+        guard.grok_adopted_boot.remove(provider);
+        guard.grok_pending_navigation.remove(provider);
+        guard.pending_session_boot.remove(provider);
+        guard.last_push_ms.remove(provider);
+        guard.stale_check_sent.remove(provider);
     }
     set_state(
-        &app,
-        state_with(&provider, "none", "unknown", "unknown", false),
+        app,
+        state_with(provider, "none", "unknown", "unknown", false),
     );
     Ok(())
+}
+
+pub(crate) fn close_standby_provider(app: &AppHandle, provider: &str) -> Result<(), String> {
+    let has_webview = app.get_webview(&provider_label(provider)).is_some();
+    if !has_webview && current_state(provider).webview == "none" {
+        return Ok(());
+    }
+    close_provider(app, provider)
 }
 
 #[tauri::command]
@@ -1383,6 +1399,7 @@ pub async fn provider_show(
     focus: Option<bool>,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    settings::ensure_provider_active(&app, &provider)?;
     let label = provider_label(&provider);
     let webview = app
         .get_webview(&label)
@@ -1416,6 +1433,7 @@ pub async fn provider_set_bounds(
     bounds: Bounds,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    settings::ensure_provider_active(&app, &provider)?;
     let (position, size) = physical_bounds(&bounds)?;
     let label = provider_label(&provider);
     let webview = app
@@ -1432,6 +1450,7 @@ pub async fn provider_eval(
     js: String,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    settings::ensure_provider_active(&app, &provider)?;
     ensure_provider_control_eval_allowed(&provider)?;
     eval_provider(&app, &provider, &js)
 }
@@ -1452,6 +1471,7 @@ pub(crate) async fn eval_provider_with_callback_from_control(
     provider: &str,
     js: &str,
 ) -> Result<String, String> {
+    settings::ensure_provider_active(app, provider)?;
     ensure_provider_control_eval_allowed(provider)?;
     eval_provider_with_callback(app, provider, js).await
 }
@@ -1488,6 +1508,7 @@ pub async fn provider_open_login(
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
     let adapter = adapters::get_adapter(&provider)?;
+    settings::ensure_provider_active(&app, &provider)?;
     if app.get_webview(&provider_label(&provider)).is_none() {
         let bounds = Bounds {
             x: 24.0,
@@ -1592,6 +1613,7 @@ pub async fn provider_reload(
     reconnect: Option<bool>,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    settings::ensure_provider_active(&app, &provider)?;
     if reconnect.unwrap_or(false) {
         let state = current_state(&provider);
         if !grok_reconnect_allowed(&state, now_ms()) {
@@ -1633,6 +1655,7 @@ pub async fn provider_new_session(
     provider: String,
 ) -> Result<(), String> {
     ensure_control_webview(&webview)?;
+    settings::ensure_provider_active(&app, &provider)?;
     if app.get_webview(&provider_label(&provider)).is_none() {
         return Err(format!("provider webview is not open: {provider}"));
     }

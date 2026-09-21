@@ -183,7 +183,7 @@ pub(crate) fn get_adapter(provider: &str) -> Result<Adapter, String> {
 }
 
 pub(crate) fn all_provider_states() -> Vec<String> {
-    let mut providers = vec!["chatgpt", "claude", "gemini", "grok"]
+    let mut providers = vec!["chatgpt", "claude", "gemini", "grok", "meta"]
         .into_iter()
         .map(str::to_string)
         .collect::<Vec<_>>();
@@ -212,6 +212,7 @@ fn init_adapters() {
         ("claude", include_str!("../../adapters/claude.json")),
         ("gemini", include_str!("../../adapters/gemini.json")),
         ("grok", include_str!("../../adapters/grok.json")),
+        ("meta", include_str!("../../adapters/meta.json")),
     ] {
         match serde_json::from_str::<Adapter>(text)
             .map_err(|error| error.to_string())
@@ -537,7 +538,7 @@ fn apply_decision(fetched: u32, current: u32, allow_downgrade: bool) -> Option<&
 }
 
 fn url_matches(pattern: &str, url: &tauri::Url) -> bool {
-    if url.scheme() != "https" {
+    if !plain_https_url(url) {
         return false;
     }
     if let Some(prefix) = pattern.strip_suffix("/*") {
@@ -551,6 +552,13 @@ fn url_matches(pattern: &str, url: &tauri::Url) -> bool {
                 && path_matches_prefix(expected.path(), url.path())
         })
     }
+}
+
+fn plain_https_url(url: &tauri::Url) -> bool {
+    url.scheme() == "https"
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.port().is_none()
 }
 
 fn path_matches_prefix(expected: &str, actual: &str) -> bool {
@@ -704,7 +712,7 @@ pub async fn refresh_all_adapters(app: tauri::AppHandle, allow_downgrade: bool) 
 }
 
 fn login_url_matches(login: &str, url: &tauri::Url) -> bool {
-    if url.scheme() != "https" {
+    if !plain_https_url(url) {
         return false;
     }
     tauri::Url::parse(login).ok().is_some_and(|expected| {
@@ -733,7 +741,7 @@ mod tests {
         assert!(!hosts.contains(&"auth.openai.com".to_string()));
         assert!(!hosts.contains(&"auth0.openai.com".to_string()));
 
-        for provider in ["chatgpt", "claude", "gemini", "grok"] {
+        for provider in ["chatgpt", "claude", "gemini", "grok", "meta"] {
             assert!(!app_hosts_for_provider(provider).unwrap().is_empty());
         }
     }
@@ -899,6 +907,8 @@ mod tests {
             ("grok", "https://auth.grokipedia.com/login"),
             ("grok", "https://gsi.google.com/client"),
             ("grok", "https://www.google.com/accounts/ServiceLogin"),
+            ("meta", "https://auth.meta.com/login"),
+            ("meta", "https://auth.meta.ai/login"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(
@@ -934,6 +944,12 @@ mod tests {
             ("chatgpt", "https://www.google.com/sorry/index"),
             ("claude", "https://www.google.com/sorry/index"),
             ("grok", "https://www.google.com/sorry/index"),
+            ("meta", "https://auth.meta.com.evil.net/login"),
+            ("meta", "https://auth.meta.ai.evil.net/login"),
+            ("meta", "http://auth.meta.com/login"),
+            ("meta", "https://auth.meta.com:8443/login"),
+            ("meta", "https://user:pass@auth.meta.com/login"),
+            ("meta", "https://www.facebook.com/login"),
         ] {
             let url = tauri::Url::parse(value).unwrap();
             assert!(
@@ -982,6 +998,12 @@ mod tests {
                 "https://grok.com/chat/123",
                 "http://grok.com/chat/123",
             ),
+            (
+                "meta",
+                "https://www.meta.ai",
+                "https://www.meta.ai/chat/123",
+                "http://www.meta.ai/chat/123",
+            ),
         ] {
             let login = tauri::Url::parse(login).unwrap();
             assert!(
@@ -1000,6 +1022,43 @@ mod tests {
                 !url_allowed_for_provider(provider, &http_app).unwrap(),
                 "{provider} http denied"
             );
+        }
+    }
+
+    #[test]
+    fn meta_initial_seed_is_registered_and_keeps_navigation_narrow() {
+        let meta = adapters().get("meta").expect("Meta adapter is bundled");
+        assert_eq!(meta.display_name, "Meta AI");
+        assert_eq!(meta.urls.app, "https://www.meta.ai");
+        assert_eq!(meta.urls.login, "https://www.meta.ai");
+        assert_eq!(
+            meta.urls.match_patterns,
+            vec!["www.meta.ai/*".to_string(), "meta.ai/*".to_string()]
+        );
+        assert_eq!(
+            meta.urls.sso_match,
+            vec!["auth.meta.com/*".to_string(), "auth.meta.ai/*".to_string()]
+        );
+
+        for value in [
+            "https://www.meta.ai/",
+            "https://www.meta.ai/chat/123?source=history",
+            "https://meta.ai/",
+            "https://meta.ai/chat/123",
+        ] {
+            let url = tauri::Url::parse(value).unwrap();
+            assert!(url_allowed_for_provider("meta", &url).unwrap(), "{value}");
+        }
+
+        for value in [
+            "https://meta.ai.evil.net/",
+            "https://www.meta.ai.evil.net/",
+            "http://www.meta.ai/",
+            "https://www.meta.ai:8443/",
+            "https://user:pass@www.meta.ai/",
+        ] {
+            let url = tauri::Url::parse(value).unwrap();
+            assert!(!url_allowed_for_provider("meta", &url).unwrap(), "{value}");
         }
     }
 

@@ -26,4 +26,13 @@ describe('AI-Sister commemorative theme components', () => {
     expect(html).toContain('data-active="true"');
     expect(html).toContain('ai-sister-avatar--lg');
   });
+
+  it('uses the supplied Meta AI portrait for the optional provider', () => {
+    const html = renderToStaticMarkup(<AiSisterAvatar provider="meta" size="md" />);
+
+    expect(html).toContain('data-provider="meta"');
+    expect(html).toContain('<img');
+    expect(html).toContain('meta.webp');
+    expect(html).not.toContain('data-avatar-fallback="true"');
+  });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AI_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { resetProviderBootState } from '../bridge/pull';
 import { host } from '../host';
@@ -14,11 +14,12 @@ import { ProcessTrace } from './ProcessTrace';
 import type { ProcessTraceState } from './processTraceModel';
 
 export type CenterSurface = 'text' | 'native';
-const PROVIDERS = Object.keys(AI_PROVIDERS) as AIProvider[];
 
-type ProviderActionState =
-  | { provider: AIProvider; status: 'opening' }
-  | { provider: AIProvider; status: 'error' };
+type ProviderActionState = {
+  provider: AIProvider;
+  action: 'open' | 'login' | 'reload' | 'browser' | 'reconnect' | 'report';
+  status: 'opening' | 'error';
+};
 
 export function FocusPane({
   centeredProvider,
@@ -44,6 +45,7 @@ export function FocusPane({
   processTrace,
   onTraceDetailOpenChange,
   onChipClick,
+  providers = DEFAULT_FREE_TARGET_PROVIDERS,
   stageExpanded = false,
   onToggleStageExpanded,
 }: {
@@ -70,26 +72,67 @@ export function FocusPane({
   processTrace?: ProcessTraceState;
   onTraceDetailOpenChange?: (open: boolean) => void;
   onChipClick?: (provider: AIProvider) => void;
+  providers?: readonly AIProvider[];
   stageExpanded?: boolean;
   onToggleStageExpanded?: () => void;
 }) {
   const { locale, t } = useI18n();
   const [providerAction, setProviderAction] = useState<ProviderActionState | undefined>();
   const providerActionGeneration = useRef(0);
+  const reportInFlight = useRef(false);
+  const reloadInFlight = useRef(new Set<AIProvider>());
+  const loginInFlight = useRef(new Set<AIProvider>());
+  useEffect(() => () => {
+    providerActionGeneration.current += 1;
+  }, []);
   const effectiveStageExpanded = stageExpanded && Boolean(onToggleStageExpanded);
 
-  const activateProvider = async (provider: AIProvider) => {
+  const runProviderAction = async (provider: AIProvider, action: ProviderActionState['action']) => {
+    if (action === 'report') {
+      if (reportInFlight.current || reportBusy) return;
+      reportInFlight.current = true;
+    }
+    if (action === 'reload') {
+      if (reloadInFlight.current.has(provider)) return;
+      reloadInFlight.current.add(provider);
+    }
+    if (action === 'login') {
+      if (loginInFlight.current.has(provider)) return;
+      loginInFlight.current.add(provider);
+    }
     const generation = (providerActionGeneration.current += 1);
-    setProviderAction({ provider, status: 'opening' });
+    setProviderAction({ provider, action, status: 'opening' });
     try {
-      await changeProviderPresentation(provider, 'center');
+      if (action === 'report') await reportProvider(provider);
+      else if (action === 'login') await onOpenLogin(provider);
+      else if (action === 'reload') {
+        resetProviderBootState(provider);
+        await host.provider.reload(provider);
+        if (generation !== providerActionGeneration.current) return;
+        await syncBounds(provider);
+      } else if (action === 'browser') await host.provider.openLoginExternal(provider);
+      else if (action === 'reconnect') {
+        resetProviderBootState(provider);
+        await host.provider.reconnect(provider);
+        if (generation !== providerActionGeneration.current) return;
+        await changeProviderPresentation(provider, 'center');
+      } else await changeProviderPresentation(provider, 'center');
       if (generation === providerActionGeneration.current) setProviderAction(undefined);
     } catch {
-      if (generation === providerActionGeneration.current) setProviderAction({ provider, status: 'error' });
+      if (generation === providerActionGeneration.current) setProviderAction({ provider, action, status: 'error' });
+    } finally {
+      if (action === 'report') reportInFlight.current = false;
+      if (action === 'reload') reloadInFlight.current.delete(provider);
+      if (action === 'login') loginInFlight.current.delete(provider);
     }
   };
 
-  const openingProvider = providerAction?.status === 'opening' ? providerAction.provider : undefined;
+  const activateProvider = (provider: AIProvider) => runProviderAction(provider, 'open');
+  const openProviderLogin = (provider: AIProvider) => runProviderAction(provider, 'login');
+  const reloadProvider = (provider: AIProvider) => runProviderAction(provider, 'reload');
+  const openProviderInBrowser = (provider: AIProvider) => runProviderAction(provider, 'browser');
+  const reconnectProvider = (provider: AIProvider) => runProviderAction(provider, 'reconnect');
+  const openingProvider = providerAction?.status === 'opening' && providerAction.action !== 'report' ? providerAction.provider : undefined;
 
   return (
     // overflow-y-auto 是極端小視窗下的逃生口，讓連線列在被擠壓時仍可捲到；
@@ -111,15 +154,17 @@ export function FocusPane({
           onManualFocusControl={onManualFocusControl}
           onEnlargeCenter={onEnlargeCenter}
           onCollapseCenter={onCollapseCenter}
-          onOpenLogin={onOpenLogin}
-          syncBounds={syncBounds}
-          reportProvider={reportProvider}
-          reportBusy={reportBusy}
+          onOpenLogin={openProviderLogin}
+          onReload={reloadProvider}
+          onOpenInBrowser={openProviderInBrowser}
+          reportProvider={(provider) => runProviderAction(provider, 'report')}
+          reportBusy={reportBusy || (providerAction?.action === 'report' && providerAction.status === 'opening')}
           stageExpanded={effectiveStageExpanded}
           onToggleStageExpanded={onToggleStageExpanded}
         />
       ) : (
         <FirstRunPanel
+          providers={providers}
           setCenterStageRef={setCenterStageRef}
           activateProvider={activateProvider}
           openingProvider={openingProvider}
@@ -128,11 +173,11 @@ export function FocusPane({
 
       {providerAction?.status === 'error' ? (
         <div className="mt-3 flex items-center justify-between gap-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert">
-          <span>{formatI18n(t('provider.openFailed'), { provider: AI_PROVIDERS[providerAction.provider].name })}</span>
+          <span>{formatI18n(t(providerAction.action === 'report' ? 'provider.reportFailed' : 'provider.openFailed'), { provider: AI_PROVIDERS[providerAction.provider].name })}</span>
           <button
             type="button"
             className="shrink-0 rounded border border-red-400 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-700 dark:hover:bg-red-900"
-            onClick={() => void activateProvider(providerAction.provider)}
+            onClick={() => void runProviderAction(providerAction.provider, providerAction.action)}
           >
             {t('provider.retry')}
           </button>
@@ -149,8 +194,10 @@ export function FocusPane({
           presentation={presentation}
           setPaneRef={setPaneRef}
           activateProvider={activateProvider}
+          reconnectProvider={reconnectProvider}
           openingProvider={openingProvider}
           onChipClick={onChipClick}
+          providers={providers}
         />
       )}
     </aside>
@@ -158,10 +205,12 @@ export function FocusPane({
 }
 
 function FirstRunPanel({
+  providers,
   setCenterStageRef,
   activateProvider,
   openingProvider,
 }: {
+  providers: readonly AIProvider[];
   setCenterStageRef: (el: HTMLDivElement | null) => void;
   activateProvider: (provider: AIProvider) => Promise<void>;
   openingProvider?: AIProvider;
@@ -184,7 +233,7 @@ function FirstRunPanel({
         </h1>
         <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{t('onboarding.description')}</p>
         <div className="ai-sister-onboarding-providers mt-5 grid grid-cols-2 gap-2 min-[900px]:grid-cols-3">
-          {PROVIDERS.map((provider) => {
+          {providers.map((provider) => {
             const opening = openingProvider === provider;
             return (
               <button
@@ -224,7 +273,8 @@ function FocusStage({
   onEnlargeCenter,
   onCollapseCenter,
   onOpenLogin,
-  syncBounds,
+  onReload,
+  onOpenInBrowser,
   reportProvider,
   reportBusy,
   stageExpanded,
@@ -244,7 +294,8 @@ function FocusStage({
   onEnlargeCenter: () => void;
   onCollapseCenter: () => void;
   onOpenLogin: (provider: AIProvider) => Promise<void>;
-  syncBounds: (provider: AIProvider) => Promise<void>;
+  onReload: (provider: AIProvider) => Promise<void>;
+  onOpenInBrowser: (provider: AIProvider) => Promise<void>;
   reportProvider: (provider: AIProvider) => Promise<void>;
   reportBusy: boolean;
   stageExpanded: boolean;
@@ -338,8 +389,7 @@ function FocusStage({
                   className="block w-full px-2 py-1.5 text-left text-xs text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => {
                     setMoreMenuOpen(false);
-                    resetProviderBootState(provider);
-                    void host.provider.reload(provider).then(() => syncBounds(provider));
+                    void onReload(provider);
                   }}
                   disabled={state.webview !== 'loaded'}
                 >
@@ -362,6 +412,11 @@ function FocusStage({
           </div>
         </div>
       </div>
+      {provider === 'meta' && showLoginCta ? (
+        <div className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          {t('provider.metaLoginGuidance')}
+        </div>
+      ) : null}
       {/* WebView 以此區域定位，讓上方標題列（含「文字檢視」返回鈕）保持可見 */}
       <div ref={setCenterStageRef} className="flex min-h-0 flex-1 flex-col">
       {state.adapter === 'broken' ? (
@@ -375,7 +430,7 @@ function FocusStage({
       {(provider === 'gemini' || provider === 'grok') && state.login === 'blocked' ? (
         <div className="flex items-center justify-between gap-2 border-b border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
           <span>{t(provider === 'grok' ? 'provider.grokChallengeActive' : 'provider.embeddedLoginBlocked')}</span>
-          <button type="button" className="border border-amber-300 dark:border-amber-700 px-2 py-1 hover:bg-amber-100 dark:hover:bg-amber-900" onClick={() => void host.provider.openLoginExternal(provider)}>
+          <button type="button" className="border border-amber-300 dark:border-amber-700 px-2 py-1 hover:bg-amber-100 dark:hover:bg-amber-900" onClick={() => void onOpenInBrowser(provider)}>
             {t('provider.openInBrowser')}
           </button>
         </div>
@@ -456,8 +511,10 @@ function StatusStrip({
   presentation,
   setPaneRef,
   activateProvider,
+  reconnectProvider,
   openingProvider,
   onChipClick,
+  providers,
 }: {
   centeredProvider?: AIProvider;
   scrollFocusedProvider?: AIProvider;
@@ -465,8 +522,10 @@ function StatusStrip({
   presentation: PresentationByProvider;
   setPaneRef: (provider: AIProvider, el: HTMLElement | null) => void;
   activateProvider: (provider: AIProvider) => Promise<void>;
+  reconnectProvider: (provider: AIProvider) => Promise<void>;
   openingProvider?: AIProvider;
   onChipClick?: (provider: AIProvider) => void;
+  providers: readonly AIProvider[];
 }) {
   const { t } = useI18n();
   return (
@@ -476,7 +535,7 @@ function StatusStrip({
         <span className="text-[0.6875rem] text-zinc-500 dark:text-zinc-400">{t('provider.connectionsHint')}</span>
       </div>
       <div className="ai-sister-connection-grid grid grid-cols-4 gap-1.5">
-        {PROVIDERS.map((provider) => (
+        {providers.map((provider) => (
           <StatusStripItem
             key={provider}
             provider={provider}
@@ -486,6 +545,7 @@ function StatusStrip({
             scrollFocused={provider === scrollFocusedProvider}
             setPaneRef={setPaneRef}
             activateProvider={activateProvider}
+            reconnectProvider={reconnectProvider}
             openingProvider={openingProvider}
             onChipClick={onChipClick}
           />
@@ -503,6 +563,7 @@ function StatusStripItem({
   scrollFocused,
   setPaneRef,
   activateProvider,
+  reconnectProvider,
   openingProvider,
   onChipClick,
 }: {
@@ -513,6 +574,7 @@ function StatusStripItem({
   scrollFocused: boolean;
   setPaneRef: (provider: AIProvider, el: HTMLElement | null) => void;
   activateProvider: (provider: AIProvider) => Promise<void>;
+  reconnectProvider: (provider: AIProvider) => Promise<void>;
   openingProvider?: AIProvider;
   onChipClick?: (provider: AIProvider) => void;
 }) {
@@ -525,11 +587,7 @@ function StatusStripItem({
   const focusProvider = () => {
     onChipClick?.(provider);
     if (stuck) {
-      resetProviderBootState(provider);
-      void host.provider.reconnect(provider).then(
-        () => activateProvider(provider),
-        () => activateProvider(provider),
-      );
+      void reconnectProvider(provider);
       return;
     }
     if (centered && state.webview === 'loaded') return;

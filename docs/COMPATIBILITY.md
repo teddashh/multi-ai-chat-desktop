@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-09-17 after the v1.8.8 Windows login and long-response smokes. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-09-19 after the v1.8.8 Windows login and long-response smokes plus a logged-out Meta AI DOM probe. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 
@@ -41,6 +41,13 @@ The v2.0.0 source contract supports Node.js `^22.13.0 || >=24.0.0`, matching the
 | Claude | v4 | v3 text workflow **Verified**; v4 login-page detection and explicit Google SSO scope have automated coverage and await live retest | Not a compatibility claim |
 | Gemini | v2 | Base text workflow **Verified**; bounded Google `/sorry` navigation, blocked status, and passive bridge behavior have automated coverage and await live retest | Not a compatibility claim |
 | Grok | v7 + engine compatibility fallback | Base text workflow **Verified**; focused tests recognize all three current textarea composer selectors, preserve exact Unicode/Markdown input across a composer remount, detect and stop the current `chat-stop-button`, and keep login ready during the composer-to-generation-control transition. Host tests cover an explicit guarded reconnect for the unchanged-title bridge wedge without evaluating an ambiguous challenge document. A v1.8.8 Windows first-login trace showed the session persisted but the final `auth.x.ai` device-verification navigation was denied, requiring an app restart. That host remains denied and external per the frozen navigation contract; only the exact default HTTPS origin now triggers a bounded return to the allowed `grok.com` app surface using the same persistent profile. Heavy phase boundaries and the no-restart first-login repair still need a live retest | Not a compatibility claim |
+| Meta AI (experimental standby) | v1 seed | Logged-out Windows DOM verified for the inert composer, Send control, login detector, and narrow Meta auth redirect origins. Native input injection, exact-four standby enforcement, and selector schema checks have automated coverage. Login, response capture, completion, stop, and new-session behavior still require an authenticated live smoke; use mobile/email login because Facebook and Instagram leave the bundled Meta allowlist | Not a compatibility claim |
+
+The experimental Meta AI standby work tracks community request [#95](https://github.com/teddashh/multi-ai-chat-desktop/issues/95) and implementation [PR #96](https://github.com/teddashh/multi-ai-chat-desktop/pull/96). The evidence and pending live-smoke requirements below apply to that work.
+
+`v1.9.0` adds automated coverage for Meta replacing each default seat across all workflow presets, snapshot/replay, standby recovery, settings-save races, and unusable composers. It ships Meta as an optional experimental standby; no new authenticated Meta or VM smoke is claimed. See the [release notes](RELEASE_NOTES_v1.9.0.md) for verification results.
+
+Meta AI VM QC on 2026-09-20 (PR #96, `e3a9f9d`): default standby, exactly four active providers, and standby swap/restore passed. The site's Log in action redirected to Facebook, which correctly left the embedded allowlist. Guest access and email/mobile login were not reached; send/receive and workflow/debate remain blocked on authentication. A Meta network error was observed, but provider-filter verification is unfinished. The focused pane now explains email/mobile login when offered and the unsupported Facebook/Instagram route. If the site offers neither email/mobile login nor a usable guest composer, the current session cannot be used inside the app. A stable Meta AI email/mobile deep link has not been verified; returning to Meta does not guarantee a different login choice. Browser login is not evidence that the embedded provider profile is authenticated.
 
 Automated tests validate adapter structure, schema v1/v2 parser compatibility, typed detector rejection, logged-out precedence, approved strategies, HTTPS URL parsing, and navigation boundaries. They do not log into live provider accounts. Remote adapter updates cannot expand the URL scopes bundled with the installed app.
 

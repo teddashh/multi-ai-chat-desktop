@@ -1,9 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { AI_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
 import type { AIProvider, ProviderState } from '../../shared/types';
 import { I18nProvider } from '../i18n/context';
-import { FocusPane } from '../ui/FocusPane';
+import type { Locale } from '../i18n/resolve';
+import { t } from '../i18n/t';
+import { FocusPane, type CenterSurface } from '../ui/FocusPane';
 import { defaultPresentation, setProviderPresentation, type PresentationByProvider } from '../ui/presentation';
 
 const providers = Object.keys(AI_PROVIDERS) as AIProvider[];
@@ -34,6 +36,9 @@ function renderFocusPane({
   scrollFocusedProvider,
   stageExpanded,
   stageToggleEnabled = true,
+  activeProviders,
+  language = 'en',
+  centerSurface = 'text',
 }: {
   stateOverrides?: Partial<Record<AIProvider, Partial<ProviderState>>>;
   presentation?: PresentationByProvider;
@@ -41,15 +46,18 @@ function renderFocusPane({
   scrollFocusedProvider?: AIProvider;
   stageExpanded?: boolean;
   stageToggleEnabled?: boolean;
+  activeProviders?: readonly AIProvider[];
+  language?: Locale;
+  centerSurface?: CenterSurface;
 }): string {
   return renderToStaticMarkup(
-    <I18nProvider language="en">
+    <I18nProvider language={language}>
       <FocusPane
         centeredProvider={centeredProvider ?? undefined}
         scrollFocusedProvider={scrollFocusedProvider}
         states={states(stateOverrides)}
         presentation={presentation}
-        centerSurface="text"
+        centerSurface={centerSurface}
         centerTextFinal={false}
         userHidden={new Set()}
         presentationHidden={new Set()}
@@ -65,6 +73,7 @@ function renderFocusPane({
         reportBusy={false}
         stageExpanded={stageExpanded}
         onToggleStageExpanded={stageExpanded === undefined || !stageToggleEnabled ? undefined : vi.fn()}
+        providers={activeProviders}
       />
     </I18nProvider>,
   );
@@ -80,6 +89,52 @@ describe('FocusPane provider header', () => {
     expect(renderHeader('logged_in')).not.toContain('Login');
   });
 
+  it('explains Meta email/mobile login limits without gating a usable guest composer', () => {
+    const renderMeta = (login: ProviderState['login']) => renderFocusPane({
+      centeredProvider: 'meta',
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'meta'],
+      presentation: { ...defaultPresentation(), grok: 'chip', meta: 'center' },
+      stateOverrides: { meta: { login } },
+    });
+
+    for (const login of ['logged_out', 'blocked'] as const) {
+      const html = renderMeta(login);
+      expect(html).toContain('Use guest chat or email/mobile login if offered');
+      expect(html).toContain('Facebook/Instagram login is unavailable here');
+    }
+    expect(renderMeta('logged_in')).not.toContain('Use guest chat or email/mobile login');
+    expect(renderHeader('logged_out')).not.toContain('Use guest chat or email/mobile login');
+  });
+
+  it.each(['text', 'native'] as const)('keeps translated Meta login guidance outside the webview bounds in %s view', (centerSurface) => {
+    for (const language of ['en', 'zh-TW', 'ja', 'de'] as const) {
+      const guidance = renderToStaticMarkup(<>{t('provider.metaLoginGuidance', language)}</>);
+      const loginLabel = renderToStaticMarkup(<>{t('provider.login', language)}</>);
+      const renderMeta = (login: ProviderState['login']) => renderFocusPane({
+        language,
+        centerSurface,
+        centeredProvider: 'meta',
+        activeProviders: ['chatgpt', 'claude', 'gemini', 'meta'],
+        presentation: { ...defaultPresentation(), grok: 'chip', meta: 'center' },
+        stateOverrides: { meta: { login } },
+      });
+
+      for (const login of ['logged_out', 'blocked'] as const) {
+        const html = renderMeta(login);
+        expect(html).toContain(`>${loginLabel}</button>`);
+        expect(html).toContain(guidance);
+        // The native webview overlays its anchor; guidance must precede that region.
+        const anchor = html.indexOf('<div class="flex min-h-0 flex-1 flex-col">');
+        expect(anchor).toBeGreaterThan(html.indexOf(guidance));
+      }
+      for (const login of ['logged_in', 'unknown'] as const) {
+        const html = renderMeta(login);
+        expect(html).not.toContain(guidance);
+        expect(html).not.toContain(`>${loginLabel}</button>`);
+      }
+    }
+  });
+
   it('renders a four-provider status strip with login and thinking states', () => {
     const html = renderFocusPane({
       presentation: setProviderPresentation(defaultPresentation(), 'chatgpt', 'center'),
@@ -89,11 +144,22 @@ describe('FocusPane provider header', () => {
       },
     });
 
-    for (const provider of providers) expect(html).toContain(`aria-label="${AI_PROVIDERS[provider].name}:`);
+    for (const provider of DEFAULT_FREE_TARGET_PROVIDERS) expect(html).toContain(`aria-label="${AI_PROVIDERS[provider].name}:`);
+    expect(html).not.toContain('aria-label="Meta AI:');
     expect(html).toContain('Claude: Sign in');
     expect(html).toContain('Gemini: Thinking');
     expect(html).toContain('aria-pressed="true"');
     expect(html).not.toContain('role="button"');
+  });
+
+  it('shows Meta AI only when it replaces the selected standby provider', () => {
+    const html = renderFocusPane({
+      activeProviders: ['chatgpt', 'claude', 'gemini', 'meta'],
+      presentation: { ...defaultPresentation(), grok: 'chip', meta: 'side' },
+    });
+
+    expect(html).toContain('aria-label="Meta AI: Ready"');
+    expect(html).not.toContain('aria-label="Grok:');
   });
 
   it('renders a clear first-run provider picker instead of an empty stage', () => {
