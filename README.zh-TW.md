@@ -4,15 +4,15 @@
 
 只問一次，讓四個已登入的 AI 網頁 session 互相回答、審查、質疑，再一起收斂結果。**ChatGPT、Claude、Gemini、Grok 仍是預設陣容；Meta AI 是 Settings 裡實驗性的第五家備用選項。** Multi-AI Chat Desktop 是以 Tauri 2 打造的多 AI workflow 中樞，不只是把四個聊天視窗並排。
 
-[**前往官方網站 →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=zh-TW) · [下載 v1.9.0](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0) · [所有版本](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · 不需 API Key · 無分析追蹤
+[**前往官方網站 →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=zh-TW) · [下載 v1.9.1](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.1) · [所有版本](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · 不需 API Key · 無分析追蹤
 
 > 本 app 會自動操作你原本就在使用的 provider 網頁。第三方介面改版可能暫時使 adapter 失效，自動化使用也可能受各服務條款約束。請只使用你有權使用的帳號與內容；本 app 不會繞過登入、訂閱、年齡、用量或安全驗證。
 
-> **專案狀態：** 六個預設、底層五種 workflow mode、snapshot／replay，以及可選的 AI-Sister 四角色紀念版仍維持 feature-frozen。v1.9.0 提供五家可選、同時只啟用四家。ChatGPT、Claude、Gemini、Grok 仍是預設；Meta AI 是實驗性的可選備用。
+> **專案狀態：** 六個預設、底層五種 workflow mode、snapshot／replay，以及可選的 AI-Sister 四角色紀念版仍維持 feature-frozen。v1.9.1 維持五家可選、同時只啟用四家。ChatGPT、Claude、Gemini、Grok 仍是預設；Meta AI 是實驗性的可選備用。
 
 ## 先安裝
 
-請從 [**v1.9.0 下載頁**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0) 取得目前的穩定版。
+請從 [**v1.9.1 下載頁**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.1) 取得目前的穩定版。
 
 | 平台 | 下載檔 | 第一次啟動須知 |
 |---|---|---|
@@ -34,14 +34,15 @@ Ad-hoc 簽章可保護 bundle 完整性，也避免 `v1.0.0` 曾出現的錯誤�
 
 Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest) 更新。安裝版可以檢查新版本並打開下載頁，但 app 不會自行下載或安裝更新。
 
-## v1.9.0 更新重點
+## v1.9.1 更新重點
 
+- **Grok Heavy 恢復生成的計時器。** 若 Grok 恢復 stop 控制並繼續生成、但中間答案文字沒變，會取消過期的靜默計時器，再等生成真正結束。
 - **可選的 Meta AI 備用。** 五家可選、同時只啟用四家。原本四家仍是預設；Settings 可替換其中一家。Profile 會保留，角色與 targets 會修到目前陣容。
 - **Portrait 與診斷。** Meta AI 有獨立 portrait。Event log 與 debug bundle 會標成 Meta AI，不儲存 prompt 或回覆。
 - **失敗操作可恢復。** Login、reload、report、replay 失敗可以重試；重複或過期點擊會被忽略。
 - **以目前啟用陣容做 preflight。** 即使備用仍顯示 Ready，workflow 也只檢查目前四家。Meta 啟用時 Debate 席位會涵蓋它。
 
-完整內容請見[發布說明](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.0)。
+完整內容請見[發布說明](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.1)。
 
 ## 桌面版還是瀏覽器外掛？
 
@@ -82,7 +83,7 @@ Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Release
 
 結構化 workflow 會先檢查所有必要角色。如果 provider 不可用，app 會指出是哪一家，讓你開啟／登入、重新指派角色或改選其他模式，不會偷偷替換 provider。一般結構化 workflow 遇到持續錯誤會停止；腦力激盪則暫停，等待你明確選擇重試、略過或取消。
 
-腦力激盪刻意設計成最重的預設：請讓四個預設 provider session 都保持登入，並預留約 **45–90 分鐘**。48 次發言的恢復路徑已有自動測試；v1.9.0 沒有新增真實帳號的 ChatGPT↔Grok 慢速接力檢查。
+腦力激盪刻意設計成最重的預設：請讓四個預設 provider session 都保持登入，並預留約 **45–90 分鐘**。48 次發言的恢復路徑已有自動測試；v1.9.1 沒有新增真實帳號的 ChatGPT↔Grok 慢速接力檢查。
 
 Workflow 完成後，可從底部 composer 繼續同一個 app conversation；要乾淨的 session context 時請選「**新增對話**」。
 
@@ -105,7 +106,7 @@ Workflow 完成後，可從底部 composer 繼續同一個 app conversation；�
 - **Windows x64** 有已驗證的 packaged launch 證據，但未簽章產物可能觸發 SmartScreen。
 - **macOS Apple Silicon** 僅部分驗證。DMG 為 ad-hoc 簽章且未 notarize；較早的實機回報能開啟 app 並登入 ChatGPT、Claude、Gemini，但 Grok 卡在 Cloudflare。現行 Grok 恢復流程仍需 Apple Silicon live retest；沒有 Intel 產物。
 - **Linux x86_64** 目前只有 CI packaging 驗證，沒有 maintainer 的新實機啟動報告。
-- v1.9.0 沒有新增已登入的 Meta 或 VM smoke。先前的 Windows packaged launch 證據、較早的 Apple Silicon ChatGPT／Claude／Gemini 登入回報（Grok 卡在 Cloudflare），以及 Linux 僅 CI packaging，仍是目前紀錄。真實帳號的 ChatGPT↔Grok 慢速接力、Grok Cloudflare challenge，以及新的 Apple Silicon 啟動與 provider 登入 smoke 都沒有人工重做。
+- v1.9.1 沒有新增已登入的 Meta、Grok Heavy ↔ ChatGPT Astra 或 VM smoke。先前的 Windows packaged launch 證據、較早的 Apple Silicon ChatGPT／Claude／Gemini 登入回報（Grok 卡在 Cloudflare），以及 Linux 僅 CI packaging，仍是目前紀錄。真實帳號的 ChatGPT↔Grok 慢速接力、Grok Cloudflare challenge，以及新的 Apple Silicon 啟動與 provider 登入 smoke 都沒有人工重做。Grok 恢復生成的計時器路徑僅有自動測試覆蓋。
 - Meta AI 訪客或 Email／手機登入取決於 Meta 網站目前提供的方式。Facebook 與 Instagram 登入不支援內嵌。
 - Snapshot／replay／checkpoint 只維護既有相容性。除了實驗性的 Meta AI 備用選項外，本功能凍結版本不規劃 marketplace、graph editor、更多 provider 擴充、新 persistence schema、內嵌 terminal agent、telemetry、Developer ID／notarization 計畫或 self-updater。
 
