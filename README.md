@@ -22,7 +22,7 @@ Get the current stable release from the [**v1.9.1 download page**](https://githu
 
 Open each provider pane once and sign in on the provider's real page. Credentials and cookies stay in that provider's isolated local WebView profile; Multi-AI Chat Desktop never asks for your password.
 
-In the experimental Meta AI path, guest or email/mobile access depends on what Meta's site currently offers. If a sign-in page is shown, choose **mobile number or email**. Facebook and Instagram sign-in are not embedded.
+In the experimental Meta AI path, complete guest, email/mobile, or Facebook/Instagram sign-in **in the Meta pane**. A login in another browser cannot return to the isolated app profile.
 
 ### macOS first launch
 
@@ -107,7 +107,7 @@ Report vulnerabilities privately through [SECURITY.md](./SECURITY.md); never put
 - **macOS Apple Silicon** is partially verified. The DMG is ad-hoc signed and not notarized; an earlier real-device report opened the app and logged into ChatGPT, Claude, and Gemini, while Grok remained on Cloudflare. Current Grok recovery still needs a live Apple Silicon retest. There is no Intel artifact.
 - **Linux x86_64** packaging is CI-verified only; there is no current maintainer real-device launch report.
 - For v1.9.1, no new authenticated Meta, Grok Heavy ↔ ChatGPT Astra, or VM smoke was run. Prior Windows packaged-launch evidence, the earlier Apple Silicon ChatGPT/Claude/Gemini login report (Grok remained on Cloudflare), and Linux CI-only packaging remain the current record. A real-account ChatGPT↔Grok slow handoff, the Grok Cloudflare challenge path, and a new Apple Silicon launch/provider-login smoke were not manually repeated. The Grok resume-timer path has automated coverage only.
-- Meta AI guest or email/mobile access depends on what Meta's site currently offers. Facebook and Instagram sign-in are not embedded.
+- Meta AI guest, email/mobile, or Facebook/Instagram sign-in must finish in the Meta pane. A login in another browser cannot return to the app.
 - Snapshots/replay/checkpoints are compatibility-maintained in their shipped form. Beyond the experimental Meta AI standby, there is no marketplace, graph editor, further provider expansion, new persistence schema, embedded terminal agent, telemetry roadmap, Developer ID/notarization program, or self-updater planned for this feature-frozen edition.
 
 See the evidence-based [compatibility matrix](./docs/COMPATIBILITY.md). CI and automated tests are never presented as proof that a live provider account or real desktop device was exercised.

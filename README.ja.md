@@ -22,7 +22,7 @@
 
 初回は各プロバイダーのpaneを開き、実際のプロバイダーページでログインします。認証情報とcookieはプロバイダーごとに分離されたローカルWebView profileに残り、Multi-AI Chat Desktopがパスワードを尋ねることはありません。
 
-実験的なMeta AIでは、ゲストまたはメール／携帯ログインはMetaサイトが現在提供する方法に依存します。ログインページが出た場合は**携帯番号またはメール**を選んでください。Facebook／Instagramログインは埋め込みません。
+実験的なMeta AIでは、ゲスト、メール／携帯、またはFacebook／Instagramのログインを**Metaペイン内**で完了してください。別のブラウザでログインしても、隔離されたapp profileには戻りません。
 
 ### macOSでの初回起動
 
@@ -107,7 +107,7 @@ Workflow完了後は画面下のcomposerから同じapp conversationを続けら
 - **macOS Apple Silicon** は部分検証です。DMGはad-hoc署名済み・notarize未実施です。以前の実機報告ではアプリを開きChatGPT、Claude、Geminiへloginできましたが、GrokはCloudflareで停止しました。現在のGrok復旧もApple Siliconでlive retestが必要です。Intel artifactはありません。
 - **Linux x86_64** はCI packagingのみ検証済みで、maintainerによる新しい実機起動報告はありません。
 - v1.9.1では、認証済みMeta、Grok Heavy ↔ ChatGPT Astra、またはVMの新しいsmokeは実施していません。以前のWindows packaged launch証拠、以前のApple SiliconでのChatGPT／Claude／Gemini login報告（GrokはCloudflareで停止）、LinuxのCI packagingのみ、が現在の記録です。実アカウントのChatGPT↔Grok遅いハンドオフ、Grok Cloudflare challenge、新しいApple Silicon起動とprovider login smokeは手動で再実施していません。Grok再開タイマー経路は自動テストのみです。
-- Meta AIのゲストまたはメール／携帯アクセスは、Metaサイトが現在提供する方法に依存します。Facebook／Instagramログインは埋め込みません。
+- Meta AIのゲスト、メール／携帯、またはFacebook／InstagramログインはMetaペイン内で完了する必要があります。別のブラウザでログインしてもappには戻れません。
 - Snapshot／replay／checkpointは既存互換性だけを保守します。実験的なMeta AIスタンバイ以外に、marketplace、graph editor、さらなるprovider追加、新persistence schema、組み込みterminal agent、telemetry、Developer ID／notarization program、self-updaterを追加する予定はありません。
 
 根拠は[互換性マトリクス](./docs/COMPATIBILITY.md)をご覧ください。CIや自動テストを、実際のprovider accountやdesktop deviceを操作した証拠として扱うことはありません。

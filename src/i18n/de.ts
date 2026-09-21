@@ -116,7 +116,7 @@ export const de: Record<I18nKey, string> = {
   'provider.currentlyReading': 'Wird gerade gelesen',
   'provider.clickToRecover': 'Zum Neuladen und Wiederherstellen klicken',
   'provider.login': 'Anmelden',
-  'provider.metaLoginGuidance': 'Gastchat oder E-Mail/Mobilnummer nutzen, falls angeboten. Facebook/Instagram-Anmeldung wird hier nicht unterstützt.',
+  'provider.metaLoginGuidance': 'Gast, E-Mail/Mobil oder Facebook/Instagram-Anmeldung in diesem Fenster abschließen. Eine Anmeldung in einem anderen Browser kehrt nicht hierher zurück.',
   'provider.moreActions': 'Weitere Anbieteraktionen',
   'provider.reload': 'Neu laden',
   'provider.report': 'Melden',

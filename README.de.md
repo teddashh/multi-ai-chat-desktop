@@ -22,7 +22,7 @@ Die aktuelle stabile Version steht auf der [**Downloadseite für v1.9.1**](https
 
 Öffne beim ersten Start jeden Anbieter-Pane einmal und melde dich direkt auf der echten Anbieterseite an. Zugangsdaten und Cookies bleiben im getrennten lokalen WebView-Profil des jeweiligen Anbieters; Multi-AI Chat Desktop fragt nie nach deinem Passwort.
 
-Beim experimentellen Meta-AI-Pfad hängen Gastzugang oder E-Mail-/Mobilanmeldung davon ab, was Metas Website derzeit anbietet. Erscheint eine Anmeldeseite, wähle **Mobilnummer oder E-Mail**. Facebook- und Instagram-Anmeldung werden nicht eingebettet.
+Beim experimentellen Meta-AI-Pfad die Gast-, E-Mail-/Mobil- oder Facebook/Instagram-Anmeldung **im Meta-Fenster** abschließen. Eine Anmeldung in einem anderen Browser kehrt nicht ins isolierte App-Profil zurück.
 
 ### Erster Start unter macOS
 
@@ -107,7 +107,7 @@ Melde Schwachstellen gemäß [SECURITY.md](./SECURITY.md) privat. Veröffentlich
 - **macOS Apple Silicon** ist teilweise geprüft. Das DMG ist ad-hoc signiert, nicht notarisiert. Ein früherer Gerätebericht konnte die App öffnen und ChatGPT, Claude und Gemini anmelden, während Grok bei Cloudflare hängen blieb. Die aktuelle Grok-Wiederherstellung benötigt weiterhin einen Live-Retest auf Apple Silicon. Es gibt kein Intel-Artefakt.
 - **Linux x86_64** ist nur durch CI-Paketierung bestätigt; ein neuer realer Startbericht eines Maintainers fehlt.
 - Für v1.9.1 wurde kein neuer authentifizierter Meta-, Grok-Heavy↔ChatGPT-Astra- oder VM-Smoke ausgeführt. Frühere Windows-Paketstarts, der frühere Apple-Silicon-Bericht zu ChatGPT-/Claude-/Gemini-Anmeldung (Grok blieb bei Cloudflare) und die Linux-CI-Paketierung bleiben der aktuelle Nachweis. Eine langsame ChatGPT↔Grok-Übergabe mit echten Konten, der Grok-Cloudflare-Challenge-Pfad sowie ein neuer Start- und Anbieter-Login-Smoke auf Apple Silicon wurden nicht manuell wiederholt. Der Grok-Fortsetzungs-Timer-Pfad hat nur automatisierte Abdeckung.
-- Gastzugang oder E-Mail-/Mobilanmeldung von Meta AI hängen davon ab, was Metas Website derzeit anbietet. Facebook- und Instagram-Anmeldung werden nicht eingebettet.
+- Gast-, E-Mail-/Mobil- oder Facebook/Instagram-Anmeldung von Meta AI muss im Meta-Fenster erfolgen. Eine Anmeldung in einem anderen Browser kehrt nicht in die App zurück.
 - Snapshot/Replay/Checkpoint werden nur in ihrer ausgelieferten Form kompatibel gehalten. Über den experimentellen Meta-AI-Standby hinaus sind für diese funktionsgefrorene Ausgabe weder Marketplace, Graph-Editor, weitere Anbieter, neues Persistenzschema, eingebetteter Terminal-Agent, Telemetrie, Developer-ID-/Notarisierungsprogramm noch Self-Updater geplant.
 
 Die evidenzbasierte [Kompatibilitätsmatrix](./docs/COMPATIBILITY.md) enthält Details. CI und automatisierte Tests werden nie als Beleg dafür dargestellt, dass ein echtes Anbieterkonto oder Desktopgerät benutzt wurde.

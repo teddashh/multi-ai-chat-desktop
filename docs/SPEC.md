@@ -355,10 +355,10 @@ Meta AI is code-defined and bundled, but it is experimental and is not part of t
 
 | Field | meta |
 |---|---|
-| schemaVersion / adapterVersion | `1` / `1` |
+| schemaVersion / adapterVersion | `1` / `2` |
 | urls.app / urls.login | `https://www.meta.ai` / `https://www.meta.ai` |
 | urls.match | `www.meta.ai/*` · `meta.ai/*` |
-| urls.ssoMatch | `auth.meta.com/*` · `auth.meta.ai/*` |
+| urls.ssoMatch | `auth.meta.com/*` · `auth.meta.ai/*` · `www.facebook.com/*` · `m.facebook.com/*` · `facebook.com/*` · `www.instagram.com/*` · `instagram.com/*` |
 | inputSelectors | `input[aria-label="Ask Meta AI"]` · `textarea[data-ecto-composer-prehydration-input]` |
 | sendButtonSelectors | `[data-testid="composer-send-button"]` · `button[aria-label="Send"]` |
 | responseSelectors | `[data-message-item]:not([data-user-message])` · `[data-testid="assistant-message"]` |
