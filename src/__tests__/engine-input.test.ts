@@ -1569,6 +1569,157 @@ describe('injected engine input hardening', () => {
     expect(errorDone(env)?.payload).toBe('[Error: chatgpt send was not accepted; draft is still in composer]');
   });
 
+  it('reads a ChatGPT reply after the latched user-turn anchor detaches', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    // Older turns share this prefix, the same way the language-policy preamble matches every
+    // later round, so removing the optimistic bubble does not grow the live match count.
+    const prompt = `Keep the exact long handoff context. ${'context '.repeat(120)}round two question`;
+    const priorTurn = new FakeElement(env.document, 'div', prompt.slice(0, 240));
+    const staleAnswer = new FakeElement(env.document, 'div', 'answer already on screen before this send');
+    env.userMessages = [priorTurn];
+    env.responses = [staleAnswer];
+    let optimistic: FakeElement | undefined;
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.setVisibleText('');
+        optimistic = new FakeElement(env.document, 'div', prompt);
+        env.userMessages = [priorTurn, optimistic];
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      thinkingDetectors: ['.thinking'],
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000_000 },
+    });
+
+    send(handler, prompt, 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(errorDone(env)).toBeUndefined();
+    expect(optimistic?.isConnected).toBe(true);
+
+    optimistic!.isConnected = false;
+    env.userMessages = [priorTurn];
+    env.thinking = true;
+    FakeMutationObserver.notify();
+    env.thinking = false;
+    FakeMutationObserver.notify();
+
+    expect(env.emitted.some((message) => message.payload === staleAnswer.textContent)).toBe(false);
+    expect(env.emitted.some((message) => message.action === 'RESPONSE_CHUNK')).toBe(false);
+
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const response = new FakeElement(env.document, 'div', 'reply that stayed visible after the bubble detached');
+    turn.appendChild(copyButton);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [staleAnswer, response];
+    FakeMutationObserver.notify();
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 1);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: 'reply that stayed visible after the bubble detached',
+    });
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'reply that stayed visible after the bubble detached',
+    });
+    expect(env.emitted.some((message) => message.payload === staleAnswer.textContent)).toBe(false);
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('completes a ChatGPT reply when generation is observed and no user-turn anchor resolves', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      thinkingDetectors: ['.thinking'],
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000_000 },
+    });
+
+    send(handler, 'question whose user turn never mounts', 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.userMessages).toHaveLength(0);
+
+    env.thinking = true;
+    FakeMutationObserver.notify();
+    env.thinking = false;
+
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    const response = new FakeElement(env.document, 'div', 'reply captured without a user-turn anchor');
+    turn.appendChild(copyButton);
+    turn.appendChild(response);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [response];
+    FakeMutationObserver.notify();
+
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 1);
+
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: 'reply captured without a user-turn anchor',
+    });
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_DONE',
+      provider: 'chatgpt',
+      payload: 'reply captured without a user-turn anchor',
+    });
+    expect(errorDone(env)).toBeUndefined();
+  });
+
+  it('does not emit a pre-send ChatGPT assistant message through the anchorless fallback', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const staleAnswer = new FakeElement(env.document, 'div', 'answer that already existed at send time');
+    const turn = new FakeElement(env.document, 'article');
+    const copyButton = new FakeElement(env.document, 'button');
+    copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
+    turn.appendChild(copyButton);
+    turn.appendChild(staleAnswer);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
+    env.responses = [staleAnswer];
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, {
+      provider: 'chatgpt',
+      thinkingDetectors: ['.thinking'],
+      timing: { doneDelayMs: 100, chunkDebounceMs: 0, statusIntervalMs: 1_000_000, backupPollMs: 1_000_000 },
+    });
+
+    send(handler, 'a new question with no mounted user turn', 'chatgpt');
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    env.thinking = true;
+    FakeMutationObserver.notify();
+    env.thinking = false;
+    FakeMutationObserver.notify();
+    await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 500);
+
+    expect(env.emitted.some((message) => message.payload === staleAnswer.textContent)).toBe(false);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_CHUNK')).toHaveLength(0);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+  });
+
   it('skips retry when the composer has cleared', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'textarea' });
@@ -3239,6 +3390,7 @@ class FakeElement {
   hidden = false;
   disabled = false;
   inert = false;
+  isConnected = true;
   dispatchReturn = true;
   clickThrows = false;
   clickCount = 0;
@@ -3262,7 +3414,9 @@ class FakeElement {
   }
 
   compareDocumentPosition(other: FakeElement): number {
-    if (other.fakeDocument !== this.fakeDocument) return 0x01;
+    if (other.fakeDocument !== this.fakeDocument || this.isConnected === false || other.isConnected === false) {
+      return 0x01;
+    }
     if (this.documentOrder < other.documentOrder) return 0x04;
     if (this.documentOrder > other.documentOrder) return 0x02;
     return 0;

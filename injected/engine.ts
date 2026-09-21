@@ -289,6 +289,11 @@ class InactiveSendOperationError extends Error {
   let pendingPromptText = '';
   let matchingChatGptUserTurnBaseline = 0;
   let activeChatGptUserTurnAnchor: Element | null = null;
+  let chatGptPreSendUserTurns: Element[] = [];
+  // True after this wait has adopted a post-baseline user turn, even if that node later detaches.
+  let chatGptUserTurnAnchorLatched = false;
+  // Latched only after generation is seen while this wait's baseline is already snapshotted.
+  let chatGptResponseGenerationObserved = false;
   let lastChunkTime = 0;
   let lastActivatedInput: Element | null = null;
   let chatGptTerminalGate: ChatGptTerminalGateState = emptyChatGptTerminalGate();
@@ -645,8 +650,11 @@ class InactiveSendOperationError extends Error {
     lastResponseText = '';
     lastCompletionActivityAt = Date.now();
     pendingPromptText = text;
-    matchingChatGptUserTurnBaseline = countMatchingChatGptUserTurns(activeAdapter, text);
+    chatGptPreSendUserTurns = matchingChatGptUserTurns(activeAdapter, text);
+    matchingChatGptUserTurnBaseline = chatGptPreSendUserTurns.length;
     activeChatGptUserTurnAnchor = null;
+    chatGptUserTurnAnchorLatched = false;
+    chatGptResponseGenerationObserved = false;
     lastActivatedInput = null;
     resetChatGptTerminalGate();
     startResponsePolling();
@@ -1224,8 +1232,11 @@ class InactiveSendOperationError extends Error {
 
   function getLatestResponseCandidate(): ResponseCandidate | null {
     if (!adapter) return null;
+    noteChatGptResponseGeneration();
     const chatGptAnchor = adapter.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : null;
-    if (adapter.provider === 'chatgpt' && !chatGptAnchor) return null;
+    // A missing anchor used to hard-stop ChatGPT reads. After generation has been seen, fall
+    // through to the baseline filters below instead of staying silent.
+    if (adapter.provider === 'chatgpt' && !chatGptAnchor && !chatGptMayReadResponseWithoutAnchor()) return null;
     const responseEls = Array.from(document.querySelectorAll(adapter.responseSelectors.join(', ')));
     if (responseEls.length === 0) return null;
     for (let index = responseEls.length - 1; index >= 0; index -= 1) {
@@ -1312,12 +1323,13 @@ class InactiveSendOperationError extends Error {
     if (!adapter || adapter.provider !== 'chatgpt') return null;
     const signal = TURN_COMPLETION_SIGNALS.chatgpt;
     if (!signal) return null;
+    noteChatGptResponseGeneration();
     const anchor = refreshChatGptUserTurnAnchor(adapter);
-    if (!anchor) return null;
+    if (!anchor && !chatGptMayReadResponseWithoutAnchor()) return null;
     const response = responseElement ?? getLatestResponseCandidate()?.element;
     if (!response) return null;
-    const eligibleTurns = Array.from(document.querySelectorAll(signal.turn)).filter((turn) =>
-      elementFollows(anchor, turn) && elementContains(turn, response),
+    const eligibleTurns = Array.from(document.querySelectorAll(signal.turn)).filter(
+      (turn) => elementContains(turn, response) && (!anchor || elementFollows(anchor, turn)),
     );
     return eligibleTurns.length > 0 ? eligibleTurns[eligibleTurns.length - 1] : null;
   }
@@ -1716,6 +1728,9 @@ class InactiveSendOperationError extends Error {
     pendingPromptText = '';
     matchingChatGptUserTurnBaseline = 0;
     activeChatGptUserTurnAnchor = null;
+    chatGptPreSendUserTurns = [];
+    chatGptUserTurnAnchorLatched = false;
+    chatGptResponseGenerationObserved = false;
     lastActivatedInput = null;
     lastGrokThinking = undefined;
     resetChatGptTerminalGate();
@@ -1761,6 +1776,9 @@ class InactiveSendOperationError extends Error {
     const observer = new MutationObserver(() => {
       if (!waitingForResponse) return;
       recordGrokGenerationActivity();
+      // Latch generation before the thinking return, so a reply that lands as thinking
+      // clears is still readable. The observer otherwise never reaches the text read.
+      noteChatGptResponseGeneration();
       if (isThinking()) return;
       const currentText = getLatestResponseText();
       if (!currentText || currentText === lastResponseText) return;
@@ -1854,10 +1872,6 @@ class InactiveSendOperationError extends Error {
     return value.normalize('NFKC').replace(/\s+/g, '');
   }
 
-  function countMatchingChatGptUserTurns(activeAdapter: AdapterConfig, prompt: string): number {
-    return matchingChatGptUserTurns(activeAdapter, prompt).length;
-  }
-
   function matchingChatGptUserTurns(activeAdapter: AdapterConfig, prompt: string): Element[] {
     if (activeAdapter.provider !== 'chatgpt' || !prompt.trim()) return [];
     return Array.from(document.querySelectorAll(CHATGPT_USER_MESSAGE_SELECTOR)).filter(
@@ -1892,10 +1906,55 @@ class InactiveSendOperationError extends Error {
 
   function refreshChatGptUserTurnAnchor(activeAdapter: AdapterConfig): Element | null {
     if (activeAdapter.provider !== 'chatgpt') return null;
-    const matchingTurns = matchingChatGptUserTurns(activeAdapter, pendingPromptText);
-    if (matchingTurns.length <= matchingChatGptUserTurnBaseline) return activeChatGptUserTurnAnchor;
-    activeChatGptUserTurnAnchor = matchingTurns[matchingTurns.length - 1] ?? null;
+    if (activeChatGptUserTurnAnchor && !elementIsInDocument(activeChatGptUserTurnAnchor)) {
+      activeChatGptUserTurnAnchor = null;
+    }
+    const matchingTurns = matchingChatGptUserTurns(activeAdapter, pendingPromptText).filter((turn) =>
+      elementIsInDocument(turn),
+    );
+    if (matchingTurns.length > matchingChatGptUserTurnBaseline) {
+      activeChatGptUserTurnAnchor = matchingTurns[matchingTurns.length - 1] ?? null;
+      if (activeChatGptUserTurnAnchor) chatGptUserTurnAnchorLatched = true;
+      return activeChatGptUserTurnAnchor;
+    }
+    if (activeChatGptUserTurnAnchor) return activeChatGptUserTurnAnchor;
+    // The latched bubble is gone and the live match count did not clear the pre-send baseline
+    // (older turns share the language-policy prefix). Re-bind only to a connected match that
+    // follows every still-connected pre-send turn. A same-count remount never reaches here.
+    if (!chatGptUserTurnAnchorLatched) return null;
+    const connectedPreSend = chatGptPreSendUserTurns.filter((turn) => elementIsInDocument(turn));
+    const followingPreSend = matchingTurns.filter((turn) =>
+      connectedPreSend.every((prior) => elementFollows(prior, turn)),
+    );
+    activeChatGptUserTurnAnchor =
+      followingPreSend.length > 0 ? followingPreSend[followingPreSend.length - 1] : null;
     return activeChatGptUserTurnAnchor;
+  }
+
+  function elementIsInDocument(element: Element): boolean {
+    if ((element as { isConnected?: boolean }).isConnected === false) return false;
+    const root = document.documentElement ?? document.body;
+    if (!root || root === element || typeof root.compareDocumentPosition !== 'function') return true;
+    try {
+      return (root.compareDocumentPosition(element) & DOCUMENT_POSITION_DISCONNECTED) === 0;
+    } catch {
+      return true;
+    }
+  }
+
+  // Trigger for reading a ChatGPT reply with no connected user-turn anchor: this wait has
+  // already seen provider generation (thinking detector or ChatGPT strong activity) at least
+  // once. Pre-send generation is rejected before staging, and the flag flips only while
+  // waitingForResponse is already true, so the baseline snapshot exists. A message that was
+  // already on screen still has to pass responseBaselineEls, responseTextIsBeyondBaseline,
+  // isUserMessageElement, and isLikelyPromptEcho — the same filters the other providers use.
+  function chatGptMayReadResponseWithoutAnchor(): boolean {
+    return waitingForResponse && chatGptResponseGenerationObserved;
+  }
+
+  function noteChatGptResponseGeneration(): void {
+    if (chatGptResponseGenerationObserved || !waitingForResponse || adapter?.provider !== 'chatgpt') return;
+    if (isThinking() || chatGptHasStrongActivity()) chatGptResponseGenerationObserved = true;
   }
 
   function elementFollows(anchor: Element, candidate: Element): boolean {
@@ -1954,14 +2013,18 @@ class InactiveSendOperationError extends Error {
     if (!waitingForResponse) return true;
     if (activeAdapter.provider === 'chatgpt') {
       const anchor = refreshChatGptUserTurnAnchor(activeAdapter);
-      if (!anchor) return false;
+      // refresh drops a detached bubble. One that was already adopted is still the matching
+      // turn for this check; it does not by itself prove the composer was consumed.
+      if (!anchor && !chatGptUserTurnAnchorLatched) return false;
       // ChatGPT can paint an optimistic copy of a long user turn before it has consumed the
       // composer. That state looked like a successful send in v1.8.8, cancelled the bounded
       // retry, and left the workflow waiting on a response that could only start after a manual
       // click. Any post-anchor assistant candidate proves that the first send started, including
       // Astra's plain "Pro thinking" phase; it is send evidence here, not completion evidence.
-      const response = getLatestResponseCandidate();
-      if (response) return true;
+      if (anchor) {
+        const response = getLatestResponseCandidate();
+        if (response) return true;
+      }
       return !chatGptPendingDraftStillInComposer(activeAdapter);
     }
     if (isThinking()) return true;
