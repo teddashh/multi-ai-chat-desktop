@@ -107,7 +107,7 @@ describe.each(links)('Settings $kind link recovery', (link) => {
     const ui = harness(link);
     expect(() => ui.click(link.label)).not.toThrow();
     await vi.waitFor(() => expect(ui.html().includes('role="alert"')).toBe(true));
-    expect(ui.html()).toContain(link.error.replace("'", '&#x27;'));
+    expect(ui.html()).toContain(renderToStaticMarkup(<>{link.error}</>));
     expect(ui.html()).not.toContain('private host details');
     ui.click(t('provider.retry', 'en'));
     await vi.waitFor(() => expect(open.mock.calls).toEqual([[ui.url], [ui.url]]));
