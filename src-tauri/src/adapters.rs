@@ -1037,7 +1037,7 @@ mod tests {
     fn meta_initial_seed_is_registered_and_keeps_navigation_narrow() {
         let meta = adapters().get("meta").expect("Meta adapter is bundled");
         assert_eq!(meta.display_name, "Meta AI");
-        assert_eq!(meta.adapter_version, 2);
+        assert_eq!(meta.adapter_version, 3);
         assert_eq!(meta.urls.app, "https://www.meta.ai");
         assert_eq!(meta.urls.login, "https://www.meta.ai");
         assert_eq!(

@@ -537,6 +537,30 @@ describe('injected engine input hardening', () => {
     expect(errorDone(env)).toBeUndefined();
   });
 
+  it('reports Meta AI logged in when a usable composer remains beside a visible login control', async () => {
+    const env = createEnv({ inputKind: 'input' });
+    const input = env.input as FakeInputElement;
+    input.setAttribute('aria-label', 'Ask Meta AI');
+    const loginButton = new FakeElement(env.document, 'button', 'Log in');
+    loginButton.setAttribute('data-testid', 'login-button');
+    const inertPlaceholder = new FakeElement(env.document, 'textarea');
+    inertPlaceholder.inert = true;
+    inertPlaceholder.setAttribute('inert', '');
+    env.detectorElements.set(META_INPUT_SELECTOR, [input]);
+    env.detectorElements.set('[data-testid="login-button"]', [loginButton]);
+    env.detectorElements.set(META_INERT_TEXTAREA_SELECTOR, [inertPlaceholder]);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, metaAdapter());
+
+    expect(env.emitted.at(-1)).toEqual({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'meta',
+      payload: { dom: 'ready', login: 'logged_in', thinking: false, bootId: 'boot1' },
+    });
+  });
+
   it('reports Meta AI logged in for an enabled visible editable guest composer and sends through it', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'input' });
