@@ -1,7 +1,8 @@
 import type { AIProvider, BridgeMessage } from '../../shared/types';
 import { AI_PROVIDERS } from '../../shared/constants';
 import { onBridgeMessage } from '../bridge/bus';
-import { AWAITING_ABSOLUTE_MAX_MS, AWAITING_MAX_MS, setProviderAwaiting } from '../bridge/pull';
+import { AWAITING_ABSOLUTE_MAX_MS, AWAITING_MAX_MS, onProviderBootRotation, setProviderAwaiting } from '../bridge/pull';
+import { ProviderPageReloadedError } from './providerResponse';
 import { clearActiveTurn } from './state';
 
 export const STEP_TIMEOUT_MS = AWAITING_MAX_MS;
@@ -20,6 +21,7 @@ interface Waiter {
 
 const waiters = new Map<string, Waiter>();
 let subscribed = false;
+let unsubscribeBootRotation: (() => void) | undefined;
 
 function key(provider: AIProvider, turn: number): string {
   return `${provider}:${turn}`;
@@ -29,6 +31,10 @@ export function ensureWorkflowBusSubscription(): void {
   if (subscribed) return;
   subscribed = true;
   onBridgeMessage(handleBridgeMessage);
+  // A new bootId is a fresh document. The new engine has no pending prompt, so this step cannot complete.
+  unsubscribeBootRotation = onProviderBootRotation((provider) => {
+    rejectExistingProviderWaiters(provider, new ProviderPageReloadedError(provider));
+  });
 }
 
 function handleBridgeMessage(message: BridgeMessage): void {
@@ -137,5 +143,7 @@ export function resetWaitForResponseForTests(): void {
     if (waiter.timer !== undefined) globalThis.clearTimeout(waiter.timer);
   }
   waiters.clear();
+  unsubscribeBootRotation?.();
+  unsubscribeBootRotation = undefined;
   subscribed = false;
 }

@@ -208,6 +208,7 @@ export function eventFromStepTimeout(event: StepTimeoutEvent): EventLogInput {
     detail: {
       remainingMs: event.remainingMs,
       failureKind,
+      ...(event.recoveryDetail ? { recoveryDetail: event.recoveryDetail } : {}),
       ...(failureKind === 'timeout' ? { timedOut: event.timedOut } : {}),
     },
   };
@@ -276,6 +277,8 @@ function statusEvent(message: BridgeMessage): EventLogInput | undefined {
   const provider = safeProvider(message.provider);
   if (!provider) return undefined;
   const payload = recordPayload(message.payload);
+  const fillEvent = composerFillEvent(provider, message, payload);
+  if (fillEvent) return fillEvent;
   const parts: string[] = [];
   const dom = optionalStatus(payload, 'dom', normalizeDomStatus);
   const login = optionalStatus(payload, 'login', normalizeLoginStatus);
@@ -308,6 +311,39 @@ function statusEvent(message: BridgeMessage): EventLogInput | undefined {
       doneReady: doneReady ?? null,
     },
   };
+}
+
+function composerFillEvent(
+  provider: AIProvider,
+  message: BridgeMessage,
+  payload: Record<string, unknown> | undefined,
+): EventLogInput | undefined {
+  const fill = stringProp(payload, 'fill');
+  if (fill !== 'start' && fill !== 'done') return undefined;
+  const fillChars = nonNegativeNumber(payload, 'fillChars');
+  const fillMs = nonNegativeNumber(payload, 'fillMs');
+  if (fillChars === undefined) return undefined;
+  if (fill === 'done' && fillMs === undefined) return undefined;
+  const name = providerName(provider);
+  return {
+    provider,
+    kind: 'provider-state',
+    summary:
+      fill === 'start'
+        ? `${name} composer fill started (${fillChars} chars)`
+        : `${name} composer fill finished (${fillChars} chars in ${fillMs} ms)`,
+    detail: {
+      ...commonMessageDetail(message),
+      fill,
+      fillChars,
+      ...(fill === 'done' && fillMs !== undefined ? { fillMs } : {}),
+    },
+  };
+}
+
+function nonNegativeNumber(record: Record<string, unknown> | undefined, key: string): number | undefined {
+  const value = numberProp(record, key);
+  return value !== undefined && value >= 0 ? value : undefined;
 }
 
 function responseEvent(message: BridgeMessage): EventLogInput | undefined {

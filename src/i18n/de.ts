@@ -175,6 +175,7 @@ export const de: Record<I18nKey, string> = {
   'workflowStatus.numberedProviderStep': '💻 Schritt {number}/{total} — {provider}: {step}…',
   'workflowStatus.roundtableSpeaker': '🔄 Runde {round} „{phase}“ — {provider} spricht…',
   'workflowStatus.nativeEdit': 'Entwurf für {provider} eingefügt. Innerhalb von 10 Minuten beim Anbieter bearbeiten und senden.',
+  'workflow.providerPageReloaded': 'Die Seite von {provider} wurde während dieses Schritts neu geladen, daher ist diese Antwort verloren. Wiederholen Sie diesen Schritt.',
   'workflowRole.debate.pro': 'Pro-Argument',
   'workflowRole.debate.con': 'Gegenargument',
   'workflowRole.debate.judge': 'Beurteilung',

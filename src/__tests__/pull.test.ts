@@ -18,6 +18,7 @@ import { onBridgeMessage } from '../bridge/bus';
 import {
   AWAITING_ABSOLUTE_MAX_MS,
   handleTitleMessage,
+  onProviderBootRotation,
   parsePullResult,
   pullProvider,
   pullWithRetry,
@@ -121,6 +122,44 @@ describe('pull transport', () => {
     await pullProvider(provider);
     cleanup();
     expect(messages.filter((msg) => msg.transport === 'pull' && msg.bootId === 'retry').map((msg) => msg.mid)).toEqual([1]);
+  });
+
+  it('fires the boot-rotation listener once when a new bootId checks in after reset', () => {
+    const rotations = vi.fn();
+    const unsubscribe = onProviderBootRotation(rotations);
+    try {
+      handleTitleMessage({ v: 1, action: 'STATUS_REPORT', provider, bootId: 'a', seq: 1, transport: 'title' });
+      resetProviderBootState(provider);
+      handleTitleMessage({ v: 1, action: 'STATUS_REPORT', provider, bootId: 'b', seq: 1, transport: 'title' });
+      expect(rotations).toHaveBeenCalledTimes(1);
+      expect(rotations).toHaveBeenCalledWith(provider);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('does not fire the boot-rotation listener when the same bootId checks in after reset', () => {
+    const rotations = vi.fn();
+    const unsubscribe = onProviderBootRotation(rotations);
+    try {
+      handleTitleMessage({ v: 1, action: 'STATUS_REPORT', provider, bootId: 'a', seq: 1, transport: 'title' });
+      resetProviderBootState(provider);
+      handleTitleMessage({ v: 1, action: 'STATUS_REPORT', provider, bootId: 'a', seq: 2, transport: 'title' });
+      expect(rotations).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it('does not fire the boot-rotation listener for the first boot the host sees', () => {
+    const rotations = vi.fn();
+    const unsubscribe = onProviderBootRotation(rotations);
+    try {
+      handleTitleMessage({ v: 1, action: 'STATUS_REPORT', provider, bootId: 'a', seq: 1, transport: 'title' });
+      expect(rotations).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+    }
   });
 
   it('marks degraded after retry failure, no-ops while degraded, and recovers on new bootId', async () => {

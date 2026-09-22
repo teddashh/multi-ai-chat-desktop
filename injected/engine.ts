@@ -326,6 +326,27 @@ class InactiveSendOperationError extends Error {
     'quill-angular': quillAngularInput,
   };
 
+  function syncFillTitleTurn(): Promise<void> {
+    // emitTitleNow queues emitTitleFrame on titleEmitChain. That job assigns document.title
+    // before its first await, so one turn lands fill:start ahead of a synchronous strategy.
+    return Promise.resolve();
+  }
+
+  function emitComposerFill(phase: 'start' | 'done', fillChars: number, fillMs?: number): void {
+    try {
+      if (typeof bridge.emitTitle !== 'function') return;
+      const payload: { fill: 'start' | 'done'; fillChars: number; fillMs?: number; bootId: string } = {
+        fill: phase,
+        fillChars,
+        bootId: bridge.bootId,
+      };
+      if (fillMs !== undefined) payload.fillMs = fillMs;
+      bridge.emitTitle('STATUS_REPORT', payload, { immediate: true });
+    } catch {
+      // best effort diagnostic only
+    }
+  }
+
   bridge.onDispatch((message: BridgeMessage) => {
     if (message.action === 'ADAPTER_UPDATE') {
       installAdapter(message.payload as AdapterConfig);
@@ -678,7 +699,15 @@ class InactiveSendOperationError extends Error {
     };
     try {
       assertCanMutate();
+      const fillChars = text.length;
+      emitComposerFill('start', fillChars);
+      const fillStartedAt = Date.now();
+      if (activeAdapter.inputStrategy === 'default') {
+        await syncFillTitleTurn();
+        assertCanMutate();
+      }
       await inputStrategies[activeAdapter.inputStrategy](input, text, assertCanMutate);
+      emitComposerFill('done', fillChars, Math.max(0, Date.now() - fillStartedAt));
       assertCanMutate();
       assertInputLanded(input, text, activeAdapter.inputStrategy);
     } catch (error) {
@@ -1051,7 +1080,15 @@ class InactiveSendOperationError extends Error {
     };
     try {
       assertCanMutate();
+      const fillChars = pendingPromptText.length;
+      emitComposerFill('start', fillChars);
+      const fillStartedAt = Date.now();
+      if (activeAdapter.inputStrategy === 'default') {
+        await syncFillTitleTurn();
+        assertCanMutate();
+      }
       await inputStrategies[activeAdapter.inputStrategy](liveInput, pendingPromptText, assertCanMutate);
+      emitComposerFill('done', fillChars, Math.max(0, Date.now() - fillStartedAt));
       assertCanMutate();
       assertInputLanded(liveInput, pendingPromptText, activeAdapter.inputStrategy);
       logEngine(`${provider} send path: restored prompt into remounted composer`);

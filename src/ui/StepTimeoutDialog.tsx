@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { AI_PROVIDERS } from '../../shared/constants';
+import type { AIProvider } from '../../shared/types';
 import type { Locale } from '../i18n/resolve';
 import { formatI18n, t } from '../i18n/t';
-import type { StepRecoveryFailureKind, StepTimeoutAction } from '../workflow/stepTimeout';
+import type { StepRecoveryDetail, StepRecoveryFailureKind, StepTimeoutAction } from '../workflow/stepTimeout';
 import { chooseTimeoutDialogAction } from './timeoutActions';
 import { ModalDialog } from './ModalDialog';
 
@@ -11,6 +13,7 @@ export interface StepTimeoutDialogState {
   timedOut: boolean;
   requestId?: number;
   failureKind?: StepRecoveryFailureKind;
+  recoveryDetail?: StepRecoveryDetail;
 }
 
 export function StepTimeoutDialog({
@@ -46,8 +49,15 @@ export function StepTimeoutDialog({
     chooseTimeoutDialogAction(action, onClose, event.requestId);
   };
   const isProviderError = event.failureKind === 'provider-error';
+  const isPageReloaded = isProviderError && event.recoveryDetail === 'provider-page-reloaded';
   const titleKey = isProviderError ? 'stepTimeout.providerErrorTitle' : 'stepTimeout.title';
-  const descriptionKey = isProviderError ? 'stepTimeout.providerErrorDescription' : 'stepTimeout.description';
+  const descriptionKey = isPageReloaded
+    ? 'workflow.providerPageReloaded'
+    : isProviderError
+      ? 'stepTimeout.providerErrorDescription'
+      : 'stepTimeout.description';
+  const providerLabel =
+    isPageReloaded && event.provider in AI_PROVIDERS ? AI_PROVIDERS[event.provider as AIProvider].name : event.provider;
 
   return (
     <ModalDialog
@@ -58,7 +68,7 @@ export function StepTimeoutDialog({
     >
         <h2 id="step-timeout-title" className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t(titleKey, locale)}</h2>
         <p id="step-timeout-description" className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
-          {formatI18n(t(descriptionKey, locale), { provider: event.provider })}
+          {formatI18n(t(descriptionKey, locale), { provider: providerLabel })}
         </p>
         <div className="mt-4 flex gap-2">
           <button type="button" className="border border-emerald-300 dark:border-emerald-700 px-3 py-2 text-xs hover:bg-emerald-100 dark:hover:bg-emerald-950" onClick={() => choose('retry')}>

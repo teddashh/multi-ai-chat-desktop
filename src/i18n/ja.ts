@@ -175,6 +175,7 @@ export const ja: Record<I18nKey, string> = {
   'workflowStatus.numberedProviderStep': '💻 ステップ {number}/{total} — {provider}：{step}…',
   'workflowStatus.roundtableSpeaker': '🔄 第{round}ラウンド「{phase}」— {provider} が発言中…',
   'workflowStatus.nativeEdit': '{provider}に下書きを挿入しました。10分以内にプロバイダー側で編集して送信してください。',
+  'workflow.providerPageReloaded': '{provider} のページが自分の番の途中で再読み込みされたため、この回答は失われました。このステップを再試行してください。',
   'workflowRole.debate.pro': '賛成側の論述',
   'workflowRole.debate.con': '反対側の反論',
   'workflowRole.debate.judge': '判定レビュー',

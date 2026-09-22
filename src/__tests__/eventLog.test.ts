@@ -198,6 +198,42 @@ describe('event log reducer', () => {
     expect(legacyTimeout.detail).toMatchObject({ failureKind: 'timeout', timedOut: true });
   });
 
+  it('records composer fill advisories as character counts and drops prompt text', () => {
+    const prompt = 'UNIQUE_PROMPT_TOKEN';
+    const started = eventFromBridgeMessage({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'meta',
+      bootId: 'boot-1',
+      seq: 4,
+      payload: { fill: 'start', fillChars: 21233, text: prompt, prompt, content: prompt },
+      transport: 'title',
+    });
+    const finished = eventFromBridgeMessage({
+      v: 1,
+      action: 'STATUS_REPORT',
+      provider: 'meta',
+      bootId: 'boot-1',
+      seq: 5,
+      payload: { fill: 'done', fillChars: 21233, fillMs: 73412, text: prompt, prompt },
+      transport: 'title',
+    });
+
+    expect(started?.summary).toBe('Meta AI composer fill started (21233 chars)');
+    expect(finished?.summary).toBe('Meta AI composer fill finished (21233 chars in 73412 ms)');
+    expect(started?.detail).toMatchObject({ fill: 'start', fillChars: 21233 });
+    expect(started?.detail).not.toHaveProperty('fillMs');
+    expect(finished?.detail).toMatchObject({ fill: 'done', fillChars: 21233, fillMs: 73412 });
+
+    recordEventLog(started);
+    recordEventLog(finished);
+    expect(JSON.stringify(getEventLogSnapshot())).not.toContain(prompt);
+    expect(getEventLogSnapshot().map((event) => event.summary)).toEqual([
+      'Meta AI composer fill started (21233 chars)',
+      'Meta AI composer fill finished (21233 chars in 73412 ms)',
+    ]);
+  });
+
   it('formats only provider-filtered events when copying a filtered log', () => {
     const events = [
       { ts: 1, provider: 'chatgpt' as const, kind: 'provider-state' as const, summary: 'chatgpt-only' },
