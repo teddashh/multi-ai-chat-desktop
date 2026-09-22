@@ -4,15 +4,15 @@
 
 只問一次，讓四個已登入的 AI 網頁 session 互相回答、審查、質疑，再一起收斂結果。**ChatGPT、Claude、Gemini、Grok 仍是預設陣容；Meta AI 是 Settings 裡實驗性的第五家備用選項。** Multi-AI Chat Desktop 是以 Tauri 2 打造的多 AI workflow 中樞，不只是把四個聊天視窗並排。
 
-[**前往官方網站 →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=zh-TW) · [下載 v1.9.4](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4) · [所有版本](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · 不需 API Key · 無分析追蹤
+[**前往官方網站 →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=zh-TW) · [下載 v1.9.5](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5) · [所有版本](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · 不需 API Key · 無分析追蹤
 
 > 本 app 會自動操作你原本就在使用的 provider 網頁。第三方介面改版可能暫時使 adapter 失效，自動化使用也可能受各服務條款約束。請只使用你有權使用的帳號與內容；本 app 不會繞過登入、訂閱、年齡、用量或安全驗證。
 
-> **專案狀態：** 六個預設、底層五種 workflow mode、snapshot／replay，以及可選的 AI-Sister 四角色紀念版仍維持 feature-frozen。v1.9.4 維持五家可選、同時只啟用四家。ChatGPT、Claude、Gemini、Grok 仍是預設；Meta AI 是實驗性的可選備用。
+> **專案狀態：** 六個預設、底層五種 workflow mode、snapshot／replay，以及可選的 AI-Sister 四角色紀念版仍維持 feature-frozen。v1.9.5 會在等待中的步驟遇上 provider 頁面中途被換掉時讓該步驟失敗，並以字數量測輸入框填入。它維持五家可選、同時只啟用四家。ChatGPT、Claude、Gemini、Grok 仍是預設；Meta AI 是實驗性的可選備用。
 
 ## 先安裝
 
-請從 [**v1.9.4 下載頁**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4) 取得目前的穩定版。
+請從 [**v1.9.5 下載頁**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5) 取得目前的穩定版。
 
 | 平台 | 下載檔 | 第一次啟動須知 |
 |---|---|---|
@@ -34,8 +34,10 @@ Ad-hoc 簽章可保護 bundle 完整性，也避免 `v1.0.0` 曾出現的錯誤�
 
 Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest) 更新。安裝版可以檢查新版本並打開下載頁，但 app 不會自行下載或安裝更新。
 
-## v1.9.4 更新重點
+## v1.9.5 更新重點
 
+- **頁面被換掉時步驟會失敗。** 正在等某家 provider 的步驟，若該頁在這一步中途被換掉，現在會失敗，而不是靜默等到逾時。偵測依據是新的 bootId。提示不會再送到換上的頁面，因為若原本那次送出已經落地，再送一次可能會送出兩遍。
+- **輸入框填入會被量測。** 附帶的 `STATUS_REPORT` 欄位 `fill`、`fillChars`、`fillMs` 只帶字數。提示文字不會進入 payload，也不會進入事件日誌。
 - **ChatGPT 回覆會回到 app。** 當 ChatGPT 用折疊的 turn 取代你的訊息時，擷取所釘住的錨點會離開頁面。擷取現在會保留已採用的錨點、忽略已脫離的錨點，並在觀察到生成之後讀取沒有錨點的回覆。畫面上已經完成的回覆，不再等到步驟逾時。
 - **Meta 送出與接收已確認。** 一次 Windows 上的 v1.9.3 執行，透過 Meta AI 完成了兩次道理辯證發言。停止、新對話重置與 profile 持久化仍未驗證。
 - **Meta 登入會被認得。** 可見、可編輯的輸入框會標成已登入，即使頁面上還留著登入按鈕或 inert 欄位。
@@ -46,7 +48,7 @@ Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Release
 - **失敗操作可恢復。** Login、reload、report、replay 失敗可以重試；重複或過期點擊會被忽略。
 - **以目前啟用陣容做 preflight。** 即使備用仍顯示 Ready，workflow 也只檢查目前四家。Meta 啟用時 Debate 席位會涵蓋它。
 
-完整內容請見[發布說明](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4)。
+完整內容請見[發布說明](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5)。
 
 ## 桌面版還是瀏覽器外掛？
 
@@ -87,7 +89,7 @@ Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Release
 
 結構化 workflow 會先檢查所有必要角色。如果 provider 不可用，app 會指出是哪一家，讓你開啟／登入、重新指派角色或改選其他模式，不會偷偷替換 provider。一般結構化 workflow 遇到持續錯誤會停止；腦力激盪則暫停，等待你明確選擇重試、略過或取消。
 
-腦力激盪刻意設計成最重的預設：請讓四個預設 provider session 都保持登入，並預留約 **45–90 分鐘**。48 次發言的恢復路徑已有自動測試；v1.9.4 沒有新增真實帳號的 ChatGPT↔Grok 慢速接力檢查。
+腦力激盪刻意設計成最重的預設：請讓四個預設 provider session 都保持登入，並預留約 **45–90 分鐘**。48 次發言的恢復路徑已有自動測試；v1.9.5 沒有新增真實帳號的 ChatGPT↔Grok 慢速接力檢查。
 
 Workflow 完成後，可從底部 composer 繼續同一個 app conversation；要乾淨的 session context 時請選「**新增對話**」。
 
@@ -110,7 +112,7 @@ Workflow 完成後，可從底部 composer 繼續同一個 app conversation；�
 - **Windows x64** 有已驗證的 packaged launch 證據，但未簽章產物可能觸發 SmartScreen。
 - **macOS Apple Silicon** 僅部分驗證。DMG 為 ad-hoc 簽章且未 notarize；較早的實機回報能開啟 app 並登入 ChatGPT、Claude、Gemini，但 Grok 卡在 Cloudflare。現行 Grok 恢復流程仍需 Apple Silicon live retest；沒有 Intel 產物。
 - **Linux x86_64** 目前只有 CI packaging 驗證，沒有 maintainer 的新實機啟動報告。
-- v1.9.4 的 ChatGPT 擷取修復只有針對性測試；尚未執行 ChatGPT 實機重測。一次 Windows 的 v1.9.3 執行，確實確認了已登入 Meta 在兩次道理辯證發言中的送出、接收與完成。Meta 的停止、新對話重置與 profile 持久化仍未驗證，Grok Heavy 也沒有執行。先前的 Windows packaged launch 證據、較早的 Apple Silicon ChatGPT／Claude／Gemini 登入回報（Grok 卡在 Cloudflare），以及 Linux 僅 CI packaging，仍是目前紀錄。Grok Cloudflare challenge 路徑，以及新的 Apple Silicon 啟動與 provider 登入 smoke，這次也沒有重做；Grok 恢復生成的計時器路徑仍只有自動測試覆蓋。
+- v1.9.5 的修復尚未實機重測。證據是自動測試，加上對一份 2026-09-22 錄下的 bundle 重放：新的失敗只出現一次，就在真正卡住的那一步，15 個已完成步驟沒有誤判。新的失敗需要看到文件被換成新的 bootId。provider 的 engine 若靜默或卡住、而頁面始終沒有被換掉，這一步仍會等到 10 分鐘不活動窗口和 60 分鐘絕對上限；v1.9.5 並沒有修好每一次停住。Meta 維持 `inputStrategy: "default"`。它在很長的提示上呼叫 `execCommand('insertText', …)` 是否就是把 renderer 卡住的原因，仍然沒有證明；新的 fill 標記是為了以後用實地量測把這件事定下來。v1.9.4 發布說明裡標成尚未執行的 ChatGPT 實機重測，已經在已發布的 v1.9.4 上跑過，折疊 turn 的擷取與完成有通過（同一個沒換過的 bootId 上三輪；送出 5,439／9,848／15,408 字，分別在 157.0／178.1／253.0 秒完成）。那次執行沒有碰到 v1.9.5 的修復。Meta 的停止、新對話重置與 profile 持久化仍未驗證，Grok Heavy 也沒有執行。先前的 Windows packaged launch 證據、較早的 Apple Silicon ChatGPT／Claude／Gemini 登入回報（Grok 卡在 Cloudflare），以及 Linux 僅 CI packaging，仍是目前紀錄。Grok Cloudflare challenge 路徑，以及新的 Apple Silicon 啟動與 provider 登入 smoke，這次也沒有重做；Grok 恢復生成的計時器路徑仍只有自動測試覆蓋。v1.9.5 沒有新的 Windows、macOS 或 Linux 啟動檢查。
 - Meta AI 的訪客、Email／手機或 Facebook／Instagram 登入必須在 Meta 窗格內完成。在別的瀏覽器登入無法回到 app。
 - Snapshot／replay／checkpoint 只維護既有相容性。除了實驗性的 Meta AI 備用選項外，本功能凍結版本不規劃 marketplace、graph editor、更多 provider 擴充、新 persistence schema、內嵌 terminal agent、telemetry、Developer ID／notarization 計畫或 self-updater。
 

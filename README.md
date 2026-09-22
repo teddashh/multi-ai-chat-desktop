@@ -4,15 +4,15 @@
 
 Ask once. Let four signed-in AI web sessions answer, review, challenge, and refine one another. **ChatGPT, Claude, Gemini, and Grok remain the default lineup; Meta AI is an experimental fifth standby option in Settings.** Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
 
-[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.9.4](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
+[**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.9.5](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
 
 > This app automates provider web pages you already use. Provider UI changes can temporarily break an adapter, and automated use may be subject to each provider's terms. Use only accounts and content you are authorized to use. The app never bypasses login, subscription, age, rate-limit, or security checks.
 
-> **Project status:** six presets, five underlying workflow modes, snapshot/replay tools, and the optional AI-Sister Commemorative Edition remain feature-frozen. v1.9.4 keeps five provider choices with exactly four active at a time. ChatGPT, Claude, Gemini, and Grok remain the default; Meta AI is an experimental optional standby.
+> **Project status:** six presets, five underlying workflow modes, snapshot/replay tools, and the optional AI-Sister Commemorative Edition remain feature-frozen. v1.9.5 fails a waiting step when its provider page is replaced mid-turn, and measures composer fill as character counts only. It keeps five provider choices with exactly four active at a time. ChatGPT, Claude, Gemini, and Grok remain the default; Meta AI is an experimental optional standby.
 
 ## Install first
 
-Get the current stable release from the [**v1.9.4 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4).
+Get the current stable release from the [**v1.9.5 download page**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5).
 
 | Platform | Download | First-launch note |
 |---|---|---|
@@ -34,8 +34,10 @@ The ad-hoc signature protects bundle integrity and avoids the false “app is da
 
 Portable Windows builds do not show in-app update controls. Update them manually from [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installed builds can check for a newer release and open its download page, but the app does not download or install updates itself.
 
-## What's new in v1.9.4
+## What's new in v1.9.5
 
+- **A replaced page fails the step.** A step waiting on a provider now fails when that provider's page is replaced mid-turn, instead of silently waiting out the timeout. Detection is a new bootId. The prompt is not re-sent to the replacement page, because a re-send could double-send if the original send had landed.
+- **Composer fill is measured.** Advisory `STATUS_REPORT` fields `fill`, `fillChars`, and `fillMs` carry character counts only. Prompt text never goes into the payload or the event log.
 - **ChatGPT replies reach the app.** When ChatGPT replaces your message with a collapsed turn, the anchor that capture was pinned to leaves the page. Capture now keeps the adopted anchor, ignores a detached one, and can read a reply with no anchor once generation has been seen. A reply finished on screen no longer waits out the step timeout.
 - **Meta send and receive confirmed.** A Windows run on v1.9.3 completed two roundtable speeches through Meta AI. Stop, new-session reset, and profile persistence are still unverified.
 - **Meta login is recognized.** A visible, editable composer counts as logged in, even if a login button or inert placeholder is still on the page.
@@ -46,7 +48,7 @@ Portable Windows builds do not show in-app update controls. Update them manually
 - **Recover failed actions.** Login, reload, report, and replay errors can be retried. Duplicate and stale clicks are ignored.
 - **Active-lineup preflight.** Workflows check the current four even if a standby still looks Ready. Debate seats cover Meta when it is active.
 
-Read the [release notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4).
+Read the [release notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5).
 
 ## Desktop or browser extension?
 
@@ -87,7 +89,7 @@ Choose Desktop when you want a dedicated workspace and the full local workflow t
 
 Structured workflows preflight every required role. If a provider is unavailable, the app identifies it and lets you open/login, reassign the role, or choose another mode; it never silently substitutes a provider. Standard structured workflows stop on a persistent provider error. Brainstorm instead pauses for an explicit Retry, Skip, or Cancel choice.
 
-Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its 48-contribution recovery path has automated coverage; v1.9.4 does not add a new real-account ChatGPT↔Grok slow-handoff check.
+Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its 48-contribution recovery path has automated coverage; v1.9.5 does not add a new real-account ChatGPT↔Grok slow-handoff check.
 
 After a workflow finishes, continue from the bottom composer to keep the same app conversation. Choose **New conversation** for clean session context.
 
@@ -110,7 +112,7 @@ Report vulnerabilities privately through [SECURITY.md](./SECURITY.md); never put
 - **Windows x64** has verified packaged launch evidence, but artifacts are unsigned and can trigger SmartScreen.
 - **macOS Apple Silicon** is partially verified. The DMG is ad-hoc signed and not notarized; an earlier real-device report opened the app and logged into ChatGPT, Claude, and Gemini, while Grok remained on Cloudflare. Current Grok recovery still needs a live Apple Silicon retest. There is no Intel artifact.
 - **Linux x86_64** packaging is CI-verified only; there is no current maintainer real-device launch report.
-- For v1.9.4, the ChatGPT capture fix has focused tests only; a live ChatGPT retest has not been run. A Windows run on v1.9.3 did confirm authenticated Meta send, receive, and completion across two roundtable speeches, while Meta stop, new-session reset, and profile persistence remain unverified and Grok Heavy was not exercised. Prior Windows packaged-launch evidence, the earlier Apple Silicon ChatGPT/Claude/Gemini login report (Grok remained on Cloudflare), and Linux CI-only packaging remain the current record. The Grok Cloudflare challenge path and a new Apple Silicon launch/provider-login smoke were not repeated either, and the Grok resume-timer path still has automated coverage only.
+- The v1.9.5 fixes have not been retested live. Evidence is automated tests plus a replay of a recorded 2026-09-22 bundle: the new failure fired once, on the step that actually hung, with zero false failures across the 15 completed steps. The new failure needs a document replacement seen as a new bootId. A provider engine that goes silent or wedges while its page is never replaced still waits out the 10-minute inactivity window and the 60-minute absolute cap; v1.9.5 does not fix every stall. Meta stays on `inputStrategy: "default"`. Whether its `execCommand('insertText', …)` on a very large prompt wedged the renderer is still unproven; the new fill markers exist so a later field measurement can settle it. The ChatGPT live retest that the v1.9.4 notes listed as not-yet-run has now run on published v1.9.4, and capture and completion passed across collapsed turns (three rounds on one unchanged bootId; sends of 5,439 / 9,848 / 15,408 characters completing in 157.0 / 178.1 / 253.0 s). That run does not exercise the v1.9.5 fixes. Meta stop, new-session reset, and profile persistence remain unverified, and Grok Heavy was not exercised. Prior Windows packaged-launch evidence, the earlier Apple Silicon ChatGPT/Claude/Gemini login report (Grok remained on Cloudflare), and Linux CI-only packaging remain the current record. The Grok Cloudflare challenge path and a new Apple Silicon launch/provider-login smoke were not repeated either, and the Grok resume-timer path still has automated coverage only. There is no new Windows, macOS, or Linux launch check for v1.9.5.
 - Meta AI guest, email/mobile, or Facebook/Instagram sign-in must finish in the Meta pane. A login in another browser cannot return to the app.
 - Snapshots/replay/checkpoints are compatibility-maintained in their shipped form. Beyond the experimental Meta AI standby, there is no marketplace, graph editor, further provider expansion, new persistence schema, embedded terminal agent, telemetry roadmap, Developer ID/notarization program, or self-updater planned for this feature-frozen edition.
 
