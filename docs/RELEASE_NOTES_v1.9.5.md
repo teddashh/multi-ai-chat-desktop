@@ -32,6 +32,8 @@ The same release measures composer fill. Advisory `STATUS_REPORT` fields `fill`,
 - `v1.9.4` 發布說明裡標成尚未執行的 ChatGPT 實機重測，已經在已發布的 `v1.9.4` 上跑過，折疊 turn 的擷取與完成有通過。同一個沒換過的 bootId `r3tn4wtt` 完成三輪：「開場立論」送出 5,439 字，157.0 秒後以 1,228 字 `RESPONSE_DONE`；「交叉質疑」送出 9,848 字，178.1 秒後以 1,683 字完成；「攻防深化」送出 15,408 字，253.0 秒後以 1,988 字完成。9,848 字與 15,408 字長到會折進 `Show more`。這是擁有者自己的 Roundtable，不是把煙霧測試逐條跑完，所以「不要手動按 Send」以及「`Pro thinking` 仍在時，中間文字已經回到 app」這兩條沒有各自的證據。這次執行沒有碰到 `v1.9.5` 的修復。
 - Known gap: whether Meta's `execCommand('insertText', …)` on a very large prompt is what wedged the renderer is still unproven. The trouble scaled with prompt size, which is circumstantial. The new fill markers exist so a later field measurement can settle it. Meta stays on `inputStrategy: "default"` until that measurement arrives.
 - 已知缺口：Meta 在很長的提示上呼叫 `execCommand('insertText', …)` 是否就是把 renderer 卡住的原因，仍然沒有證明。問題隨著提示變長而變重，這只是旁證。新的 fill 標記是為了以後用實地量測把這件事定下來。那份量測出現之前，Meta 維持 `inputStrategy: "default"`。
+- Known gap: the new failure triggers on a document replacement, detected as a new bootId. If a provider's engine goes silent or wedges and its page is never replaced, that step still waits out the 10-minute inactivity window and the 60-minute absolute cap, exactly as before. The composer-fill markers are what would let a later bundle tell those two cases apart.
+- 已知缺口：新的失敗在文件被換掉時觸發，依據是新的 bootId。provider 的 engine 若靜默或卡住，而頁面始終沒有被換掉，這一步仍會等到 10 分鐘不活動窗口和 60 分鐘絕對上限，與以前相同。之後的 bundle 要分辨這兩種情況，靠的是輸入框的 fill 標記。
 - The open step now fails when its provider page is replaced, where that replacement previously looked like a stall. A provider whose page flaps mid-step surfaces as a visible error.
 - 進行中的步驟在 provider 頁面被換掉時現在會失敗；同樣的替換以前看起來只是停住。頁面若在步驟中途一再重載，畫面上會看到錯誤。
 
