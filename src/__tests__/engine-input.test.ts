@@ -256,8 +256,7 @@ describe('injected engine input hardening', () => {
     dispatchAdapter(handler, { inputStrategy: 'prosemirror-paste' });
 
     send(handler, 'must not reach a fallback');
-    await flushMicrotasks();
-    await flushMicrotasks();
+    await drainUntilSettled(env);
 
     expect(env.input.textContent).toBe('');
     expect(env.sendButton?.clickCount).toBe(0);
@@ -283,8 +282,10 @@ describe('injected engine input hardening', () => {
     dispatchAdapter(handler, { inputStrategy: 'prosemirror-paste' });
 
     fill(handler, 'blocked fill');
-    await flushMicrotasks();
-    await flushMicrotasks();
+    await drainUntilSettled(env);
+    expect(env.input.textContent).toBe('');
+    expect(env.sendButton?.clickCount).toBe(0);
+    expect(keyEventCount(env.input)).toBe(0);
     env.cloudflareChallenge = false;
     env.input.onDispatch = undefined;
 
@@ -3377,6 +3378,87 @@ describe('injected engine input hardening', () => {
     expect(JSON.stringify(env.emitted)).not.toContain('UNIQUE_PROMPT_TOKEN');
   });
 
+  it('records the fill start advisory before a prosemirror-paste mutation', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    const prompt = 'UNIQUE_PROMPT_TOKEN';
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'chatgpt', inputStrategy: 'prosemirror-paste' });
+    recordTitleEmitsOnMicrotask();
+
+    let titleEmitsAtMutation: FakeDomEnv['titleEmits'] | undefined;
+    let textAtMutation: string | undefined;
+    env.input.onDispatch = (event) => {
+      if (event.type !== 'paste' || titleEmitsAtMutation !== undefined) return;
+      textAtMutation = env.input.textContent;
+      titleEmitsAtMutation = env.titleEmits.slice();
+    };
+
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+
+    expect(textAtMutation).toBe('');
+    expect(titleEmitsAtMutation).toEqual([fillStartTitleEmit(prompt.length)]);
+    expect(JSON.stringify(titleEmitsAtMutation)).not.toContain('UNIQUE_PROMPT_TOKEN');
+  });
+
+  it('records the fill start advisory before a prosemirror-paste textarea mutation', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = 'UNIQUE_PROMPT_TOKEN';
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { inputStrategy: 'prosemirror-paste' });
+    recordTitleEmitsOnMicrotask();
+    const writes = captureTitleEmitsOnTextareaWrite(env);
+
+    try {
+      send(handler, prompt);
+      await flushMicrotasks();
+
+      expect(writes.textAtWrite).toBe('');
+      expect(writes.titleEmitsAtWrite).toEqual([fillStartTitleEmit(prompt.length)]);
+      expect(JSON.stringify(writes.titleEmitsAtWrite)).not.toContain('UNIQUE_PROMPT_TOKEN');
+    } finally {
+      writes.restore();
+    }
+  });
+
+  it('records the fill start advisory before a quill-angular mutation', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    const prompt = `UNIQUE_PROMPT_TOKEN\n${'y'.repeat(40)}`;
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'gemini', inputStrategy: 'quill-angular' });
+    recordTitleEmitsOnMicrotask();
+
+    let titleEmitsAtMutation: FakeDomEnv['titleEmits'] | undefined;
+    let paragraphsAtMutation: number | undefined;
+    const originalReplace = env.input.replaceChildren.bind(env.input);
+    const originalAppend = env.input.appendChild.bind(env.input);
+    const capture = () => {
+      if (titleEmitsAtMutation !== undefined) return;
+      paragraphsAtMutation = env.input.querySelectorAll('p').length;
+      titleEmitsAtMutation = env.titleEmits.slice();
+    };
+    env.input.replaceChildren = () => {
+      capture();
+      originalReplace();
+    };
+    env.input.appendChild = (child) => {
+      capture();
+      return originalAppend(child);
+    };
+
+    send(handler, prompt, 'gemini');
+    await flushMicrotasks();
+
+    expect(paragraphsAtMutation).toBe(0);
+    expect(titleEmitsAtMutation).toEqual([fillStartTitleEmit(prompt.length)]);
+    expect(JSON.stringify(titleEmitsAtMutation)).not.toContain('UNIQUE_PROMPT_TOKEN');
+    expect(JSON.stringify(env.titleEmits)).not.toContain('UNIQUE_PROMPT_TOKEN');
+    expect(JSON.stringify(env.emitted)).not.toContain('UNIQUE_PROMPT_TOKEN');
+  });
+
   it('aborts a default-strategy fill when a challenge appears during the title yield', async () => {
     vi.useFakeTimers();
     const env = createEnv({ inputKind: 'contenteditable' });
@@ -3496,6 +3578,83 @@ function keyEventCount(el: FakeElement): number {
 async function flushMicrotasks() {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+function engineActivitySnapshot(env: FakeDomEnv): string {
+  return JSON.stringify({
+    emitted: env.emitted,
+    titleEmits: env.titleEmits,
+    text: env.input.textContent,
+    clicks: env.sendButton?.clickCount ?? 0,
+    keys: keyEventCount(env.input),
+  });
+}
+
+// The pre-strategy title turn moves challenge and release work by one microtask.
+// Wait until observable engine state stays quiet long enough for the trailing
+// releaseFillOperation / releaseSendOperation bookkeeping, which changes no message.
+async function drainUntilSettled(env: FakeDomEnv) {
+  let snapshot = engineActivitySnapshot(env);
+  let stablePasses = 0;
+  for (let step = 0; step < 40 && stablePasses < 3; step += 1) {
+    await flushMicrotasks();
+    const next = engineActivitySnapshot(env);
+    if (next === snapshot) stablePasses += 1;
+    else {
+      stablePasses = 0;
+      snapshot = next;
+    }
+  }
+  if (stablePasses < 3) throw new Error('engine did not settle');
+}
+
+function fillStartTitleEmit(fillChars: number) {
+  return {
+    action: 'STATUS_REPORT',
+    payload: { fill: 'start', fillChars, bootId: 'boot1' },
+    options: { immediate: true },
+  };
+}
+
+function recordTitleEmitsOnMicrotask() {
+  const bridge = macBridge();
+  const record = bridge.emitTitle.bind(bridge);
+  bridge.emitTitle = (action, payload, options) => {
+    void Promise.resolve().then(() => {
+      record(action, payload, options);
+    });
+  };
+}
+
+function captureTitleEmitsOnTextareaWrite(env: FakeDomEnv): {
+  textAtWrite: string | undefined;
+  titleEmitsAtWrite: FakeDomEnv['titleEmits'] | undefined;
+  restore: () => void;
+} {
+  const descriptor = Object.getOwnPropertyDescriptor(FakeTextAreaElement.prototype, 'value');
+  if (!descriptor?.set || !descriptor.get) throw new Error('textarea value accessor missing');
+  const originalSet = descriptor.set;
+  const originalGet = descriptor.get;
+  const observed = {
+    textAtWrite: undefined as string | undefined,
+    titleEmitsAtWrite: undefined as FakeDomEnv['titleEmits'] | undefined,
+    restore() {
+      Object.defineProperty(FakeTextAreaElement.prototype, 'value', descriptor);
+    },
+  };
+  Object.defineProperty(FakeTextAreaElement.prototype, 'value', {
+    configurable: true,
+    enumerable: descriptor.enumerable,
+    get: originalGet,
+    set(this: FakeTextAreaElement, next: string) {
+      if (observed.titleEmitsAtWrite === undefined) {
+        observed.textAtWrite = originalGet.call(this);
+        observed.titleEmitsAtWrite = env.titleEmits.slice();
+      }
+      originalSet.call(this, next);
+    },
+  });
+  return observed;
 }
 
 function fillPhase(payload: unknown): string | undefined {

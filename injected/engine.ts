@@ -327,8 +327,9 @@ class InactiveSendOperationError extends Error {
   };
 
   function syncFillTitleTurn(): Promise<void> {
-    // emitTitleNow queues emitTitleFrame on titleEmitChain. That job assigns document.title
-    // before its first await, so one turn lands fill:start ahead of a synchronous strategy.
+    // emitTitleNow queues emitTitleFrame on titleEmitChain. Every strategy performs its first
+    // composer mutation before its own first await, so the queued title write has to take this
+    // turn first. Otherwise a wedge inside that mutation emits neither fill:start nor fill:done.
     return Promise.resolve();
   }
 
@@ -702,10 +703,8 @@ class InactiveSendOperationError extends Error {
       const fillChars = text.length;
       emitComposerFill('start', fillChars);
       const fillStartedAt = Date.now();
-      if (activeAdapter.inputStrategy === 'default') {
-        await syncFillTitleTurn();
-        assertCanMutate();
-      }
+      await syncFillTitleTurn();
+      assertCanMutate();
       await inputStrategies[activeAdapter.inputStrategy](input, text, assertCanMutate);
       emitComposerFill('done', fillChars, Math.max(0, Date.now() - fillStartedAt));
       assertCanMutate();
@@ -1083,10 +1082,8 @@ class InactiveSendOperationError extends Error {
       const fillChars = pendingPromptText.length;
       emitComposerFill('start', fillChars);
       const fillStartedAt = Date.now();
-      if (activeAdapter.inputStrategy === 'default') {
-        await syncFillTitleTurn();
-        assertCanMutate();
-      }
+      await syncFillTitleTurn();
+      assertCanMutate();
       await inputStrategies[activeAdapter.inputStrategy](liveInput, pendingPromptText, assertCanMutate);
       emitComposerFill('done', fillChars, Math.max(0, Date.now() - fillStartedAt));
       assertCanMutate();
