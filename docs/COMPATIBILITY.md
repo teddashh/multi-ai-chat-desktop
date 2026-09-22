@@ -1,6 +1,6 @@
 # Compatibility and Smoke-Test Matrix / 相容性與人工測試矩陣
 
-> Last reviewed: 2026-09-21 while preparing v1.9.4. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
+> Last reviewed: 2026-09-22 after publishing v1.9.4. This document records evidence, not a guarantee. Provider DOM and login flows can change without notice.
 
 ## Status legend
 

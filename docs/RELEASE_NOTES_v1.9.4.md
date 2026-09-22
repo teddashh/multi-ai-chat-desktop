@@ -26,5 +26,9 @@ A Windows zh-TW `v1.9.3` Roundtable run showed the failure: Meta finished two sp
 - **ChatGPT 的實機重測尚未在 `v1.9.4` 上執行。** 這個修復目前只有針對性測試覆蓋。
 - Known gap: a reply that ends with no thinking detector, no strong activity signal, and no resolvable anchor can still stay silent until the host step timeout. Widening the trigger further would risk emitting pre-send DOM, so it was left narrow.
 - 已知缺口：如果一則回覆結束時既沒有思考偵測、也沒有強活動訊號、又無法解析錨點，仍會沉默到 host 步驟逾時。把觸發條件放得更寬，會有把送出前的 DOM 當成回覆送出的風險，因此維持保守。
+- Release tag `v1.9.4` artifacts were SHA-256 checked, the portable zip CRC-tested clean with a `PORTABLE` marker, and all four artifacts were unpacked to confirm the shipped binaries contain the fix.
+- `v1.9.4` 產物已核對 SHA-256，portable zip CRC 通過且含 `PORTABLE` 標記，四個產物也都解開確認二進位內含此修復。
+
+Published: https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4
 
 **Full changelog:** https://github.com/teddashh/multi-ai-chat-desktop/compare/v1.9.3...v1.9.4

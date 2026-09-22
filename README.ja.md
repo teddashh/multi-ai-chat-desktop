@@ -4,15 +4,15 @@
 
 一度質問するだけで、ログイン済みの4つのAI Webセッションが回答し、レビューし、反論しながら結果を磨きます。**ChatGPT、Claude、Gemini、Grokが引き続きデフォルトで、Meta AIはSettingsで選べる実験的な5番目のスタンバイです。** Multi-AI Chat Desktopは、4つのチャットを横に並べただけではない、Tauri 2製のマルチAIワークフローハブです。
 
-[**公式サイトを見る →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=ja) · [v1.9.3をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.3) · [すべてのリリース](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · APIキー不要 · アナリティクスなし
+[**公式サイトを見る →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=ja) · [v1.9.4をダウンロード](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4) · [すべてのリリース](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · APIキー不要 · アナリティクスなし
 
 > このアプリは、普段利用しているプロバイダーのWebページを自動操作します。プロバイダー側のUI変更でアダプターが一時的に動かなくなる場合があり、自動操作には各サービスの利用規約が適用されることがあります。利用権限のあるアカウントとコンテンツだけを使用してください。ログイン、契約、年齢、利用上限、セキュリティ確認を回避する機能はありません。
 
-> **プロジェクト状況：** 6プリセット、基盤となる5ワークフローモード、snapshot／replay、任意のAI-Sister 4キャラクター記念版は引き続き機能凍結です。v1.9.3は5プロバイダー中ちょうど4つだけを有効にします。ChatGPT、Claude、Gemini、Grokがデフォルトで、Meta AIは実験的な任意スタンバイです。
+> **プロジェクト状況：** 6プリセット、基盤となる5ワークフローモード、snapshot／replay、任意のAI-Sister 4キャラクター記念版は引き続き機能凍結です。v1.9.4は5プロバイダー中ちょうど4つだけを有効にします。ChatGPT、Claude、Gemini、Grokがデフォルトで、Meta AIは実験的な任意スタンバイです。
 
 ## まずインストール
 
-現在の安定版は[**v1.9.3ダウンロードページ**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.3)から入手できます。
+現在の安定版は[**v1.9.4ダウンロードページ**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4)から入手できます。
 
 | プラットフォーム | ダウンロード | 初回起動時の注意 |
 |---|---|---|
@@ -34,8 +34,10 @@ Ad-hoc署名はbundleの完全性を守り、`v1.0.0` で発生した誤った�
 
 Windows portable版にはアプリ内更新UIがありません。[GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest)から手動で更新してください。インストール版は新しいリリースを確認してダウンロードページを開けますが、アプリ自身が更新をダウンロード／インストールすることはありません。
 
-## v1.9.3の主な変更
+## v1.9.4の主な変更
 
+- **ChatGPTの返信がアプリに届く。** ChatGPTがあなたのメッセージを折りたたまれたturnに置き換えると、captureが固定していたanchorはページから離れます。Captureは採用済みのanchorを保持し、離脱したanchorは無視し、生成を観測した後はanchorのない返信も読めます。画面上で完了した返信は、step timeoutを待たなくなります。
+- **Metaの送受信を確認。** v1.9.3のWindows実行で、Meta AIを通じてRoundtableの発言を2件完了しました。Stop、new-session reset、profile persistenceは未検証のままです。
 - **Metaログインを認識。** 表示されて編集できる入力欄があればログイン済みです。ログインボタンやinertな欄が残っていても同じです。
 - **Metaログインはペイン内。** Facebook／Instagramのログインはアプリ内で完了します。別のブラウザでログインしても、隔離されたMeta profileには戻れません。
 - **Grok Heavy再開時のタイマー。** stopが復元して生成が続き、中間回答のテキストが変わらない場合、古い静穏タイマーを取り消して生成終了を待ちます。
@@ -44,7 +46,7 @@ Windows portable版にはアプリ内更新UIがありません。[GitHub Releas
 - **失敗した操作の回復。** Login、reload、report、replayの失敗は再試行できます。重複や古いクリックは無視されます。
 - **現在の有効4件でpreflight。** StandbyがReadyのまま残っていても、workflowは現在の4件だけを確認します。Metaが有効なとき、Debate席はそれをカバーします。
 
-詳細は[リリースノート](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.3)をご覧ください。
+詳細は[リリースノート](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.4)をご覧ください。
 
 ## Desktopとブラウザー拡張のどちらを選ぶ？
 
@@ -85,7 +87,7 @@ Windows portable版にはアプリ内更新UIがありません。[GitHub Releas
 
 構造化workflowは開始前に必要な全roleを確認します。利用できないプロバイダーがあれば、その名前を示し、open／login、role再割り当て、別modeへの切り替えを案内します。暗黙のプロバイダー置換はしません。通常の構造化workflowは継続するprovider errorで停止し、Brainstormだけは再試行・スキップ・キャンセルの明示選択まで一時停止します。
 
-Brainstormは意図的に最も重いpresetです。標準の4 provider sessionをすべてログイン済みにし、約 **45〜90分** を見込んでください。48件の復旧経路には自動テストがあります。v1.9.3では実アカウントによるChatGPT↔Grokの遅いハンドオフ確認は新たに実施していません。
+Brainstormは意図的に最も重いpresetです。標準の4 provider sessionをすべてログイン済みにし、約 **45〜90分** を見込んでください。48件の復旧経路には自動テストがあります。v1.9.4では実アカウントによるChatGPT↔Grokの遅いハンドオフ確認は新たに実施していません。
 
 Workflow完了後は画面下のcomposerから同じapp conversationを続けられます。文脈を一新する場合は「**新しい会話**」を選んでください。
 
@@ -108,7 +110,7 @@ Workflow完了後は画面下のcomposerから同じapp conversationを続けら
 - **Windows x64** はpackaged launchの検証実績がありますが、未署名artifactがSmartScreenを表示する場合があります。
 - **macOS Apple Silicon** は部分検証です。DMGはad-hoc署名済み・notarize未実施です。以前の実機報告ではアプリを開きChatGPT、Claude、Geminiへloginできましたが、GrokはCloudflareで停止しました。現在のGrok復旧もApple Siliconでlive retestが必要です。Intel artifactはありません。
 - **Linux x86_64** はCI packagingのみ検証済みで、maintainerによる新しい実機起動報告はありません。
-- v1.9.3では、認証済みMeta、Grok Heavy ↔ ChatGPT Astra、またはVMの新しいsmokeは実施していません。以前のWindows packaged launch証拠、以前のApple SiliconでのChatGPT／Claude／Gemini login報告（GrokはCloudflareで停止）、LinuxのCI packagingのみ、が現在の記録です。実アカウントのChatGPT↔Grok遅いハンドオフ、Grok Cloudflare challenge、新しいApple Silicon起動とprovider login smokeは手動で再実施していません。Grok再開タイマー経路は自動テストのみです。
+- v1.9.4では、ChatGPT capture修正はfocused testのみで、ChatGPTのlive再テストは実施していません。v1.9.3のWindows実行では、Roundtableの発言2件にわたって認証済みMetaの送信、受信、完了を確認しました。Metaのstop、new-session reset、profile persistenceは未検証のままで、Grok Heavyは実行していません。以前のWindows packaged launch証拠、以前のApple SiliconでのChatGPT／Claude／Gemini login報告（GrokはCloudflareで停止）、LinuxのCI packagingのみ、が現在の記録です。Grok Cloudflare challengeの経路と、新しいApple Silicon起動とprovider login smokeも再実施していません。Grok再開タイマー経路は引き続き自動テストのみです。
 - Meta AIのゲスト、メール／携帯、またはFacebook／InstagramログインはMetaペイン内で完了する必要があります。別のブラウザでログインしてもappには戻れません。
 - Snapshot／replay／checkpointは既存互換性だけを保守します。実験的なMeta AIスタンバイ以外に、marketplace、graph editor、さらなるprovider追加、新persistence schema、組み込みterminal agent、telemetry、Developer ID／notarization program、self-updaterを追加する予定はありません。
 
