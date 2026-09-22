@@ -1,14 +1,16 @@
 import type { AIProvider, ChatMode, ModeRoles, WorkflowPresetId } from '../../shared/types';
-import { CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
+import { AI_PROVIDERS, CHAT_MODES, DEFAULT_FREE_TARGET_PROVIDERS } from '../../shared/constants';
 import { getRuntimeAppVersion } from '../appVersion';
 import { host } from '../host';
 import type { Locale } from '../i18n/resolve';
+import { formatI18n, t } from '../i18n/t';
 import { abortWorkflow, getInFlightProviders } from './cancel';
 import { emitSystemError, sendWorkflowStatus } from './events';
 import { executeGraph, preflightGraph, workflowGraphs } from './graph';
 import type { PreflightResult } from './preflight';
 import { prepareWorkflowRun } from './runtime';
 import type { ResponseLanguagePolicy } from './responseLanguage';
+import { isProviderPageReloadedError } from './providerResponse';
 import { isSendable } from './sendability';
 import { persistSnapshotIfEnabled } from './snapshot/persistence';
 import type { SnapshotRedactionTier } from './snapshot/types';
@@ -109,10 +111,19 @@ async function runPreparedWorkflow({
     return { ok: true };
   } catch (error) {
     await tearDownWaiters(getInFlightProviders(), { stopClick: true });
-    emitSystemError((error as Error).message);
+    emitSystemError(workflowFailureText(error, locale));
     sendWorkflowStatus('');
     return { ok: true };
   }
+}
+
+function workflowFailureText(error: unknown, locale: Locale | undefined): string {
+  if (isProviderPageReloadedError(error)) {
+    return formatI18n(t('workflow.providerPageReloaded', locale ?? 'en'), {
+      provider: AI_PROVIDERS[error.provider].name,
+    });
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function beginWorkflowRun(): Promise<ActiveWorkflowRun> {

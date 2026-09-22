@@ -173,6 +173,7 @@ export const en: Record<I18nKey, string> = {
   'workflowStatus.numberedProviderStep': '💻 Step {number}/{total} — {provider}: {step}…',
   'workflowStatus.roundtableSpeaker': '🔄 Round {round} “{phase}” — {provider} speaking…',
   'workflowStatus.nativeEdit': 'Draft inserted for {provider}. Edit and send it in the provider within 10 minutes.',
+  'workflow.providerPageReloaded': "{provider}'s page reloaded during its turn, so this answer was lost. Retry that step.",
   'workflowRole.debate.pro': 'Pro argument',
   'workflowRole.debate.con': 'Counterargument',
   'workflowRole.debate.judge': 'Judge review',

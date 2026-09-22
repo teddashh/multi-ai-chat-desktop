@@ -13,6 +13,9 @@ const degraded = new Set<AIProvider>();
 const pollTimers = new Map<AIProvider, ReturnType<typeof globalThis.setInterval>>();
 const pullInflight = new Map<AIProvider, { promise: Promise<void>; force: boolean }>();
 const activeBoot = new Map<AIProvider, string>();
+// Survives resetProviderBootState so a later check-in can tell a new document from the one the reset dropped.
+const lastSeenBoot = new Map<AIProvider, string>();
+const bootRotationListeners = new Set<(provider: AIProvider) => void>();
 const doneTimers = new Map<AIProvider, ReturnType<typeof globalThis.setTimeout>>();
 const awaitingEpoch = new Map<AIProvider, number>();
 const synthesizeInflight = new Map<AIProvider, { token: symbol; promise: Promise<void> }>();
@@ -50,14 +53,25 @@ export async function startBridgePull(): Promise<() => void> {
   };
 }
 
+export function onProviderBootRotation(listener: (provider: AIProvider) => void): () => void {
+  bootRotationListeners.add(listener);
+  return () => bootRotationListeners.delete(listener);
+}
+
 export function handleTitleMessage(message: BridgeMessage): void {
   if (message.transport === 'title' && message.action !== 'STATUS_REPORT') return;
   if (message.provider && message.bootId) {
     const current = activeBoot.get(message.provider);
     if (current !== message.bootId) {
+      // The first boot the host ever sees is startup. A reset clears activeBoot, so fall back to the
+      // last bootId this host ever saw. Only a genuinely different document counts as a rotation.
+      const previous = current ?? lastSeenBoot.get(message.provider);
+      const rotated = previous !== undefined && previous !== message.bootId;
       activeBoot.set(message.provider, message.bootId);
+      lastSeenBoot.set(message.provider, message.bootId);
       lastConsumed.delete(message.provider);
       recoverProvider(message.provider);
+      if (rotated) notifyProviderBootRotation(message.provider);
     }
   }
   publish(message);
@@ -220,6 +234,10 @@ function synthesizeDone(provider: AIProvider, payload: string): Promise<void> {
   return operation;
 }
 
+function notifyProviderBootRotation(provider: AIProvider): void {
+  for (const listener of [...bootRotationListeners]) listener(provider);
+}
+
 function publish(message: BridgeMessage): void {
   publishBridgeMessage(message);
 }
@@ -255,6 +273,7 @@ export function resetBridgePullForTests(): void {
   pending.clear();
   degraded.clear();
   activeBoot.clear();
+  lastSeenBoot.clear();
   awaitingEpoch.clear();
   pullInflight.clear();
   synthesizeInflight.clear();

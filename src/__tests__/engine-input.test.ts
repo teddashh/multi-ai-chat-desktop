@@ -58,6 +58,7 @@ interface TestAdapter {
 interface FakeDomEnv {
   document: FakeDocument;
   emitted: BridgeMessage[];
+  titleEmits: Array<{ action: string; payload?: unknown; options?: { immediate?: boolean } }>;
   handlers: Array<(message: BridgeMessage) => void>;
   input: FakeElement;
   sendButton: FakeElement | null;
@@ -3307,6 +3308,117 @@ describe('injected engine input hardening', () => {
       payload: '[Error: chatgpt response completion could not be confirmed]',
     });
   });
+
+  it('emits advisory composer fill timing around injection without the prompt text', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'textarea' });
+    const prompt = `UNIQUE_PROMPT_TOKEN ${'x'.repeat(5000)}`;
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'meta', inputSelectors: ['#editor'], inputStrategy: 'default' });
+
+    send(handler, prompt, 'meta');
+    for (let step = 0; step < 8; step += 1) await flushMicrotasks();
+
+    expect(env.titleEmits).toEqual([
+      {
+        action: 'STATUS_REPORT',
+        payload: { fill: 'start', fillChars: prompt.length, bootId: 'boot1' },
+        options: { immediate: true },
+      },
+      {
+        action: 'STATUS_REPORT',
+        payload: { fill: 'done', fillChars: prompt.length, fillMs: expect.any(Number), bootId: 'boot1' },
+        options: { immediate: true },
+      },
+    ]);
+    const finished = env.titleEmits[1]?.payload as { fillMs: number };
+    expect(Number.isFinite(finished.fillMs)).toBe(true);
+    expect(finished.fillMs).toBeGreaterThanOrEqual(0);
+    expect(finished.fillMs).toBeLessThan(prompt.length);
+    expect(JSON.stringify(env.titleEmits)).not.toContain('UNIQUE_PROMPT_TOKEN');
+    expect(JSON.stringify(env.emitted)).not.toContain('UNIQUE_PROMPT_TOKEN');
+  });
+
+  it('records the fill start advisory before a default-strategy mutation that never returns', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    const prompt = 'UNIQUE_PROMPT_TOKEN';
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'meta', inputSelectors: ['#editor'], inputStrategy: 'default' });
+    // The real bridge applies the frame on titleEmitChain's next microtask, not in the caller.
+    const bridge = macBridge();
+    const record = bridge.emitTitle.bind(bridge);
+    bridge.emitTitle = (action, payload, options) => {
+      void Promise.resolve().then(() => {
+        record(action, payload, options);
+      });
+    };
+
+    let titleEmitsAtMutation: FakeDomEnv['titleEmits'] | undefined;
+    env.document.onExecCommand = (command) => {
+      if (command !== 'insertText') return;
+      titleEmitsAtMutation = env.titleEmits.slice();
+      throw new Error('wedged in execCommand');
+    };
+
+    send(handler, prompt, 'meta');
+    await flushMicrotasks();
+
+    expect(titleEmitsAtMutation).toEqual([
+      {
+        action: 'STATUS_REPORT',
+        payload: { fill: 'start', fillChars: prompt.length, bootId: 'boot1' },
+        options: { immediate: true },
+      },
+    ]);
+    expect(env.input.textContent).toBe('');
+    expect(env.titleEmits.some((entry) => fillPhase(entry.payload) === 'done')).toBe(false);
+    expect(JSON.stringify(env.titleEmits)).not.toContain('UNIQUE_PROMPT_TOKEN');
+    expect(JSON.stringify(env.emitted)).not.toContain('UNIQUE_PROMPT_TOKEN');
+  });
+
+  it('aborts a default-strategy fill when a challenge appears during the title yield', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    const prompt = 'UNIQUE_PROMPT_TOKEN must not land';
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, { provider: 'meta', inputSelectors: ['#editor'], inputStrategy: 'default' });
+    const bridge = macBridge();
+    const record = bridge.emitTitle.bind(bridge);
+    bridge.emitTitle = (action, payload, options) => {
+      record(action, payload, options);
+      if (fillPhase(payload) !== 'start') return;
+      void Promise.resolve().then(() => {
+        env.cloudflareChallenge = true;
+      });
+    };
+
+    let execCommandRan = false;
+    env.document.onExecCommand = () => {
+      execCommandRan = true;
+    };
+
+    send(handler, prompt, 'meta');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(execCommandRan).toBe(false);
+    expect(env.input.textContent).toBe('');
+    expect(
+      env.emitted.filter(
+        (message) => message.action === 'RESPONSE_DONE' && message.payload === '[Error: meta security challenge is active]',
+      ),
+    ).toHaveLength(1);
+    expect(env.titleEmits).toEqual([
+      {
+        action: 'STATUS_REPORT',
+        payload: { fill: 'start', fillChars: prompt.length, bootId: 'boot1' },
+        options: { immediate: true },
+      },
+    ]);
+    expect(JSON.stringify(env.titleEmits)).not.toContain('UNIQUE_PROMPT_TOKEN');
+    expect(JSON.stringify(env.emitted)).not.toContain('UNIQUE_PROMPT_TOKEN');
+  });
 });
 
 function createEnv(options: { inputKind: 'textarea' | 'input' | 'contenteditable'; sendButton?: FakeElement | null }): FakeDomEnv {
@@ -3320,6 +3432,7 @@ function createEnv(options: { inputKind: 'textarea' | 'input' | 'contenteditable
   const env: FakeDomEnv = {
     document,
     emitted: [],
+    titleEmits: [],
     handlers: [],
     input,
     sendButton: options.sendButton === undefined ? new FakeElement(document, 'button') : options.sendButton,
@@ -3383,6 +3496,22 @@ function keyEventCount(el: FakeElement): number {
 async function flushMicrotasks() {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+function fillPhase(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object' || !('fill' in payload)) return undefined;
+  const fill = (payload as { fill?: unknown }).fill;
+  return typeof fill === 'string' ? fill : undefined;
+}
+
+function macBridge(): {
+  emitTitle: (action: string, payload?: unknown, options?: { immediate?: boolean }) => void;
+} {
+  return (window as unknown as {
+    __MAC_BRIDGE__: {
+      emitTitle: (action: string, payload?: unknown, options?: { immediate?: boolean }) => void;
+    };
+  }).__MAC_BRIDGE__;
 }
 
 class FakeElement {
@@ -3592,6 +3721,7 @@ class FakeDocument {
   readonly body = new FakeElement(this, 'body');
   execCommandResult = false;
   execCommandMutates = false;
+  onExecCommand?: (command: string, value?: string) => void;
 
   allocateDocumentOrder(): number {
     this.nextDocumentOrder += 1;
@@ -3659,6 +3789,7 @@ class FakeDocument {
   }
 
   execCommand(command: string, _showUi?: boolean, value?: string): boolean {
+    this.onExecCommand?.(command, value);
     if (this.execCommandMutates && command === 'insertText' && this.activeElement instanceof FakeElement) {
       this.activeElement.setVisibleText(value ?? '');
     }
@@ -3686,6 +3817,7 @@ function installEngineGlobals(env: FakeDomEnv) {
     __MAC_BRIDGE__: {
       bootId: string;
       emit: (message: unknown) => void;
+      emitTitle: (action: string, payload?: unknown, options?: { immediate?: boolean }) => void;
       onDispatch: (handler: (message: BridgeMessage) => void) => void;
     };
     setInterval: typeof setInterval;
@@ -3699,6 +3831,9 @@ function installEngineGlobals(env: FakeDomEnv) {
     __MAC_BRIDGE__: {
       bootId: 'boot1',
       emit: (message: unknown) => env.emitted.push(message as BridgeMessage),
+      emitTitle: (action: string, payload?: unknown, options?: { immediate?: boolean }) => {
+        env.titleEmits.push({ action, payload, options });
+      },
       onDispatch: (handler: (message: BridgeMessage) => void) => env.handlers.push(handler),
     },
     setInterval: globalThis.setInterval.bind(globalThis),

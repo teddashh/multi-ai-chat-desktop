@@ -163,6 +163,7 @@ export const zhTW: Record<I18nKey, string> = {
   'workflowStatus.numberedProviderStep': '💻 步驟 {number}/{total} — {provider}：{step}中…',
   'workflowStatus.roundtableSpeaker': '🔄 第{round}輪「{phase}」— {provider} 發言中…',
   'workflowStatus.nativeEdit': '已填入 {provider}，請在 provider 內編輯並於 10 分鐘內原生送出。',
+  'workflow.providerPageReloaded': '{provider} 的頁面在輪到它時重新載入，這次的回答已遺失。請重試這個步驟。',
   'workflowRole.debate.pro': '正方論述',
   'workflowRole.debate.con': '反方反駁',
   'workflowRole.debate.judge': '判官評析',

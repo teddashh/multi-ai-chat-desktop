@@ -1,7 +1,12 @@
 import type { AIProvider } from '../../shared/types';
 import { resetProviderPullState } from '../bridge/pull';
 import { abortWorkflow, checkAborted, getInFlightProviders, onWorkflowAbort, stopProvider } from './cancel';
-import { isRetryableSendRejection, providerResponseError, ProviderResponseError } from './providerResponse';
+import {
+  isProviderPageReloadedError,
+  isRetryableSendRejection,
+  providerResponseError,
+  ProviderResponseError,
+} from './providerResponse';
 import { sendAndWait } from './sendAndWait';
 import { SKIP_RESPONSE } from './state';
 import { awaitStepTimeoutAction, emitCountdown } from './stepTimeout';
@@ -52,7 +57,8 @@ export async function runStep(
       checkAborted();
       if (error instanceof ProviderResponseError && options.recoverProviderErrors !== true) throw error;
       const failureKind = error instanceof ProviderResponseError ? 'provider-error' : 'timeout';
-      const action = await awaitStepTimeoutAction(provider, failureKind);
+      const recoveryDetail = isProviderPageReloadedError(error) ? 'provider-page-reloaded' : undefined;
+      const action = await awaitStepTimeoutAction(provider, failureKind, recoveryDetail);
       if (action === 'retry') {
         await stopProvider(provider);
         resetProviderPullState(provider);

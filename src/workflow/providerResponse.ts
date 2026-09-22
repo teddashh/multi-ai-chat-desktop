@@ -15,6 +15,19 @@ export class ProviderResponseError extends Error {
   }
 }
 
+const PROVIDER_PAGE_RELOADED_REASON = 'provider page reloaded during its turn';
+
+export class ProviderPageReloadedError extends ProviderResponseError {
+  constructor(provider: AIProvider) {
+    super(provider, `[Error: ${PROVIDER_PAGE_RELOADED_REASON}]`, PROVIDER_PAGE_RELOADED_REASON);
+    this.name = 'ProviderPageReloadedError';
+  }
+}
+
+export function isProviderPageReloadedError(error: unknown): error is ProviderPageReloadedError {
+  return error instanceof ProviderPageReloadedError;
+}
+
 export function providerResponseError(provider: AIProvider, response: string): ProviderResponseError | undefined {
   const match = PROVIDER_ERROR_PATTERN.exec(response.trim());
   if (!match) return undefined;
