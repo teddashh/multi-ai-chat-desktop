@@ -1,5 +1,10 @@
 # PR #96 / v1.9.0 交接
 
+> **⚠️ 已作廢（2026-09-24）。這份是 v1.9.0 當時的歷史紀錄，不是現行行為。**
+> 特別注意：裡面的「Facebook 不內嵌、登入按鈕優先」**已經不成立** — v1.9.2 起 Facebook／Instagram
+> 的 HTTPS host 已納入 Meta SSO allowlist，登入留在 Meta 窗格內完成。
+> 現行狀態請看 `docs/HANDOFF-2026-09-24-CLAUDE.md`，行為契約以 `docs/SPEC.md` 與目前 `main` 為準。
+
 ## 決策與範圍
 
 - 使用者已取消部署與 VM 驗證工作，授權以自動化驗證完成後正式發布；Meta AI 維持 **experimental optional standby**。
