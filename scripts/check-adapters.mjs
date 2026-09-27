@@ -12,7 +12,7 @@ const validate = ajv.compile(schema);
 const expected = {
   chatgpt: {
     schemaVersion: 1,
-    adapterVersion: 7,
+    adapterVersion: 8,
     urls: {
       app: 'https://chatgpt.com',
       login: 'https://chatgpt.com/auth/login',
@@ -22,10 +22,10 @@ const expected = {
     inputStrategy: 'prosemirror-paste',
     doneDelayMs: 3000,
     chunkDebounceMs: 800,
-    inputSelectors: ['#prompt-textarea', '[id="prompt-textarea"]', 'div[contenteditable="true"][data-placeholder]'],
+    inputSelectors: ['.ProseMirror[contenteditable="true"]', '#prompt-textarea', '[id="prompt-textarea"]', 'div[contenteditable="true"][data-placeholder]'],
     sendButtonSelectors: ['[data-testid="send-button"]', 'button[aria-label="Send prompt"]', 'button[aria-label="Send"]'],
     responseSelectors: ['[data-message-author-role="assistant"] .markdown', '[data-message-author-role="assistant"]'],
-    loginDetectors: ['#prompt-textarea', '[data-testid="send-button"]'],
+    loginDetectors: ['.ProseMirror[contenteditable="true"]', '#prompt-textarea', '[data-testid="send-button"]'],
     loggedOutDetectors: ['[data-testid="login-button"]', '[data-testid="signup-button"]', '[data-testid="login-form"]'],
     thinkingDetectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
     stopButtonSelectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
@@ -219,4 +219,4 @@ assertEqual(
   'meta.initialSeed.timing',
 );
 
-console.log('Adapter schema and SPEC section 5.1 seed checks passed.');
+console.log('Adapter schema and bundled seed checks passed.');

@@ -41,9 +41,9 @@ describe('M0 shared constants and adapter seeds', () => {
     expect(PROMPTS.roundtable.buildPrompt('議題', 1, 'ChatGPT', [])).toContain('【第一輪・開場立論】');
   });
 
-  it('matches SPEC section 5.1 strategy and timing seed values', () => {
+  it('keeps bundled adapter versions, strategies, and timing defaults', () => {
     expect(chatgpt.schemaVersion).toBe(1);
-    expect(chatgpt.adapterVersion).toBe(7);
+    expect(chatgpt.adapterVersion).toBe(8);
     expect(chatgpt.inputStrategy).toBe('prosemirror-paste');
     expect(chatgpt.timing.doneDelayMs).toBe(3000);
     expect(chatgpt.timing.chunkDebounceMs).toBe(800);
