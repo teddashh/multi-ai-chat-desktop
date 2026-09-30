@@ -4,15 +4,15 @@
 
 Eine Frage genügt: Vier angemeldete KI-Websitzungen antworten, prüfen, widersprechen und verfeinern das Ergebnis gemeinsam. **ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist eine experimentelle fünfte Standby-Option in den Einstellungen.** Multi-AI Chat Desktop ist ein Workflow-Hub auf Basis von Tauri 2 – nicht bloß vier nebeneinander angeordnete Chats.
 
-[**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.9.5 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
+[**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.9.6 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.6) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
 
 > Diese App automatisiert die Anbieter-Webseiten, die du bereits verwendest. Änderungen an deren Oberfläche können einen Adapter vorübergehend beeinträchtigen; außerdem können die Bedingungen des jeweiligen Dienstes gelten. Verwende nur Konten und Inhalte, zu deren Nutzung du berechtigt bist. Anmeldung, Abonnement, Alter, Nutzungslimits und Sicherheitsprüfungen werden weder umgangen noch automatisiert gelöst.
 
-> **Projektstatus:** Sechs Presets, fünf zugrunde liegende Workflow-Modi, Snapshot/Replay und die optionale AI-Sister-Gedenkausgabe mit vier Figuren bleiben funktionsgefroren. v1.9.5 lässt einen wartenden Schritt fehlschlagen, wenn seine Anbieterseite mitten im Schritt ersetzt wird, und misst die Composer-Füllung nur als Zeichenzahl. Es bietet fünf Anbieter zur Auswahl, davon immer genau vier aktiv. ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist ein experimenteller optionaler Standby.
+> **Projektstatus:** Sechs Presets, fünf zugrunde liegende Workflow-Modi, Snapshot/Replay und die optionale AI-Sister-Gedenkausgabe mit vier Figuren bleiben funktionsgefroren. v1.9.6 folgt ChatGPTs neuerem Chat/Work-Layout und zeigt nicht angemeldetes Grok als Sign in statt Ready. Es bietet fünf Anbieter zur Auswahl, davon immer genau vier aktiv. ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist ein experimenteller optionaler Standby.
 
 ## Zuerst installieren
 
-Die aktuelle stabile Version steht auf der [**Downloadseite für v1.9.5**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5) bereit.
+Die aktuelle stabile Version steht auf der [**Downloadseite für v1.9.6**](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.6) bereit.
 
 | Plattform | Download | Hinweis zum ersten Start |
 |---|---|---|
@@ -34,8 +34,11 @@ Die Ad-hoc-Signatur schützt die Bundle-Integrität und verhindert die falsche M
 
 Portable Windows-Builds zeigen keine Update-Steuerung in der App. Aktualisiere sie manuell über [GitHub Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases/latest). Installierte Builds können nach einer neuen Version suchen und deren Downloadseite öffnen; die App lädt oder installiert Updates jedoch nicht selbst.
 
-## Neu in v1.9.5
+## Neu in v1.9.6
 
+- **ChatGPTs Chat/Work-Layout.** Einige ChatGPT-Konten erhalten jetzt ein neueres Seitenlayout ohne die Markierungen, mit denen die App einem Gespräch gefolgt ist. Die App bestätigt den Versand jetzt über deine Nachrichtenblase, liest nur die endgültige Antwort und wartet auf die Aktionszeile der Antwort, bevor sie abschließt. Steuerelemente an deiner eigenen Nachricht zählen nie als abgeschlossene Antwort.
+- **Nicht angemeldetes Grok zeigt Sign in.** Anonymes grok.com zeigt Sign in / Sign up als Links und behält den Senden-Button, deshalb zeigte das Pane bisher Ready. Das Pane zeigt jetzt Sign in, sowohl auf der Startseite als auch auf der Sign-up-Paywall von Grok nach einem Senden.
+- **ChatGPTs neuerer Composer.** ChatGPTs ProseMirror-Composer wird für die Eingabe und für Ready erkannt.
 - **Eine ersetzte Seite lässt den Schritt fehlschlagen.** Ein Schritt, der auf einen Anbieter wartet, schlägt jetzt fehl, wenn dessen Seite mitten im Schritt ersetzt wird, statt still bis zum Timeout zu warten. Die Erkennung ist eine neue bootId. Der Prompt wird nicht an die Ersatzseite gesendet, weil ein erneutes Senden doppelt senden könnte, falls die ursprüngliche Sendung angekommen war.
 - **Die Composer-Füllung wird gemessen.** Die begleitenden `STATUS_REPORT`-Felder `fill`, `fillChars` und `fillMs` tragen nur Zeichenzahlen. Prompttext gelangt weder in die Nutzlast noch ins Ereignisprotokoll.
 - **ChatGPT-Antworten erreichen die App.** Wenn ChatGPT deine Nachricht durch einen eingeklappten Turn ersetzt, verlässt der Anker, an den die Erfassung gebunden war, die Seite. Die Erfassung behält den übernommenen Anker, ignoriert einen losgelösten Anker und kann eine Antwort ohne Anker lesen, sobald die Erzeugung beobachtet wurde. Eine auf dem Bildschirm abgeschlossene Antwort wartet das Schritt-Timeout nicht mehr ab.
@@ -45,10 +48,8 @@ Portable Windows-Builds zeigen keine Update-Steuerung in der App. Aktualisiere s
 - **Grok-Heavy-Fortsetzungs-Timer.** Stellt Grok die Stop-Kontrolle wieder her und erzeugt weiter, ohne den Zwischentext zu ändern, werden veraltete Ruhe-Timer verworfen; die App wartet erneut auf das Ende der Erzeugung.
 - **Optionaler Meta-AI-Standby.** Fünf Auswahlmöglichkeiten, immer genau vier aktiv. Die ursprünglichen vier bleiben Standard; in den Einstellungen kann genau ein Anbieter getauscht werden. Profile bleiben erhalten, Rollen und Ziele werden auf die aktuelle Auswahl repariert.
 - **Porträt und Diagnose.** Meta AI hat ein eigenes Porträt. Ereignisprotokoll und Debug-Bundle kennzeichnen es als Meta AI, ohne Prompts oder Antworten zu speichern.
-- **Fehlgeschlagene Aktionen wiederholen.** Fehler bei Anmeldung, Reload, Report und Replay können wiederholt werden. Doppelte und veraltete Klicks werden ignoriert.
-- **Vorprüfung der aktiven vier.** Workflows prüfen die aktuellen vier, auch wenn ein Standby weiterhin Ready wirkt. Debattenplätze decken Meta ab, sobald es aktiv ist.
 
-Die [Release Notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.5) beschreiben Änderungen und Grenzen.
+Die [Release Notes](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.6) beschreiben Änderungen und Grenzen.
 
 ## Desktop oder Browser-Erweiterung?
 
@@ -89,7 +90,7 @@ Wähle Desktop für einen eigenen Arbeitsbereich und den vollständigen lokalen 
 
 Strukturierte Workflows prüfen vorab jede notwendige Rolle. Ist ein Anbieter nicht verfügbar, benennt die App ihn und bietet Öffnen/Anmelden, Neuzuordnung oder einen anderen Modus an; sie ersetzt Anbieter nie stillschweigend. Normale strukturierte Workflows enden bei einem dauerhaften Anbieterfehler. Brainstorming pausiert dagegen bis zur ausdrücklichen Wahl von Wiederholen, Überspringen oder Abbrechen.
 
-Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; v1.9.5 fügt keine neue langsame ChatGPT↔Grok-Übergabe mit echten Konten hinzu.
+Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; v1.9.6 fügt keine neue langsame ChatGPT↔Grok-Übergabe mit echten Konten hinzu.
 
 Nach Abschluss kannst du über den Composer unten dasselbe App-Gespräch fortsetzen. **Neues Gespräch** beginnt mit sauberem Sitzungskontext.
 
@@ -112,7 +113,7 @@ Melde Schwachstellen gemäß [SECURITY.md](./SECURITY.md) privat. Veröffentlich
 - Für **Windows x64** gibt es verifizierte Paket-Starts; unsignierte Artefakte können dennoch SmartScreen auslösen.
 - **macOS Apple Silicon** ist teilweise geprüft. Das DMG ist ad-hoc signiert, nicht notarisiert. Ein früherer Gerätebericht konnte die App öffnen und ChatGPT, Claude und Gemini anmelden, während Grok bei Cloudflare hängen blieb. Die aktuelle Grok-Wiederherstellung benötigt weiterhin einen Live-Retest auf Apple Silicon. Es gibt kein Intel-Artefakt.
 - **Linux x86_64** ist nur durch CI-Paketierung bestätigt; ein neuer realer Startbericht eines Maintainers fehlt.
-- Die Korrekturen in v1.9.5 wurden nicht live erneut geprüft. Der Nachweis sind automatisierte Tests plus ein Replay eines am 2026-09-22 aufgezeichneten Bundles: der neue Fehler trat einmal auf, bei dem Schritt, der tatsächlich hing, ohne Fehlalarm über die 15 abgeschlossenen Schritte. Der neue Fehler braucht einen Dokumentwechsel, der als neue bootId sichtbar wird. Geht die Engine eines Anbieters stumm oder klemmt, ohne dass die Seite ersetzt wird, wartet der Schritt weiter das 10-Minuten-Inaktivitätsfenster und die absolute 60-Minuten-Grenze ab; v1.9.5 behebt nicht jeden Stillstand. Meta bleibt auf `inputStrategy: "default"`. Ob sein `execCommand('insertText', …)` bei einem sehr langen Prompt den Renderer geklemmt hat, ist weiterhin unbelegt; die neuen Fill-Markierungen sollen eine spätere Feldmessung darüber entscheiden lassen. Der ChatGPT-Live-Retest, den die Notizen zu v1.9.4 als noch nicht gelaufen führten, ist auf veröffentlichtem v1.9.4 gelaufen, und Erfassung sowie Abschluss bestanden über eingeklappte Turns (drei Runden auf einer unveränderten bootId; Sendungen von 5,439 / 9,848 / 15,408 Zeichen in 157.0 / 178.1 / 253.0 s). Dieser Lauf übt die Korrekturen von v1.9.5 nicht. Meta-Stop, das Zurücksetzen auf eine neue Sitzung und die Profilpersistenz bleiben unverifiziert, und Grok Heavy wurde nicht ausgeführt. Frühere Windows-Paketstarts, der frühere Apple-Silicon-Bericht zu ChatGPT-/Claude-/Gemini-Anmeldung (Grok blieb bei Cloudflare) und die Linux-CI-Paketierung bleiben der aktuelle Nachweis. Der Grok-Cloudflare-Challenge-Pfad und ein neuer Start- und Anbieter-Login-Smoke auf Apple Silicon wurden ebenfalls nicht wiederholt, und der Grok-Fortsetzungs-Timer-Pfad hat weiterhin nur automatisierte Abdeckung. Für v1.9.5 gibt es keine neue Startprüfung unter Windows, macOS oder Linux.
+- Die Änderungen in v1.9.6 haben nur automatisierte Abdeckung und wurden nicht live erneut geprüft. Es stand kein Chat/Work-Konto zur Verfügung, und keine angemeldete Grok-Seite wurde live aufgezeichnet. Deshalb ist die nächste Live-Prüfung ein Chat/Work-Konto, das einen Prompt automatisch sendet, und ein angemeldetes Grok-Pane, das Ready bleibt. Installierte Apps erhalten die Grok- und ChatGPT-Adapter-Updates seit 2026-09-30 über das Adapter-Update (beim Start und alle sechs Stunden), aber die Engine-Änderungen für ChatGPT Chat/Work brauchen v1.9.6. Geht die Engine eines Anbieters stumm oder klemmt, ohne dass die Seite ersetzt wird, wartet der Schritt weiter das 10-Minuten-Inaktivitätsfenster und die absolute 60-Minuten-Grenze ab. Meta bleibt auf `inputStrategy: "default"`. Meta-Stop, das Zurücksetzen auf eine neue Sitzung und die Profilpersistenz bleiben unverifiziert, und Grok Heavy wurde nicht ausgeführt. Frühere Windows-Paketstarts, der frühere Apple-Silicon-Bericht zu ChatGPT-/Claude-/Gemini-Anmeldung (Grok blieb bei Cloudflare) und die Linux-CI-Paketierung bleiben der aktuelle Nachweis. Für v1.9.6 gibt es keine neue Startprüfung unter Windows, macOS oder Linux.
 - Gast-, E-Mail-/Mobil- oder Facebook/Instagram-Anmeldung von Meta AI muss im Meta-Fenster erfolgen. Eine Anmeldung in einem anderen Browser kehrt nicht in die App zurück.
 - Snapshot/Replay/Checkpoint werden nur in ihrer ausgelieferten Form kompatibel gehalten. Über den experimentellen Meta-AI-Standby hinaus sind für diese funktionsgefrorene Ausgabe weder Marketplace, Graph-Editor, weitere Anbieter, neues Persistenzschema, eingebetteter Terminal-Agent, Telemetrie, Developer-ID-/Notarisierungsprogramm noch Self-Updater geplant.
 
