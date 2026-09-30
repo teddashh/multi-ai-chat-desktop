@@ -4445,6 +4445,102 @@ function splitSelectorList(selector: string, separator: ',' | ' '): string[] {
   return parts;
 }
 
+// Backup polls repeat the same selector strings. Parse each one once, into comma parts
+// and descendant compounds, so matching an element does not split or re-run these regexes.
+const COMPOUND_TAG = /^([a-zA-Z][\w-]*)/;
+const COMPOUND_CLASS = /^\.(-?[_a-zA-Z]+[_a-zA-Z0-9-]*)/;
+const COMPOUND_ATTRIBUTE = /^\[([\w-]+)(?:([~|^$*]?=)(["'])([\s\S]*?)\3)?\]/;
+
+interface ParsedAttribute {
+  name: string;
+  operator: string | null;
+  expected: string;
+}
+
+interface ParsedCompound {
+  valid: boolean;
+  tag: string | null;
+  classes: readonly string[];
+  attributes: readonly ParsedAttribute[];
+  nots: readonly ParsedCompound[];
+}
+
+interface ParsedSelector {
+  commaParts: readonly string[];
+  chains: readonly (readonly ParsedCompound[])[];
+  inertPart: boolean;
+}
+
+const INVALID_COMPOUND: ParsedCompound = {
+  valid: false,
+  tag: null,
+  classes: [],
+  attributes: [],
+  nots: [],
+};
+
+const parsedSelectorCache = new Map<string, ParsedSelector>();
+
+function classTokensOf(value: string): string[] {
+  return value.split(/\s+/).filter((token) => token.length > 0);
+}
+
+function parseCompound(source: string): ParsedCompound {
+  let rest = source;
+  let tag: string | null = null;
+  const classes: string[] = [];
+  const attributes: ParsedAttribute[] = [];
+  const nots: ParsedCompound[] = [];
+  const tagMatch = COMPOUND_TAG.exec(rest);
+  if (tagMatch) {
+    tag = tagMatch[1].toLowerCase();
+    rest = rest.slice(tagMatch[1].length);
+  }
+  while (rest.length > 0) {
+    if (rest.startsWith('.')) {
+      const className = COMPOUND_CLASS.exec(rest);
+      if (!className) return INVALID_COMPOUND;
+      classes.push(className[1]);
+      rest = rest.slice(className[0].length);
+      continue;
+    }
+    if (rest.startsWith('[')) {
+      const attribute = COMPOUND_ATTRIBUTE.exec(rest);
+      if (!attribute) return INVALID_COMPOUND;
+      const operator = attribute[2] ?? null;
+      attributes.push({
+        name: attribute[1],
+        operator,
+        expected: operator ? (attribute[4] ?? '') : '',
+      });
+      rest = rest.slice(attribute[0].length);
+      continue;
+    }
+    if (rest.startsWith(':not(')) {
+      const end = rest.indexOf(')');
+      if (end < 0) return INVALID_COMPOUND;
+      nots.push(parseCompound(rest.slice(5, end)));
+      rest = rest.slice(end + 1);
+      continue;
+    }
+    return INVALID_COMPOUND;
+  }
+  return { valid: true, tag, classes, attributes, nots };
+}
+
+function parseSelector(selector: string): ParsedSelector {
+  const cached = parsedSelectorCache.get(selector);
+  if (cached) return cached;
+  const commaParts = splitSelectorList(selector, ',');
+  const parsed: ParsedSelector = {
+    commaParts,
+    chains: commaParts.map((part) => splitSelectorList(part, ' ').map(parseCompound)),
+    inertPart: commaParts.some((part) => part === '[inert]'),
+  };
+  parsedSelectorCache.set(selector, parsed);
+  return parsed;
+}
+
 class FakeElement {
   textContent: string;
   hidden = false;
@@ -4463,6 +4559,8 @@ class FakeElement {
   private parent: FakeElement | null = null;
   private readonly attrs = new Map<string, string>();
   private readonly documentOrder: number;
+  private readonly tagLower: string;
+  private classTokens: readonly string[] = [];
 
   constructor(
     private readonly fakeDocument: FakeDocument,
@@ -4470,6 +4568,7 @@ class FakeElement {
     text = '',
   ) {
     this.textContent = text;
+    this.tagLower = tagName.toLowerCase();
     this.documentOrder = fakeDocument.allocateDocumentOrder();
     fakeDocument.track(this);
   }
@@ -4542,13 +4641,12 @@ class FakeElement {
   closest(selector: string): FakeElement | null {
     // The same matcher as querySelector: comma lists, compounds, and descendants.
     // [inert] still matches the inert property, which the attribute matcher does not see.
-    if (
-      this.matchesSelector(selector) ||
-      splitSelectorList(selector, ',').some((part) => this.matchesSimpleSelector(part))
-    ) {
-      return this;
-    }
-    return this.parent?.closest(selector) ?? null;
+    return this.closestParsed(parseSelector(selector));
+  }
+
+  private closestParsed(parsed: ParsedSelector): FakeElement | null {
+    if (this.matchesParsed(parsed) || (parsed.inertPart && this.matchesInert())) return this;
+    return this.parent?.closestParsed(parsed) ?? null;
   }
 
   focus() {
@@ -4601,10 +4699,11 @@ class FakeElement {
 
   querySelectorAll(selector: string): FakeElement[] {
     if (selector === 'p') return this.children.filter((child) => child.tagName === 'p');
+    const parsed = parseSelector(selector);
     const matches: FakeElement[] = [];
     const walk = (node: FakeElement) => {
       for (const child of node.children) {
-        if (child.matchesSelector(selector)) matches.push(child);
+        if (child.matchesParsed(parsed)) matches.push(child);
         walk(child);
       }
     };
@@ -4617,72 +4716,60 @@ class FakeElement {
   }
 
   matchesSelector(selector: string): boolean {
-    return splitSelectorList(selector, ',').some((part) => this.matchesComplex(part));
+    return this.matchesParsed(parseSelector(selector));
   }
 
-  private matchesComplex(selector: string): boolean {
-    const parts = splitSelectorList(selector, ' ');
-    if (parts.length === 0 || !this.matchesCompound(parts[parts.length - 1])) return false;
+  matchesParsed(parsed: ParsedSelector): boolean {
+    for (const chain of parsed.chains) {
+      if (this.matchesChain(chain)) return true;
+    }
+    return false;
+  }
+
+  private matchesChain(compounds: readonly ParsedCompound[]): boolean {
+    const last = compounds.length - 1;
+    if (last < 0 || !this.matchesCompound(compounds[last])) return false;
     let ancestor = this.parent;
-    for (let index = parts.length - 2; index >= 0; index -= 1) {
-      while (ancestor && !ancestor.matchesCompound(parts[index])) ancestor = ancestor.parent;
+    for (let index = last - 1; index >= 0; index -= 1) {
+      const compound = compounds[index];
+      while (ancestor && !ancestor.matchesCompound(compound)) ancestor = ancestor.parent;
       if (!ancestor) return false;
       ancestor = ancestor.parent;
     }
     return true;
   }
 
-  private matchesCompound(compound: string): boolean {
-    let rest = compound;
-    const tag = /^([a-zA-Z][\w-]*)/.exec(rest);
-    if (tag) {
-      if (this.tagName.toLowerCase() !== tag[1].toLowerCase()) return false;
-      rest = rest.slice(tag[1].length);
+  private matchesCompound(compound: ParsedCompound): boolean {
+    if (!compound.valid) return false;
+    if (compound.tag !== null && this.tagLower !== compound.tag) return false;
+    for (const name of compound.classes) {
+      if (!this.classTokens.includes(name)) return false;
     }
-    while (rest.length > 0) {
-      if (rest.startsWith('.')) {
-        const className = /^\.(-?[_a-zA-Z]+[_a-zA-Z0-9-]*)/.exec(rest);
-        if (!className) return false;
-        const classes = (this.getAttribute('class') ?? '').split(/\s+/).filter((name) => name.length > 0);
-        if (!classes.includes(className[1])) return false;
-        rest = rest.slice(className[0].length);
-        continue;
-      }
-      if (rest.startsWith('[')) {
-        const attribute = /^\[([\w-]+)(?:([~|^$*]?=)(["'])([\s\S]*?)\3)?\]/.exec(rest);
-        if (!attribute) return false;
-        const name = attribute[1];
-        const operator = attribute[2];
-        const expected = attribute[4];
-        const actual = this.getAttribute(name);
-        if (!operator) {
-          if (!this.hasAttribute(name)) return false;
-        } else if (actual === null) {
-          return false;
-        } else if (operator === '=' && actual !== expected) {
-          return false;
-        } else if (operator === '^=' && !actual.startsWith(expected)) {
-          return false;
-        } else if (operator === '$=' && !actual.endsWith(expected)) {
-          return false;
-        } else if (operator === '*=' && !actual.includes(expected)) {
-          return false;
-        } else if (operator !== '=' && operator !== '^=' && operator !== '$=' && operator !== '*=') {
-          return false;
-        }
-        rest = rest.slice(attribute[0].length);
-        continue;
-      }
-      if (rest.startsWith(':not(')) {
-        const end = rest.indexOf(')');
-        if (end < 0) return false;
-        if (this.matchesCompound(rest.slice(5, end))) return false;
-        rest = rest.slice(end + 1);
-        continue;
-      }
-      return false;
+    for (const attribute of compound.attributes) {
+      if (!this.attributeMatches(attribute)) return false;
+    }
+    for (const inner of compound.nots) {
+      if (this.matchesCompound(inner)) return false;
     }
     return true;
+  }
+
+  private attributeMatches(attribute: ParsedAttribute): boolean {
+    if (attribute.operator === null) return this.hasAttribute(attribute.name);
+    const actual = this.getAttribute(attribute.name);
+    if (actual === null) return false;
+    switch (attribute.operator) {
+      case '=':
+        return actual === attribute.expected;
+      case '^=':
+        return actual.startsWith(attribute.expected);
+      case '$=':
+        return actual.endsWith(attribute.expected);
+      case '*=':
+        return actual.includes(attribute.expected);
+      default:
+        return false;
+    }
   }
 
   remove() {
@@ -4695,6 +4782,7 @@ class FakeElement {
 
   setAttribute(name: string, value: string) {
     this.attrs.set(name, value);
+    if (name === 'class') this.classTokens = classTokensOf(value);
   }
 
   getAttribute(name: string): string | null {
@@ -4709,9 +4797,8 @@ class FakeElement {
     this.textContent = text;
   }
 
-  private matchesSimpleSelector(selector: string): boolean {
-    if (selector === '[inert]') return this.inert || this.hasAttribute('inert');
-    return false;
+  private matchesInert(): boolean {
+    return this.inert || this.hasAttribute('inert');
   }
 
   private recomputeText() {
@@ -4807,7 +4894,7 @@ class FakeDocument {
     if (selector === '.thinking' && this.requireEnv().thinking) return this.body as unknown as Element;
     const detector = this.requireEnv().detectorElements.get(selector)?.[0];
     if (detector) return detector as unknown as Element;
-    for (const part of splitSelectorList(selector, ',')) {
+    for (const part of parseSelector(selector).commaParts) {
       const registered = this.requireEnv().detectorElements.get(part)?.[0];
       if (registered) return registered as unknown as Element;
     }
@@ -4817,7 +4904,8 @@ class FakeDocument {
   }
 
   querySelectorAll(selector: string): Element[] {
-    const selectors = splitSelectorList(selector, ',');
+    const parsed = parseSelector(selector);
+    const selectors = parsed.commaParts;
     if (selectors.includes('.response')) return this.requireEnv().responses as unknown as Element[];
     const env = this.requireEnv();
     if (selectors.includes(CHATGPT_USER_MESSAGE_TESTID_SELECTOR)) {
@@ -4838,7 +4926,11 @@ class FakeDocument {
     }
     const registered = selectors.flatMap((part) => env.detectorElements.get(part) ?? []);
     if (registered.length > 0) return [...new Set(registered)] as unknown as Element[];
-    return this.allElements.filter((element) => element.isConnected !== false && element.matchesSelector(selector)) as unknown as Element[];
+    const matched: FakeElement[] = [];
+    for (const element of this.allElements) {
+      if (element.isConnected !== false && element.matchesParsed(parsed)) matched.push(element);
+    }
+    return matched as unknown as Element[];
   }
 
   createRange() {
