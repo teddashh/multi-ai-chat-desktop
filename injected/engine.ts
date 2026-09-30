@@ -67,6 +67,7 @@ const CHATGPT_USER_MESSAGE_SELECTORS = [
   '[data-testid="user-message"]',
   'div[id^="response-"].items-end',
   '.message-bubble.user',
+  '[data-user-message-bubble]',
 ];
 const CHATGPT_USER_MESSAGE_SELECTOR = CHATGPT_USER_MESSAGE_SELECTORS.join(', ');
 const CHATGPT_LIVE_SEND_BUTTON_SELECTORS = [
@@ -92,20 +93,30 @@ const USER_MESSAGE_ANCESTOR_SELECTOR = [
   '[data-testid="user-message"]',
   'div[id^="response-"].items-end',
   '.message-bubble.user',
+  '[data-user-message-bubble]',
+  '[data-content-search-unit-key$=":user"]',
+  '[data-chatgpt-search-unit-key$=":user"]',
 ].join(', ');
 
-// A finished ChatGPT turn grows a copy button, without needing hover. The stop button is removed
+// A finished ChatGPT turn grows a copy control, without needing hover. The stop button is removed
 // before the last render batch lands, and multi-step answers (search, reasoning) can drop it
 // entirely during an intermediate pause, so relying on it alone reads a pause as "finished".
 // This second signal covers the window the stop button cannot see.
+//
+// [data-turn-key] is the signed-in Chat/Work exchange. That layout has no conversation-turn
+// testid; one element wraps the user bubble and the reply. .turn-action-controls button is the
+// finished-turn row on that layout. zh-TW labels the copy control with something other than
+// "Copy", so the selector matches the row and not an aria-label. The user message has its own
+// .turn-action-controls row (Copy message / Share prompt / Edit message), so a control inside a
+// user message never counts.
 //
 // This lives in the engine rather than the adapter JSON on purpose: thinkingDetectors is a flat
 // selector array that cannot express "the last turn is missing this element", and its seed values
 // are pinned by the SPEC 5.1 frozen table and by scripts/check-adapters.mjs.
 const TURN_COMPLETION_SIGNALS: Partial<Record<AIProvider, { turn: string; complete: string }>> = {
   chatgpt: {
-    turn: '[data-testid^="conversation-turn-"]',
-    complete: '[data-testid="copy-turn-action-button"]',
+    turn: '[data-testid^="conversation-turn-"], [data-turn-key]',
+    complete: '[data-testid="copy-turn-action-button"], .turn-action-controls button',
   },
 };
 
@@ -1336,18 +1347,35 @@ class InactiveSendOperationError extends Error {
 
   function chatGptCompletionEvidence(turn: Element, response: ResponseCandidate): Element | null {
     const signal = TURN_COMPLETION_SIGNALS.chatgpt;
-    const copyMarker = signal ? queryFirstVisibleWithin(turn, [signal.complete]) : null;
+    const copyMarker = signal
+      ? queryFirstVisibleWithin(turn, [signal.complete], (control) =>
+          !isUserMessageElement(control) && completionControlCounts(response.element, control),
+        )
+      : null;
     if (copyMarker) return copyMarker;
     return response.text.startsWith('[Image generated') ? loadedGeneratedMedia(response.element) : null;
   }
 
-  function queryFirstVisibleWithin(root: Element, selectors: string[]): Element | null {
+  // An earlier progress row in the same [data-turn-key] exchange sits before the final answer.
+  // A control counts only when it follows that answer or sits inside it. elementFollows covers
+  // both in a real document. A DOM without compareDocumentPosition keeps the old "any visible
+  // control in the turn" result.
+  function completionControlCounts(response: Element, control: Element): boolean {
+    if (typeof response.compareDocumentPosition !== 'function') return true;
+    return elementFollows(response, control);
+  }
+
+  function queryFirstVisibleWithin(
+    root: Element,
+    selectors: string[],
+    accept: (element: Element) => boolean = () => true,
+  ): Element | null {
     for (const selector of selectors) {
       const matches = Array.from(root.querySelectorAll(selector));
       const first = root.querySelector(selector);
       if (first && !matches.includes(first)) matches.push(first);
       for (const match of matches) {
-        if (isElementVisible(match)) return match;
+        if (isElementVisible(match) && accept(match)) return match;
       }
     }
     return null;
@@ -1363,9 +1391,23 @@ class InactiveSendOperationError extends Error {
     const response = responseElement ?? getLatestResponseCandidate()?.element;
     if (!response) return null;
     const eligibleTurns = Array.from(document.querySelectorAll(signal.turn)).filter(
-      (turn) => elementContains(turn, response) && (!anchor || elementFollows(anchor, turn)),
+      (turn) =>
+        elementContains(turn, response) &&
+        (!anchor || elementFollows(anchor, turn) || elementContains(turn, anchor)),
     );
-    return eligibleTurns.length > 0 ? eligibleTurns[eligibleTurns.length - 1] : null;
+    // The eligible set is a chain of ancestors. The outer [data-turn-key] owns the action row;
+    // a nested conversation-turn wrapper can omit it. Legacy pages have one eligible turn.
+    return outermostTurn(eligibleTurns);
+  }
+
+  function outermostTurn(turns: Element[]): Element | null {
+    let outermost: Element | null = null;
+    for (const turn of turns) {
+      if (!outermost || elementContains(turn, outermost) || elementFollows(turn, outermost)) {
+        outermost = turn;
+      }
+    }
+    return outermost;
   }
 
   function elementContains(container: Element, candidate: Element): boolean {
@@ -1395,10 +1437,9 @@ class InactiveSendOperationError extends Error {
       const responses = Array.from(document.querySelectorAll(adapter.responseSelectors.join(', ')));
       const latestResponse = responses.length > 0 ? responses[responses.length - 1] : null;
       if (latestResponse) {
-        for (let index = turns.length - 1; index >= 0; index -= 1) {
-          const turn = turns[index];
-          if (turn && elementContains(turn, latestResponse)) return turn;
-        }
+        const containing = turns.filter((turn) => turn && elementContains(turn, latestResponse));
+        // Same outer-exchange choice as completion: the action row may sit outside an inner wrapper.
+        if (containing.length > 0) return outermostTurn(containing);
       }
     }
     return turns.length > 0 ? turns[turns.length - 1] : null;
@@ -1423,18 +1464,25 @@ class InactiveSendOperationError extends Error {
     const completionSelector = TURN_COMPLETION_SIGNALS.chatgpt?.complete;
     const promptAnchor =
       adapter?.provider === 'chatgpt' ? refreshChatGptUserTurnAnchor(adapter) : activeChatGptUserTurnAnchor;
+    // A Chat/Work [data-turn-key] contains the user bubble, so the bubble does not follow the
+    // exchange. Containment is the same "this wait's turn" test completion already uses.
     const belongsToPendingPrompt = Boolean(
-      promptAnchor && elementFollows(promptAnchor, activeTurn),
+      promptAnchor &&
+        (elementFollows(promptAnchor, activeTurn) || elementContains(activeTurn, promptAnchor)),
     );
     if (
       completionSelector &&
       (!waitingForResponse || !belongsToPendingPrompt) &&
-      queryFirstVisibleWithin(activeTurn, [completionSelector])
+      queryFirstVisibleWithin(activeTurn, [completionSelector], (control) =>
+        !isUserMessageElement(control),
+      )
     ) {
       return false;
     }
     for (const selector of CHATGPT_PLAIN_ACTIVITY_ELEMENT_SELECTORS) {
       for (const element of Array.from(activeTurn.querySelectorAll(selector))) {
+        // Text inside the user's own message is never a provider activity label.
+        if (isUserMessageElement(element)) continue;
         if (!isElementVisible(element)) continue;
         const label = normalizeActivityLabel(element.textContent ?? '');
         if (!label || label.length > 80 || chatGptStatusLabelIsCompleted(label)) continue;

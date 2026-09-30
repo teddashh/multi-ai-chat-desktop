@@ -43,7 +43,7 @@ describe('M0 shared constants and adapter seeds', () => {
 
   it('keeps bundled adapter versions, strategies, and timing defaults', () => {
     expect(chatgpt.schemaVersion).toBe(1);
-    expect(chatgpt.adapterVersion).toBe(8);
+    expect(chatgpt.adapterVersion).toBe(9);
     expect(chatgpt.inputStrategy).toBe('prosemirror-paste');
     expect(chatgpt.timing.doneDelayMs).toBe(3000);
     expect(chatgpt.timing.chunkDebounceMs).toBe(800);

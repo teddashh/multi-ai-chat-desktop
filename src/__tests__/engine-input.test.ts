@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import chatgptAdapterSeed from '../../adapters/chatgpt.json';
+import grokAdapterSeed from '../../adapters/grok.json';
 import type { AIProvider, BridgeMessage } from '../../shared/types';
 
 const PRE_SEND_DELAY_MS = 800;
@@ -1359,8 +1361,8 @@ describe('injected engine input hardening', () => {
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const response = new FakeElement(env.document, 'div', 'answer after the collapsed long handoff');
-    turn.appendChild(copyButton);
     turn.appendChild(response);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
@@ -1481,10 +1483,10 @@ describe('injected engine input hardening', () => {
     const turn = new FakeElement(env.document, 'article');
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
-    turn.appendChild(copyButton);
-    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     const retriedResponse = new FakeElement(env.document, 'div', 'answer for the retried prompt');
     turn.appendChild(retriedResponse);
+    turn.appendChild(copyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [
       stoppedResponseRemount as FakeElement,
       retriedResponse,
@@ -1617,8 +1619,8 @@ describe('injected engine input hardening', () => {
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const response = new FakeElement(env.document, 'div', 'reply that stayed visible after the bubble detached');
-    turn.appendChild(copyButton);
     turn.appendChild(response);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [staleAnswer, response];
     FakeMutationObserver.notify();
@@ -1666,8 +1668,8 @@ describe('injected engine input hardening', () => {
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const response = new FakeElement(env.document, 'div', 'reply captured without a user-turn anchor');
-    turn.appendChild(copyButton);
     turn.appendChild(response);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
     FakeMutationObserver.notify();
@@ -2467,10 +2469,10 @@ describe('injected engine input hardening', () => {
     const turn = new FakeElement(env.document, 'article');
     const transientCopyButton = new FakeElement(env.document, 'button');
     transientCopyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
-    turn.appendChild(transientCopyButton);
-    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     const response = new FakeElement(env.document, 'div', 'temporary Astra answer');
     turn.appendChild(response);
+    turn.appendChild(transientCopyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
     // Two 400 ms samples and less than 1200 ms are deliberately insufficient evidence.
@@ -2498,10 +2500,10 @@ describe('injected engine input hardening', () => {
     const turn = new FakeElement(env.document, 'article');
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
-    turn.appendChild(copyButton);
-    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     const response = new FakeElement(env.document, 'div', 'the complete Astra answer');
     turn.appendChild(response);
+    turn.appendChild(copyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
     await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
@@ -2532,10 +2534,10 @@ describe('injected engine input hardening', () => {
     const turn = new FakeElement(env.document, 'article');
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
-    turn.appendChild(copyButton);
-    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     const response = new FakeElement(env.document, 'div', 'draft Astra answer');
     turn.appendChild(response);
+    turn.appendChild(copyButton);
+    env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
     await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS * 2);
@@ -2609,8 +2611,8 @@ describe('injected engine input hardening', () => {
     const firstCopyButton = new FakeElement(env.document, 'button');
     firstCopyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const firstResponse = new FakeElement(env.document, 'div', answer);
-    firstTurn.appendChild(firstCopyButton);
     firstTurn.appendChild(firstResponse);
+    firstTurn.appendChild(firstCopyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [firstTurn]);
     env.responses = [firstResponse];
 
@@ -2621,8 +2623,8 @@ describe('injected engine input hardening', () => {
     const replacementCopyButton = new FakeElement(env.document, 'button');
     replacementCopyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const replacementResponse = new FakeElement(env.document, 'div', answer);
-    replacementTurn.appendChild(replacementCopyButton);
     replacementTurn.appendChild(replacementResponse);
+    replacementTurn.appendChild(replacementCopyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [replacementTurn]);
     env.responses = [replacementResponse];
 
@@ -2662,9 +2664,9 @@ describe('injected engine input hardening', () => {
     completedProgress.setAttribute('value', '100');
     completedProgress.setAttribute('max', '100');
     const response = new FakeElement(env.document, 'div', 'complete answer behind sidecar');
-    turn.appendChild(copyButton);
     turn.appendChild(completedProgress);
     turn.appendChild(response);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
@@ -2727,8 +2729,8 @@ describe('injected engine input hardening', () => {
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const response = new FakeElement(env.document, 'div', 'answer gated by an aria label');
-    turn.appendChild(copyButton);
     turn.appendChild(response);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
@@ -2805,8 +2807,8 @@ describe('injected engine input hardening', () => {
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const response = new FakeElement(env.document, 'div', 'answer after completed reasoning');
-    turn.appendChild(copyButton);
     turn.appendChild(response);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
@@ -2868,9 +2870,9 @@ describe('injected engine input hardening', () => {
     completedProgress.setAttribute('role', 'progressbar');
     completedProgress.setAttribute('aria-valuenow', '100');
     const response = new FakeElement(env.document, 'div', 'answer after default-max progress');
-    turn.appendChild(copyButton);
     turn.appendChild(completedProgress);
     turn.appendChild(response);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
@@ -2913,8 +2915,8 @@ describe('injected engine input hardening', () => {
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const response = new FakeElement(env.document, 'div', 'answer behind external progress');
-    turn.appendChild(copyButton);
     turn.appendChild(response);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [response];
 
@@ -3017,8 +3019,8 @@ describe('injected engine input hardening', () => {
     const copyButton = new FakeElement(env.document, 'button');
     copyButton.setAttribute('data-testid', CHATGPT_COPY_BUTTON_TEST_ID);
     const firstResponse = new FakeElement(env.document, 'div', answer);
-    turn.appendChild(copyButton);
     turn.appendChild(firstResponse);
+    turn.appendChild(copyButton);
     env.detectorElements.set(CHATGPT_TURN_SELECTOR, [turn]);
     env.responses = [firstResponse];
 
@@ -3027,7 +3029,9 @@ describe('injected engine input hardening', () => {
 
     firstResponse.remove();
     const replacementResponse = new FakeElement(env.document, 'div', answer);
-    turn.appendChild(replacementResponse);
+    // The copy control has to follow this replacement. A control earlier in the turn does not
+    // complete the node that comes after it.
+    turn.insertBefore(replacementResponse, copyButton);
     env.responses = [replacementResponse];
 
     await vi.advanceTimersByTimeAsync(CHATGPT_TERMINAL_STABLE_MS - 1);
@@ -3501,7 +3505,742 @@ describe('injected engine input hardening', () => {
     expect(JSON.stringify(env.titleEmits)).not.toContain('UNIQUE_PROMPT_TOKEN');
     expect(JSON.stringify(env.emitted)).not.toContain('UNIQUE_PROMPT_TOKEN');
   });
+
+  it('reports the anonymous Grok homepage signed out when Sign in is a link (en-US)', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    mountAnonymousGrokHome(env, {
+      ask: 'Ask Grok anything',
+      signIn: 'Sign in',
+      signUp: 'Sign up',
+    });
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, bundledGrokAdapter());
+
+    expect(grokAdapterSeed.adapterVersion).toBe(8);
+    expect(grokAdapterSeed.loggedOutDetectors.slice(0, 3)).toEqual([
+      { selector: 'button', textIncludes: 'Sign in' },
+      { selector: 'button', textIncludes: 'Sign up' },
+      { selector: 'button', textIncludes: 'Log in' },
+    ]);
+    expect(grokAdapterSeed.loggedOutDetectors.slice(-3)).toEqual([
+      '[data-testid="anon-paywall-sign-up-card"]',
+      'a[href^="/sign-in"]',
+      'a[href^="/sign-up"]',
+    ]);
+    expect(env.document.querySelector('a[href="/sign-in"]')).toBeNull();
+    expect(env.document.querySelector('a[href^="/sign-in"]')).not.toBeNull();
+    expect(env.document.querySelector('a[href^="/sign-up"]')).not.toBeNull();
+    expectGrokLogin(env, 'logged_out');
+  });
+
+  it('reports the anonymous Grok homepage signed out for zh-TW sign-in links', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    mountAnonymousGrokHome(env, { ask: '問 Grok 任何事', signIn: '登入', signUp: '註冊' });
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, bundledGrokAdapter());
+
+    expectGrokLogin(env, 'logged_out');
+  });
+
+  it('reports Grok signed out when the anonymous paywall replaces the composer', async () => {
+    const env = createEnv({ inputKind: 'textarea' });
+    env.input.hidden = true;
+    if (env.sendButton) env.sendButton.hidden = true;
+    const bubble = new FakeElement(env.document, 'div', '你好');
+    bubble.setAttribute('data-testid', 'user-message');
+    bubble.setAttribute('aria-label', '您');
+    const paywall = new FakeElement(env.document, 'div');
+    paywall.setAttribute('data-testid', 'anon-paywall-sign-up-card');
+    env.document.body.appendChild(bubble);
+    env.document.body.appendChild(paywall);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, bundledGrokAdapter());
+
+    expect(env.document.querySelector('[data-testid="anon-paywall-sign-up-card"]')).toBe(paywall);
+    expectGrokLogin(env, 'logged_out');
+  });
+
+  it('reports a signed-in Grok composer ready when no sign-in link or paywall is present', async () => {
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountSignedInGrok(env);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, bundledGrokAdapter());
+
+    expectGrokLogin(env, 'logged_in');
+  });
+
+  it('keeps a signed-in Grok page ready when an assistant reply links to an absolute sign-in URL', async () => {
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountSignedInGrok(env);
+    const reply = new FakeElement(env.document, 'div');
+    reply.setAttribute('data-testid', 'assistant-message');
+    const link = new FakeElement(env.document, 'a', 'Sign in');
+    link.setAttribute('href', 'https://example.com/sign-in');
+    reply.appendChild(link);
+    env.document.body.appendChild(reply);
+    const handler = await installEngine(env);
+
+    dispatchAdapter(handler, bundledGrokAdapter());
+
+    expect(env.document.querySelector('a[href^="/sign-in"]')).toBeNull();
+    expect(env.document.querySelector('a[href*="sign-in"]')).toBe(link);
+    expectGrokLogin(env, 'logged_in');
+  });
+
+  it('confirms a ChatGPT Chat/Work send from the user-message bubble without a second click', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    appendChatWorkExchange(env, {
+      turnKey: 'history',
+      prompt: CHAT_WORK_HISTORY_PROMPT,
+      heading: CHAT_WORK_HEADING,
+      answer: CHAT_WORK_HISTORY_ANSWER,
+      status: CHAT_WORK_STATUS,
+      actionLabel: 'Copy',
+    });
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.replaceChildren();
+        env.input.setVisibleText('');
+        appendChatWorkExchange(env, { turnKey: 'current', prompt: CHAT_WORK_PROMPT });
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, CHAT_WORK_PROMPT, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(
+      PRE_SEND_DELAY_MS + CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS + CHATGPT_FALLBACK_SEND_CONFIRMATION_DELAY_MS,
+    );
+
+    expect(chatgptAdapterSeed.adapterVersion).toBe(9);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(keyEventCount(env.input)).toBe(0);
+    expect(env.input.textContent).toBe('');
+    expect(errorDone(env)).toBeUndefined();
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    expect(env.emitted.some((message) => message.payload === CHAT_WORK_HISTORY_ANSWER)).toBe(false);
+    const bubbles = env.document.querySelectorAll('[data-user-message-bubble]');
+    expect(Array.from(bubbles).some((node) => node.textContent === CHAT_WORK_PROMPT)).toBe(true);
+  });
+
+  it('captures only the final ChatGPT Chat/Work answer', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    appendChatWorkExchange(env, {
+      turnKey: 'history',
+      prompt: CHAT_WORK_HISTORY_PROMPT,
+      heading: CHAT_WORK_HEADING,
+      answer: CHAT_WORK_HISTORY_ANSWER,
+      status: CHAT_WORK_STATUS,
+      actionLabel: 'Copy',
+    });
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.replaceChildren();
+        env.input.setVisibleText('');
+        appendChatWorkExchange(env, {
+          turnKey: 'current',
+          prompt: CHAT_WORK_PROMPT,
+          heading: CHAT_WORK_HEADING,
+          answer: CHAT_WORK_ANSWER,
+          status: CHAT_WORK_STATUS,
+          actionLabel: '複製',
+          nestLegacyTurn: true,
+        });
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, CHAT_WORK_PROMPT, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(CHAT_WORK_SETTLE_MS);
+
+    expect(chatgptAdapterSeed.responseSelectors.at(-1)).toBe(
+      '[data-markdown-text-style="assistant-message"]:not([data-markdown-text-tone="tertiary"])',
+    );
+    expect(env.sendButton?.clickCount).toBe(1);
+    expectChatWorkCaptured(env, CHAT_WORK_ANSWER);
+  });
+
+  it('finishes a ChatGPT Chat/Work turn only after the action row follows the answer', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    appendChatWorkExchange(env, {
+      turnKey: 'history',
+      prompt: CHAT_WORK_HISTORY_PROMPT,
+      answer: CHAT_WORK_HISTORY_ANSWER,
+      actionLabel: 'Copy',
+    });
+    let stop: FakeElement | undefined;
+    let currentTurn: FakeElement | undefined;
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.replaceChildren();
+        env.input.setVisibleText('');
+        stop = new FakeElement(env.document, 'button');
+        stop.setAttribute('data-testid', 'stop-button');
+        env.document.body.appendChild(stop);
+        currentTurn = appendChatWorkExchange(env, {
+          turnKey: 'current',
+          prompt: CHAT_WORK_PROMPT,
+          heading: CHAT_WORK_HEADING,
+          answer: CHAT_WORK_ANSWER,
+          status: CHAT_WORK_STATUS,
+          nestLegacyTurn: true,
+        }).turn;
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, CHAT_WORK_PROMPT, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + 50);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: CHAT_WORK_ANSWER,
+    });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { thinking: true },
+    });
+
+    if (!stop || !currentTurn) throw new Error('Chat/Work turn did not mount');
+    stop.hidden = true;
+    // The stop control is gone, but the turn stays incomplete until an action row
+    // follows the answer, so this gap must not emit RESPONSE_DONE.
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    const row = new FakeElement(env.document, 'div');
+    row.setAttribute('class', 'turn-action-controls');
+    const copy = new FakeElement(env.document, 'button');
+    copy.setAttribute('aria-label', '複製');
+    row.appendChild(copy);
+    currentTurn.appendChild(row);
+    await vi.advanceTimersByTimeAsync(
+      1_000 + CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 100,
+    );
+
+    expectChatWorkCaptured(env, CHAT_WORK_ANSWER);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS);
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(keyEventCount(env.input)).toBe(0);
+  });
+
+  it('does not let an earlier ChatGPT Chat/Work action row complete the final answer', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    appendChatWorkExchange(env, {
+      turnKey: 'history',
+      prompt: CHAT_WORK_HISTORY_PROMPT,
+      answer: CHAT_WORK_HISTORY_ANSWER,
+      actionLabel: 'Copy',
+    });
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.replaceChildren();
+        env.input.setVisibleText('');
+        appendChatWorkExchange(env, {
+          turnKey: 'current',
+          prompt: CHAT_WORK_PROMPT,
+          progress: CHAT_WORK_PROGRESS,
+          actionLabel: '複製',
+          actionBeforeAnswer: true,
+          heading: CHAT_WORK_HEADING,
+          answer: CHAT_WORK_ANSWER,
+          status: CHAT_WORK_STATUS,
+        });
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, CHAT_WORK_PROMPT, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(CHAT_WORK_SETTLE_MS);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: CHAT_WORK_ANSWER,
+    });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    expect(env.emitted.some((message) => message.payload === CHAT_WORK_PROGRESS)).toBe(false);
+    expect(chatWorkPayloads(env).some((payload) => chatWorkPayloadIsForeign(payload))).toBe(false);
+  });
+
+  it('does not let a historical ChatGPT Chat/Work action row complete the new exchange', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    appendChatWorkExchange(env, {
+      turnKey: 'history',
+      prompt: CHAT_WORK_HISTORY_PROMPT,
+      heading: CHAT_WORK_HEADING,
+      answer: CHAT_WORK_HISTORY_ANSWER,
+      status: CHAT_WORK_STATUS,
+      actionLabel: 'Copy',
+    });
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.replaceChildren();
+        env.input.setVisibleText('');
+        appendChatWorkExchange(env, {
+          turnKey: 'current',
+          prompt: CHAT_WORK_PROMPT,
+          heading: CHAT_WORK_HEADING,
+          answer: CHAT_WORK_ANSWER,
+          status: CHAT_WORK_STATUS,
+          nestLegacyTurn: true,
+        });
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, CHAT_WORK_PROMPT, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(CHAT_WORK_SETTLE_MS);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: CHAT_WORK_ANSWER,
+    });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    expect(chatWorkPayloads(env).some((payload) => chatWorkPayloadIsForeign(payload))).toBe(false);
+  });
+
+  it('keeps a ChatGPT Chat/Work Pro thinking label active when the exchange contains the user bubble', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    const prompt = 'keep the Chat/Work turn alive';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.replaceChildren();
+        env.input.setVisibleText('');
+        const exchange = appendChatWorkExchange(env, { turnKey: 'current', prompt });
+        const label = new FakeElement(env.document, 'p', 'Pro thinking');
+        exchange.turn.appendChild(label);
+        const row = new FakeElement(env.document, 'div');
+        row.setAttribute('class', 'turn-action-controls');
+        const copy = new FakeElement(env.document, 'button');
+        copy.setAttribute('aria-label', '複製');
+        row.appendChild(copy);
+        exchange.turn.appendChild(row);
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { login: 'logged_in', thinking: true },
+    });
+  });
+
+  it('does not finish a ChatGPT Chat/Work answer from the user-message row alone', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    appendChatWorkExchange(env, {
+      turnKey: 'history',
+      prompt: CHAT_WORK_HISTORY_PROMPT,
+      answer: CHAT_WORK_HISTORY_ANSWER,
+      actionLabel: 'Copy',
+    });
+    let currentTurn: FakeElement | undefined;
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.replaceChildren();
+        env.input.setVisibleText('');
+        currentTurn = appendChatWorkExchange(env, {
+          turnKey: 'current',
+          prompt: CHAT_WORK_PROMPT,
+          answer: CHAT_WORK_ANSWER,
+        }).turn;
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, CHAT_WORK_PROMPT, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS + 50);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expect(env.emitted).toContainEqual({
+      v: 1,
+      action: 'RESPONSE_CHUNK',
+      provider: 'chatgpt',
+      payload: CHAT_WORK_ANSWER,
+    });
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+
+    // The user-message row is already in the exchange. Several seconds past the terminal
+    // gate, with no assistant row and no stop button, must stay in flight.
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(0);
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { thinking: true },
+    });
+
+    if (!currentTurn) throw new Error('Chat/Work turn did not mount');
+    const row = new FakeElement(env.document, 'div');
+    row.setAttribute('class', 'turn-action-controls');
+    const copy = new FakeElement(env.document, 'button');
+    copy.setAttribute('aria-label', 'Copy');
+    row.appendChild(copy);
+    currentTurn.appendChild(row);
+    await vi.advanceTimersByTimeAsync(
+      1_000 + CHATGPT_TERMINAL_STABLE_MS + CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS + 100,
+    );
+
+    expectChatWorkCaptured(env, CHAT_WORK_ANSWER);
+    expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toHaveLength(1);
+  });
+
+  it('rejects a new ChatGPT send while a Chat/Work exchange still shows Pro thinking', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    const exchange = appendChatWorkExchange(env, {
+      turnKey: 'earlier',
+      prompt: CHAT_WORK_HISTORY_PROMPT,
+      answer: CHAT_WORK_PROGRESS,
+    });
+    exchange.turn.appendChild(new FakeElement(env.document, 'p', 'Pro thinking'));
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, 'a follow-up that must wait', 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(errorDone(env)?.payload).toBe('[Error: chatgpt send rejected: provider is still generating]');
+    expect(env.input.textContent).toBe('');
+    expect(env.sendButton?.clickCount).toBe(0);
+  });
+
+  it('lets a new ChatGPT send through a finished Chat/Work exchange', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    const exchange = appendChatWorkExchange(env, {
+      turnKey: 'earlier',
+      prompt: CHAT_WORK_HISTORY_PROMPT,
+      answer: CHAT_WORK_PROGRESS,
+      actionLabel: 'Copy',
+    });
+    exchange.turn.appendChild(new FakeElement(env.document, 'p', 'Pro thinking'));
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, 'the finished exchange can take the next prompt', 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(PRE_SEND_DELAY_MS);
+
+    expect(errorDone(env)).toBeUndefined();
+    expect(env.sendButton?.clickCount).toBe(1);
+  });
+
+  it('finishes a ChatGPT Chat/Work turn when the prompt text is Pro thinking', async () => {
+    vi.useFakeTimers();
+    const env = createEnv({ inputKind: 'contenteditable' });
+    mountProseMirrorComposer(env);
+    const prompt = 'Pro thinking';
+    if (env.sendButton) {
+      env.sendButton.onClick = () => {
+        env.input.replaceChildren();
+        env.input.setVisibleText('');
+        appendChatWorkExchange(env, {
+          turnKey: 'current',
+          prompt,
+          answer: CHAT_WORK_ANSWER,
+          actionLabel: 'Copy',
+        });
+      };
+    }
+    const handler = await installEngine(env);
+    dispatchAdapter(handler, bundledChatGptAdapter());
+
+    send(handler, prompt, 'chatgpt');
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(CHAT_WORK_SETTLE_MS);
+
+    expect(env.sendButton?.clickCount).toBe(1);
+    expectChatWorkCaptured(env, CHAT_WORK_ANSWER);
+    handler({ v: 1, action: 'CHECK_STATUS', provider: 'chatgpt' } as BridgeMessage);
+    expect(env.emitted.at(-1)).toMatchObject({
+      action: 'STATUS_REPORT',
+      provider: 'chatgpt',
+      payload: { thinking: false },
+    });
+  });
 });
+
+const CHAT_WORK_PROMPT = 'How are the glaciers changing?';
+const CHAT_WORK_HISTORY_PROMPT = 'What did the last report say?';
+const CHAT_WORK_ANSWER = 'The glaciers are retreating.';
+const CHAT_WORK_HISTORY_ANSWER = 'An older glacier note.';
+const CHAT_WORK_HEADING = 'ChatGPT said:';
+const CHAT_WORK_STATUS = 'Searched 51 websites';
+const CHAT_WORK_PROGRESS = 'I will investigate.';
+const CHAT_WORK_SETTLE_MS =
+  PRE_SEND_DELAY_MS +
+  CHATGPT_INITIAL_SEND_CONFIRMATION_DELAY_MS +
+  CHATGPT_TERMINAL_STABLE_MS +
+  CHATGPT_TERMINAL_SAMPLE_INTERVAL_MS +
+  1_000;
+
+function bundledChatGptAdapter(overrides: Partial<TestAdapter> = {}): Partial<TestAdapter> {
+  return {
+    provider: 'chatgpt',
+    adapterVersion: chatgptAdapterSeed.adapterVersion,
+    inputSelectors: [...chatgptAdapterSeed.inputSelectors],
+    sendButtonSelectors: [...chatgptAdapterSeed.sendButtonSelectors],
+    responseSelectors: [...chatgptAdapterSeed.responseSelectors],
+    loginDetectors: [...chatgptAdapterSeed.loginDetectors],
+    loggedOutDetectors: [...chatgptAdapterSeed.loggedOutDetectors],
+    thinkingDetectors: [...chatgptAdapterSeed.thinkingDetectors],
+    stopButtonSelectors: [...chatgptAdapterSeed.stopButtonSelectors],
+    inputStrategy: 'prosemirror-paste',
+    sendStrategy: 'click',
+    timing: {
+      doneDelayMs: 100,
+      chunkDebounceMs: 0,
+      statusIntervalMs: 1_000_000,
+      backupPollMs: 10,
+    },
+    ...overrides,
+  };
+}
+
+function bundledGrokAdapter(): Partial<TestAdapter> {
+  return {
+    provider: 'grok',
+    adapterVersion: grokAdapterSeed.adapterVersion,
+    inputSelectors: [...grokAdapterSeed.inputSelectors],
+    sendButtonSelectors: [...grokAdapterSeed.sendButtonSelectors],
+    responseSelectors: [...grokAdapterSeed.responseSelectors],
+    loginDetectors: [...grokAdapterSeed.loginDetectors],
+    loggedOutDetectors: [...grokAdapterSeed.loggedOutDetectors],
+    thinkingDetectors: [...grokAdapterSeed.thinkingDetectors],
+    stopButtonSelectors: [...grokAdapterSeed.stopButtonSelectors],
+    inputStrategy: 'prosemirror-paste',
+    sendStrategy: 'click',
+    timing: grokAdapterSeed.timing,
+  };
+}
+
+function expectGrokLogin(env: FakeDomEnv, login: 'logged_in' | 'logged_out'): void {
+  expect(env.emitted.at(-1)).toEqual({
+    v: 1,
+    action: 'STATUS_REPORT',
+    provider: 'grok',
+    payload: { dom: 'ready', login, thinking: false, bootId: 'boot1' },
+  });
+}
+
+function mountAnonymousGrokHome(
+  env: FakeDomEnv,
+  labels: { ask: string; signIn: string; signUp: string },
+): void {
+  const form = new FakeElement(env.document, 'form');
+  form.setAttribute('data-composer', '');
+  env.input.setAttribute('aria-label', labels.ask);
+  env.input.setAttribute('class', 'prose');
+  form.appendChild(env.input);
+  const measuring = new FakeTextAreaElement(env.document, 'textarea');
+  measuring.setAttribute('aria-hidden', 'true');
+  measuring.setAttribute('aria-label', labels.ask);
+  env.document.body.appendChild(measuring);
+  if (env.sendButton) {
+    env.sendButton.setAttribute('type', 'submit');
+    env.sendButton.setAttribute('data-testid', 'chat-submit');
+    env.sendButton.disabled = true;
+    form.appendChild(env.sendButton);
+  }
+  env.document.body.appendChild(form);
+  for (const [href, text] of [
+    ['/sign-in?return_to=%2F', labels.signIn],
+    ['/sign-up?return_to=%2F', labels.signUp],
+  ] as const) {
+    const link = new FakeElement(env.document, 'a', text);
+    link.setAttribute('href', href);
+    link.setAttribute('data-slot', 'button');
+    env.document.body.appendChild(link);
+  }
+}
+
+function mountSignedInGrok(env: FakeDomEnv): void {
+  const chatInput = new FakeElement(env.document, 'div');
+  chatInput.setAttribute('data-testid', 'chat-input');
+  env.input.setAttribute('class', 'ProseMirror');
+  env.input.setAttribute('contenteditable', 'true');
+  chatInput.appendChild(env.input);
+  env.document.body.appendChild(chatInput);
+  if (env.sendButton) {
+    env.sendButton.setAttribute('type', 'submit');
+    env.sendButton.setAttribute('data-testid', 'chat-submit');
+  }
+}
+
+function mountProseMirrorComposer(env: FakeDomEnv): void {
+  env.input.setAttribute('class', 'ProseMirror');
+  env.input.setAttribute('contenteditable', 'true');
+  const form = new FakeElement(env.document, 'form');
+  form.setAttribute('data-chatgpt-composer', '');
+  form.appendChild(env.input);
+  if (env.sendButton) {
+    env.sendButton.setAttribute('data-testid', 'send-button');
+    form.appendChild(env.sendButton);
+  }
+  env.document.body.appendChild(form);
+}
+
+function appendChatWorkExchange(
+  env: FakeDomEnv,
+  options: {
+    turnKey: string;
+    prompt: string;
+    answer?: string;
+    status?: string;
+    heading?: string;
+    actionLabel?: string;
+    actionBeforeAnswer?: boolean;
+    progress?: string;
+    nestLegacyTurn?: boolean;
+    userActions?: boolean;
+  },
+): { turn: FakeElement; bubble: FakeElement; answer: FakeElement | null } {
+  const turn = new FakeElement(env.document, 'div');
+  turn.setAttribute('data-turn-key', options.turnKey);
+  const exchange = new FakeElement(env.document, 'div');
+  exchange.setAttribute('data-content-search-turn-key', options.turnKey);
+  const userOuter = new FakeElement(env.document, 'div');
+  userOuter.setAttribute('data-chatgpt-search-unit-key', `${options.turnKey}:0:user`);
+  const userInner = new FakeElement(env.document, 'div');
+  userInner.setAttribute('data-content-search-unit-key', `${options.turnKey}:0:user`);
+  const bubble = new FakeElement(env.document, 'div', options.prompt);
+  bubble.setAttribute('data-user-message-bubble', 'true');
+  userInner.appendChild(bubble);
+  if (options.userActions !== false) userInner.appendChild(userMessageActionRow(env));
+  userOuter.appendChild(userInner);
+  exchange.appendChild(userOuter);
+
+  const assistant = new FakeElement(env.document, 'div');
+  assistant.setAttribute('data-content-search-unit-key', `${options.turnKey}:2:assistant`);
+  assistant.setAttribute('data-chatgpt-search-unit-key', `${options.turnKey}:2:assistant`);
+  assistant.setAttribute('data-chatgpt-search-message-ids', `${options.turnKey}:assistant`);
+  if (options.nestLegacyTurn) assistant.setAttribute('data-testid', 'conversation-turn-55');
+  if (options.heading) {
+    const heading = new FakeElement(env.document, 'h4', options.heading);
+    heading.setAttribute('data-conversation-role', 'assistant');
+    assistant.appendChild(heading);
+  }
+  if (options.progress) {
+    const progress = new FakeElement(env.document, 'div', options.progress);
+    progress.setAttribute('data-markdown-text-style', 'assistant-message');
+    assistant.appendChild(progress);
+  }
+  const actionRow = () => {
+    const row = new FakeElement(env.document, 'div');
+    row.setAttribute('class', 'turn-action-controls');
+    const button = new FakeElement(env.document, 'button');
+    if (options.actionLabel) button.setAttribute('aria-label', options.actionLabel);
+    row.appendChild(button);
+    return row;
+  };
+  if (options.actionLabel && options.actionBeforeAnswer) assistant.appendChild(actionRow());
+  let answer: FakeElement | null = null;
+  if (options.answer) {
+    answer = new FakeElement(env.document, 'div', options.answer);
+    answer.setAttribute('data-markdown-text-style', 'assistant-message');
+    assistant.appendChild(answer);
+  }
+  if (options.status) {
+    const status = new FakeElement(env.document, 'div', options.status);
+    status.setAttribute('data-markdown-text-style', 'assistant-message');
+    status.setAttribute('data-markdown-text-tone', 'tertiary');
+    assistant.appendChild(status);
+  }
+  exchange.appendChild(assistant);
+  if (options.actionLabel && !options.actionBeforeAnswer) exchange.appendChild(actionRow());
+  turn.appendChild(exchange);
+  env.document.body.appendChild(turn);
+  return { turn, bubble, answer };
+}
+
+function userMessageActionRow(env: FakeDomEnv): FakeElement {
+  const wrapper = new FakeElement(env.document, 'div');
+  wrapper.setAttribute('class', 'opacity-0');
+  const row = new FakeElement(env.document, 'div');
+  row.setAttribute('class', 'turn-action-controls');
+  for (const label of ['Copy message', 'Share prompt', 'Edit message']) {
+    const button = new FakeElement(env.document, 'button');
+    button.setAttribute('aria-label', label);
+    row.appendChild(button);
+  }
+  wrapper.appendChild(row);
+  return wrapper;
+}
+
+function chatWorkPayloads(env: FakeDomEnv): string[] {
+  return env.emitted
+    .filter((message) => message.action === 'RESPONSE_CHUNK' || message.action === 'RESPONSE_DONE')
+    .map((message) => String(message.payload ?? ''));
+}
+
+function chatWorkPayloadIsForeign(payload: string): boolean {
+  return [CHAT_WORK_HEADING, CHAT_WORK_STATUS, CHAT_WORK_HISTORY_ANSWER, CHAT_WORK_HISTORY_PROMPT, CHAT_WORK_PROMPT, CHAT_WORK_PROGRESS].some(
+    (foreign) => payload.includes(foreign),
+  );
+}
+
+function expectChatWorkCaptured(env: FakeDomEnv, answer: string): void {
+  const payloads = chatWorkPayloads(env);
+  expect(payloads.length).toBeGreaterThan(0);
+  expect(payloads.every((payload) => payload === answer)).toBe(true);
+  expect(env.emitted.filter((message) => message.action === 'RESPONSE_DONE')).toEqual([
+    { v: 1, action: 'RESPONSE_DONE', provider: 'chatgpt', payload: answer },
+  ]);
+}
 
 function createEnv(options: { inputKind: 'textarea' | 'input' | 'contenteditable'; sendButton?: FakeElement | null }): FakeDomEnv {
   const document = new FakeDocument();
@@ -3673,6 +4412,135 @@ function macBridge(): {
   }).__MAC_BRIDGE__;
 }
 
+function splitSelectorList(selector: string, separator: ',' | ' '): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let bracket = 0;
+  let paren = 0;
+  let quote = '';
+  for (let index = 0; index < selector.length; index += 1) {
+    const character = selector[index];
+    if (quote) {
+      current += character;
+      if (character === quote) quote = '';
+      continue;
+    }
+    if (character === '"' || character === '\'') {
+      quote = character;
+      current += character;
+      continue;
+    }
+    if (character === '[') bracket += 1;
+    else if (character === ']' && bracket > 0) bracket -= 1;
+    else if (character === '(') paren += 1;
+    else if (character === ')' && paren > 0) paren -= 1;
+    if (bracket === 0 && paren === 0 && character === separator) {
+      if (current.trim()) parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += character;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+// Backup polls repeat the same selector strings. Parse each one once, into comma parts
+// and descendant compounds, so matching an element does not split or re-run these regexes.
+const COMPOUND_TAG = /^([a-zA-Z][\w-]*)/;
+const COMPOUND_CLASS = /^\.(-?[_a-zA-Z]+[_a-zA-Z0-9-]*)/;
+const COMPOUND_ATTRIBUTE = /^\[([\w-]+)(?:([~|^$*]?=)(["'])([\s\S]*?)\3)?\]/;
+
+interface ParsedAttribute {
+  name: string;
+  operator: string | null;
+  expected: string;
+}
+
+interface ParsedCompound {
+  valid: boolean;
+  tag: string | null;
+  classes: readonly string[];
+  attributes: readonly ParsedAttribute[];
+  nots: readonly ParsedCompound[];
+}
+
+interface ParsedSelector {
+  commaParts: readonly string[];
+  chains: readonly (readonly ParsedCompound[])[];
+  inertPart: boolean;
+}
+
+const INVALID_COMPOUND: ParsedCompound = {
+  valid: false,
+  tag: null,
+  classes: [],
+  attributes: [],
+  nots: [],
+};
+
+const parsedSelectorCache = new Map<string, ParsedSelector>();
+
+function classTokensOf(value: string): string[] {
+  return value.split(/\s+/).filter((token) => token.length > 0);
+}
+
+function parseCompound(source: string): ParsedCompound {
+  let rest = source;
+  let tag: string | null = null;
+  const classes: string[] = [];
+  const attributes: ParsedAttribute[] = [];
+  const nots: ParsedCompound[] = [];
+  const tagMatch = COMPOUND_TAG.exec(rest);
+  if (tagMatch) {
+    tag = tagMatch[1].toLowerCase();
+    rest = rest.slice(tagMatch[1].length);
+  }
+  while (rest.length > 0) {
+    if (rest.startsWith('.')) {
+      const className = COMPOUND_CLASS.exec(rest);
+      if (!className) return INVALID_COMPOUND;
+      classes.push(className[1]);
+      rest = rest.slice(className[0].length);
+      continue;
+    }
+    if (rest.startsWith('[')) {
+      const attribute = COMPOUND_ATTRIBUTE.exec(rest);
+      if (!attribute) return INVALID_COMPOUND;
+      const operator = attribute[2] ?? null;
+      attributes.push({
+        name: attribute[1],
+        operator,
+        expected: operator ? (attribute[4] ?? '') : '',
+      });
+      rest = rest.slice(attribute[0].length);
+      continue;
+    }
+    if (rest.startsWith(':not(')) {
+      const end = rest.indexOf(')');
+      if (end < 0) return INVALID_COMPOUND;
+      nots.push(parseCompound(rest.slice(5, end)));
+      rest = rest.slice(end + 1);
+      continue;
+    }
+    return INVALID_COMPOUND;
+  }
+  return { valid: true, tag, classes, attributes, nots };
+}
+
+function parseSelector(selector: string): ParsedSelector {
+  const cached = parsedSelectorCache.get(selector);
+  if (cached) return cached;
+  const commaParts = splitSelectorList(selector, ',');
+  const parsed: ParsedSelector = {
+    commaParts,
+    chains: commaParts.map((part) => splitSelectorList(part, ' ').map(parseCompound)),
+    inertPart: commaParts.some((part) => part === '[inert]'),
+  };
+  parsedSelectorCache.set(selector, parsed);
+  return parsed;
+}
+
 class FakeElement {
   textContent: string;
   hidden = false;
@@ -3691,6 +4559,8 @@ class FakeElement {
   private parent: FakeElement | null = null;
   private readonly attrs = new Map<string, string>();
   private readonly documentOrder: number;
+  private readonly tagLower: string;
+  private classTokens: readonly string[] = [];
 
   constructor(
     private readonly fakeDocument: FakeDocument,
@@ -3698,16 +4568,65 @@ class FakeElement {
     text = '',
   ) {
     this.textContent = text;
+    this.tagLower = tagName.toLowerCase();
     this.documentOrder = fakeDocument.allocateDocumentOrder();
+    fakeDocument.track(this);
   }
 
   compareDocumentPosition(other: FakeElement): number {
     if (other.fakeDocument !== this.fakeDocument || this.isConnected === false || other.isConnected === false) {
       return 0x01;
     }
+    // Parent and child share a tree, so order follows the tree. Unparented fixtures still use
+    // allocation order, which is how the older tests place an anchor before its reply.
+    if (this.sharesTree(other)) return this.treePosition(other);
     if (this.documentOrder < other.documentOrder) return 0x04;
     if (this.documentOrder > other.documentOrder) return 0x02;
     return 0;
+  }
+
+  private sharesTree(other: FakeElement): boolean {
+    return this.rootElement() === other.rootElement() && (this.parent !== null || other.parent !== null);
+  }
+
+  private rootElement(): FakeElement {
+    let current = this.parent;
+    if (!current) return this;
+    while (current.parent) current = current.parent;
+    return current;
+  }
+
+  private treePosition(other: FakeElement): number {
+    if (this === other) return 0;
+    if (this.contains(other)) return 0x04 | 0x10;
+    if (other.contains(this)) return 0x02 | 0x08;
+    const thisChain = this.ancestorChain();
+    const otherChain = other.ancestorChain();
+    let index = 0;
+    while (thisChain[index] && thisChain[index] === otherChain[index]) index += 1;
+    const thisNode = thisChain[index];
+    const otherNode = otherChain[index];
+    const parent = thisNode?.parent;
+    if (!thisNode || !otherNode || !parent) {
+      if (this.documentOrder < other.documentOrder) return 0x04;
+      if (this.documentOrder > other.documentOrder) return 0x02;
+      return 0;
+    }
+    const thisIndex = parent.children.indexOf(thisNode);
+    const otherIndex = parent.children.indexOf(otherNode);
+    if (thisIndex < otherIndex) return 0x04;
+    if (thisIndex > otherIndex) return 0x02;
+    return 0;
+  }
+
+  private ancestorChain(): FakeElement[] {
+    const chain: FakeElement[] = [this];
+    let current = this.parent;
+    while (current) {
+      chain.push(current);
+      current = current.parent;
+    }
+    return chain.reverse();
   }
 
   contains(candidate: FakeElement | null): boolean {
@@ -3720,9 +4639,14 @@ class FakeElement {
   }
 
   closest(selector: string): FakeElement | null {
-    const parts = selector.split(',').map((part) => part.trim());
-    if (parts.some((part) => this.matchesSimpleSelector(part))) return this;
-    return this.parent?.closest(selector) ?? null;
+    // The same matcher as querySelector: comma lists, compounds, and descendants.
+    // [inert] still matches the inert property, which the attribute matcher does not see.
+    return this.closestParsed(parseSelector(selector));
+  }
+
+  private closestParsed(parsed: ParsedSelector): FakeElement | null {
+    if (this.matchesParsed(parsed) || (parsed.inertPart && this.matchesInert())) return this;
+    return this.parent?.closestParsed(parsed) ?? null;
   }
 
   focus() {
@@ -3755,6 +4679,16 @@ class FakeElement {
     return child;
   }
 
+  insertBefore(child: FakeElement, reference: FakeElement | null): FakeElement {
+    if (child.parent) child.remove();
+    child.parent = this;
+    const index = reference ? this.children.indexOf(reference) : -1;
+    if (index >= 0) this.children.splice(index, 0, child);
+    else this.children.push(child);
+    this.recomputeText();
+    return child;
+  }
+
   replaceChildren() {
     for (const child of this.children) {
       child.parent = null;
@@ -3764,19 +4698,78 @@ class FakeElement {
   }
 
   querySelectorAll(selector: string): FakeElement[] {
-    if (selector !== 'p') return [];
-    return this.children.filter((child) => child.tagName === 'p');
+    if (selector === 'p') return this.children.filter((child) => child.tagName === 'p');
+    const parsed = parseSelector(selector);
+    const matches: FakeElement[] = [];
+    const walk = (node: FakeElement) => {
+      for (const child of node.children) {
+        if (child.matchesParsed(parsed)) matches.push(child);
+        walk(child);
+      }
+    };
+    walk(this);
+    return matches;
   }
 
   querySelector(selector: string): FakeElement | null {
-    if (selector === 'img, canvas, video') {
-      return this.children.find((child) => ['img', 'canvas', 'video'].includes(child.tagName)) ?? null;
+    return this.querySelectorAll(selector)[0] ?? null;
+  }
+
+  matchesSelector(selector: string): boolean {
+    return this.matchesParsed(parseSelector(selector));
+  }
+
+  matchesParsed(parsed: ParsedSelector): boolean {
+    for (const chain of parsed.chains) {
+      if (this.matchesChain(chain)) return true;
     }
-    const attribute = /^\[([\w-]+)="(.+)"\]$/.exec(selector);
-    if (attribute) {
-      return this.children.find((child) => child.getAttribute(attribute[1]) === attribute[2]) ?? null;
+    return false;
+  }
+
+  private matchesChain(compounds: readonly ParsedCompound[]): boolean {
+    const last = compounds.length - 1;
+    if (last < 0 || !this.matchesCompound(compounds[last])) return false;
+    let ancestor = this.parent;
+    for (let index = last - 1; index >= 0; index -= 1) {
+      const compound = compounds[index];
+      while (ancestor && !ancestor.matchesCompound(compound)) ancestor = ancestor.parent;
+      if (!ancestor) return false;
+      ancestor = ancestor.parent;
     }
-    return null;
+    return true;
+  }
+
+  private matchesCompound(compound: ParsedCompound): boolean {
+    if (!compound.valid) return false;
+    if (compound.tag !== null && this.tagLower !== compound.tag) return false;
+    for (const name of compound.classes) {
+      if (!this.classTokens.includes(name)) return false;
+    }
+    for (const attribute of compound.attributes) {
+      if (!this.attributeMatches(attribute)) return false;
+    }
+    for (const inner of compound.nots) {
+      if (this.matchesCompound(inner)) return false;
+    }
+    return true;
+  }
+
+  private attributeMatches(attribute: ParsedAttribute): boolean {
+    if (attribute.operator === null) return this.hasAttribute(attribute.name);
+    const actual = this.getAttribute(attribute.name);
+    if (actual === null) return false;
+    switch (attribute.operator) {
+      case '=':
+        return actual === attribute.expected;
+      case '^=':
+        return actual.startsWith(attribute.expected);
+      case '$=':
+        return actual.endsWith(attribute.expected);
+      case '*=':
+        return actual.includes(attribute.expected);
+      default:
+        return false;
+    }
   }
 
   remove() {
@@ -3789,6 +4782,7 @@ class FakeElement {
 
   setAttribute(name: string, value: string) {
     this.attrs.set(name, value);
+    if (name === 'class') this.classTokens = classTokensOf(value);
   }
 
   getAttribute(name: string): string | null {
@@ -3803,9 +4797,8 @@ class FakeElement {
     this.textContent = text;
   }
 
-  private matchesSimpleSelector(selector: string): boolean {
-    if (selector === '[inert]') return this.inert || this.hasAttribute('inert');
-    return false;
+  private matchesInert(): boolean {
+    return this.inert || this.hasAttribute('inert');
   }
 
   private recomputeText() {
@@ -3877,7 +4870,12 @@ class FakeDocument {
   env?: FakeDomEnv;
   activeElement: Element | null = null;
   private nextDocumentOrder = 0;
+  private readonly allElements: FakeElement[] = [];
   readonly body = new FakeElement(this, 'body');
+
+  track(element: FakeElement) {
+    this.allElements.push(element);
+  }
   execCommandResult = false;
   execCommandMutates = false;
   onExecCommand?: (command: string, value?: string) => void;
@@ -3896,31 +4894,43 @@ class FakeDocument {
     if (selector === '.thinking' && this.requireEnv().thinking) return this.body as unknown as Element;
     const detector = this.requireEnv().detectorElements.get(selector)?.[0];
     if (detector) return detector as unknown as Element;
-    return null;
+    for (const part of parseSelector(selector).commaParts) {
+      const registered = this.requireEnv().detectorElements.get(part)?.[0];
+      if (registered) return registered as unknown as Element;
+    }
+    return (
+      (this.querySelectorAll(selector)[0] as Element | undefined) ?? null
+    );
   }
 
   querySelectorAll(selector: string): Element[] {
-    const selectors = selector.split(',').map((part) => part.trim());
+    const parsed = parseSelector(selector);
+    const selectors = parsed.commaParts;
     if (selectors.includes('.response')) return this.requireEnv().responses as unknown as Element[];
-    const currentUserMessages = selectors.flatMap(
-      (part) => this.requireEnv().detectorElements.get(part) ?? [],
-    );
-    if (
-      selectors.includes(CHATGPT_USER_MESSAGE_TESTID_SELECTOR) &&
-      currentUserMessages.length > 0
-    ) {
-      return [...new Set(currentUserMessages)] as unknown as Element[];
+    const env = this.requireEnv();
+    if (selectors.includes(CHATGPT_USER_MESSAGE_TESTID_SELECTOR)) {
+      const currentUserMessages = selectors.flatMap((part) => env.detectorElements.get(part) ?? []);
+      if (currentUserMessages.length > 0) return [...new Set(currentUserMessages)] as unknown as Element[];
     }
-    if (selectors.includes('[data-message-author-role="user"]')) {
-      return this.requireEnv().userMessages as unknown as Element[];
+    if (selectors.includes('[data-message-author-role="user"]') && env.userMessages.length > 0) {
+      return env.userMessages as unknown as Element[];
     }
-    if (selectors.includes('#editor')) return [this.requireEnv().input as unknown as Element];
-    if (selectors.includes('button.send') && this.requireEnv().sendButton) {
-      return [this.requireEnv().sendButton as unknown as Element];
+    if (selectors.includes('#editor')) return [env.input as unknown as Element];
+    if (selectors.includes('button.send') && env.sendButton) {
+      return [env.sendButton as unknown as Element];
     }
-    const detectorMatches = this.requireEnv().detectorElements.get(selector);
-    if (detectorMatches) return detectorMatches as unknown as Element[];
-    return [];
+    // An explicit registration owns that exact selector, including an empty list.
+    // CSS fallback would resurrect a composer the test just unregistered.
+    if (env.detectorElements.has(selector)) {
+      return [...(env.detectorElements.get(selector) ?? [])] as unknown as Element[];
+    }
+    const registered = selectors.flatMap((part) => env.detectorElements.get(part) ?? []);
+    if (registered.length > 0) return [...new Set(registered)] as unknown as Element[];
+    const matched: FakeElement[] = [];
+    for (const element of this.allElements) {
+      if (element.isConnected !== false && element.matchesParsed(parsed)) matched.push(element);
+    }
+    return matched as unknown as Element[];
   }
 
   createRange() {
