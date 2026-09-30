@@ -2,7 +2,7 @@
 
 [English](./README.md) · [繁體中文](./README.zh-TW.md) · [日本語](./README.ja.md) · **Deutsch**
 
-Eine Frage genügt: Vier angemeldete KI-Websitzungen antworten, prüfen, widersprechen und verfeinern das Ergebnis gemeinsam. **ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist eine experimentelle fünfte Standby-Option in den Einstellungen.** Multi-AI Chat Desktop ist ein Workflow-Hub auf Basis von Tauri 2 – nicht bloß vier nebeneinander angeordnete Chats.
+Eine Frage genügt: Vier angemeldete KI-Websitzungen antworten, prüfen, widersprechen und verfeinern das Ergebnis gemeinsam. **ChatGPT, Claude, Gemini und Grok bleiben die Standardauswahl; Meta AI ist eine experimentelle fünfte Standby-Option in den Einstellungen.** Multi-AI Chat Desktop ist ein Workflow-Hub auf Basis von Tauri 2, nicht bloß vier nebeneinander angeordnete Chats.
 
 [**Offizielle Website öffnen →**](https://teddashh.github.io/multi-ai-chat-desktop/?lang=de) · [v1.9.6 herunterladen](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.6) · [Alle Releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · keine API-Schlüssel · keine Analyse
 
@@ -90,7 +90,7 @@ Wähle Desktop für einen eigenen Arbeitsbereich und den vollständigen lokalen 
 
 Strukturierte Workflows prüfen vorab jede notwendige Rolle. Ist ein Anbieter nicht verfügbar, benennt die App ihn und bietet Öffnen/Anmelden, Neuzuordnung oder einen anderen Modus an; sie ersetzt Anbieter nie stillschweigend. Normale strukturierte Workflows enden bei einem dauerhaften Anbieterfehler. Brainstorming pausiert dagegen bis zur ausdrücklichen Wahl von Wiederholen, Überspringen oder Abbrechen.
 
-Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45–90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; v1.9.6 fügt keine neue langsame ChatGPT↔Grok-Übergabe mit echten Konten hinzu.
+Brainstorming ist absichtlich das schwerste Preset: Halte alle vier standardmäßigen Anbietersitzungen angemeldet und plane etwa **45 bis 90 Minuten** ein. Der Wiederherstellungspfad mit 48 Beiträgen ist automatisiert getestet; v1.9.6 fügt keine neue langsame ChatGPT↔Grok-Übergabe mit echten Konten hinzu.
 
 Nach Abschluss kannst du über den Composer unten dasselbe App-Gespräch fortsetzen. **Neues Gespräch** beginnt mit sauberem Sitzungskontext.
 
@@ -125,8 +125,8 @@ Das Öffnen oder Klonen dieses Repositories führt nichts automatisch aus. Der Q
 
 Das Repo enthält zwei ausdrücklich aufzurufende lokale Skills:
 
-- Codex: [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md) – `$launch-multi-ai-chat` in einer lokalen Codex-App-, CLI- oder IDE-Task ausführen.
-- Claude Code: [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md) – `/launch-multi-ai-chat` in einer lokalen grafischen Claude-Code-Sitzung ausführen.
+- Codex: [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md): `$launch-multi-ai-chat` in einer lokalen Codex-App-, CLI- oder IDE-Task ausführen.
+- Claude Code: [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md): `/launch-multi-ai-chat` in einer lokalen grafischen Claude-Code-Sitzung ausführen.
 
 Die Skills dürfen ausschließlich gesperrte Projektabhängigkeiten installieren, generierten Code bauen und `tauri dev` starten. Sie installieren/entfernen keine Host-Toolchains oder globalen Pakete, ändern weder `PATH` noch Sicherheitseinstellungen, bauen keinen Release-Installer, lesen keine Anbieter-Zugangsdaten, laden keine Belege hoch und rollen Host-Änderungen nicht zurück. Remote-/Cloud-Agenten können auf deinem Rechner kein GUI anzeigen. Einen Docker-Pfad gibt es bewusst nicht.
 

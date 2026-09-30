@@ -2,7 +2,7 @@
 
 **English** · [繁體中文](./README.zh-TW.md) · [日本語](./README.ja.md) · [Deutsch](./README.de.md)
 
-Ask once. Let four signed-in AI web sessions answer, review, challenge, and refine one another. **ChatGPT, Claude, Gemini, and Grok remain the default lineup; Meta AI is an experimental fifth standby option in Settings.** Multi-AI Chat Desktop is a Tauri 2 workflow hub—not four chat windows placed side by side.
+Ask once. Let four signed-in AI web sessions answer, review, challenge, and refine one another. **ChatGPT, Claude, Gemini, and Grok remain the default lineup; Meta AI is an experimental fifth standby option in Settings.** Multi-AI Chat Desktop is a Tauri 2 workflow hub, not four chat windows placed side by side.
 
 [**Visit the official website →**](https://teddashh.github.io/multi-ai-chat-desktop/) · [Download v1.9.6](https://github.com/teddashh/multi-ai-chat-desktop/releases/tag/v1.9.6) · [All releases](https://github.com/teddashh/multi-ai-chat-desktop/releases) · MIT · no API keys · no analytics
 
@@ -90,7 +90,7 @@ Choose Desktop when you want a dedicated workspace and the full local workflow t
 
 Structured workflows preflight every required role. If a provider is unavailable, the app identifies it and lets you open/login, reassign the role, or choose another mode; it never silently substitutes a provider. Standard structured workflows stop on a persistent provider error. Brainstorm instead pauses for an explicit Retry, Skip, or Cancel choice.
 
-Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45–90 minutes**. Its 48-contribution recovery path has automated coverage; v1.9.6 does not add a new real-account ChatGPT↔Grok slow-handoff check.
+Brainstorm is intentionally heavy: keep all four default provider sessions authenticated and allow roughly **45 to 90 minutes**. Its 48-contribution recovery path has automated coverage; v1.9.6 does not add a new real-account ChatGPT↔Grok slow-handoff check.
 
 After a workflow finishes, continue from the bottom composer to keep the same app conversation. Choose **New conversation** for clean session context.
 
@@ -125,8 +125,8 @@ Opening or cloning this repository never executes it. Source launch does execute
 
 The repo includes two explicit local Skills:
 
-- Codex: [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md) — invoke `$launch-multi-ai-chat` in a local Codex app, CLI, or IDE task.
-- Claude Code: [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md) — invoke `/launch-multi-ai-chat` in a local graphical Claude Code session.
+- Codex: [`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md): invoke `$launch-multi-ai-chat` in a local Codex app, CLI, or IDE task.
+- Claude Code: [`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md): invoke `/launch-multi-ai-chat` in a local graphical Claude Code session.
 
 The Skills may install only locked project dependencies, build generated code, and start `tauri dev`. They never install/remove host toolchains or global packages, change `PATH` or security settings, build a release installer, read provider credentials, upload receipts, or roll back host changes. Remote/cloud agents cannot display the GUI on your computer. There is intentionally no Docker lane.
 

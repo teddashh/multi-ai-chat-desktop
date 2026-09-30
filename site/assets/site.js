@@ -76,7 +76,7 @@
       "workflow.brainstorm_title": "腦力激盪",
       "workflow.brainstorm_text": "輪換視角從界定問題與發散，走向可決策的平衡提案組合。",
       "workflow.brainstorm_meta": "12 輪 · 48 次發言",
-      "workflow.note": "腦力激盪刻意設計得很完整：請保持四個 session 登入，並預留約 45–90 分鐘。Preflight 會指出不可用角色，不會偷偷替換 provider。",
+      "workflow.note": "腦力激盪刻意設計得很完整：請保持四個 session 登入，並預留約 45 到 90 分鐘。Preflight 會指出不可用角色，不會偷偷替換 provider。",
       "process.eyebrow": "Local-first 設計",
       "process.title": "你的 session 仍然只屬於你。",
       "process.copy": "App 負責協調真實 provider 頁面，同時把自己的狀態留在你的電腦；它增加的是 workflow，不是另一個對話雲端。",
@@ -155,6 +155,7 @@
       "footer.issues": "Issues",
       "footer.security": "安全回報",
       "footer.license": "MIT License",
+      "footer.hub": "全部專案",
       "footer.trademarks": "Provider 名稱與商標屬於各自權利人；本專案不暗示任何從屬或背書關係。"
     },
     "ja": {
@@ -308,6 +309,7 @@
       "footer.issues": "Issues",
       "footer.security": "Security",
       "footer.license": "MIT License",
+      "footer.hub": "すべてのプロジェクト",
       "footer.trademarks": "Providerの名称と標章は各権利者に帰属し、提携や推奨を示すものではありません。"
     },
     "de": {
@@ -365,7 +367,7 @@
       "workflow.title": "Sechs Presets. Mehr als sechs Antworten.",
       "workflow.copy": "Schnell vergleichen, ein Argument prüfen, Software planen oder in einer ganzen Sitzung viele Perspektiven in eine Entscheidung verwandeln.",
       "workflow.free_title": "Frei",
-      "workflow.free_text": "Ausgewählte Anbieter antworten parallel – für schnelle Vergleiche und Bild-Prompts.",
+      "workflow.free_text": "Ausgewählte Anbieter antworten parallel, für schnelle Vergleiche und Bild-Prompts.",
       "workflow.free_meta": "Parallel · Anbieter wählbar",
       "workflow.debate_title": "Debatte",
       "workflow.debate_text": "Pro, Contra, Urteil und Synthese unterziehen eine Entscheidung oder Behauptung einem Stresstest.",
@@ -382,7 +384,7 @@
       "workflow.brainstorm_title": "Brainstorming",
       "workflow.brainstorm_text": "Wechselnde Blickwinkel führen von Problemrahmen und Divergenz zu einem entscheidungsreifen Portfolio.",
       "workflow.brainstorm_meta": "12 Runden · 48 Beiträge",
-      "workflow.note": "Brainstorming ist absichtlich umfangreich: Halte alle vier Sitzungen angemeldet und plane etwa 45–90 Minuten ein. Die Vorprüfung benennt eine nicht verfügbare Rolle, statt Anbieter stillschweigend zu ersetzen.",
+      "workflow.note": "Brainstorming ist absichtlich umfangreich: Halte alle vier Sitzungen angemeldet und plane etwa 45 bis 90 Minuten ein. Die Vorprüfung benennt eine nicht verfügbare Rolle, statt Anbieter stillschweigend zu ersetzen.",
       "process.eyebrow": "Local-first konzipiert",
       "process.title": "Deine Sitzungen bleiben deine.",
       "process.copy": "Die App koordiniert echte Anbieterseiten und behält ihren eigenen Zustand auf deinem Rechner. Sie ergänzt einen Workflow, keine weitere Gesprächscloud.",
@@ -426,7 +428,7 @@
       "privacy.six": "Exporte, Debug-Bundles und Freigaben benötigen eine ausdrückliche Nutzeraktion.",
       "limits.eyebrow": "Ehrliche Grenzen",
       "limits.title": "Automatisierung folgt veränderlichen Webseiten.",
-      "limits.copy": "Nachweise werden als Nachweise benannt – nicht als Garantie, dass jeder Anbieter-, Konto- oder Plattformpfad heute funktioniert.",
+      "limits.copy": "Nachweise werden als Nachweise benannt, nicht als Garantie, dass jeder Anbieter-, Konto- oder Plattformpfad heute funktioniert.",
       "limits.providers_title": "Anbieter ändern sich",
       "limits.providers_text": "Eine DOM- oder Login-Änderung kann Eingabe, Sendung oder Abschlusserkennung vorübergehend stören, bis ein Adapter-Update erscheint.",
       "limits.accounts_title": "Kontoregeln bleiben",
@@ -461,6 +463,7 @@
       "footer.issues": "Issues",
       "footer.security": "Sicherheit",
       "footer.license": "MIT-Lizenz",
+      "footer.hub": "Alle Projekte",
       "footer.trademarks": "Anbieternamen und Marken gehören ihren jeweiligen Inhabern; eine Verbindung oder Empfehlung wird nicht behauptet."
     }
   };
@@ -474,20 +477,20 @@
 
   const metadata = {
     en: {
-      title: "Multi-AI Chat Desktop — four AI perspectives, one workflow",
-      description: "Ask once and coordinate answers from your signed-in ChatGPT, Claude, Gemini, and Grok web sessions—without API keys."
+      title: "Multi-AI Chat Desktop · four AI perspectives, one workflow",
+      description: "Ask once and coordinate answers from your signed-in ChatGPT, Claude, Gemini, and Grok web sessions, without API keys."
     },
     "zh-TW": {
-      title: "Multi-AI Chat Desktop — 四種 AI 觀點，一個 workflow",
+      title: "Multi-AI Chat Desktop · 四種 AI 觀點，一個 workflow",
       description: "只問一次，協調已登入的 ChatGPT、Claude、Gemini、Grok 網頁 session；不需 API Key。"
     },
     ja: {
-      title: "Multi-AI Chat Desktop — 4つのAI視点を1つのworkflowへ",
+      title: "Multi-AI Chat Desktop · 4つのAI視点を1つのworkflowへ",
       description: "一度質問し、ログイン済みのChatGPT、Claude、Gemini、Grok WebセッションをAPIキーなしで連携。"
     },
     de: {
-      title: "Multi-AI Chat Desktop — vier KI-Perspektiven, ein Workflow",
-      description: "Eine Frage, koordinierte Antworten deiner angemeldeten ChatGPT-, Claude-, Gemini- und Grok-Web-Sitzungen – ohne API-Schlüssel."
+      title: "Multi-AI Chat Desktop · vier KI-Perspektiven, ein Workflow",
+      description: "Eine Frage, koordinierte Antworten deiner angemeldeten ChatGPT-, Claude-, Gemini- und Grok-Web-Sitzungen, ohne API-Schlüssel."
     }
   };
 
