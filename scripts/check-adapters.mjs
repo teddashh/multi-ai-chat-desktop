@@ -12,7 +12,7 @@ const validate = ajv.compile(schema);
 const expected = {
   chatgpt: {
     schemaVersion: 1,
-    adapterVersion: 8,
+    adapterVersion: 9,
     urls: {
       app: 'https://chatgpt.com',
       login: 'https://chatgpt.com/auth/login',
@@ -24,7 +24,7 @@ const expected = {
     chunkDebounceMs: 800,
     inputSelectors: ['.ProseMirror[contenteditable="true"]', '#prompt-textarea', '[id="prompt-textarea"]', 'div[contenteditable="true"][data-placeholder]'],
     sendButtonSelectors: ['[data-testid="send-button"]', 'button[aria-label="Send prompt"]', 'button[aria-label="Send"]'],
-    responseSelectors: ['[data-message-author-role="assistant"] .markdown', '[data-message-author-role="assistant"]'],
+    responseSelectors: ['.agent-turn .markdown', '[data-message-author-role="assistant"] .markdown', '.group\\/assistant-message .markdown', 'div.agent-turn', '.group\\/assistant-message', '[data-message-author-role="assistant"]'],
     loginDetectors: ['.ProseMirror[contenteditable="true"]', '#prompt-textarea', '[data-testid="send-button"]'],
     loggedOutDetectors: ['[data-testid="login-button"]', '[data-testid="signup-button"]', '[data-testid="login-form"]'],
     thinkingDetectors: ['[data-testid="stop-button"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop streaming"]', 'button[aria-label="Stop"]'],
@@ -72,7 +72,7 @@ const expected = {
   },
   grok: {
     schemaVersion: 2,
-    adapterVersion: 7,
+    adapterVersion: 8,
     urls: {
       app: 'https://grok.com',
       login: 'https://grok.com',
@@ -82,10 +82,10 @@ const expected = {
     inputStrategy: 'prosemirror-paste',
     doneDelayMs: 8000,
     chunkDebounceMs: 600,
-    inputSelectors: ['[data-testid="chat-input"] .ProseMirror[contenteditable="true"]', '[data-testid="chat-input"] [contenteditable="true"]', '.ProseMirror[contenteditable="true"]', '[contenteditable="true"].ProseMirror', 'div.ProseMirror[contenteditable="true"]'],
+    inputSelectors: ['textarea#chat-input', 'textarea[data-testid="chat-input"]', 'textarea[placeholder]', 'textarea', '[data-testid="chat-input"] .ProseMirror[contenteditable="true"]', '[data-testid="chat-input"] [contenteditable="true"]', '.ProseMirror[contenteditable="true"]', '[contenteditable="true"].ProseMirror', 'div.ProseMirror[contenteditable="true"]'],
     sendButtonSelectors: ['button[data-testid="chat-submit"]', 'button[aria-label="Submit"]', 'form button[type="submit"]', 'button[type="submit"]'],
     responseSelectors: ['[data-testid="assistant-message"] .response-content-markdown', '[data-testid="assistant-message"]', '.response-content-markdown', '.message-bubble.assistant'],
-    loginDetectors: ['[data-testid="chat-input"] .ProseMirror[contenteditable="true"]', '.ProseMirror[contenteditable="true"]', '[data-testid="chat-submit"]'],
+    loginDetectors: ['textarea', '[data-testid="chat-input"] .ProseMirror[contenteditable="true"]', '.ProseMirror[contenteditable="true"]', '[data-testid="chat-submit"]'],
     loggedOutDetectors: [{ selector: 'button', textIncludes: 'Sign in' }, { selector: 'button', textIncludes: 'Sign up' }, { selector: 'button', textIncludes: 'Log in' }, { selector: 'button', textIncludes: '登入' }, { selector: 'button', textIncludes: '註冊' }, { selector: 'button', textIncludes: '登录' }, { selector: 'button', textIncludes: '注册' }, { selector: 'button', textIncludes: 'ログイン' }, { selector: 'button', textIncludes: '登録' }, { selector: 'button', textIncludes: 'Anmelden' }, { selector: 'button', textIncludes: 'Registrieren' }],
     thinkingDetectors: ['button[data-testid="chat-stop"]', 'button[aria-label="Stop"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop response"]', '[data-streaming="true"]', { selector: '.thinking-container', textIncludes: 'Thinking', textExcludes: 'Thought for' }],
     stopButtonSelectors: ['button[data-testid="chat-stop"]', 'button[aria-label="Stop"]', 'button[aria-label="Stop generating"]', 'button[aria-label="Stop response"]'],
