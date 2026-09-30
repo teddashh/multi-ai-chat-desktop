@@ -90,7 +90,7 @@ Windows portable 版不顯示 app 內更新控制，請自行到 [GitHub Release
 
 結構化 workflow 會先檢查所有必要角色。如果 provider 不可用，app 會指出是哪一家，讓你開啟／登入、重新指派角色或改選其他模式，不會偷偷替換 provider。一般結構化 workflow 遇到持續錯誤會停止；腦力激盪則暫停，等待你明確選擇重試、略過或取消。
 
-腦力激盪刻意設計成最重的預設：請讓四個預設 provider session 都保持登入，並預留約 **45–90 分鐘**。48 次發言的恢復路徑已有自動測試；v1.9.6 沒有新增真實帳號的 ChatGPT↔Grok 慢速接力檢查。
+腦力激盪刻意設計成最重的預設：請讓四個預設 provider session 都保持登入，並預留約 **45 到 90 分鐘**。48 次發言的恢復路徑已有自動測試；v1.9.6 沒有新增真實帳號的 ChatGPT↔Grok 慢速接力檢查。
 
 Workflow 完成後，可從底部 composer 繼續同一個 app conversation；要乾淨的 session context 時請選「**新增對話**」。
 
@@ -125,8 +125,8 @@ Workflow 完成後，可從底部 composer 繼續同一個 app conversation；�
 
 Repo 內含兩個必須明確呼叫的本機 Skills：
 
-- Codex：[`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md) — 在本機 Codex app、CLI 或 IDE task 輸入 `$launch-multi-ai-chat`。
-- Claude Code：[`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md) — 在具有本機圖形 session 的 Claude Code 輸入 `/launch-multi-ai-chat`。
+- Codex：[`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md)：在本機 Codex app、CLI 或 IDE task 輸入 `$launch-multi-ai-chat`。
+- Claude Code：[`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md)：在具有本機圖形 session 的 Claude Code 輸入 `/launch-multi-ai-chat`。
 
 Skills 只能安裝 locked 專案依賴、build generated code 並啟動 `tauri dev`；不會安裝／移除 host toolchain 或 global package、不改 `PATH` 或安全設定、不 build release installer、不讀 provider 憑證、不 upload receipt，也不自動 rollback host。Remote／cloud agent 無法在你的電腦顯示 GUI；本專案刻意不提供 Docker lane。
 

@@ -125,8 +125,8 @@ Workflow完了後は画面下のcomposerから同じapp conversationを続けら
 
 Repoには明示的に呼び出す2つのlocal Skillがあります。
 
-- Codex：[`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md) — local Codex app／CLI／IDE taskで `$launch-multi-ai-chat` を実行。
-- Claude Code：[`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md) — local graphical Claude Code sessionで `/launch-multi-ai-chat` を実行。
+- Codex：[`.agents/skills/launch-multi-ai-chat/SKILL.md`](./.agents/skills/launch-multi-ai-chat/SKILL.md)：local Codex app／CLI／IDE taskで `$launch-multi-ai-chat` を実行。
+- Claude Code：[`.claude/skills/launch-multi-ai-chat/SKILL.md`](./.claude/skills/launch-multi-ai-chat/SKILL.md)：local graphical Claude Code sessionで `/launch-multi-ai-chat` を実行。
 
 Skillが行えるのはlocked project dependencyのinstall、generated codeのbuild、`tauri dev` の起動だけです。Host toolchain／global packageのinstall・remove、`PATH`／security settingの変更、release installerのbuild、provider credentialの読み取り、receiptのupload、host変更のrollbackは行いません。Remote／cloud agentはあなたのPCにGUIを表示できず、Docker laneは意図的に用意していません。
 
