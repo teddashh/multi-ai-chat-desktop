@@ -49,7 +49,7 @@ ChatGPT adapter v9 appends `[data-markdown-text-style="assistant-message"]:not([
 
 Grok adapter v8, for [#116](https://github.com/teddashh/multi-ai-chat-desktop/issues/116), keeps every existing localized sign-in button detector and also matches the anonymous paywall card and the Sign in / Sign up links. Those controls are anchors, so the button-text detectors missed them and a visible submit control was reported as logged in. The anonymous page now reports Sign in before any send and after the paywall. Live checks still required: the signed-out homepage shows Sign in, and a signed-in page stays Ready. Automated coverage only.
 
-`docs/SPEC.md` §5.1 still lists ChatGPT adapter v8 and Grok adapter v7. The table amendment awaits owner approval.
+The owner-approved `docs/SPEC.md` §5.1 amendment records ChatGPT adapter v9 and Grok adapter v8 as the current bundled adapters.
 
 The experimental Meta AI standby work tracks community request [#95](https://github.com/teddashh/multi-ai-chat-desktop/issues/95) and implementation [PR #96](https://github.com/teddashh/multi-ai-chat-desktop/pull/96). The evidence and pending live-smoke requirements below apply to that work.
 
