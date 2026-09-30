@@ -7,7 +7,7 @@
 
 - `main` @ `0f0d044`（`fix(adapter): recognize ChatGPT ProseMirror composer (#114)`）。ChatGPT adapter v8 已經在 `main` 上，透過 adapter 熱更新送到所有安裝。
 - 正式版仍是 **v1.9.5 Latest**（2026-09-22）。
-- **PR #118 開著、沒合併**（`fix/issues-115-116-provider-dom`），要等使用者決定，見〈五〉。
+- **PR #118 開著、沒合併**（`fix/issues-115-116-provider-dom`，head `1a8d256`），CI 全綠，要等使用者決定，見〈五〉。分支保護要求 review，所以合併要 `--admin`。
 - #117 已關閉，被 #118 取代，理由見〈三〉。它的分支 `teddashh/continue-task2` 本機與遠端都已刪除；需要時可以從 #117 頁面還原。產生它的 Orca 工作區 `continue-task2` 的終端機與 worktree 也已關閉。
 - #115、#116 仍 open。回覆草稿在〈五〉之3，**還沒貼**。
 
@@ -118,6 +118,7 @@ CI 比對的是 `scripts/check-adapters.mjs` 裡的期望值，這個 PR 已經�
 - **fake DOM 的另一個限制**：`querySelectorAll('p')` 仍然只回傳直接子元素，所以測試裡的 `Pro thinking` 段落都掛在 turn 底下當直接子 `p`。
 - **本機暫存**：探測原始資料、給 grok 的兩份 brief、grok 的報告都在 `/home/ted-h/tmp-scratch/mac-0930/`（本機，不在 repo）。那裡的 `wt-fix` worktree 已移除；要改 #118 就重新 `git worktree add <dir> fix/issues-115-116-provider-dom`。
 - 這次的程式碼全部由 grok 4.7 寫（兩輪）。Claude review，自己重跑 `pnpm verify`，也自己做了負向控制。
+- **CI 比本機慢約 3 倍**：#118 第一次跑 CI 時，本機 `pnpm verify` 全過，CI 卻失敗。三個 Chat/Work 測試超過 vitest 預設的 5 秒：本機每個 1.6–1.8 秒，runner 上整個檔案跑了 25 秒。原因是等待一直沒結束，fake DOM 在每次 10 ms 輪詢時對每個元素重新解析 selector。`1a8d256` 讓 fake DOM 快取解析過的 selector 之後，整個檔案從 8.0 秒降到 0.8 秒，CI 全綠。以後推完 PR 要用 `gh pr checks <n> --watch` 看完才算數。單一測試在本機超過約 1 秒，就要當成 CI 逾時風險：去修成本，不要調高 timeout。
 - 其餘（git 身分、PATH、`--admin` 合併、debug txt 不要 commit、委派規則）同前一份交接〈八〉。
 
 ## 八、建議下一步
