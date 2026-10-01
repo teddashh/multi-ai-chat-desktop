@@ -38,7 +38,7 @@ The final **Brainstorm** preset is available in every visual theme, including Li
 
 Made by **TED-H / Ted Huang** (`TED@TED-H.com`, [ted-h.com](https://ted-h.com)). Sponsored by [AI-Sister.com](https://ai-sister.com).
 
-The six images were supplied by the project owner for this commemorative edition. The Meta AI portrait is copied byte-for-byte from the owner-controlled `teddashh/Multi-Ai-Chatapp` asset `web/public/avatars/venice.webp`; see `src/assets/themes/ai-sister/NOTICE.md` for the recorded digest and redistribution terms. The artwork is not independently licensed under the repository's MIT software license.
+The six images were supplied by the project owner for this commemorative edition. The Meta AI portrait is copied byte-for-byte from the asset `web/public/avatars/venice.webp` in the owner-controlled private AI-Sister web app; see `src/assets/themes/ai-sister/NOTICE.md` for the recorded digest and redistribution terms. The artwork is not independently licensed under the repository's MIT software license.
 
 ## Maintenance policy
 
