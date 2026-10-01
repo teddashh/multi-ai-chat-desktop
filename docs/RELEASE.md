@@ -4,7 +4,7 @@
 
 Releases are tag-driven. You push a version tag; CI builds all three platforms and creates a
 **draft** GitHub Release with the artifacts attached. You review the draft and click **Publish
-release** when ready — the pipeline never creates tags and never auto-publishes.
+release** when ready. The pipeline never creates tags and never auto-publishes.
 
 Example:
 
@@ -15,7 +15,7 @@ git push origin v1.0.1
 
 Then wait ~10-20 min for the `Release` workflow, open the draft Release on GitHub, check the attached
 Windows `.exe`/`.zip`, macOS `.dmg`, and Linux `.AppImage`, and click **Publish release**. To scrap a
-build, just delete the draft (and the tag) — nothing is public until you publish.
+build, just delete the draft (and the tag). Nothing is public until you publish.
 
 ## Version From Tag
 

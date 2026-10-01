@@ -1,4 +1,4 @@
-# v1.8.1 — Accurate Grok challenge status and four-provider defaults
+# v1.8.1: Accurate Grok challenge status and four-provider defaults
 
 ## Stable maintenance release / 正式維護版本
 
@@ -19,8 +19,8 @@ Multi-AI Chat Desktop `v1.8.1` 是聚焦於 provider 相容性與原始碼安全
 
 - Debate, Consult, Coding, Roundtable, and Brainstorm now assign ChatGPT, Claude, Gemini, and Grok once each in their built-in four-role or four-seat configurations.
 - 四方辯證、多方諮詢、Coding、道理辯證與腦力激盪的內建四角色／四席配置，現在都會讓 ChatGPT、Claude、Gemini、Grok 各擔任一次。
-- Exact v1.7–v1.8 three-provider defaults are upgraded once through the versioned settings migration. User-customized role maps remain unchanged.
-- 完全符合 v1.7–v1.8 三家 provider 舊預設的設定，會透過有版本的 settings migration 遷移一次；使用者自訂的角色配置保持不變。
+- Exact v1.7-v1.8 three-provider defaults are upgraded once through the versioned settings migration. User-customized role maps remain unchanged.
+- 完全符合 v1.7-v1.8 三家 provider 舊預設的設定，會透過有版本的 settings migration 遷移一次；使用者自訂的角色配置保持不變。
 - If Grok or another provider is unavailable, structured workflows stop at preflight and identify the unavailable provider. Users can complete login inside the app WebView or reassign the affected role.
 - 若 Grok 或其他 provider 無法使用，結構化 workflow 會在 preflight 停止並指出無法使用的 provider；使用者可在 app WebView 內完成登入，或重新指定受影響的角色。
 - Workflow graph versions were increased wherever default provider routing changed, preserving explicit snapshot/replay mismatch handling.
@@ -56,7 +56,7 @@ Multi-AI Chat Desktop `v1.8.1` 是聚焦於 provider 相容性與原始碼安全
 
 - Automated tests verify challenge detection policy; they do not execute or prove completion of a live third-party Turnstile challenge.
 - 自動化測試可驗證 challenge detection policy，但不會實際完成第三方 Turnstile，也不能證明 live challenge 可通過。
-- Stable publication still requires a Windows artifact smoke test and, on Apple Silicon, first launch plus login checks for all four providers—especially confirmation that Grok leaves Cloudflare verification. Artifact creation or CI packaging alone is not that evidence.
+- Stable publication still requires a Windows artifact smoke test and, on Apple Silicon, first launch plus login checks for all four providers, especially confirmation that Grok leaves Cloudflare verification. Artifact creation or CI packaging alone is not that evidence.
 - 正式發布仍需完成 Windows artifact smoke test；Apple Silicon 則需驗證首次啟動與四家 provider 登入，尤其必須確認 Grok 能離開 Cloudflare 驗證頁。只有產生 artifact 或通過 CI 封裝不算這項證據。
 - Windows artifacts remain unsigned and may trigger SmartScreen.
 - Windows 產物仍未簽章，可能觸發 SmartScreen。

@@ -1,4 +1,4 @@
-# 交接紀錄：Codex v1.9.0 → Grok v1.9.1–v1.9.3 → Claude
+# 交接紀錄：Codex v1.9.0 → Grok v1.9.1-v1.9.3 → Claude
 
 日期：2026-09-21。給下一個 Claude session。這份是交接，不是新規格；行為契約仍以 `docs/SPEC.md` 與目前 `main` 為準。
 
@@ -203,7 +203,7 @@ Release run：https://github.com/teddashh/multi-ai-chat-desktop/actions/runs/356
 
 根因鏈（`injected/engine.ts`）：
 
-1. `:1227` `getLatestResponseCandidate()` 對 chatgpt 設硬閘門 — 解不出 user-turn anchor 就無條件 `return null`。
+1. `:1227` `getLatestResponseCandidate()` 對 chatgpt 設硬閘門：解不出 user-turn anchor 就無條件 `return null`。
 2. `:1893` `refreshChatGptUserTurnAnchor()` 只在 `matchingTurns.length > matchingChatGptUserTurnBaseline` 時才認新 anchor，否則回傳前一個；而 `:649` 在每次 send 已把它設為 `null`。
 3. `:1869` 的比對對 ≥512 字 prompt 走摺疊前綴規則：可見文字 ≥80 字（`CHATGPT_COLLAPSED_PROMPT_MIN_VISIBLE_CHARS`）且前 160 字元相同（`CHATGPT_COLLAPSED_PROMPT_PREFIX_CHARS`）。roundtable prompt 累加到 10821 字必被 ChatGPT 摺疊；又因為前一輪發言共用同樣的 160 字開頭，baseline 已經是 1，新發言若沒同時匹配就是 `1 <= 1` → anchor 永遠 null。
 4. 兩條發 chunk 的路徑（`:1770` observer、`:1798` backup poll）都在 `!currentText` 提早 return。

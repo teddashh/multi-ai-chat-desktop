@@ -1,4 +1,4 @@
-# v1.9.5 — a stalled step fails when its page is replaced
+# v1.9.5: a stalled step fails when its page is replaced
 
 ## Provider-compatibility patch / Provider 相容性補丁
 

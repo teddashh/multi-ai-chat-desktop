@@ -1,4 +1,4 @@
-# v1.4.0 — Conversation continuity and answer fidelity
+# v1.4.0: Conversation continuity and answer fidelity
 
 ## Stable maintenance release / 正式維護版本
 

@@ -1,4 +1,4 @@
-# v1.7.0 — Configurable collaboration roles and resilient workflows
+# v1.7.0: Configurable collaboration roles and resilient workflows
 
 ## Stable release / 正式版本
 

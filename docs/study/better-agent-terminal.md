@@ -6,7 +6,7 @@ Study of `refs/better-agent-terminal` for building a Tauri 2 portable desktop ap
 
 ## 1. Overview
 
-**What it is.** Better Agent Terminal (BAT) is a mature Tauri 2 desktop app that aggregates multiple project workspaces, each with xterm.js terminals and built-in AI agent panels (Claude Code, Codex, channel/CLI variants). It is *not* a multi-webview chat embedder — external AI websites are not loaded as child webviews. Instead, agents run via SDK/CLI inside native panels (`README.md:12-16`, `README.md:91-99`).
+**What it is.** Better Agent Terminal (BAT) is a mature Tauri 2 desktop app that aggregates multiple project workspaces, each with xterm.js terminals and built-in AI agent panels (Claude Code, Codex, channel/CLI variants). It is *not* a multi-webview chat embedder; external AI websites are not loaded as child webviews. Instead, agents run via SDK/CLI inside native panels (`README.md:12-16`, `README.md:91-99`).
 
 **Tauri version.** Tauri 2 throughout: `tauri = { version = "2" }` in `src-tauri/Cargo.toml:41`, `@tauri-apps/api` / `@tauri-apps/cli` at `^2.11.x` in `package.json:118-119`, and `$schema: https://schema.tauri.app/config/2` in `src-tauri/tauri.conf.json:2`.
 
@@ -55,9 +55,9 @@ BAT uses **multiple top-level `WebviewWindow`s**, not embedded child webviews. T
 
 - **Identifier:** `org.tonyq.better-agent-terminal` (`tauri.conf.json:6`)
 - **Build:** `beforeDevCommand: pnpm exec vite`, `frontendDist: ../dist-tauri`, dev URL `http://127.0.0.1:5173` (`tauri.conf.json:7-11`)
-- **Security:** `csp: null` (`tauri.conf.json:24-26`) — permissive; external chat sites would need tighter CSP design
+- **Security:** `csp: null` (`tauri.conf.json:24-26`), permissive; external chat sites would need tighter CSP design
 - **Bundle resources (base):** sidecar `server.mjs` + `package.json` (`tauri.conf.json:37-40`)
-- **Bundle resources (all-in-one):** merged via `tauri.all-in-one.conf.json:4-10` — adds `node_modules/`, `codex-runtime/`, bundled `node-runtime/`
+- **Bundle resources (all-in-one):** merged via `tauri.all-in-one.conf.json:4-10`; adds `node_modules/`, `codex-runtime/`, bundled `node-runtime/`
 - **Windows NSIS:** `installMode: perMachine`, custom template + hooks (`tauri.conf.json:41-47`)
 - **Updater:** `createUpdaterArtifacts: true`, minisign pubkey, endpoint `latest-stable-all-in-one.json` (`tauri.conf.json:30-56`)
 
@@ -71,7 +71,7 @@ BAT uses **multiple top-level `WebviewWindow`s**, not embedded child webviews. T
 - `clipboard-manager:default`, `clipboard-manager:allow-write-text`
 - `updater:default`
 
-**Notable absence:** No `core:webview-*` permissions — consistent with no child-webview embedding. Multi-AI-Chat will need additional webview-management capabilities if embedding chat sites natively.
+**Notable absence:** No `core:webview-*` permissions, consistent with no child-webview embedding. Multi-AI-Chat will need additional webview-management capabilities if embedding chat sites natively.
 
 ### Rust plugins registered
 
@@ -85,7 +85,7 @@ BAT uses **multiple top-level `WebviewWindow`s**, not embedded child webviews. T
 
 Commands are registered in `lib.rs:192-414`. ~150+ commands total.
 
-**Settings:** `settings_load`, `settings_save`, `settings_get_shell_path`, `settings_clear_terminal_history`, `settings_detect_cx` — JSON settings in app data dir (`lib.rs:193-197`, `settings.rs:71-381`)
+**Settings:** `settings_load`, `settings_save`, `settings_get_shell_path`, `settings_clear_terminal_history`, `settings_detect_cx`; JSON settings in app data dir (`lib.rs:193-197`, `settings.rs:71-381`)
 
 **Runtime install:** `runtime_get_status`, `runtime_install`, `runtime_open_runtime_folder`, `runtime_clear_managed` (`lib.rs:200-203`)
 
@@ -113,7 +113,7 @@ Commands are registered in `lib.rs:192-414`. ~150+ commands total.
 
 **Profiles:** `profile_list`, `profile_list_local`, `profile_get`, `profile_get_active_ids`, `profile_create`, `profile_save`, `profile_load`, `profile_delete`, `profile_rename`, `profile_update`, `profile_duplicate`, `profile_activate`, `profile_deactivate` (`lib.rs:296-308`)
 
-**Claude / Codex agent (large):** 60+ commands — session lifecycle (`claude_start_session`, `claude_send_message`, `claude_stop_session`, …), auth/accounts, models/effort/permissions, archive/resume/fork, MCP, worktree, Codex unified accounts (`lib.rs:309-378`, `claude.rs:3061-5047`)
+**Claude / Codex agent (large):** 60+ commands: session lifecycle (`claude_start_session`, `claude_send_message`, `claude_stop_session`, …), auth/accounts, models/effort/permissions, archive/resume/fork, MCP, worktree, Codex unified accounts (`lib.rs:309-378`, `claude.rs:3061-5047`)
 
 **Claude channel / CLI variants:** `claude_channel_*` (5), `claude_cli_*` (4) (`lib.rs:379-387`)
 
@@ -131,7 +131,7 @@ Commands are registered in `lib.rs:192-414`. ~150+ commands total.
 
 ### Headless alternate binary
 
-`Cargo.toml:28-30` defines `bat-server` binary built with `--no-default-features --features headless` — GUI-free remote server without WebKit (`plans/headless-server-decouple.md:1-28`).
+`Cargo.toml:28-30` defines `bat-server` binary built with `--no-default-features --features headless`: GUI-free remote server without WebKit (`plans/headless-server-decouple.md:1-28`).
 
 ---
 
@@ -145,7 +145,7 @@ The Rust host intentionally stays thin for some workloads; heavy JavaScript SDK 
 
 1. **Build pipeline:** `pnpm run prepare:tauri-bundle:all-in-one` fetches Node runtime, installs sidecar deps, prunes platform-specific native modules, esbuild-bundles `server.mjs`, prepares codex runtime (`package.json:67-71`)
 2. **Bundle inclusion:** Base `tauri.conf.json:37-40` ships `node-sidecar/dist/server.mjs`; all-in-one adds full `node_modules`, codex runtime, and `node-runtime/` (`tauri.all-in-one.conf.json:4-10`)
-3. **Lazy spawn:** `sidecar.rs:296-349` — first JSON-RPC call triggers `ensure_spawned`; child exit triggers respawn with backoff (`sidecar.rs:43-45`)
+3. **Lazy spawn:** `sidecar.rs:296-349`, first JSON-RPC call triggers `ensure_spawned`; child exit triggers respawn with backoff (`sidecar.rs:43-45`)
 4. **Launch:** `spawn_sidecar` runs bundled `node` + `server.mjs` with piped stdin/stdout/stderr (`sidecar.rs:527-561`). Windows uses eval-bootstrap to avoid argv path mangling (`sidecar.rs:180-200`)
 
 ### IPC between sidecar and Rust/frontend
@@ -153,7 +153,7 @@ The Rust host intentionally stays thin for some workloads; heavy JavaScript SDK 
 - **Transport:** Line-delimited JSON-RPC over stdin/stdout (`sidecar.rs:1-6`)
 - **Request/reply:** Correlated by `id`; blocking `mpsc` with timeout on calling thread (`sidecar.rs:90-111`)
 - **Events:** Server pushes `{method: "event:foo"}` without `id`; fan out via `EventSink` to Tauri `emit` or remote broadcast (`sidecar.rs:6-7`, `lib.rs:435-441`)
-- **Frontend access:** Renderer never talks to sidecar directly — goes through `host-api.ts` → Tauri `invoke` → Rust command → `sidecar::call` bridge
+- **Frontend access:** Renderer never talks to sidecar directly; goes through `host-api.ts` → Tauri `invoke` → Rust command → `sidecar::call` bridge
 - **Logging:** Sidecar stderr mirrored to `<app-data>/logs/sidecar.log` (`AGENTS.md:27`, `sidecar.rs:545-548`)
 
 ### Usefulness for Multi-AI-Chat
@@ -164,9 +164,9 @@ The Rust host intentionally stays thin for some workloads; heavy JavaScript SDK 
 - Reuse of npm AI SDKs
 - Uniform bridge for both desktop and headless `bat-server`
 
-**Lower value if our core model is embedding vendor chat webviews** — we would not need Claude Agent SDK in a sidecar; we might instead use Rust for webview orchestration + optional sidecar only for response scraping / automation scripts.
+**Lower value if our core model is embedding vendor chat webviews**: we would not need Claude Agent SDK in a sidecar; we might instead use Rust for webview orchestration + optional sidecar only for response scraping / automation scripts.
 
-**Effort to adapt:** Large — sidecar is ~entire agent stack, not a minimal shell. Copy the *bridge architecture* (`sidecar.rs` + spawn/bundle scripts), not the handler surface.
+**Effort to adapt:** Large (sidecar is ~entire agent stack, not a minimal shell). Copy the *bridge architecture* (`sidecar.rs` + spawn/bundle scripts), not the handler surface.
 
 ---
 
@@ -183,7 +183,7 @@ The Rust host intentionally stays thin for some workloads; heavy JavaScript SDK 
 
 ### Bundle modes: all-in-one vs lightweight
 
-- **`all-in-one`:** Bundles Node runtime, sidecar `node_modules`, codex runtime — larger, offline-capable (`tauri.all-in-one.conf.json:4-10`, `scripts/tauri-build-mode.mjs:12-24`)
+- **`all-in-one`:** Bundles Node runtime, sidecar `node_modules`, codex runtime; larger, offline-capable (`tauri.all-in-one.conf.json:4-10`, `scripts/tauri-build-mode.mjs:12-24`)
 - **`lightweight`:** Sidecar script only; runtimes installed on first use via in-app managed-runtime UI (`package.json:68-71`, `release.yml:443-445`)
 - Mode baked into binary at build time via `BAT_BUNDLE_MODE` env (`release.yml:484-485`) so updater never cross-upgrades modes
 
@@ -196,11 +196,11 @@ The Rust host intentionally stays thin for some workloads; heavy JavaScript SDK 
 
 **`release.yml` jobs:**
 
-1. **`verify`** (optional) — frozen pnpm install, version injection, `verify:tauri-release-ci` (`release.yml:23-74`)
-2. **`build`** (matrix) — Windows/macOS/Linux × all-in-one/lightweight; Rust + Node caches; macOS signing + notarization; Linux AppImage tooling; uploads `.exe`/`.dmg`/`.AppImage` + updater metadata artifacts (`release.yml:76-613`)
-3. **`release`** — Creates GitHub Release with installers only; generates + publishes update manifests to pinned `manifests` release (`release.yml:615-713`)
-4. **`choco`** — Windows Chocolatey pack/push (gated until 2026-05-01, stable tags only) (`release.yml:733-814`)
-5. **`bat-server-bundle`** — Post-release headless Linux server bundle upload (`release.yml:816-911`)
+1. **`verify`** (optional): frozen pnpm install, version injection, `verify:tauri-release-ci` (`release.yml:23-74`)
+2. **`build`** (matrix): Windows/macOS/Linux × all-in-one/lightweight; Rust + Node caches; macOS signing + notarization; Linux AppImage tooling; uploads `.exe`/`.dmg`/`.AppImage` + updater metadata artifacts (`release.yml:76-613`)
+3. **`release`**: Creates GitHub Release with installers only; generates + publishes update manifests to pinned `manifests` release (`release.yml:615-713`)
+4. **`choco`**: Windows Chocolatey pack/push (gated until 2026-05-01, stable tags only) (`release.yml:733-814`)
+5. **`bat-server-bundle`**: Post-release headless Linux server bundle upload (`release.yml:816-911`)
 
 ### Code signing
 
@@ -249,7 +249,7 @@ Committed version stays `0.0.1-dev`; CI injects real version from git tag at bui
 ### Theming
 
 - Built-in dark theme + color presets (`novel` default) with custom BG/FG/cursor overrides (`settings-store.ts:31-35`)
-- No Tailwind — component-scoped CSS files under `renderer/src/styles/` (`settings.css`, `panels.css`, `layout.css`, etc.)
+- No Tailwind; component-scoped CSS files under `renderer/src/styles/` (`settings.css`, `panels.css`, `layout.css`, etc.)
 - i18n via `react-i18next` + JSON locale files (`renderer/src/locales/`)
 
 ### host-api adapter (critical pattern)
@@ -260,17 +260,17 @@ Committed version stays `0.0.1-dev`; CI injects real version from git tag at bui
 
 ---
 
-## 6. Plans / Docs — Agent-Driven Development Governance
+## 6. Plans / Docs: Agent-Driven Development Governance
 
 ### `PLAN.md`
 
-Original Electron-era product plan (Traditional Chinese): workspace/terminal data model, IPC event design, step-by-step implementation (`PLAN.md:1-88`). **Historical** — stack has migrated to Tauri 2; useful for domain concepts (workspace/terminal persistence) not for current architecture.
+Original Electron-era product plan (Traditional Chinese): workspace/terminal data model, IPC event design, step-by-step implementation (`PLAN.md:1-88`). **Historical**: stack has migrated to Tauri 2; useful for domain concepts (workspace/terminal persistence) not for current architecture.
 
 ### `plans/` directory
 
 | Plan | Focus |
 |------|-------|
-| `tauri-migration-plan.md` | Massive living log of Electron→Tauri port batches (#58–#66+): sidecar namespace ports, host-api gaps, test contracts |
+| `tauri-migration-plan.md` | Massive living log of Electron→Tauri port batches (#58-#66+): sidecar namespace ports, host-api gaps, test contracts |
 | `tauri-completion-plan.md` | Remaining adapter parity: remote profile routing, drag-drop, direct-call elimination |
 | `auto-update-plan.md` | Two-axis updater design (channel × bundle mode), minisign vs Apple signing |
 | `headless-server-decouple.md` | `bat-server` without WebKit for enterprise Linux |
@@ -279,7 +279,7 @@ Original Electron-era product plan (Traditional Chinese): workspace/terminal dat
 | `websocket.md` | Remote WebSocket protocol notes |
 | Others | Workspace archive, mobile viewport, etc. |
 
-**Organization pattern:** Each plan has **status**, **motivation**, **incremental progress log with issue numbers**, explicit **trade-offs**, and **remaining work** bullets. The migration plan in particular reads like an agent session journal — extremely useful for resuming multi-month ports.
+**Organization pattern:** Each plan has **status**, **motivation**, **incremental progress log with issue numbers**, explicit **trade-offs**, and **remaining work** bullets. The migration plan in particular reads like an agent session journal, extremely useful for resuming multi-month ports.
 
 ### `AGENTS.md` / `CLAUDE.md`
 
@@ -287,10 +287,10 @@ Shared governance (agents load `AGENTS.md` first, full rules in `CLAUDE.md`):
 
 - **pnpm only**, frozen lockfile, `pnpm exec` not `npx` (`AGENTS.md:7-12`)
 - **Verification gates:** `tsc`, `compile`, `test:sidecar`, `check:tauri-rust`; `tauri:build:debug` for local packaging (`AGENTS.md:16-21`)
-- **No regressions policy** — trace consumers of shared code (`CLAUDE.md:3-8`)
+- **No regressions policy**: trace consumers of shared code (`CLAUDE.md:3-8`)
 - **Logging contract:** renderer uses `host.debug.log`, not `console.log` (`CLAUDE.md:26-38`)
 - **IPC compatibility:** additive-only changes to `host.*` and event names (`AGENTS.md:30-37`)
-- **Release via tags only** — no version commits (`CLAUDE.md:71-81`)
+- **Release via tags only**: no version commits (`CLAUDE.md:71-81`)
 - **Git workflow:** no auto-branching (`CLAUDE.md:66-69`)
 
 **Copy for our repo:** Dual `AGENTS.md` + `CLAUDE.md`, pinned pnpm, explicit verify scripts, tag-based release, and "host API is a compatibility contract" rule.
@@ -312,7 +312,7 @@ There are no copyleft or additional attribution requirements beyond preserving t
 
 ---
 
-## 8. Reuse Shortlist — Top 10
+## 8. Reuse Shortlist: Top 10
 
 | # | Asset | Path | Effort | Adaptation needed |
 |---|-------|------|--------|-------------------|
@@ -329,9 +329,9 @@ There are no copyleft or additional attribution requirements beyond preserving t
 
 ### What BAT does *not* provide (look elsewhere)
 
-- **Embedded external webviews in one window** — no child webview code; use TempoTerm `preview.rs` / `useNativePreviewWebview.ts` pattern
-- **Unified input broadcast across webviews** — not implemented
-- **Response extraction from chat websites** — BAT uses SDK/terminal agents, not DOM scraping
+- **Embedded external webviews in one window**: no child webview code; use TempoTerm `preview.rs` / `useNativePreviewWebview.ts` pattern
+- **Unified input broadcast across webviews**: not implemented
+- **Response extraction from chat websites**: BAT uses SDK/terminal agents, not DOM scraping
 
 ---
 

@@ -1,4 +1,4 @@
-# v1.6.3 — Lifecycle stability and release hygiene
+# v1.6.3: Lifecycle stability and release hygiene
 
 ## Stable maintenance release / 正式維護版本
 

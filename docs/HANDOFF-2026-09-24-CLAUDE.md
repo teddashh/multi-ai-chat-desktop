@@ -32,9 +32,9 @@ Meta 第 4 輪：`05:01:13.858` 在 bootId `ts684yo5` 上送出 **21,233 字元*
 最後一筆 Meta engine status 在 `05:01:06.016`，接著是 **73.3 秒完全靜默**，正好蓋住填入視窗。
 webview 之後被換掉兩次：`4vpb89uv` @ `05:02:34.452`（伴隨 logged_out 閃動）、`d5yqanjo` @ `05:02:40.646`。
 
-**為什麼不會逾時**：`05:03:20.667` 出現 `thinking: true` — 那是使用者手動貼上造成的，新頁面的活動訊號把不活動計時器重新計時了。所以那一步既完不成、也不會失敗。
+**為什麼不會逾時**：`05:03:20.667` 出現 `thinking: true`，那是使用者手動貼上造成的，新頁面的活動訊號把不活動計時器重新計時了。所以那一步既完不成、也不會失敗。
 
-修法（`src/bridge/pull.ts`）：偵測 bootId 輪替後，**先**通知輪替、**再** `publish(message)`。這個順序是關鍵 — `src/workflow/waitForResponse.ts` 的 `settle()` 是同步 `waiters.delete()`，所以等待者先被拒絕，新頁面的 `thinking` 就再也叫不回它。
+修法（`src/bridge/pull.ts`）：偵測 bootId 輪替後，**先**通知輪替、**再** `publish(message)`。這個順序是關鍵：`src/workflow/waitForResponse.ts` 的 `settle()` 是同步 `waiters.delete()`，所以等待者先被拒絕，新頁面的 `thinking` 就再也叫不回它。
 
 兩個刻意的設計，改動前請先想清楚：
 
@@ -49,13 +49,13 @@ webview 之後被換掉兩次：`4vpb89uv` @ `05:02:34.452`（伴隨 logged_out 
 
 **這個理由是錯的。** `async` 只表示函式回傳 promise，本體在第一個 `await` 之前仍然同步執行，而三個策略都在那之前就改了輸入框（行號為 `dd22b21` 當下的 `injected/engine.ts`，會漂移，以函式名為準）：
 
-- `defaultInjectInput` :1104 — 純同步，全程沒有 `await`，直接走到 `document.execCommand('insertText', false, text)`
-- `prosemirrorPasteInput` :1141 — textarea 分支呼叫 value setter、dispatch、直接 return，從頭到尾沒 await；ProseMirror 分支在第一個 `await` 之前就 dispatch 了 paste
-- `quillAngularInput` :1226 — `replaceChildren()`、逐行建 `<p>`、`appendChild`、兩次 dispatch，全部在第一個 `await` 之前
+- `defaultInjectInput` :1104，純同步，全程沒有 `await`，直接走到 `document.execCommand('insertText', false, text)`
+- `prosemirrorPasteInput` :1141，textarea 分支呼叫 value setter、dispatch、直接 return，從頭到尾沒 await；ProseMirror 分支在第一個 `await` 之前就 dispatch 了 paste
+- `quillAngularInput` :1226，`replaceChildren()`、逐行建 `<p>`、`appendChild`、兩次 dispatch，全部在第一個 `await` 之前
 
 結果 `fill: 'start'` 只有 Meta 趕在寫入之前。#109 改成兩處填入點（主路徑與輸入框重新掛載後的還原路徑）都無條件讓出，讓出後立刻 `assertCanMutate()`，所以讓出期間出現驗證挑戰仍會在任何寫入之前中止。
 
-**測試陷阱（grok 第一次因此把讓出退回去）**：`releaseFillOperation` 會在填入 promise settle 之後、於一個 microtask 清掉 `draftStaging`，而那個 microtask 不發任何訊息。多一次讓出就把它推出原本寫死的兩次 `flushMicrotasks()` 視窗，於是 `FILL_DRAFT` 測試裡後續的 send 被判定為「還在進行中」而被拒。挑戰中止本身是對的，輸入框也從沒被寫入 — 純粹是數 tick 的問題。解法是 `drainUntilSettled()`（flush 到訊息、標題、輸入框文字、點擊、按鍵事件連續三輪不變為止）。
+**測試陷阱（grok 第一次因此把讓出退回去）**：`releaseFillOperation` 會在填入 promise settle 之後、於一個 microtask 清掉 `draftStaging`，而那個 microtask 不發任何訊息。多一次讓出就把它推出原本寫死的兩次 `flushMicrotasks()` 視窗，於是 `FILL_DRAFT` 測試裡後續的 send 被判定為「還在進行中」而被拒。挑戰中止本身是對的，輸入框也從沒被寫入，純粹是數 tick 的問題。解法是 `drainUntilSettled()`（flush 到訊息、標題、輸入框文字、點擊、按鍵事件連續三輪不變為止）。
 
 **負向控制我自己跑過**：暫時把 `default`-only 閘門改回去，三個新的順序測試全部 FAIL，既有的 `default` 那個仍然 PASS。之後 `git checkout -- injected/engine.ts` 還原。
 
@@ -79,14 +79,14 @@ webview 之後被換掉兩次：`4vpb89uv` @ `05:02:34.452`（伴隨 logged_out 
 
 雜湊只證明檔案沒被掉包，不證明編進去的是對的程式碼。這個專案的兩半要用不同方法驗：
 
-- **注入引擎（`injected/*.ts`）— 可以直接 grep。** `build:injected` 跑 esbuild 且**沒有** `--minify`，`src-tauri/src/webviews.rs` 用 `include_str!` 嵌入，所以識別字原樣留在二進位。本機 `pnpm build:injected` 出參考檔，再比對每個產物的出現次數。v1.9.5 的四個二進位全部吻合：`syncFillTitleTurn` 3、`emitComposerFill` 5、`fillChars` 8、`fillMs` 4。
-- **前端（`src/*`）— grep 不到。** Tauri 會把嵌入的 `dist/` 做 brotli 壓縮。改用 **vite 內容雜湊**：本機建 tagged commit，確認每個二進位都嵌著同一個 `/assets/index-<hash>.js`。vite 的雜湊由最終 chunk 位元組算出，吻合即代表逐位元組相同。**發布說明要寫明這一半靠雜湊、不是直接 grep。**
+- **注入引擎（`injected/*.ts`）：可以直接 grep。** `build:injected` 跑 esbuild 且**沒有** `--minify`，`src-tauri/src/webviews.rs` 用 `include_str!` 嵌入，所以識別字原樣留在二進位。本機 `pnpm build:injected` 出參考檔，再比對每個產物的出現次數。v1.9.5 的四個二進位全部吻合：`syncFillTitleTurn` 3、`emitComposerFill` 5、`fillChars` 8、`fillMs` 4。
+- **前端（`src/*`）：grep 不到。** Tauri 會把嵌入的 `dist/` 做 brotli 壓縮。改用 **vite 內容雜湊**：本機建 tagged commit，確認每個二進位都嵌著同一個 `/assets/index-<hash>.js`。vite 的雜湊由最終 chunk 位元組算出，吻合即代表逐位元組相同。**發布說明要寫明這一半靠雜湊、不是直接 grep。**
 
 **兩條死路，別再走一次**：用 node 的 brotli 重壓來對位元組是對不上的（參數與 Rust brotli crate 不同，加 size hint 也不行）；用熵值掃描找 blob 再解壓會得到一堆假陽性，因為 brotli 的 literal 模式會讓任意 rodata「解壓」成接近自己（我掃到的全是 Rust panic 字串）。
 
 解包方式：AppImage 用 `--appimage-extract`；dmg 與 NSIS setup 用 `7z x`；portable 用 `unzip`。
 
-**版本注入**：CI 只寫進 `package.json` 與 `src-tauri/tauri.conf.json`，**不寫 `Cargo.toml`** — 這是對的，`app.version()` 讀的是 tauri.conf.json。確認方式是 Windows PE 的 `FileVersion`／`ProductVersion`、macOS `Info.plist` 的兩個 key，以及三個 bundler 產生的檔名。**Linux 二進位完全沒有版本字串**（tauri-codegen 把版本寫成數字分段），`1.9.4` 和 `0.0.0` 在那裡同樣找不到 — 那是正常，不是漏了。
+**版本注入**：CI 只寫進 `package.json` 與 `src-tauri/tauri.conf.json`，**不寫 `Cargo.toml`**，這是對的，`app.version()` 讀的是 tauri.conf.json。確認方式是 Windows PE 的 `FileVersion`／`ProductVersion`、macOS `Info.plist` 的兩個 key，以及三個 bundler 產生的檔名。**Linux 二進位完全沒有版本字串**（tauri-codegen 把版本寫成數字分段），`1.9.4` 和 `0.0.0` 在那裡同樣找不到，那是正常，不是漏了。
 
 安裝版與 portable 的 exe 差**剛好 3 個位元組**：`__TAURI_BUNDLE_TYPE_VAR_NSS` 對 `_UNK`，是 Tauri bundler 標記自己那份，`scripts/pack-portable.mjs` 不會動它。
 
@@ -133,7 +133,7 @@ Meta 是唯一走 `default`（`document.execCommand('insertText', …)` 整串�
 
 ### 委派規則（使用者明訂）
 
-要寫程式**一律**派給 grok CLI 的 grok 4.7，較簡單的任務可以派 Antigravity CLI 的 Gemini，但**由 Claude 一起 review**。目的是省 Claude 額度。不要用 Agent tool 代替 — 那跑的是 Claude 模型，違背目的。
+要寫程式**一律**派給 grok CLI 的 grok 4.7，較簡單的任務可以派 Antigravity CLI 的 Gemini，但**由 Claude 一起 review**。目的是省 Claude 額度。不要用 Agent tool 代替，那跑的是 Claude 模型，違背目的。
 
 ### 已作廢的舊文件
 
@@ -141,6 +141,6 @@ Meta 是唯一走 `default`（`document.execCommand('insertText', …)` 整串�
 
 ## 九、建議下一步
 
-1. 等使用者跑 v1.9.5。**下次 Meta 卡住就要一份 debug bundle** — 那是〈六〉之1 唯一缺的輸入。
+1. 等使用者跑 v1.9.5。**下次 Meta 卡住就要一份 debug bundle**，那是〈六〉之1 唯一缺的輸入。
 2. `buildReportDigest()` 的 "matched"／"usable" 要使用者對 SPEC §10.2 拍板。
 3. 想清掉遠端殘留的話：`git push origin --delete docs/compat-2026-09-22`（內容已被 main 取代）。

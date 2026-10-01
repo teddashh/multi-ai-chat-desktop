@@ -1,4 +1,4 @@
-# v1.5.1 — Security and release hardening
+# v1.5.1: Security and release hardening
 
 ## Stable maintenance release / 正式維護版本
 

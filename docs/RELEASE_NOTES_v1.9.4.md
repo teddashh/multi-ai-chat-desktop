@@ -1,4 +1,4 @@
-# v1.9.4 — ChatGPT replies reach the app again
+# v1.9.4: ChatGPT replies reach the app again
 
 ## Provider-compatibility patch / Provider 相容性補丁
 
@@ -6,7 +6,7 @@ Multi-AI Chat Desktop `v1.9.4` recovers ChatGPT response capture when the user-t
 
 Multi-AI Chat Desktop `v1.9.4` 會在 ChatGPT 的 user turn 錨點中途離開 DOM 時救回回覆擷取。ChatGPT 畫面上已經回完的內容，不再一路沉默到 600 秒的 host 步驟逾時。
 
-A Windows zh-TW `v1.9.3` Roundtable run showed the failure: Meta finished two speeches, then ChatGPT answered on screen and the app received nothing. `v1.9.3` latched the anchor onto ChatGPT's optimistic user bubble; ChatGPT replaced that bubble with a collapsed `Show more` turn, so the latched node left the document and every live reply failed the follows-the-anchor test. With no chunk, the completion check was never armed, and the turn-completion timeout — which needs captured text before it can fire — stayed disabled.
+A Windows zh-TW `v1.9.3` Roundtable run showed the failure: Meta finished two speeches, then ChatGPT answered on screen and the app received nothing. `v1.9.3` latched the anchor onto ChatGPT's optimistic user bubble; ChatGPT replaced that bubble with a collapsed `Show more` turn, so the latched node left the document and every live reply failed the follows-the-anchor test. With no chunk, the completion check was never armed, and the turn-completion timeout, which needs captured text before it can fire, stayed disabled.
 
 一份 Windows zh-TW 的 `v1.9.3` Roundtable 紀錄重現了這個失敗：Meta 完成兩輪發言後，ChatGPT 在畫面上回了，app 卻什麼都沒收到。`v1.9.3` 把錨點鎖在 ChatGPT 的樂觀 user 泡泡上；ChatGPT 之後用折疊的 `Show more` turn 取代它，被鎖住的節點離開 DOM，所有實際回覆都過不了「必須排在錨點之後」這道檢查。沒有 chunk 就不會啟動完成判斷，而必須先有已擷取文字才會生效的回合逾時也跟著失效。
 

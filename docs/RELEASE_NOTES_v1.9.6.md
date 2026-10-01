@@ -1,4 +1,4 @@
-# v1.9.6 — ChatGPT's Chat/Work layout and signed-out Grok
+# v1.9.6: ChatGPT's Chat/Work layout and signed-out Grok
 
 ## Provider-compatibility patch / Provider 相容性補丁
 

@@ -1,4 +1,4 @@
-# v1.8.4 — Complete responses and bounded Grok login recovery
+# v1.8.4: Complete responses and bounded Grok login recovery
 
 ## Provider-compatibility maintenance / Provider 相容性維護
 

@@ -103,7 +103,7 @@ digest 裡是送出後的畫面：使用者泡泡加上 `[data-testid="anon-payw
 - **fake DOM 的另一個限制**：`querySelectorAll('p')` 仍然只回傳直接子元素，所以測試裡的 `Pro thinking` 段落都掛在 turn 底下當直接子 `p`。
 - **本機暫存**：探測原始資料、給 grok 的 brief、grok 的報告、產物與解包結果都在 `/home/ted-h/tmp-scratch/mac-0930/`（本機，不在 repo）。
 - 這次的程式碼全部由 grok 4.7 寫（三輪），SPEC 修訂、發版說明、README／官網也由 grok 起稿。Claude review、修改措辭、自己重跑 `pnpm verify`，也自己做了負向控制與產物驗證。
-- **CI 比本機慢約 3 倍**：#118 第一次跑 CI 時，本機 `pnpm verify` 全過，CI 卻失敗。三個 Chat/Work 測試超過 vitest 預設的 5 秒：本機每個 1.6–1.8 秒，runner 上整個檔案跑了 25 秒。原因是等待一直沒結束，fake DOM 在每次 10 ms 輪詢時對每個元素重新解析 selector。`1a8d256` 讓 fake DOM 快取解析過的 selector 之後，整個檔案從 8.0 秒降到 0.8 秒，CI 全綠。以後推完 PR 要用 `gh pr checks <n> --watch` 看完才算數。單一測試在本機超過約 1 秒，就要當成 CI 逾時風險：去修成本，不要調高 timeout。
+- **CI 比本機慢約 3 倍**：#118 第一次跑 CI 時，本機 `pnpm verify` 全過，CI 卻失敗。三個 Chat/Work 測試超過 vitest 預設的 5 秒：本機每個 1.6 到 1.8 秒，runner 上整個檔案跑了 25 秒。原因是等待一直沒結束，fake DOM 在每次 10 ms 輪詢時對每個元素重新解析 selector。`1a8d256` 讓 fake DOM 快取解析過的 selector 之後，整個檔案從 8.0 秒降到 0.8 秒，CI 全綠。以後推完 PR 要用 `gh pr checks <n> --watch` 看完才算數。單一測試在本機超過約 1 秒，就要當成 CI 逾時風險：去修成本，不要調高 timeout。
 - **PR 描述裡的關閉關鍵字**：見〈現在停在哪〉的 #115。`"Fixes": #115` 這種寫法也會觸發。
 - 其餘（git 身分、PATH、`--admin` 合併、debug txt 不要 commit、委派規則）同前一份交接〈八〉。
 

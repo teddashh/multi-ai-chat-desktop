@@ -1,4 +1,4 @@
-# v1.8.0 — Focused transcript reading and safer provider views
+# v1.8.0: Focused transcript reading and safer provider views
 
 ## Stable release / 正式版本
 

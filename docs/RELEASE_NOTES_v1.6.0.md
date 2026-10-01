@@ -1,4 +1,4 @@
-# v1.6.0 — Brainstorm and accessibility
+# v1.6.0: Brainstorm and accessibility
 
 ## Stable feature release / 正式功能版本
 
