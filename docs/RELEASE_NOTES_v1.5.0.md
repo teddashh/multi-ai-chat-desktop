@@ -1,4 +1,4 @@
-# v1.5.0 — Reliable sends and calmer session navigation
+# v1.5.0: Reliable sends and calmer session navigation
 
 ## Stable maintenance release / 正式維護版本
 

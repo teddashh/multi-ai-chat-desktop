@@ -1,4 +1,4 @@
-# v1.9.3 — Meta login is recognized
+# v1.9.3: Meta login is recognized
 
 ## Provider-compatibility patch / Provider 相容性補丁
 

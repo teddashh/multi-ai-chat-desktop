@@ -1,4 +1,4 @@
-# v1.6.2 — Complete Brainstorm and provider resilience
+# v1.6.2: Complete Brainstorm and provider resilience
 
 ## Stable maintenance release / 正式維護版本
 

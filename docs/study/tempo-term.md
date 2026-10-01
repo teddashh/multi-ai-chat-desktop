@@ -106,9 +106,9 @@ This is the highest-value area for our multi-AI chat shell.
 
 Each **tab** stores:
 
-- `paneTree: LayoutNode` — recursive binary split tree (`tabsStore.ts:55`, `terminalLayout.ts:39-46`)
-- `activeLeafId` — focused pane (`tabsStore.ts:56`)
-- `paneOrder: string[]` — stable add-order for grid restoration (`tabsStore.ts:57-59`)
+- `paneTree: LayoutNode`: recursive binary split tree (`tabsStore.ts:55`, `terminalLayout.ts:39-46`)
+- `activeLeafId`: focused pane (`tabsStore.ts:56`)
+- `paneOrder: string[]`: stable add-order for grid restoration (`tabsStore.ts:57-59`)
 
 `LayoutNode` is either a **leaf** (one pane with `PaneContent`) or a **split** with `direction: "row" | "col"` and `sizes: [number, number]` (`terminalLayout.ts:39-46`). Immutable tree ops: `splitLeaf`, `wrapTree`, `removeLeaf`, `setSizesById` (`terminalLayout.ts:72-214`).
 
@@ -131,8 +131,8 @@ Each **tab** stores:
 
 ```
 App.tsx (sidebar + main)
-  └─ TabsArea.tsx — lazy tab mount, hidden inactive tabs stay alive
-       └─ PaneTabContent.tsx — one tab's pane tree
+  └─ TabsArea.tsx: lazy tab mount, hidden inactive tabs stay alive
+       └─ PaneTabContent.tsx: one tab's pane tree
 ```
 
 **TabsArea** (`TabsArea.tsx:6-62`): Only active tab mounts on first launch; once visited, tabs stay mounted (hidden) so terminals/sessions survive tab switches.
@@ -148,8 +148,8 @@ App.tsx (sidebar + main)
 
 Two resizer implementations:
 
-1. **Sidebar** — generic `Resizer.tsx` with pointer capture (`Resizer.tsx:12-51`), used in `App.tsx:439-442`
-2. **Pane splits** — custom mousemove handler in `PaneTabContent.tsx:350-380`:
+1. **Sidebar**: generic `Resizer.tsx` with pointer capture (`Resizer.tsx:12-51`), used in `App.tsx:439-442`
+2. **Pane splits**: custom mousemove handler in `PaneTabContent.tsx:350-380`:
    - Tracks dragging splitter id for visual feedback
    - Converts pointer position to fraction within split span
    - Clamps to `MIN_FRACTION=0.1` / `MAX_FRACTION=0.9` (`PaneTabContent.tsx:56-57`)
@@ -167,7 +167,7 @@ Sophisticated drop-zone resolution in `resolveDropZone` (`terminalLayout.ts:294-
 
 Drag sources use dedicated stores (`dragEntry.ts`, `noteDrag.ts`, `sshDrag.ts`) because WKWebView swallows HTML5 drop events when `dragDropEnabled` is on (`PaneTabContent.tsx:495-498`).
 
-### Native webview panes (preview — template for AI chats)
+### Native webview panes (preview: template for AI chats)
 
 `PreviewTabContent` + `useNativePreviewWebview` is the **direct architectural template** for embedding external websites:
 
@@ -197,7 +197,7 @@ Drag sources use dedicated stores (`dragEntry.ts`, `noteDrag.ts`, `sshDrag.ts`) 
 
 ### Bundling targets
 
-- `bundle.targets: "all"` — NSIS `.exe`, MSI, macOS `.app`/`.dmg`, etc. (`tauri.conf.json:59`)
+- `bundle.targets: "all"`: NSIS `.exe`, MSI, macOS `.app`/`.dmg`, etc. (`tauri.conf.json:59`)
 - macOS: Developer ID signing + `entitlements.plist` (`tauri.conf.json:69-72`)
 - Windows: built on `windows-latest` runner (native deps: git2, font-kit, portable-pty) (`windows-build.yml:5-7`)
 
@@ -215,14 +215,14 @@ macOS releases use local `scripts/release.sh` (not CI): builds `aarch64-apple-da
 
 - Plugin: `tauri-plugin-updater` (`Cargo.toml:36`, `lib.rs:80`)
 - Config: pubkey + `https://github.com/mukiwu/tempo-term/releases/latest/download/latest.json` (`tauri.conf.json:48-54`)
-- `createUpdaterArtifacts: true` — signed `.tar.gz` + `.sig` on macOS (`tauri.conf.json:60`)
-- Frontend: `updaterStore.ts` — launch check (5s delay), 6-hour periodic check, modal + toast (`App.tsx:261-277`, `updaterStore.ts:30-35`)
+- `createUpdaterArtifacts: true`: signed `.tar.gz` + `.sig` on macOS (`tauri.conf.json:60`)
+- Frontend: `updaterStore.ts`: launch check (5s delay), 6-hour periodic check, modal + toast (`App.tsx:261-277`, `updaterStore.ts:30-35`)
 - Manifest builder: `scripts/buildManifest.mjs` embeds changelog into `notes` field (`buildManifest.mjs:4-24`)
 - Windows CI restores `notes` after `tauri-action` overwrites `latest.json` (`windows-build.yml:78-94`)
 
 ### Portable build support
 
-**No dedicated portable/zip distribution mode.** The repo uses standard Tauri installers (NSIS, MSI, DMG). The crate `portable-pty` (`Cargo.toml:25`) is the PTY library, not a portable-app packaging strategy. Windows artifacts are installer-based (`windows-build.yml:101-104`). A portable build would need a custom target or extracting NSIS contents — not implemented here.
+**No dedicated portable/zip distribution mode.** The repo uses standard Tauri installers (NSIS, MSI, DMG). The crate `portable-pty` (`Cargo.toml:25`) is the PTY library, not a portable-app packaging strategy. Windows artifacts are installer-based (`windows-build.yml:101-104`). A portable build would need a custom target or extracting NSIS contents (not implemented here).
 
 ---
 
@@ -237,13 +237,13 @@ macOS releases use local `scripts/release.sh` (not CI): builds `aarch64-apple-da
 
 ### Settings
 
-- `settingsStore.ts` — persisted Zustand store (language, theme, zoom, terminal, AI, workspace prefs) (`settingsStore.ts:33-73`)
-- `SettingsModal.tsx` — full-screen overlay modal with `useOverlayGuard` (`SettingsModal.tsx:8-15`)
-- `SettingsView.tsx` — sectioned nav: appearance, terminal, AI, workspace, shortcuts, about (`SettingsView.tsx:14-15`)
+- `settingsStore.ts`: persisted Zustand store (language, theme, zoom, terminal, AI, workspace prefs) (`settingsStore.ts:33-73`)
+- `SettingsModal.tsx`: full-screen overlay modal with `useOverlayGuard` (`SettingsModal.tsx:8-15`)
+- `SettingsView.tsx`: sectioned nav: appearance, terminal, AI, workspace, shortcuts, about (`SettingsView.tsx:14-15`)
 
 ### Command palette
 
-Not a generic command palette — **FileFinder** serves as fuzzy-find palette:
+Not a generic command palette; **FileFinder** serves as fuzzy-find palette:
 
 - Global overlay, ⌘/Ctrl+P (`FileFinder.tsx:18-24`, `App.tsx:384-386`)
 - Fuzzy rank via `fuzzy.ts`; opens files via `openFromSidebar` (`FileFinder.tsx:35-36`)
@@ -255,8 +255,8 @@ Not a generic command palette — **FileFinder** serves as fuzzy-find palette:
 
 | Shortcut | Action |
 |----------|--------|
-| ⌥1–6 | Jump sidebar panel |
-| ⌘1–9 | Switch tab |
+| ⌥1-6 | Jump sidebar panel |
+| ⌘1-9 | Switch tab |
 | ⌘T / ⇧⌘T | Launcher tab / new terminal |
 | ⌘P | File finder |
 | ⌘B | Toggle sidebar |
@@ -284,10 +284,10 @@ Not a generic command palette — **FileFinder** serves as fuzzy-find palette:
 
 | Source | Finding |
 |--------|---------|
-| Root `LICENSE` | **Absent** — no top-level license file in repo |
+| Root `LICENSE` | **Absent**: no top-level license file in repo |
 | `package.json` `license` field | **Absent** (`package.json:1-92`) |
 | GitHub API `license` | **`null`** (no SPDX license on repository) |
-| Subcomponent | `src/assets/icons/catppuccin/LICENSE` — **MIT** (Catppuccin icons only) |
+| Subcomponent | `src/assets/icons/catppuccin/LICENSE`: **MIT** (Catppuccin icons only) |
 
 **Legal assessment:** Without an explicit license from the copyright holder, TempoTerm source is **not open source** under default copyright (all rights reserved). You **cannot legally copy substantial code** into an open-source project without permission or a license grant from the author (mukiwu). You may:
 
@@ -316,17 +316,17 @@ Top 10 concrete assets, ordered by relevance to our multi-AI chat shell.
 | 9 | Resizer component | `src/components/Resizer.tsx` | **S** | Reuse for sidebar + any outer control-pane split; pane splits may keep inline handler |
 | 10 | Theme system | `src/themes/themes.ts`, `applyTheme` | **M** | Trim terminal-specific palettes; keep CSS-variable pattern for unified chrome around webviews |
 
-**Effort key:** S = hours, M = 1–2 days, L = 3+ days with tests.
+**Effort key:** S = hours, M = 1-2 days, L = 3+ days with tests.
 
-**License caveat:** Items 1–10 require **clean-room reimplementation or explicit permission** — do not copy-paste until a license is obtained.
+**License caveat:** Items 1-10 require **clean-room reimplementation or explicit permission**; do not copy-paste until a license is obtained.
 
 ---
 
 ## Key Takeaways for Multi-AI Chat
 
-1. **Native child webviews, not iframes**, bypass X-Frame-Options — required for embedding ChatGPT/Claude/Gemini (`README.md:94`, `useNativePreviewWebview.ts:97-100`).
-2. **Split-pane shell is frontend-only** (immutable tree + absolute positioning) — no Rust changes needed for layout beyond webview create/position.
-3. **Native webviews float above DOM** — must manually hide on overlay/tab switch (`previewWebview.ts:28-38`).
+1. **Native child webviews, not iframes**, bypass X-Frame-Options; required for embedding ChatGPT/Claude/Gemini (`README.md:94`, `useNativePreviewWebview.ts:97-100`).
+2. **Split-pane shell is frontend-only** (immutable tree + absolute positioning); no Rust changes needed for layout beyond webview create/position.
+3. **Native webviews float above DOM**: must manually hide on overlay/tab switch (`previewWebview.ts:28-38`).
 4. **Keyboard routing** must use Tauri menu accelerators when chat webview holds focus (`menu.rs:49-51`).
 5. **Tauri 2 `unstable` feature** enabled for webview child APIs (`Cargo.toml:21`).
-6. **No portable zip build** — plan separate packaging if "portable desktop app" is a hard requirement.
+6. **No portable zip build**: plan separate packaging if "portable desktop app" is a hard requirement.

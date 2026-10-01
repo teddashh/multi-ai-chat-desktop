@@ -1,4 +1,4 @@
-# v1.9.2 — Meta Facebook/Instagram login stays in-pane
+# v1.9.2: Meta Facebook/Instagram login stays in-pane
 
 ## Provider-compatibility patch / Provider 相容性補丁
 

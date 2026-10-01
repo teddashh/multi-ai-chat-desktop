@@ -1,4 +1,4 @@
-# v1.9.1 — Grok Heavy resume timers
+# v1.9.1: Grok Heavy resume timers
 
 ## Provider-compatibility patch / Provider 相容性補丁
 

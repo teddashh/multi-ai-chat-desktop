@@ -1,4 +1,4 @@
-# v1.9.0 — Optional experimental Meta AI standby
+# v1.9.0: Optional experimental Meta AI standby
 
 ## Stable release / 正式版本
 

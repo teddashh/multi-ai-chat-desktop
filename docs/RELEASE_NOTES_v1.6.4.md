@@ -1,4 +1,4 @@
-# v1.6.4 — Provider recovery and expanded real-page focus
+# v1.6.4: Provider recovery and expanded real-page focus
 
 ## Stable maintenance release / 正式維護版本
 

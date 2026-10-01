@@ -1,4 +1,4 @@
-# v1.6.1 — Localized workflows and safer conversations
+# v1.6.1: Localized workflows and safer conversations
 
 ## Stable maintenance release / 正式維護版本
 
