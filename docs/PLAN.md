@@ -31,7 +31,7 @@ This amendment may ship before live guest-access behavior is exhaustively charac
 - Free targets, role assignments, preset readiness, snapshot replay, and restored settings repair themselves to the active four-provider lineup; no workflow silently grows a fifth seat.
 - Bundled, schema-valid `adapters/meta.json` plus bounded Meta navigation/SSO scopes.
 - When Meta needs login, the Focus pane points to email/mobile login if offered and explains that Facebook/Instagram sign-in is not embedded. The guidance does not gate a usable guest composer or promise an email/mobile option.
-- AI-Sister Meta portrait sourced from `teddashh/Multi-Ai-Chatapp` and recorded in the theme notice.
+- AI-Sister Meta portrait sourced from the private AI-Sister web app and recorded in the theme notice.
 - Event log, provider filter, and debug bundle recognize `meta` as **Meta AI**, including provider error/status and adapter-version events, without storing prompt or response bodies.
 
 **Acceptance**
