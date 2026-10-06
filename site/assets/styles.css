@@ -1529,3 +1529,40 @@ code {
     display: none;
   }
 }
+
+/* Flow diagrams. Colors are the site's own tokens. */
+.fd {
+  --fd-surface: var(--paper-strong);
+  --fd-edge: var(--line);
+  --fd-text: var(--ink);
+  --fd-faint: var(--ink-soft);
+  --fd-accent: var(--violet);
+  --fd-accent-ink: color-mix(in srgb, var(--violet) 60%, var(--ink));
+  --fd-warn: color-mix(in srgb, var(--amber) 80%, var(--ink));
+  --fd-info: color-mix(in srgb, var(--blue) 40%, var(--ink));
+  --fd-font: inherit;
+}
+
+.privacy-section .fd,
+.process-section .fd,
+.closing-cta .fd,
+.status-strip .fd {
+  --fd-surface: var(--night-soft);
+  --fd-edge: var(--line-dark);
+  --fd-text: var(--paper);
+  --fd-faint: color-mix(in srgb, var(--paper) 72%, var(--night));
+  --fd-accent: var(--violet-soft);
+  --fd-accent-ink: color-mix(in srgb, var(--violet-soft) 70%, var(--paper));
+  --fd-warn: color-mix(in srgb, var(--amber) 70%, var(--paper));
+  --fd-info: color-mix(in srgb, var(--mint) 55%, var(--paper));
+}
+
+.fd[lang] { display: none; }
+
+html[lang="en"] .fd[lang="en"],
+html[lang="zh-TW"] .fd[lang="zh-TW"],
+html[lang="ja"] .fd[lang="ja"],
+html[lang="de"] .fd[lang="de"],
+html[lang="ko"] .fd[lang="ko"] {
+  display: block;
+}
