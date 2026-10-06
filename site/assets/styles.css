@@ -1566,3 +1566,9 @@ html[lang="de"] .fd[lang="de"],
 html[lang="ko"] .fd[lang="ko"] {
   display: block;
 }
+
+/* Diagram text: Korean keeps whole words, Japanese breaks between phrases,
+   and an intro does not leave one word or character alone on its last line. */
+section:has(figure.fd) .section-heading p { text-wrap: pretty; }
+section:has(figure.fd) :lang(ko) { word-break: keep-all; }
+section:has(figure.fd) :lang(ja) { word-break: auto-phrase; }

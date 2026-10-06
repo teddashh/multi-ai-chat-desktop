@@ -104,10 +104,91 @@
     return lines;
   }
 
+  function isSpace(token) { return /\s/u.test(token); }
+
+  function nonSpaceCount(row) {
+    var count = 0;
+    var i;
+    for (i = 0; i < row.length; i += 1) if (!isSpace(row[i])) count += 1;
+    return count;
+  }
+
+  function isClosingToken(token) { return NO_LINE_START.test(token); }
+
+  /* One wide glyph that is not a closing mark, plus closing marks only,
+     or one Latin token (a word and its punctuation). */
+  function isLone(row) {
+    var body = [];
+    var i;
+    for (i = 0; i < row.length; i += 1) if (!isSpace(row[i])) body.push(row[i]);
+    if (!body.length) return false;
+    if (body.length === 1 && !WIDE.test(body[0])) return true;
+    var wideAt = -1;
+    var wides = 0;
+    for (i = 0; i < body.length; i += 1) {
+      if (WIDE.test(body[i]) && !isClosingToken(body[i])) { wides += 1; wideAt = i; }
+      else if (!isClosingToken(body[i])) return false;
+    }
+    return wides === 1 && wideAt === 0;
+  }
+
+  function sourceSpaceBefore(sourceTokens, nonSpaceIndex) {
+    var seen = 0;
+    var i;
+    for (i = 0; i < sourceTokens.length; i += 1) {
+      if (isSpace(sourceTokens[i])) continue;
+      if (seen === nonSpaceIndex) return i > 0 && isSpace(sourceTokens[i - 1]);
+      seen += 1;
+    }
+    return false;
+  }
+
+  /* Pull tokens onto a lone last line until it is not lone. Stop, and keep
+     the lines from before that pull, when the line above would keep fewer
+     than 2 tokens, the last line would open with a closing mark, or the
+     last line would exceed the budget. */
+  function avoidLone(source, lines, size, budget) {
+    var sourceTokens = tokenise(source);
+    var guard = 0;
+    while (lines.length >= 2 && isLone(lines[lines.length - 1]) && guard < 20) {
+      guard += 1;
+      var above = lines[lines.length - 2].slice();
+      var below = lines[lines.length - 1].slice();
+      function take() {
+        while (above.length && isSpace(above[above.length - 1])) above.pop();
+        if (!above.length) return null;
+        return above.pop();
+      }
+      var token = take();
+      if (token == null) break;
+      var pulled = [token];
+      if (isClosingToken(token)) {
+        var prev = take();
+        if (prev == null) break;
+        pulled.unshift(prev);
+      }
+      if (nonSpaceCount(above) < 2) break;
+      while (above.length && isSpace(above[above.length - 1])) above.pop();
+      var before = 0;
+      var li;
+      for (li = 0; li < lines.length - 1; li += 1) before += nonSpaceCount(lines[li]);
+      var glue = sourceSpaceBefore(sourceTokens, before) ? [" "] : [];
+      var next = pulled.concat(glue).concat(below);
+      var lead = null;
+      var ti;
+      for (ti = 0; ti < next.length; ti += 1) if (!isSpace(next[ti])) { lead = next[ti]; break; }
+      if (!lead || isClosingToken(lead) || advance(next.join(""), size) > budget) break;
+      lines = lines.map(function (row) { return row.slice(); });
+      lines[lines.length - 2] = above;
+      lines[lines.length - 1] = next;
+    }
+    return lines;
+  }
+
   /* A line must not open with a closing mark. When the mark does not fit on the
      line above, the last glyph of that line comes down with it and the overflow
      spills forward, so the width budget still holds. */
-  function wrap(text, size, budget) {
+  function wrapOne(text, size, budget) {
     var lines = greedy(tokenise(text || ""), size, budget);
     var seen = {};
     var guard = 0;
@@ -138,7 +219,43 @@
       }
       lines = lines.filter(function (parts) { return parts.length; });
     }
+    lines = avoidLone(text || "", lines, size, budget);
     return lines.length ? lines.map(function (parts) { return parts.join(""); }) : [text || ""];
+  }
+
+  /* A "\n" from a <br> is a hard break. Parts wrap alone and never share a line. */
+  function wrap(text, size, budget) {
+    var raw = String(text == null ? "" : text);
+    if (raw.indexOf("\n") < 0) return wrapOne(raw, size, budget);
+    var parts = raw.split("\n");
+    var out = [];
+    var i;
+    var j;
+    for (i = 0; i < parts.length; i += 1) {
+      if (parts[i] === "") continue;
+      var wrapped = wrapOne(parts[i], size, budget);
+      for (j = 0; j < wrapped.length; j += 1) out.push(wrapped[j]);
+    }
+    return out.length ? out : [""];
+  }
+
+  /* <br> becomes "\n". Other whitespace, including newlines in the source,
+     collapses to one space. Spaces beside a break are trimmed. */
+  function textWithBreaks(node) {
+    var parts = [""];
+    function walk(el) {
+      var list = el && el.childNodes ? el.childNodes : [];
+      var i;
+      for (i = 0; i < list.length; i += 1) {
+        var child = list[i];
+        if (!child) continue;
+        if (child.nodeType === 3) parts[parts.length - 1] += child.data != null ? child.data : (child.nodeValue || "");
+        else if (child.nodeType === 1 && String(child.nodeName || "").toLowerCase() === "br") parts.push("");
+        else if (child.nodeType === 1) walk(child);
+      }
+    }
+    walk(node);
+    return parts.map(function (part) { return part.replace(/\s+/g, " ").trim(); }).join("\n");
   }
 
   function pad2(index) { return String(index + 1).padStart(2, "0"); }
@@ -510,8 +627,8 @@
       index = index == null || index === "" ? domIndex : Number(index);
       var title = item.querySelector(".fd-title");
       var note = item.querySelector(".fd-note");
-      titles[index] = title ? title.textContent.replace(/\s+/g, " ").trim() : "";
-      notes[index] = note ? note.textContent.replace(/\s+/g, " ").trim() : "";
+      titles[index] = title ? textWithBreaks(title) : "";
+      notes[index] = note ? textWithBreaks(note) : "";
       tones[index] = item.getAttribute("data-tone") || "neutral";
       var chip = item.querySelector(".fd-chip");
       if (chip && !chip.querySelector("svg")) chip.appendChild(iconEl(item.getAttribute("data-icon") || "hub"));
@@ -622,6 +739,7 @@
     renderAll: renderAll,
     plan: plan,
     wrap: wrap,
+    textWithBreaks: textWithBreaks,
     advance: advance,
     tokenise: tokenise,
     statusAt: statusAt,
