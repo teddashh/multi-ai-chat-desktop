@@ -285,6 +285,7 @@
   font-size: 0.82rem;
   line-height: 1.45;
   color: var(--fd-faint, currentColor);
+  text-wrap: pretty;
 }
 
 .fd-link { display: none; }
@@ -318,10 +319,15 @@
 
 .fd > figcaption {
   margin: 0.85rem 0 0;
-  color: var(--fd-faint, currentColor);
+  color: var(--fd-text, currentColor);
+  font-weight: 600;
   font-size: 0.84rem;
   line-height: 1.45;
+  text-wrap: pretty;
 }
+
+/* A diagram's section heading wraps to even lines, never one word alone. */
+section:has(figure.fd) h2 { text-wrap: balance; }
 
 .fd.is-drawn .fd-ticks,
 .fd.is-drawn .fd-zones {
