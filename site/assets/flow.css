@@ -1,0 +1,489 @@
+/* Flow diagrams. Colors come from --fd-* on the figure; an unmapped host
+   falls back to currentColor and Canvas. Every class starts with fd-. */
+
+.fd {
+  container-type: inline-size;
+  container-name: fd;
+  position: relative;
+  margin: 1.75rem 0 0;
+  color: var(--fd-text, currentColor);
+  font-family: var(--fd-font, inherit);
+  --fd-gap: 28px;
+}
+
+.fd-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.fd-svg [data-tone="neutral"] { --fd-tone: var(--fd-faint, currentColor); }
+.fd-svg [data-tone="accent"] { --fd-tone: var(--fd-accent, currentColor); }
+.fd-svg [data-tone="warn"] { --fd-tone: var(--fd-warn, currentColor); }
+.fd-svg [data-tone="info"] { --fd-tone: var(--fd-info, currentColor); }
+
+.fd-box {
+  fill: var(--fd-surface, Canvas);
+  stroke: var(--fd-edge, currentColor);
+  stroke-width: 1;
+}
+
+.fd-svg [data-tone="accent"] .fd-box,
+.fd-svg [data-tone="warn"] .fd-box,
+.fd-svg [data-tone="info"] .fd-box {
+  stroke: color-mix(in srgb, var(--fd-tone) 46%, var(--fd-edge, currentColor));
+}
+
+.fd-svg [data-kind="core"] .fd-box {
+  stroke: color-mix(in srgb, var(--fd-tone, var(--fd-accent, currentColor)) 72%, var(--fd-edge, currentColor));
+  stroke-width: 1.6;
+}
+
+.fd-svg [data-selected="true"] .fd-box {
+  fill: color-mix(in srgb, var(--fd-accent, currentColor) 14%, var(--fd-surface, Canvas));
+  stroke: var(--fd-accent, currentColor);
+}
+
+.fd-lbl {
+  fill: var(--fd-text, currentColor);
+  font-weight: 600;
+}
+
+.fd-lbl-core { font-weight: 800; }
+
+.fd-sub { fill: var(--fd-faint, currentColor); }
+
+.fd-idx,
+.fd-zone,
+.fd-boundary-label,
+.fd-tick,
+.fd-step,
+.fd-status {
+  font-family: var(--fd-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+
+.fd-idx {
+  fill: var(--fd-tone, currentColor);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.fd-svg [data-tone="accent"] .fd-idx {
+  fill: var(--fd-accent-ink, var(--fd-accent, currentColor));
+}
+
+.fd-lane {
+  fill: var(--fd-faint, currentColor);
+  font-weight: 600;
+}
+
+.fd-svg [data-selected="true"] .fd-lane {
+  fill: var(--fd-accent-ink, var(--fd-accent, currentColor));
+}
+
+.fd-zone,
+.fd-boundary-label {
+  fill: var(--fd-faint, currentColor);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.fd-boundary-label { fill: var(--fd-warn, currentColor); }
+
+.fd-boundary {
+  fill: none;
+  stroke: var(--fd-warn, currentColor);
+  stroke-width: 1.4;
+  stroke-opacity: 0.8;
+  stroke-dasharray: 5 9;
+  animation: fd-crawl 2.6s linear infinite;
+}
+
+.fd-wire {
+  fill: none;
+  stroke: var(--fd-edge, currentColor);
+  stroke-width: 1.4;
+}
+
+.fd-flow {
+  fill: none;
+  stroke: var(--fd-accent, currentColor);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-opacity: 0.9;
+  stroke-dasharray: 13 19;
+  animation: fd-flow 2.4s linear infinite;
+}
+
+.fd-flow[data-selected="true"] { stroke-width: 2.6; stroke-opacity: 1; }
+.fd-flow[data-delay="1"] { animation-delay: -0.4s; }
+.fd-flow[data-delay="2"] { animation-delay: -0.8s; }
+.fd-flow[data-delay="3"] { animation-delay: -1.2s; }
+.fd-flow[data-delay="4"] { animation-delay: -1.6s; }
+.fd-flow[data-delay="5"] { animation-delay: -2s; }
+
+.fd-halo {
+  fill: none;
+  stroke: var(--fd-accent, currentColor);
+  stroke-width: 1.6;
+  stroke-opacity: 0.45;
+  stroke-linecap: round;
+  stroke-dasharray: 2 12;
+  animation: fd-orbit 16s linear infinite;
+}
+
+.fd-pulse {
+  fill: var(--fd-accent, currentColor);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fd-pulse 2.6s ease-out infinite;
+}
+
+.fd-bar { fill: color-mix(in srgb, var(--fd-accent, currentColor) 22%, transparent); }
+
+.fd-bar-fill {
+  fill: var(--fd-accent, currentColor);
+  transform: scaleX(0.62);
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: fd-fill 6s ease-in-out infinite;
+}
+
+/* One status line. The old line reaches opacity 0 before the next iteration. */
+.fd-tick,
+.fd-status {
+  animation: fd-tick 2.48s linear infinite;
+}
+
+.fd-tick {
+  fill: var(--fd-accent-ink, var(--fd-accent, currentColor));
+  font-weight: 600;
+}
+
+.fd-status {
+  display: none;
+  margin: 0.85rem 0 0;
+  color: var(--fd-accent-ink, var(--fd-accent, currentColor));
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+@keyframes fd-flow { to { stroke-dashoffset: -64; } }
+@keyframes fd-crawl { to { stroke-dashoffset: -28; } }
+@keyframes fd-orbit { to { stroke-dashoffset: -280; } }
+
+@keyframes fd-pulse {
+  0% { transform: scale(0.55); opacity: 0.75; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+
+@keyframes fd-fill {
+  0%, 100% { transform: scaleX(0.36); }
+  45% { transform: scaleX(0.84); }
+}
+
+@keyframes fd-tick {
+  /* 2480ms: fade 280, hold 1760, out 280, gap 160 */
+  0% { opacity: 0; }
+  11.2903% { opacity: 1; }
+  82.2581% { opacity: 1; }
+  93.5484% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes fd-dash-y { to { background-position: 0 12px; } }
+
+@keyframes fd-travel-y {
+  0% { transform: translateY(0); opacity: 0; }
+  14% { opacity: 1; }
+  82% { opacity: 1; }
+  100% { transform: translateY(var(--fd-gap)); opacity: 0; }
+}
+
+.fd.is-paused .fd-flow,
+.fd.is-paused .fd-halo,
+.fd.is-paused .fd-pulse,
+.fd.is-paused .fd-boundary,
+.fd.is-paused .fd-bar-fill,
+.fd.is-paused .fd-tick,
+.fd.is-paused .fd-status,
+.fd.is-paused .fd-link::before,
+.fd.is-paused .fd-link::after {
+  animation-play-state: paused;
+}
+
+.fd.is-static .fd-tick,
+.fd.is-static .fd-status {
+  animation: none;
+  opacity: 1;
+}
+
+.fd-legend {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--fd-gap);
+  margin: 1.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fd-node {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--fd-edge, currentColor);
+}
+
+.fd-node[data-tone="neutral"] { --fd-tone: var(--fd-faint, currentColor); }
+.fd-node[data-tone="accent"] { --fd-tone: var(--fd-accent-ink, var(--fd-accent, currentColor)); }
+.fd-node[data-tone="warn"] { --fd-tone: var(--fd-warn, currentColor); }
+.fd-node[data-tone="info"] { --fd-tone: var(--fd-info, currentColor); }
+
+.fd-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fd-chip {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--fd-tone, currentColor) 14%, transparent);
+  color: var(--fd-tone, currentColor);
+}
+
+.fd-icon { display: block; }
+
+.fd-step {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--fd-faint, currentColor);
+}
+
+.fd-title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--fd-text, currentColor);
+}
+
+.fd-note {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--fd-faint, currentColor);
+}
+
+.fd-link { display: none; }
+
+.fd-ticks,
+.fd-zones {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fd-ticks li::before { content: "\25B2\00a0"; }
+
+.fd-ticks {
+  color: var(--fd-accent-ink, var(--fd-accent, currentColor));
+  font-family: var(--fd-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.fd-zones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  color: var(--fd-faint, currentColor);
+  font-family: var(--fd-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.fd > figcaption {
+  margin: 0.85rem 0 0;
+  color: var(--fd-faint, currentColor);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.fd.is-drawn .fd-ticks,
+.fd.is-drawn .fd-zones {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.fd-story + .fd-story { margin-top: 3.25rem; }
+.fd-story > h3 { margin: 0 0 0.3rem; }
+.fd-story > p { margin: 0; }
+
+@container fd (max-width: 860px) {
+  .fd { --fd-gap: 22px; }
+
+  .fd-svg { display: none; }
+
+  .fd.is-drawn .fd-status { display: block; }
+
+  .fd.is-drawn .fd-zones {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0 0 0.75rem;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  .fd-legend {
+    grid-auto-flow: row;
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 0;
+  }
+
+  .fd-node {
+    padding: 16px;
+    border: 1px solid var(--fd-edge, currentColor);
+    border-radius: 14px;
+    background: var(--fd-surface, Canvas);
+  }
+
+  .fd-node[data-tone="accent"],
+  .fd-node[data-tone="warn"],
+  .fd-node[data-tone="info"] {
+    border-color: color-mix(in srgb, var(--fd-tone, currentColor) 42%, var(--fd-edge, currentColor));
+  }
+
+  .fd-link {
+    display: block;
+    position: absolute;
+    left: 32px;
+    bottom: calc(-1 * var(--fd-gap));
+    width: 8px;
+    height: var(--fd-gap);
+  }
+
+  .fd-link::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-image: linear-gradient(180deg, var(--fd-edge, currentColor) 0 6px, transparent 6px 12px);
+    background-size: 2px 12px;
+    animation: fd-dash-y 1.6s linear infinite;
+  }
+
+  .fd-link::after {
+    content: "";
+    position: absolute;
+    top: -3px;
+    left: 1px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--fd-accent, currentColor);
+    animation: fd-travel-y 2.8s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fd-flow,
+  .fd-halo,
+  .fd-pulse,
+  .fd-boundary,
+  .fd-bar-fill,
+  .fd-tick,
+  .fd-status,
+  .fd-link::before,
+  .fd-link::after {
+    animation: none;
+  }
+
+  .fd-tick,
+  .fd-status { opacity: 1; }
+
+  .fd-bar-fill { transform: scaleX(0.62); }
+
+  .fd-pulse { opacity: 1; transform: none; }
+
+  .fd-link::after { opacity: 1; transform: none; }
+}
+
+@media (forced-colors: active) {
+  .fd {
+    --fd-surface: Canvas;
+    --fd-edge: CanvasText;
+    --fd-text: CanvasText;
+    --fd-faint: CanvasText;
+    --fd-accent: CanvasText;
+    --fd-accent-ink: CanvasText;
+    --fd-warn: CanvasText;
+    --fd-info: CanvasText;
+    --fd-tone: CanvasText;
+  }
+
+  .fd-svg [data-tone] { --fd-tone: CanvasText; }
+
+  .fd-flow,
+  .fd-halo,
+  .fd-boundary,
+  .fd-wire { stroke: CanvasText; }
+
+  .fd-pulse,
+  .fd-bar-fill,
+  .fd-tick,
+  .fd-idx,
+  .fd-boundary-label { fill: CanvasText; }
+
+  .fd-bar { fill: Canvas; stroke: CanvasText; }
+
+  .fd-svg [data-selected="true"] .fd-box {
+    fill: Canvas;
+    stroke: Highlight;
+    stroke-width: 2.4;
+  }
+
+  .fd-svg [data-selected="true"] .fd-lane,
+  .fd-flow[data-selected="true"] {
+    fill: Highlight;
+    stroke: Highlight;
+  }
+
+  .fd-node {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+
+  .fd-chip {
+    background: Canvas;
+    color: CanvasText;
+    forced-color-adjust: none;
+  }
+}

@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'refs', 'src-tauri/gen', 'src-tauri/target', '.orchestration'] },
+  { ignores: ['dist', 'node_modules', 'refs', 'src-tauri/gen', 'src-tauri/target', '.orchestration',
+    // Vendored from the page kit and kept byte identical.
+    'site/assets/flow.js'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
