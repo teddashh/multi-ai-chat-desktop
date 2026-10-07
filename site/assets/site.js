@@ -502,7 +502,7 @@
       "footer.hub": "Alle Projekte",
       "footer.trademarks": "Anbieternamen und Marken gehören ihren jeweiligen Inhabern; eine Verbindung oder Empfehlung wird nicht behauptet.",
       "flow.ready.kicker": "Erster Start",
-      "flow.ready.title": "Auf deren Seite anmelden",
+      "flow.ready.title": "Auf deren Seite\u00a0anmelden",
       "flow.ready.intro": "v1.9.6 fragt nie nach dem Passwort. Ein Bereich ist Ready nur, wenn sein Eingabefeld Text annimmt.",
       "flow.preset.kicker": "Sechs Presets",
       "flow.preset.title": "Neue Gespräche starten auf Frei",
